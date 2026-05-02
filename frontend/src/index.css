@@ -1,0 +1,376 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+@layer base {
+    :root {
+        --background: 225 25% 97%;
+        --foreground: 225 40% 10%;
+        --card: 0 0% 100%;
+        --card-foreground: 225 40% 10%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 225 40% 10%;
+        --primary: 225 60% 28%;
+        --primary-foreground: 45 60% 80%;
+        --secondary: 225 20% 93%;
+        --secondary-foreground: 225 40% 10%;
+        --muted: 225 20% 93%;
+        --muted-foreground: 225 12% 50%;
+        --accent: 42 65% 52%;
+        --accent-foreground: 225 40% 8%;
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 100%;
+        --success: 160 72% 37%;
+        --success-foreground: 0 0% 100%;
+        --warning: 38 92% 50%;
+        --warning-foreground: 0 0% 100%;
+        --border: 225 20% 88%;
+        --input: 225 20% 88%;
+        --ring: 42 65% 52%;
+        --chart-1: 225 60% 42%;
+        --chart-2: 42 65% 52%;
+        --chart-3: 160 72% 37%;
+        --chart-4: 0 72% 51%;
+        --chart-5: 280 60% 50%;
+        --radius: 1rem;
+    }
+
+    .dark {
+        --background: 228 40% 4%;
+        --foreground: 42 20% 90%;
+        --card: 228 35% 8%;
+        --card-foreground: 42 20% 90%;
+        --popover: 228 35% 8%;
+        --popover-foreground: 42 20% 90%;
+        --primary: 42 65% 52%;
+        --primary-foreground: 228 40% 6%;
+        --secondary: 228 30% 12%;
+        --secondary-foreground: 42 20% 90%;
+        --muted: 228 30% 12%;
+        --muted-foreground: 225 15% 55%;
+        --accent: 225 55% 50%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 0 62% 50%;
+        --destructive-foreground: 0 0% 100%;
+        --success: 160 65% 40%;
+        --success-foreground: 0 0% 100%;
+        --warning: 38 85% 50%;
+        --warning-foreground: 0 0% 100%;
+        --border: 228 25% 14%;
+        --input: 228 25% 14%;
+        --ring: 42 65% 52%;
+        --chart-1: 225 55% 50%;
+        --chart-2: 42 65% 52%;
+        --chart-3: 160 65% 40%;
+        --chart-4: 0 62% 50%;
+        --chart-5: 280 55% 55%;
+    }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Manrope', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    min-height: 100vh;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.25s ease-out;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.font-display {
+    font-family: 'Playfair Display', serif;
+}
+
+code, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* ===== Premium Elite Card System ===== */
+.glass-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+    box-shadow: 0 8px 32px rgba(30, 58, 138, 0.06);
+    transform: translateY(-1px);
+}
+
+.dark .glass-card {
+    background: hsl(228 35% 8% / 0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid hsl(228 25% 16% / 0.6);
+}
+
+.dark .glass-card:hover {
+    box-shadow: 0 8px 40px rgba(201, 168, 76, 0.06), 0 0 0 1px hsl(42 65% 52% / 0.1);
+    border-color: hsl(42 65% 52% / 0.2);
+}
+
+/* ===== Premium Gradients ===== */
+.gradient-primary {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #1e40af 100%);
+}
+
+.gradient-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+}
+
+.hero-gradient {
+    background: linear-gradient(135deg, #080818 0%, #0c1229 40%, #111833 70%, #080818 100%);
+}
+
+.gradient-gold {
+    background: linear-gradient(135deg, #c9a84c 0%, #dbb85c 50%, #b8942f 100%);
+}
+
+.text-gradient-gold {
+    background: linear-gradient(135deg, #c9a84c, #e8cc6a, #c9a84c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.text-gradient-blue {
+    background: linear-gradient(135deg, #3b82f6, #60a5fa, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ===== Specialty Cards ===== */
+.specialty-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.specialty-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, hsl(var(--accent)), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.specialty-card:hover::before {
+    opacity: 1;
+}
+
+.specialty-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(30, 58, 138, 0.08);
+    border-color: hsl(var(--accent) / 0.3);
+}
+
+.dark .specialty-card:hover {
+    box-shadow: 0 12px 40px rgba(201, 168, 76, 0.06);
+    border-color: hsl(42 65% 52% / 0.25);
+}
+
+/* ===== Quiz Choice Buttons ===== */
+.choice-btn {
+    background: hsl(var(--card));
+    border: 2px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.choice-btn:hover:not(:disabled) {
+    border-color: hsl(var(--accent) / 0.5);
+    background: hsl(var(--accent) / 0.05);
+    transform: scale(1.005);
+}
+
+.choice-btn.selected {
+    border-color: hsl(var(--accent));
+    background: hsl(var(--accent) / 0.1);
+    box-shadow: 0 0 0 3px hsl(var(--accent) / 0.15);
+}
+
+.choice-btn.correct {
+    border-color: hsl(var(--success));
+    background: hsl(var(--success) / 0.08);
+    box-shadow: 0 0 0 3px hsl(var(--success) / 0.15);
+}
+
+.choice-btn.incorrect {
+    border-color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.08);
+    box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.15);
+}
+
+/* ===== Stat Cards ===== */
+.stat-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.stat-card:hover::after {
+    opacity: 1;
+}
+
+.stat-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+}
+
+/* ===== Gold Accent Divider ===== */
+.gold-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsl(42 65% 52% / 0.4), transparent);
+}
+
+/* ===== Premium Button Styles ===== */
+.btn-elite {
+    background: linear-gradient(135deg, #c9a84c, #dbb85c);
+    color: #0a0a1a;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-elite:hover {
+    box-shadow: 0 4px 20px rgba(201, 168, 76, 0.3);
+    transform: translateY(-1px);
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+}
+
+/* ===== Notification Badge ===== */
+.notification-badge {
+    background: hsl(var(--destructive));
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    position: absolute;
+    top: -4px;
+    right: -4px;
+}
+
+/* ===== Page Entrance Animation ===== */
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+    animation: slideUp 0.4s ease-out;
+}
+
+/* ===== Premium Active States ===== */
+.active-nav {
+    position: relative;
+}
+
+.active-nav::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 2px;
+    background: hsl(var(--ring));
+    border-radius: 999px;
+}
+
+/* ===== Diamond marker ===== */
+.diamond-marker::before {
+    content: '\u25C6';
+    margin-right: 0.5rem;
+    color: hsl(var(--ring));
+}
+
+/* ===== Print styles ===== */
+@media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .glass-card { box-shadow: none !important; border-radius: 0.75rem; }
+}

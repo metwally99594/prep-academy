@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr" translate="no">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="google" content="notranslate" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0c1229" />
+    <meta name="description" content="PrepAcademy Elite - Medizinische Prüfungsvorbereitung" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PrepAcademy" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo-elite.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>PrepAcademy Elite</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'Manrope',system-ui,sans-serif;background:#06081a}
+      #loading-screen{position:fixed;inset:0;background:linear-gradient(135deg,#06081a,#0c1229,#06081a);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .3s}
+      #loading-screen.hide{opacity:0;pointer-events:none}
+      .loading-logo{width:80px;height:80px;object-fit:contain;margin-bottom:20px}
+      .spinner{width:32px;height:32px;border:2px solid rgba(201,168,76,.15);border-top-color:#c9a84c;border-radius:50%;animation:spin .7s linear infinite;margin-top:16px}
+      .logo-text{color:#c9a84c;font-size:18px;font-weight:600;font-family:'Playfair Display',serif;letter-spacing:0.05em}
+      @keyframes spin{to{transform:rotate(360deg)}}
+    </style>
+  </head>
+  <body class="notranslate">
+    <div id="loading-screen">
+      <img src="%PUBLIC_URL%/logo-elite.png" alt="PrepAcademy" class="loading-logo" />
+      <div class="logo-text">PrepAcademy Elite</div>
+      <div class="spinner"></div>
+    </div>
+    <div id="root"></div>
+    <script>
+      var observer = new MutationObserver(function(m) {
+        if (document.getElementById('root').children.length > 0) {
+          var ls = document.getElementById('loading-screen');
+          if (ls) { ls.classList.add('hide'); setTimeout(function(){ ls.remove(); }, 300); }
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.getElementById('root'), { childList: true });
+      setTimeout(function(){ var ls = document.getElementById('loading-screen'); if(ls) ls.classList.add('hide'); }, 3000);
+    </script>
+    <script>
+      // NUCLEAR UNINSTALL: remove any/all service workers + wipe ALL caches immediately.
+      // Prevents stale cached JS from sabotaging users. If it was ever registered,
+      // force-reload once without it so fresh code is fetched from the network.
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          var hadSW = regs && regs.length > 0;
+          Promise.all((regs || []).map(function(r) { return r.unregister(); })).then(function() {
+            if (window.caches) {
+              caches.keys().then(function(keys) {
+                Promise.all(keys.map(function(k) { return caches.delete(k); })).then(function() {
+                  if (hadSW && !sessionStorage.getItem('__sw_nuked')) {
+                    sessionStorage.setItem('__sw_nuked', '1');
+                    window.location.reload();
+                  }
+                });
+              });
+            }
+          });
+        }).catch(function(){});
+      })();
+    </script>
+  </body>
+</html>
