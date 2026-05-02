@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: medprep-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGO_URL
+        sync: false          # ← ضع MongoDB Atlas connection string هنا
+      - key: DB_NAME
+        value: medprep_prod
+      - key: JWT_SECRET
+        generateValue: true  # Render ينشئها تلقائياً
+      - key: CORS_ORIGINS
+        sync: false          # ← ضع Vercel URL هنا بعد deploy
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ENABLE_ADVANCED_FEATURES
+        value: "false"       # شغّل RAG/DICOM بعد ما تتأكد الـ basic features شغالة
+      - key: HF_HOME
+        value: /tmp/hf_cache
