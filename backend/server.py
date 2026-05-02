@@ -8,7 +8,7 @@ from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
 import asyncio
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+
 
 # Import shared modules
 from database import (
