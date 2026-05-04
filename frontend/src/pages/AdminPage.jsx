@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
+import QuestionTypeFields from "@/components/QuestionTypeFields";
 import { API, useAuth } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
