@@ -541,7 +541,9 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user
     questions = []
     for qid in ch.get("question_ids", []):
         q = await db.questions.find_one({"id": qid}, {"_id": 0, "id": 1, "specialty_id": 1,
-            "question_text": 1, "question_text_de": 1, "choices": 1, "explanation_de": 1})
+            "question_text": 1, "question_text_de": 1, "choices": 1, "explanation_de": 1,
+            "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
+            "blank_text": 1, "blank_answers": 1})
         if q:
             questions.append(q)
 
@@ -729,7 +731,9 @@ async def get_simulation_questions(city: str = "vienna"):
             {"$project": {"_id": 0, "id": 1, "specialty_id": 1, "year": 1,
                          "question_text": 1, "question_text_de": 1, "choices": 1,
                          "choices_de": 1, "correct_answers": 1,
-                         "explanation_de": 1, "exam_location": 1, "image_base64": 1}}
+                         "explanation_de": 1, "exam_location": 1, "image_base64": 1,
+                         "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
+                         "blank_text": 1, "blank_answers": 1, "tags": 1}}
         ]
         questions = await db.questions.aggregate(pipeline).to_list(target)
         all_questions.extend(questions)
@@ -788,9 +792,11 @@ async def get_quiz_questions(
         "_id": 0, "id": 1, "specialty_id": 1, "year": 1,
         "question_text": 1, "question_text_de": 1,
         "choices": 1, "choices_de": 1, "correct_answers": 1,
-        "explanation_de": 1, "exam_location": 1, "image_base64": 1
+        "explanation_de": 1, "exam_location": 1, "image_base64": 1,
+        "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
+        "blank_text": 1, "blank_answers": 1, "tags": 1,
     }
-    
+
     if mode == "study":
         # Study mode: return ALL questions for the specialty
         questions = await db.questions.find(query, project).to_list(5000)
@@ -865,7 +871,9 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
         "_id": 0, "id": 1, "specialty_id": 1, "year": 1,
         "question_text": 1, "question_text_de": 1,
         "choices": 1, "choices_de": 1, "correct_answers": 1,
-        "explanation_de": 1, "exam_location": 1, "image_base64": 1, "tags": 1
+        "explanation_de": 1, "exam_location": 1, "image_base64": 1, "tags": 1,
+        "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
+        "blank_text": 1, "blank_answers": 1,
     }
 
     limit = min(request.limit, 500)

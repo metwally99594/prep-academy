@@ -35,6 +35,9 @@ import {
 } from "lucide-react";
 import AIChat from "@/components/AIChat";
 import ShareResults from "@/components/ShareResults";
+import DragDrop from "@/components/questions/DragDrop";
+import Luckentext from "@/components/questions/Luckentext";
+import MultiSelect from "@/components/questions/MultiSelect";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -87,6 +90,8 @@ export default function QuizPage() {
 
   // NEW: Question navigation & answer tracking
   const [answers, setAnswers] = useState({}); // { questionIndex: { selectedIds: [], result: {}, submitted: bool } }
+  const [dragDropAnswer, setDragDropAnswer] = useState({});
+  const [blankAnswer, setBlankAnswer] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const [showReview, setShowReview] = useState(false);
   const [highlights, setHighlights] = useState({}); // { questionIndex: [{text, color}] }
@@ -198,7 +203,12 @@ export default function QuizPage() {
               ...q,
               choices: (Array.isArray(q.choices) && q.choices.length > 0) ? q.choices : (Array.isArray(q.choices_de) ? q.choices_de : []),
               question_text: q.question_text || q.question_text_de || "",
-            })).filter(q => q.choices && q.choices.length > 0);
+            })).filter(q => {
+              const t = q.question_type || 'single_choice';
+              if (t === 'drag_drop' || t === 'kategorisierung') return (q.drag_drop_items?.length ?? 0) > 0;
+              if (t === 'luckentext') return !!q.blank_text;
+              return (q.choices?.length ?? 0) > 0;
+            });
             setQuestions(normalized);
             sessionStorage.removeItem("customQuizQuestions");
             setLoading(false);
@@ -233,7 +243,12 @@ export default function QuizPage() {
             ...q,
             choices: (Array.isArray(q.choices) && q.choices.length > 0) ? q.choices : (Array.isArray(q.choices_de) ? q.choices_de : []),
             question_text: q.question_text || q.question_text_de || "",
-          })).filter(q => q.choices && q.choices.length > 0);
+          })).filter(q => {
+            const t = q.question_type || 'single_choice';
+            if (t === 'drag_drop' || t === 'kategorisierung') return (q.drag_drop_items?.length ?? 0) > 0;
+            if (t === 'luckentext') return !!q.blank_text;
+            return (q.choices?.length ?? 0) > 0;
+          });
           setQuestions(normalized);
           setLoading(false);
           return;
@@ -251,7 +266,12 @@ export default function QuizPage() {
           ...q,
           choices: (Array.isArray(q.choices) && q.choices.length > 0) ? q.choices : (Array.isArray(q.choices_de) ? q.choices_de : []),
           question_text: q.question_text || q.question_text_de || "",
-        })).filter(q => q.choices && q.choices.length > 0);
+        })).filter(q => {
+          const t = q.question_type || 'single_choice';
+          if (t === 'drag_drop' || t === 'kategorisierung') return (q.drag_drop_items?.length ?? 0) > 0;
+          if (t === 'luckentext') return !!q.blank_text;
+          return (q.choices?.length ?? 0) > 0;
+        });
         setQuestions(normalized);
       } catch (error) {
         console.error("Failed to fetch questions:", error);
@@ -321,15 +341,21 @@ export default function QuizPage() {
   useEffect(() => {
     const saved = answers[currentIndex];
     if (saved && saved.submitted) {
-      setSelectedChoices(saved.selectedIds);
+      setSelectedChoices(saved.selectedIds || []);
+      setDragDropAnswer(saved.dragDropAnswer || {});
+      setBlankAnswer(saved.blankAnswer || "");
       setShowResult(true);
       setResult(saved.result);
     } else if (saved) {
-      setSelectedChoices(saved.selectedIds);
+      setSelectedChoices(saved.selectedIds || []);
+      setDragDropAnswer(saved.dragDropAnswer || {});
+      setBlankAnswer(saved.blankAnswer || "");
       setShowResult(false);
       setResult(null);
     } else {
       setSelectedChoices([]);
+      setDragDropAnswer({});
+      setBlankAnswer("");
       setShowResult(false);
       setResult(null);
     }
@@ -342,9 +368,14 @@ export default function QuizPage() {
 
   const goToQuestion = (idx) => {
     if (idx >= 0 && idx < questions.length) {
-      // Save current selections before navigating
-      if (!answers[currentIndex]?.submitted && selectedChoices.length > 0) {
-        setAnswers(prev => ({ ...prev, [currentIndex]: { ...prev[currentIndex], selectedIds: selectedChoices, submitted: false } }));
+      if (!answers[currentIndex]?.submitted) {
+        const hasProgress = selectedChoices.length > 0 || Object.keys(dragDropAnswer).length > 0 || blankAnswer.length > 0;
+        if (hasProgress) {
+          setAnswers(prev => ({
+            ...prev,
+            [currentIndex]: { ...prev[currentIndex], selectedIds: selectedChoices, dragDropAnswer, blankAnswer, submitted: false }
+          }));
+        }
       }
       if (timerRef.current) clearInterval(timerRef.current);
       setCurrentIndex(idx);
@@ -380,22 +411,40 @@ export default function QuizPage() {
 
   const toggleChoice = (choiceId) => {
     if (showResult) return;
-    const correctCount = currentQuestion?.choices?.filter(c => c.is_correct === true).length || 1;
-    if (correctCount === 1) {
-      setSelectedChoices([choiceId]);
-    } else {
+    const qType = currentQuestion?.question_type || 'single_choice';
+    const isMulti = qType === 'multi_select' || (currentQuestion?.choices?.filter(c => c.is_correct === true).length || 1) > 1;
+    if (isMulti) {
       setSelectedChoices(prev => prev.includes(choiceId) ? prev.filter(id => id !== choiceId) : [...prev, choiceId]);
+    } else {
+      setSelectedChoices([choiceId]);
     }
   };
 
   const submitAnswer = async () => {
-    if (selectedChoices.length === 0) { toast.error("Bitte wählen Sie mindestens eine Antwort"); return; }
+    const qType = currentQuestion?.question_type || 'single_choice';
+    const isDragDrop = qType === 'drag_drop' || qType === 'kategorisierung';
+    const isLuckentext = qType === 'luckentext';
+
+    if (isDragDrop && Object.keys(dragDropAnswer).length === 0) {
+      toast.error("Bitte ordne mindestens einen Begriff zu"); return;
+    }
+    if (isLuckentext && !blankAnswer.trim()) {
+      toast.error("Bitte fülle die Lücke aus"); return;
+    }
+    if (!isDragDrop && !isLuckentext && selectedChoices.length === 0) {
+      toast.error("Bitte wählen Sie mindestens eine Antwort"); return;
+    }
+
     if (timerRef.current) clearInterval(timerRef.current);
     setSubmitting(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post(`${API}/questions/${currentQuestion.id}/answer`,
-        { question_id: currentQuestion.id, selected_choice_ids: selectedChoices }, { headers });
+      const payload = { question_id: currentQuestion.id };
+      if (isDragDrop) payload.drag_drop_answer = dragDropAnswer;
+      else if (isLuckentext) payload.blank_answer = blankAnswer;
+      else payload.selected_choice_ids = selectedChoices;
+
+      const response = await axios.post(`${API}/questions/${currentQuestion.id}/answer`, payload, { headers });
       setResult(response.data);
       setShowResult(true);
       if (response.data.total_xp !== undefined) setLatestXp(response.data.total_xp);
@@ -403,10 +452,17 @@ export default function QuizPage() {
       const isCorrect = response.data.is_correct;
       setScore(prev => ({ correct: prev.correct + (isCorrect ? 1 : 0), total: prev.total + 1 }));
 
-      // Save answer
       setAnswers(prev => ({
         ...prev,
-        [currentIndex]: { selectedIds: selectedChoices, result: response.data, submitted: true, correct: isCorrect, skipped: false }
+        [currentIndex]: {
+          selectedIds: selectedChoices,
+          dragDropAnswer,
+          blankAnswer,
+          result: response.data,
+          submitted: true,
+          correct: isCorrect,
+          skipped: false,
+        }
       }));
 
       if (isCorrect) {
@@ -432,7 +488,8 @@ export default function QuizPage() {
   };
 
   const restartQuiz = () => {
-    setCurrentIndex(0); setSelectedChoices([]); setShowResult(false); setResult(null);
+    setCurrentIndex(0); setSelectedChoices([]); setDragDropAnswer({}); setBlankAnswer("");
+    setShowResult(false); setResult(null);
     setAiExplanation("");
     setRagExplanation(null); setQuizCompleted(false); setScore({ correct: 0, total: 0 });
     setTimeLeft(60); setTotalTimeUsed(0); setAnswers({}); setShowReview(false);
@@ -497,6 +554,13 @@ export default function QuizPage() {
       result = result.replace(new RegExp(`(${escaped})`, 'gi'), `<mark style="background:rgba(201,168,76,0.3);padding:1px 2px;border-radius:3px;">$1</mark>`);
     });
     return result;
+  };
+
+  const canSubmit = () => {
+    const qType = currentQuestion?.question_type || 'single_choice';
+    if (qType === 'drag_drop' || qType === 'kategorisierung') return Object.keys(dragDropAnswer).length > 0;
+    if (qType === 'luckentext') return blankAnswer.trim().length > 0;
+    return selectedChoices.length > 0;
   };
 
   // Counts
@@ -592,33 +656,80 @@ export default function QuizPage() {
             {wrongAnswers.map(([idx, a]) => {
               const q = questions[parseInt(idx)];
               if (!q) return null;
+              const qType = q.question_type || 'single_choice';
               const choices = q.choices || [];
               return (
                 <div key={idx} className="glass-card rounded-xl p-5 border-l-4 border-red-500/40" data-testid={`review-wrong-${idx}`}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>Frage {parseInt(idx) + 1}</span>
                     {q.year && <span className="text-xs text-muted-foreground">{q.year}</span>}
+                    {(qType !== 'single_choice') && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">{qType}</span>
+                    )}
                   </div>
                   <p className="font-medium mb-3 text-sm">{q.question_text_de || q.question_text}</p>
-                  <div className="space-y-2">
-                    {choices.map((c, ci) => {
-                      const isCorrectChoice = a.result?.correct_choice_ids?.includes(c.id) || c.is_correct;
-                      const wasSelected = a.selectedIds.includes(c.id);
-                      let cls = 'bg-muted/30 border-transparent';
-                      if (isCorrectChoice) cls = 'bg-emerald-500/10 border-emerald-500/30';
-                      if (wasSelected && !isCorrectChoice) cls = 'bg-red-500/10 border-red-500/30';
-                      return (
-                        <div key={c.id} className={`flex items-center gap-3 p-2.5 rounded-lg border text-sm ${cls}`}>
-                          <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
-                            isCorrectChoice ? 'bg-emerald-500 text-white' : wasSelected ? 'bg-red-500 text-white' : 'bg-muted text-muted-foreground'
-                          }`}>
-                            {isCorrectChoice ? <Check className="w-3 h-3" /> : wasSelected ? <X className="w-3 h-3" /> : String.fromCharCode(65 + ci)}
-                          </span>
-                          <span className={isCorrectChoice ? 'font-medium' : ''}>{c.text_de || c.text}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+
+                  {/* drag_drop / kategorisierung review */}
+                  {(qType === 'drag_drop' || qType === 'kategorisierung') && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Richtige Zuordnung:</p>
+                      {(q.drag_drop_items || []).map(item => {
+                        const correctCat = (q.drag_drop_categories || []).find(c => c.id === item.correct_category);
+                        const userCatId = a.dragDropAnswer?.[item.id];
+                        const userCat = (q.drag_drop_categories || []).find(c => c.id === userCatId);
+                        const itemCorrect = userCatId === item.correct_category;
+                        return (
+                          <div key={item.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs border ${itemCorrect ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                            {itemCorrect ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" /> : <X className="w-3 h-3 text-red-400 flex-shrink-0" />}
+                            <span className="font-medium">{item.text}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="text-emerald-400 font-medium">{correctCat?.text || '?'}</span>
+                            {!itemCorrect && userCat && (
+                              <span className="text-red-400 ml-auto">(du: {userCat.text})</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* luckentext review */}
+                  {qType === 'luckentext' && (
+                    <div className="space-y-2">
+                      <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-sm">
+                        <span className="text-muted-foreground">Deine Antwort: </span>
+                        <span className="text-red-400 font-semibold line-through">{a.blankAnswer || '—'}</span>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-sm">
+                        <span className="text-muted-foreground">Richtige Antwort: </span>
+                        <span className="text-emerald-400 font-semibold">{(q.blank_answers || []).join(' / ')}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* single_choice / multi_select review */}
+                  {(qType === 'single_choice' || qType === 'multi_select') && (
+                    <div className="space-y-2">
+                      {choices.map((c, ci) => {
+                        const isCorrectChoice = a.result?.correct_choice_ids?.includes(c.id) || c.is_correct;
+                        const wasSelected = (a.selectedIds || []).includes(c.id);
+                        let cls = 'bg-muted/30 border-transparent';
+                        if (isCorrectChoice) cls = 'bg-emerald-500/10 border-emerald-500/30';
+                        if (wasSelected && !isCorrectChoice) cls = 'bg-red-500/10 border-red-500/30';
+                        return (
+                          <div key={c.id} className={`flex items-center gap-3 p-2.5 rounded-lg border text-sm ${cls}`}>
+                            <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
+                              isCorrectChoice ? 'bg-emerald-500 text-white' : wasSelected ? 'bg-red-500 text-white' : 'bg-muted text-muted-foreground'
+                            }`}>
+                              {isCorrectChoice ? <Check className="w-3 h-3" /> : wasSelected ? <X className="w-3 h-3" /> : String.fromCharCode(65 + ci)}
+                            </span>
+                            <span className={isCorrectChoice ? 'font-medium' : ''}>{c.text_de || c.text}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {a.result?.explanation && (
                     <div className="mt-3 p-3 rounded-lg bg-muted/30 text-xs text-muted-foreground">
                       <strong>Erklärung:</strong> {a.result.explanation}
@@ -757,32 +868,58 @@ export default function QuizPage() {
             <div className="mb-6"><img src={currentQuestion.image_base64} alt="Question" className="question-image mx-auto" /></div>
           )}
 
-          {/* Choices */}
-          <div className="space-y-3">
-            {(currentQuestion?.choices || []).map((choice, index) => (
-              <button key={choice.id} onClick={() => toggleChoice(choice.id)} disabled={showResult}
-                className={`choice-btn w-full text-left p-4 rounded-xl flex items-center gap-4 ${getChoiceClass(choice)}`}
-                data-testid={`choice-${index}`}>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
-                  getChoiceClass(choice) === "correct" ? "bg-emerald-500 text-white border-emerald-500"
-                  : getChoiceClass(choice) === "incorrect" ? "bg-red-500 text-white border-red-500"
-                  : selectedChoices.includes(choice.id) ? "border-[#c9a84c] text-[#c9a84c]" : "border-muted-foreground/30 text-muted-foreground"
-                }`}>
-                  {getChoiceClass(choice) === "correct" ? <Check className="w-4 h-4" />
-                  : getChoiceClass(choice) === "incorrect" ? <X className="w-4 h-4" />
-                  : String.fromCharCode(65 + index)}
-                </div>
-                <p className="flex-1 font-medium select-text" onMouseUp={handleTextSelect}
-                  dangerouslySetInnerHTML={{ __html: renderHighlightedText(choice.text_de || choice.text || "") }} />
-              </button>
-            ))}
-          </div>
+          {/* Answer area – rendered by question type */}
+          {(currentQuestion?.question_type === 'drag_drop' || currentQuestion?.question_type === 'kategorisierung') ? (
+            <DragDrop
+              question={currentQuestion}
+              submitted={showResult}
+              answer={dragDropAnswer}
+              onChange={setDragDropAnswer}
+              result={result}
+            />
+          ) : currentQuestion?.question_type === 'luckentext' ? (
+            <Luckentext
+              question={currentQuestion}
+              submitted={showResult}
+              answer={blankAnswer}
+              onChange={setBlankAnswer}
+              result={result}
+            />
+          ) : currentQuestion?.question_type === 'multi_select' ? (
+            <MultiSelect
+              question={currentQuestion}
+              submitted={showResult}
+              selectedChoices={selectedChoices}
+              onToggle={toggleChoice}
+              result={result}
+            />
+          ) : (
+            <div className="space-y-3">
+              {(currentQuestion?.choices || []).map((choice, index) => (
+                <button key={choice.id} onClick={() => toggleChoice(choice.id)} disabled={showResult}
+                  className={`choice-btn w-full text-left p-4 rounded-xl flex items-center gap-4 ${getChoiceClass(choice)}`}
+                  data-testid={`choice-${index}`}>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
+                    getChoiceClass(choice) === "correct" ? "bg-emerald-500 text-white border-emerald-500"
+                    : getChoiceClass(choice) === "incorrect" ? "bg-red-500 text-white border-red-500"
+                    : selectedChoices.includes(choice.id) ? "border-[#c9a84c] text-[#c9a84c]" : "border-muted-foreground/30 text-muted-foreground"
+                  }`}>
+                    {getChoiceClass(choice) === "correct" ? <Check className="w-4 h-4" />
+                    : getChoiceClass(choice) === "incorrect" ? <X className="w-4 h-4" />
+                    : String.fromCharCode(65 + index)}
+                  </div>
+                  <p className="flex-1 font-medium select-text" onMouseUp={handleTextSelect}
+                    dangerouslySetInnerHTML={{ __html: renderHighlightedText(choice.text_de || choice.text || "") }} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           {!(currentAnswer?.submitted) ? (
-            <Button onClick={submitAnswer} size="lg" className="w-full sm:w-auto gap-2" disabled={submitting || selectedChoices.length === 0} data-testid="submit-answer-btn">
+            <Button onClick={submitAnswer} size="lg" className="w-full sm:w-auto gap-2" disabled={submitting || !canSubmit()} data-testid="submit-answer-btn">
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               Antwort bestätigen
             </Button>
