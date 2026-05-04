@@ -1429,3 +1429,29 @@ export default function AdminPage() {
               <div className="text-center py-12 text-muted-foreground">
                 <Copy className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p>Klicken Sie auf "Scannen" um Duplikate zu finden</p>
+                      </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <AdminReportsTab token={token} />
+        </TabsContent>
+
+        <TabsContent value="tags">
+          <AdminTagsTab token={token} />
+        </TabsContent>
+
+        <TabsContent value="podcast">
+          <AdminPodcastTab token={token} />
+        </TabsContent>
+
+        {process.env.REACT_APP_ADVANCED === "true" && (
+          <TabsContent value="rag">
+            <AdminRagTab token={token} />
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+}
