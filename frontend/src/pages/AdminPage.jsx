@@ -95,14 +95,12 @@ const SPECIALTIES = [
   { id: "special", name: "Special" },
 ];
 
-// Cities for exam location
 const CITIES = [
   { id: "vienna", name: "Wien" },
   { id: "innsbruck", name: "Innsbruck" },
   { id: "andere", name: "Andere Stadt" },
 ];
 
-// Years from 2009 to current year + 5
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: currentYear - 2009 + 6 }, (_, i) => 2009 + i);
 
@@ -112,6 +110,7 @@ const emptyQuestion = {
   exam_location: "vienna",
   question_text: "",
   question_text_de: "",
+  question_type: "single_choice",
   choices: [
     { id: "1", text: "", text_de: "", is_correct: false },
     { id: "2", text: "", text_de: "", is_correct: false },
@@ -119,15 +118,14 @@ const emptyQuestion = {
     { id: "4", text: "", text_de: "", is_correct: false },
     { id: "5", text: "", text_de: "", is_correct: false },
   ],
-question_type: "single_choice",
-    explanation: "",
-    drag_drop_items: [],
-    drag_drop_categories: [],
-    blank_text: "",
-    blank_answers: [],
+  explanation: "",
   explanation_de: "",
   image_base64: "",
   tags: [],
+  drag_drop_items: [],
+  drag_drop_categories: [],
+  blank_text: "",
+  blank_answers: [],
 };
 
 function ImportQuestionsTab({ token, onImportComplete }) {
@@ -212,12 +210,6 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     "image_base64": "data:image/png;base64,..."
   }
 ]`}</pre>
-        <p className="text-xs text-muted-foreground mt-2">
-          IDs: surgery, internal, ophthalmology, dermatology, ent, obgyn, neurology, emergency, pediatrics, psychiatry
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Orte: vienna, innsbruck, andere
-        </p>
       </div>
       {!file ? (
         <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-primary/30 rounded-2xl cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-all" data-testid="import-dropzone">
@@ -277,11 +269,6 @@ function ImportQuestionsTab({ token, onImportComplete }) {
                   <div className="text-xs text-muted-foreground">Gesamt in DB</div>
                 </div>
               </div>
-              {result.errors?.length > 0 && (
-                <div className="text-xs text-red-500 mt-2">
-                  {result.errors.map((e, i) => <div key={i}>{e}</div>)}
-                </div>
-              )}
             </div>
           )}
           {!result && (
@@ -335,10 +322,8 @@ export default function AdminPage() {
   useEffect(() => {
     fetchData();
     axios.get(`${API}/tags`).then(r => setAllTags(r.data)).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Handle ?edit=question_id from reports page
   useEffect(() => {
     const editQId = searchParams.get("edit");
     if (editQId && token) {
@@ -348,25 +333,21 @@ export default function AdminPage() {
         setActiveTab("questions");
         setSearchParams({});
       }).catch(() => {
-        // Fallback: find in loaded questions
         const q = questions.find(q => q.id === editQId);
         if (q) { editQuestion(q); setActiveTab("questions"); }
         setSearchParams({});
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, token]);
 
   useEffect(() => {
     setQuestionPage(0);
     setSelectedQuestions([]);
     fetchQuestions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterSpecialty, filterCity, token]);
 
   useEffect(() => {
     fetchQuestions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questionPage]);
 
   const fetchData = async () => {
@@ -382,7 +363,6 @@ export default function AdminPage() {
       setUsers(usersRes.data);
       setLeaderboard(leaderboardRes.data);
       setOnlineUsers(onlineRes.data);
-      // Load first page of questions separately
       await fetchQuestions();
     } catch (error) {
       console.error("Failed to fetch admin data:", error);
@@ -433,27 +413,30 @@ export default function AdminPage() {
       return;
     }
 
-    const hasCorrectAnswer = formData.choices.some(c => c.is_correct);
-    if (!hasCorrectAnswer) {
-      toast.error("Bitte markieren Sie mindestens eine richtige Antwort");
-      return;
+    const questionType = formData.question_type || "single_choice";
+    
+    if (questionType === "single_choice" || questionType === "multi_select") {
+      const hasCorrectAnswer = formData.choices.some(c => c.is_correct);
+      if (!hasCorrectAnswer) {
+        toast.error("Bitte markieren Sie mindestens eine richtige Antwort");
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
       
-      // Use German text for both fields
       const payload = {
         ...formData,
-        question_text: formData.question_text_de, // Copy German to main field
+        question_text: formData.question_text_de,
         choices: formData.choices
           .filter(c => c.text_de.trim() !== "")
           .map(c => ({
             ...c,
-            text: c.text_de // Copy German to main field
+            text: c.text_de
           })),
-        explanation: formData.explanation_de // Copy German to main field
+        explanation: formData.explanation_de
       };
 
       if (editingQuestion) {
@@ -490,6 +473,7 @@ export default function AdminPage() {
     ];
     
     setFormData({
+      ...emptyQuestion,
       ...question,
       question_text_de: question.question_text_de || question.question_text,
       explanation_de: question.explanation_de || question.explanation,
@@ -645,7 +629,6 @@ export default function AdminPage() {
     setDialogOpen(true);
   };
 
-  // Export questions to PDF
   const exportQuestionsToPDF = async (specialtyFilter = null, cityFilter = null) => {
     setExportingPDF(true);
     setExportProgress('Fragen laden...');
@@ -661,12 +644,10 @@ export default function AdminPage() {
       const date = new Date(exported_at).toLocaleDateString('de-DE');
       const cityLabel = cityFilter === 'vienna' ? ' - Wien' : cityFilter === 'innsbruck' ? ' - Innsbruck' : '';
 
-      // Create hidden container for rendering
       const container = document.createElement('div');
       container.style.cssText = 'position:fixed;top:-99999px;left:0;width:800px;background:#fff;font-family:Arial,sans-serif;padding:40px;';
       document.body.appendChild(container);
 
-      // Group questions by specialty
       const grouped = {};
       exportedQuestions.forEach((q) => {
         const specName = q.specialty_name || 'Unbekannt';
@@ -680,7 +661,6 @@ export default function AdminPage() {
       const margin = 10;
       const usableW = pageW - margin * 2;
 
-      // --- Header page ---
       const headerDiv = document.createElement('div');
       headerDiv.style.cssText = 'width:800px;padding:60px 40px;background:#fff;text-align:center;';
       headerDiv.innerHTML = `
@@ -700,7 +680,6 @@ export default function AdminPage() {
       pdf.addImage(headerImgData, 'JPEG', margin, margin, usableW, headerImgH);
       container.removeChild(headerDiv);
 
-      // --- Questions as images ---
       let globalIndex = 0;
       const specNames = Object.keys(grouped);
 
@@ -708,7 +687,6 @@ export default function AdminPage() {
         const specName = specNames[si];
         const specQuestions = grouped[specName];
 
-        // Specialty header
         pdf.addPage();
         const specDiv = document.createElement('div');
         specDiv.style.cssText = 'width:800px;padding:20px 40px;background:#fff;';
@@ -726,7 +704,6 @@ export default function AdminPage() {
           const q = specQuestions[qi];
           const choicesArr = (Array.isArray(q.choices) && q.choices.length > 0) ? q.choices : (Array.isArray(q.choices_de) ? q.choices_de : []);
           const correctAnswers = q.correct_answers || [];
-
           const locName = q.exam_location === 'vienna' ? 'Wien' : q.exam_location === 'innsbruck' ? 'Innsbruck' : (q.exam_location || '');
 
           let choicesHTML = choicesArr.map((c, i) => {
@@ -737,7 +714,6 @@ export default function AdminPage() {
           }).join('');
 
           const imageHTML = q.image_base64 ? `<div style="margin:10px 0;"><img src="${q.image_base64}" style="max-width:380px;max-height:280px;border-radius:8px;border:1px solid #e5e7eb;" /></div>` : '';
-
           const explanationHTML = (q.explanation_de || q.explanation) ? `<div style="margin-top:10px;padding:10px;background:#fef3c7;border-radius:6px;font-size:13px;"><strong>Erklärung:</strong> ${q.explanation_de || q.explanation}</div>` : '';
 
           const qDiv = document.createElement('div');
@@ -763,7 +739,6 @@ export default function AdminPage() {
           const qRatio = qCanvas.height / qCanvas.width;
           const qImgH = usableW * qRatio;
 
-          // Check if fits on current page
           if (yPos + qImgH > pageH - margin) {
             pdf.addPage();
             yPos = margin;
@@ -774,17 +749,9 @@ export default function AdminPage() {
         }
       }
 
-      // Footer on last page
-      const footerY = pdf.internal.pageSize.getHeight() - 15;
-      pdf.setFontSize(9);
-      pdf.setTextColor(150);
-      pdf.text('Generiert von Prep Academy - Medizinische Prüfungsvorbereitung', pageW / 2, footerY, { align: 'center' });
-
-      // Cleanup and save
       document.body.removeChild(container);
       const fileName = `PrepAcademy_Export${cityLabel.replace(/ /g,'_')}_${date.replace(/\./g,'-')}.pdf`;
       pdf.save(fileName);
-
       toast.success(`${total} Fragen als PDF exportiert`);
     } catch (error) {
       console.error("Failed to export questions:", error);
@@ -805,7 +772,6 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-xl bg-primary/10">
@@ -824,7 +790,6 @@ export default function AdminPage() {
         </Link>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="glass-card rounded-xl p-6" data-testid="admin-stat-users">
           <div className="flex items-center gap-3 mb-2">
@@ -849,7 +814,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="questions" className="gap-2">
@@ -896,7 +860,6 @@ export default function AdminPage() {
           )}
         </TabsList>
 
-        {/* Questions Tab */}
         <TabsContent value="questions">
           <div className="glass-card rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
@@ -992,6 +955,23 @@ export default function AdminPage() {
                         </div>
                       </div>
 
+                      {/* ✅ NEW: Fragetyp Dropdown */}
+                      <div className="space-y-2">
+                        <Label>Fragetyp *</Label>
+                        <select
+                          className="w-full border border-input rounded-md p-2 bg-background text-foreground"
+                          value={formData.question_type || "single_choice"}
+                          onChange={(e) => setFormData(prev => ({ ...prev, question_type: e.target.value }))}
+                          data-testid="form-question-type"
+                        >
+                          <option value="single_choice">Single Choice (eine richtige Antwort)</option>
+                          <option value="multi_select">Multi Select (mehrere richtige Antworten)</option>
+                          <option value="drag_drop">Drag & Drop</option>
+                          <option value="kategorisierung">Kategorisierung</option>
+                          <option value="luckentext">Lückentext</option>
+                        </select>
+                      </div>
+
                       <div className="space-y-2">
                         <Label>Fragetext *</Label>
                         <Textarea
@@ -1033,31 +1013,39 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* Choices */}
-                      <div className="space-y-4">
-                        <Label>Antwortmöglichkeiten (richtige Antworten markieren)</Label>
-                        {formData.choices.map((choice, index) => (
-                          <div key={index} className="flex items-center gap-3">
-                            <Switch
-                              checked={choice.is_correct}
-                              onCheckedChange={(v) => updateChoice(index, "is_correct", v)}
-                              data-testid={`form-choice-correct-${index}`}
-                            />
-                            <span className="w-6 text-center font-medium text-muted-foreground">
-                              {String.fromCharCode(65 + index)}
-                            </span>
-                            <Input
-                              value={choice.text_de}
-                              onChange={(e) => updateChoice(index, "text_de", e.target.value)}
-                              placeholder={`Antwort ${String.fromCharCode(65 + index)}`}
-                              className="flex-1"
-                              data-testid={`form-choice-text-${index}`}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                      {/* ✅ Choices - only show for single_choice and multi_select */}
+                      {(formData.question_type === "single_choice" || formData.question_type === "multi_select" || !formData.question_type) && (
+                        <div className="space-y-4">
+                          <Label>Antwortmöglichkeiten (richtige Antworten markieren)</Label>
+                          {formData.choices.map((choice, index) => (
+                            <div key={index} className="flex items-center gap-3">
+                              <Switch
+                                checked={choice.is_correct}
+                                onCheckedChange={(v) => updateChoice(index, "is_correct", v)}
+                                data-testid={`form-choice-correct-${index}`}
+                              />
+                              <span className="w-6 text-center font-medium text-muted-foreground">
+                                {String.fromCharCode(65 + index)}
+                              </span>
+                              <Input
+                                value={choice.text_de}
+                                onChange={(e) => updateChoice(index, "text_de", e.target.value)}
+                                placeholder={`Antwort ${String.fromCharCode(65 + index)}`}
+                                className="flex-1"
+                                data-testid={`form-choice-text-${index}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                      {/* Explanation */}
+                      {/* ✅ NEW: QuestionTypeFields for drag_drop, kategorisierung, luckentext */}
+                      <QuestionTypeFields
+                        questionType={formData.question_type}
+                        formData={formData}
+                        setFormData={setFormData}
+                      />
+
                       <div className="space-y-2">
                         <Label>Erklärung (optional)</Label>
                         <Textarea
@@ -1069,7 +1057,6 @@ export default function AdminPage() {
                         />
                       </div>
 
-                      {/* Tags */}
                       {allTags.length > 0 && (
                         <div className="space-y-2" data-testid="form-tags-section">
                           <Label className="flex items-center gap-1.5">
@@ -1133,14 +1120,12 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Bulk Actions Bar */}
             {selectedQuestions.length > 0 && (
               <div className="flex items-center justify-between flex-wrap gap-3 p-3 mb-4 bg-blue-500/10 border border-blue-500/20 rounded-xl" data-testid="bulk-actions-bar">
                 <span className="text-sm font-medium">
                   {selectedQuestions.length} Frage(n) ausgewählt
                 </span>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Bulk City Update */}
                   <Select onValueChange={async (city) => {
                     try {
                       const headers = { Authorization: `Bearer ${token}` };
@@ -1160,7 +1145,6 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
 
-                  {/* Bulk Delete */}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="sm" className="gap-2" disabled={bulkDeleting} data-testid="bulk-delete-btn">
@@ -1172,7 +1156,7 @@ export default function AdminPage() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>{selectedQuestions.length} Fragen löschen</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Sind Sie sicher, dass Sie {selectedQuestions.length} Fragen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.
+                          Sind Sie sicher, dass Sie {selectedQuestions.length} Fragen löschen möchten?
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -1187,7 +1171,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Questions Table */}
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1244,22 +1227,12 @@ export default function AdminPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => editQuestion(question)}
-                              data-testid={`edit-question-${index}`}
-                            >
+                            <Button variant="ghost" size="icon" onClick={() => editQuestion(question)} data-testid={`edit-question-${index}`}>
                               <Pencil className="w-4 h-4" />
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-red-500 hover:text-red-400"
-                                  data-testid={`delete-question-${index}`}
-                                >
+                                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-400" data-testid={`delete-question-${index}`}>
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -1267,15 +1240,12 @@ export default function AdminPage() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Frage löschen</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Sind Sie sicher, dass Sie diese Frage löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.
+                                    Sind Sie sicher, dass Sie diese Frage löschen möchten?
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => deleteQuestion(question.id)}
-                                    className="bg-red-500 hover:bg-red-600"
-                                  >
+                                  <AlertDialogAction onClick={() => deleteQuestion(question.id)} className="bg-red-500 hover:bg-red-600">
                                     Löschen
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -1290,43 +1260,26 @@ export default function AdminPage() {
               </Table>
             </div>
 
-            {/* Pagination */}
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setQuestionPage(p => Math.max(0, p - 1))}
-                disabled={questionPage === 0}
-                data-testid="prev-page-btn"
-              >
+              <Button variant="outline" size="sm" onClick={() => setQuestionPage(p => Math.max(0, p - 1))} disabled={questionPage === 0} data-testid="prev-page-btn">
                 Zurück
               </Button>
               <span className="text-sm text-muted-foreground">
                 Seite {questionPage + 1} · {questions.length} Ergebnisse
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setQuestionPage(p => p + 1)}
-                disabled={questions.length < PAGE_SIZE}
-                data-testid="next-page-btn"
-              >
+              <Button variant="outline" size="sm" onClick={() => setQuestionPage(p => p + 1)} disabled={questions.length < PAGE_SIZE} data-testid="next-page-btn">
                 Weiter
               </Button>
             </div>
           </div>
         </TabsContent>
 
-        {/* Users Tab */}
         <TabsContent value="users">
           <div className="glass-card rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">Benutzer verwalten</h2>
-              <span className="text-sm text-muted-foreground">
-                {users.length} Benutzer
-              </span>
+              <span className="text-sm text-muted-foreground">{users.length} Benutzer</span>
             </div>
-
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1342,645 +1295,137 @@ export default function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                        Keine Benutzer vorhanden
+                  {users.map((user, index) => (
+                    <TableRow key={user.id} data-testid={`user-row-${index}`}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          {user.picture ? (
+                            <img src={user.picture} alt="" className="w-8 h-8 rounded-full" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                              <Users className="w-4 h-4 text-primary" />
+                            </div>
+                          )}
+                          <span className="font-medium">{user.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell><div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground" /><span>{user.email}</span></div></TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${user.auth_provider === 'google' ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                          {user.auth_provider === 'google' ? 'Google' : 'E-Mail'}
+                        </span>
+                      </TableCell>
+                      <TableCell><div className="flex items-center gap-2 text-sm text-muted-foreground"><Calendar className="w-4 h-4" />{new Date(user.created_at).toLocaleDateString('de-DE')}</div></TableCell>
+                      <TableCell>{user.is_admin ? <span className="flex items-center gap-1 text-amber-500 text-sm"><Shield className="w-4 h-4" />Admin</span> : <span className="text-sm text-muted-foreground">Benutzer</span>}</TableCell>
+                      <TableCell className="text-center">
+                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.notebook_enabled} onCheckedChange={() => toggleNotebook(user.id)} data-testid={`notebook-toggle-${index}`} />}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.analyzer_enabled} onCheckedChange={() => toggleAnalyzer(user.id)} data-testid={`analyzer-toggle-${index}`} />}
+                      </TableCell>
+                      <TableCell>
+                        {!user.is_admin && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-400" data-testid={`delete-user-${index}`}><Trash2 className="w-4 h-4" /></Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Benutzer löschen</AlertDialogTitle>
+                                <AlertDialogDescription>Sind Sie sicher, dass Sie "{user.name}" löschen möchten?</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteUser(user.id)} className="bg-red-500 hover:bg-red-600">Löschen</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    users.map((user, index) => (
-                      <TableRow key={user.id} data-testid={`user-row-${index}`}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {user.picture ? (
-                              <img src={user.picture} alt="" className="w-8 h-8 rounded-full" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                                <Users className="w-4 h-4 text-primary" />
-                              </div>
-                            )}
-                            <span className="font-medium">{user.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Mail className="w-4 h-4 text-muted-foreground" />
-                            <span>{user.email}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                            user.auth_provider === 'google' 
-                              ? 'bg-blue-500/10 text-blue-500' 
-                              : 'bg-emerald-500/10 text-emerald-500'
-                          }`}>
-                            {user.auth_provider === 'google' ? 'Google' : 'E-Mail'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="w-4 h-4" />
-                            {new Date(user.created_at).toLocaleDateString('de-DE')}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {user.is_admin ? (
-                            <span className="flex items-center gap-1 text-amber-500 text-sm">
-                              <Shield className="w-4 h-4" />
-                              Admin
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">Benutzer</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {user.is_admin ? (
-                            <span className="text-xs text-amber-500 flex items-center justify-center gap-1">
-                              <BookOpen className="w-3.5 h-3.5" />
-                              Immer
-                            </span>
-                          ) : (
-                            <Switch
-                              checked={!!user.notebook_enabled}
-                              onCheckedChange={() => toggleNotebook(user.id)}
-                              data-testid={`notebook-toggle-${index}`}
-                            />
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {user.is_admin ? (
-                            <span className="text-xs text-amber-500 flex items-center justify-center gap-1">
-                              <Activity className="w-3.5 h-3.5" />
-                              Immer
-                            </span>
-                          ) : (
-                            <Switch
-                              checked={!!user.analyzer_enabled}
-                              onCheckedChange={() => toggleAnalyzer(user.id)}
-                              data-testid={`analyzer-toggle-${index}`}
-                            />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {!user.is_admin && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-red-500 hover:text-red-400"
-                                  data-testid={`delete-user-${index}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Benutzer löschen</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Sind Sie sicher, dass Sie den Benutzer "{user.name}" löschen möchten? Alle Daten werden gelöscht und diese Aktion kann nicht rückgängig gemacht werden.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => deleteUser(user.id)}
-                                    className="bg-red-500 hover:bg-red-600"
-                                  >
-                                    Löschen
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </div>
           </div>
         </TabsContent>
 
-        {/* Leaderboard Tab */}
         <TabsContent value="leaderboard">
-          <div className="grid gap-6">
-            {/* Online Users */}
-            <div className="glass-card rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
-                  <Wifi className="w-5 h-5 text-emerald-500" />
-                  Online-Status
-                </h2>
-                <Button variant="ghost" size="sm" onClick={fetchData}>
-                  Aktualisieren
-                </Button>
-              </div>
-              
-              {onlineUsers.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  Keine Aktivitätsdaten vorhanden
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {onlineUsers.map((activity, index) => (
-                    <div 
-                      key={index} 
-                      className={`p-3 rounded-xl border ${
-                        activity.is_online 
-                          ? 'border-emerald-500/30 bg-emerald-500/5' 
-                          : 'border-border bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {activity.is_online ? (
-                          <Wifi className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <WifiOff className="w-4 h-4 text-muted-foreground" />
-                        )}
-                        <span className="font-medium text-sm truncate">{activity.name}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1 truncate">
-                        {activity.email}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Leaderboard Table */}
-            <div className="glass-card rounded-2xl p-6">
-              <h2 className="text-xl font-semibold flex items-center gap-2 mb-6">
-                <Trophy className="w-5 h-5 text-amber-500" />
-                Benutzer-Rangliste
-              </h2>
-              
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">#</TableHead>
-                      <TableHead>Benutzer</TableHead>
-                      <TableHead className="text-center">Fragen</TableHead>
-                      <TableHead className="text-center">Richtig</TableHead>
-                      <TableHead className="text-center">Falsch</TableHead>
-                      <TableHead className="text-center">Genauigkeit</TableHead>
+          <div className="glass-card rounded-2xl p-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2 mb-6">
+              <Trophy className="w-5 h-5 text-amber-500" />
+              Benutzer-Rangliste
+            </h2>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">#</TableHead>
+                    <TableHead>Benutzer</TableHead>
+                    <TableHead className="text-center">Fragen</TableHead>
+                    <TableHead className="text-center">Richtig</TableHead>
+                    <TableHead className="text-center">Falsch</TableHead>
+                    <TableHead className="text-center">Genauigkeit</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaderboard.map((user, index) => (
+                    <TableRow key={user.id} data-testid={`leaderboard-row-${index}`}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center"><Users className="w-4 h-4 text-primary" /></div>
+                          <div><p className="font-medium">{user.name}</p><p className="text-xs text-muted-foreground">{user.email}</p></div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-medium">{user.total_questions}</TableCell>
+                      <TableCell className="text-center text-emerald-500 font-medium">{user.correct_answers}</TableCell>
+                      <TableCell className="text-center text-red-500 font-medium">{user.wrong_answers}</TableCell>
+                      <TableCell className="text-center"><span className="text-sm font-medium">{Math.round(user.accuracy || 0)}%</span></TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {leaderboard.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          Keine Daten vorhanden
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      leaderboard.map((user, index) => (
-                        <TableRow key={user.id} data-testid={`leaderboard-row-${index}`}>
-                          <TableCell>
-                            {index < 3 ? (
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                index === 0 ? 'bg-amber-500/20 text-amber-500' :
-                                index === 1 ? 'bg-gray-400/20 text-gray-500' :
-                                'bg-orange-500/20 text-orange-500'
-                              }`}>
-                                <Trophy className="w-4 h-4" />
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">{index + 1}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              {user.picture ? (
-                                <img src={user.picture} alt="" className="w-8 h-8 rounded-full" />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                                  <Users className="w-4 h-4 text-primary" />
-                                </div>
-                              )}
-                              <div>
-                                <p className="font-medium">{user.name}</p>
-                                <p className="text-xs text-muted-foreground">{user.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center font-medium">
-                            {user.total_questions}
-                          </TableCell>
-                          <TableCell className="text-center text-emerald-500 font-medium">
-                            {user.correct_answers}
-                          </TableCell>
-                          <TableCell className="text-center text-red-500 font-medium">
-                            {user.wrong_answers}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-primary rounded-full" 
-                                  style={{ width: `${Math.min(user.accuracy || 0, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-medium">
-                                {Math.round(user.accuracy || 0)}%
-                              </span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
         </TabsContent>
 
-        {/* Export Tab */}
         <TabsContent value="export">
           <div className="glass-card rounded-2xl p-6">
             <h2 className="text-xl font-semibold flex items-center gap-2 mb-6">
               <Download className="w-5 h-5 text-primary" />
               Fragen exportieren
             </h2>
-            
-            <div className="grid gap-4">
-              <p className="text-muted-foreground">
-                Exportieren Sie Fragen als PDF zum Drucken oder Teilen.
-              </p>
-              
-              {exportingPDF && exportProgress && (
-                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg" data-testid="export-progress">
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                  <span className="text-sm text-blue-700 font-medium">{exportProgress}</span>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Export All */}
-                <Button
-                  onClick={() => exportQuestionsToPDF()}
-                  disabled={exportingPDF}
-                  className="h-auto p-4 flex flex-col items-center gap-2"
-                  data-testid="export-all-btn"
-                >
-                  {exportingPDF ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                  ) : (
-                    <Download className="w-6 h-6" />
-                  )}
-                  <span>Alle Fragen exportieren</span>
-                  <span className="text-xs opacity-70">
-                    {adminStats?.total_questions || 0} Fragen
-                  </span>
-                </Button>
-                
-                {/* Export by Specialty with City split */}
-                {SPECIALTIES.map(spec => {
-                  const total = adminStats?.questions_by_specialty?.[spec.id] || 0;
-                  if (total === 0) return null;
-                  return (
-                    <div key={spec.id} className="border rounded-xl p-4 space-y-2" data-testid={`export-${spec.id}-section`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <FileQuestion className="w-4 h-4 text-primary" />
-                        <span className="font-medium text-sm">{spec.name}</span>
-                        <span className="text-xs text-muted-foreground">({total})</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => exportQuestionsToPDF(spec.id)}
-                          disabled={exportingPDF}
-                          className="text-xs h-8"
-                          data-testid={`export-${spec.id}-all`}
-                        >
-                          Alle
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => exportQuestionsToPDF(spec.id, "vienna")}
-                          disabled={exportingPDF}
-                          className="text-xs h-8 border-blue-500/30 text-blue-500 hover:bg-blue-500/10"
-                          data-testid={`export-${spec.id}-wien`}
-                        >
-                          Wien
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => exportQuestionsToPDF(spec.id, "innsbruck")}
-                          disabled={exportingPDF}
-                          className="text-xs h-8 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
-                          data-testid={`export-${spec.id}-innsbruck`}
-                        >
-                          Innsbruck
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+            {exportingPDF && exportProgress && (
+              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                <span className="text-sm text-blue-700 font-medium">{exportProgress}</span>
               </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Button onClick={() => exportQuestionsToPDF()} disabled={exportingPDF} className="h-auto p-4 flex flex-col items-center gap-2" data-testid="export-all-btn">
+                {exportingPDF ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
+                <span>Alle Fragen exportieren</span>
+                <span className="text-xs opacity-70">{adminStats?.total_questions || 0} Fragen</span>
+              </Button>
             </div>
           </div>
         </TabsContent>
 
-        {/* Import Tab */}
         <TabsContent value="import">
-          <ImportQuestionsTab token={token} onImportComplete={() => {
-            fetchData();
-            fetchQuestions();
-          }} />
+          <ImportQuestionsTab token={token} onImportComplete={() => { fetchData(); fetchQuestions(); }} />
         </TabsContent>
 
-        {/* Duplicates Tab */}
         <TabsContent value="duplicates">
-          <div className="glass-card rounded-2xl p-6" data-testid="duplicates-section">
+          <div className="glass-card rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-semibold">Duplikate finden</h2>
-                <p className="text-sm text-muted-foreground mt-1">Doppelte Fragen erkennen und entfernen</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Select value={dupeFilter} onValueChange={(v) => { setDupeFilter(v); }}>
-                  <SelectTrigger className="w-48" data-testid="dupe-filter-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Fachgebiete</SelectItem>
-                    {SPECIALTIES.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button onClick={fetchDuplicates} disabled={loadingDupes} className="gap-2" data-testid="scan-dupes-btn">
-                  {loadingDupes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
-                  Scannen
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="default" disabled={merging || loadingDupes} className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white" data-testid="smart-merge-btn">
-                      {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      Smart Merge
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Smart Merge ausführen?</AlertDialogTitle>
-                      <AlertDialogDescription className="space-y-2">
-                        <span className="block">Für jede Duplikat-Gruppe wird automatisch:</span>
-                        <span className="block">1. Die vollständigste Frage behalten (mit Erklärung, Bild, Antworten)</span>
-                        <span className="block">2. Fehlende Daten aus Kopien in die beste Frage übernommen</span>
-                        <span className="block">3. Alle übrigen Kopien gelöscht</span>
-                        <span className="block font-medium text-amber-600 mt-2">Dieser Vorgang kann nicht rückgängig gemacht werden.</span>
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                      <AlertDialogAction onClick={smartMergeDupes} className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700">
-                        Smart Merge starten
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
+              <h2 className="text-xl font-semibold">Duplikate finden</h2>
+              <Button onClick={fetchDuplicates} disabled={loadingDupes} className="gap-2">
+                {loadingDupes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                Scannen
+              </Button>
             </div>
-
-            {loadingDupes && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-              </div>
-            )}
-
-            {duplicates && !loadingDupes && (
-              <>
-                {/* Merge Result */}
-                {mergeResult && (
-                  <div className="mb-6 p-4 bg-violet-500/10 border border-violet-500/20 rounded-xl" data-testid="merge-result">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-5 h-5 text-violet-600" />
-                      <span className="font-semibold text-violet-700">Smart Merge abgeschlossen</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div className="text-center p-2 bg-violet-500/10 rounded-lg">
-                        <div className="text-lg font-bold text-violet-600">{mergeResult.merged_groups}</div>
-                        <div className="text-xs text-muted-foreground">Gruppen zusammengeführt</div>
-                      </div>
-                      <div className="text-center p-2 bg-red-500/10 rounded-lg">
-                        <div className="text-lg font-bold text-red-600">{mergeResult.deleted_count}</div>
-                        <div className="text-xs text-muted-foreground">Kopien gelöscht</div>
-                      </div>
-                    </div>
-                    {mergeResult.details && mergeResult.details.length > 0 && (
-                      <details className="text-sm">
-                        <summary className="cursor-pointer text-violet-600 hover:underline">Details anzeigen ({mergeResult.details.length} Gruppen)</summary>
-                        <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
-                          {mergeResult.details.map((d, i) => (
-                            <div key={i} className="flex items-center gap-2 text-xs p-1.5 bg-background rounded">
-                              <span className="text-red-500 font-mono">-{d.deleted_count}</span>
-                              <span className="truncate flex-1">{d.text_preview}</span>
-                              {d.merged_fields.length > 0 && (
-                                <span className="px-1.5 py-0.5 bg-green-500/10 text-green-600 rounded text-[10px] whitespace-nowrap">
-                                  +{d.merged_fields.join(", ")}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                )}
-
-                {/* Summary */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
-                    <div className="text-2xl font-bold text-amber-600">{duplicates.total_duplicate_groups}</div>
-                    <div className="text-sm text-muted-foreground">Duplikat-Gruppen</div>
-                  </div>
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-center">
-                    <div className="text-2xl font-bold text-red-600">{duplicates.total_extra_copies}</div>
-                    <div className="text-sm text-muted-foreground">Zusätzliche Kopien</div>
-                  </div>
-                </div>
-
-                {duplicates.total_duplicate_groups > 0 && (
-                  <>
-                    {/* Action Bar */}
-                    <div className="flex items-center justify-between mb-4 p-3 bg-muted/50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <Button variant="outline" size="sm" onClick={autoSelectDupes} className="gap-2" data-testid="auto-select-dupes-btn">
-                          <span className={`w-4 h-4 rounded border-2 inline-flex items-center justify-center ${selectedDupes.length > 0 ? "bg-primary border-primary text-white" : "border-muted-foreground"}`}>
-                            {selectedDupes.length > 0 && <span className="text-xs">✓</span>}
-                          </span>
-                          Kopien automatisch markieren
-                        </Button>
-                        <span className="text-sm text-muted-foreground">
-                          {selectedDupes.length > 0 ? `${selectedDupes.length} markiert` : "Behält jeweils die erste Frage"}
-                        </span>
-                      </div>
-                      {selectedDupes.length > 0 && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm" className="gap-2" disabled={bulkDeleting} data-testid="delete-dupes-btn">
-                              {bulkDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                              {selectedDupes.length} Duplikate löschen
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{selectedDupes.length} Duplikate löschen</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Sind Sie sicher? Die markierten Kopien werden gelöscht. Die erste Frage jeder Gruppe bleibt erhalten.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                              <AlertDialogAction onClick={bulkDeleteDupes} className="bg-red-500 hover:bg-red-600">
-                                Löschen
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </div>
-
-                    {/* Duplicate Groups */}
-                    <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                      {duplicates.groups.map((group, gi) => {
-                        const isExpanded = expandedGroup === gi;
-                        return (
-                        <div key={gi} className="border rounded-xl overflow-hidden" data-testid={`dupe-group-${gi}`}>
-                          {/* Group Header - clickable to expand */}
-                          <button
-                            onClick={() => setExpandedGroup(isExpanded ? null : gi)}
-                            className="w-full flex items-center gap-2 p-4 hover:bg-muted/30 transition-colors text-left"
-                            data-testid={`dupe-group-toggle-${gi}`}
-                          >
-                            <span className={`transition-transform ${isExpanded ? "rotate-90" : ""}`}>&#9654;</span>
-                            <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 rounded text-xs font-medium">
-                              {group.count}x
-                            </span>
-                            <span className="text-sm font-medium truncate flex-1">{group._id?.substring(0, 120) || "Kein Text"}</span>
-                          </button>
-
-                          {/* Expanded Review */}
-                          {isExpanded && (
-                            <div className="border-t p-4 space-y-3 bg-muted/10">
-                              {group.questions.map((q, qi) => {
-                                const isFirst = qi === 0;
-                                const isSelected = selectedDupes.includes(q.id);
-                                const choicesArr = (Array.isArray(q.choices) && q.choices.length > 0) ? q.choices : (Array.isArray(q.choices_de) ? q.choices_de : []);
-                                return (
-                                  <div
-                                    key={q.id}
-                                    className={`p-4 rounded-xl border-2 ${
-                                      isFirst ? "border-green-500/30 bg-green-500/5" : isSelected ? "border-red-500/30 bg-red-500/5" : "border-border bg-background"
-                                    }`}
-                                    data-testid={`dupe-item-${gi}-${qi}`}
-                                  >
-                                    {/* Header */}
-                                    <div className="flex items-center gap-3 mb-3">
-                                      {isFirst ? (
-                                        <span className="px-2 py-0.5 bg-green-500/10 text-green-600 rounded text-xs font-semibold whitespace-nowrap">Original</span>
-                                      ) : (
-                                        <Checkbox
-                                          checked={isSelected}
-                                          onCheckedChange={() => setSelectedDupes(prev => prev.includes(q.id) ? prev.filter(id => id !== q.id) : [...prev, q.id])}
-                                          data-testid={`dupe-check-${gi}-${qi}`}
-                                        />
-                                      )}
-                                      <span className="px-2 py-0.5 bg-primary/10 text-primary rounded text-xs">{q.specialty_id}</span>
-                                      <span className="text-xs text-muted-foreground">{q.year || "—"}</span>
-                                      <span className="text-xs text-muted-foreground">{q.exam_location || "—"}</span>
-                                      <span className="text-xs text-muted-foreground font-mono ml-auto">{q.id?.substring(0, 12)}...</span>
-                                    </div>
-
-                                    {/* Full Question Text */}
-                                    <p className="text-sm font-medium mb-3">{q.question_text_de || q.question_text || "Kein Text"}</p>
-
-                                    {/* Choices */}
-                                    {choicesArr.length > 0 && (
-                                      <div className="space-y-1.5 mb-2">
-                                        {choicesArr.map((c, ci) => (
-                                          <div
-                                            key={ci}
-                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs ${
-                                              c.is_correct ? "bg-green-500/10 border border-green-500/20" : "bg-muted/50"
-                                            }`}
-                                          >
-                                            <span className="font-bold">{String.fromCharCode(65 + ci)}.</span>
-                                            <span className="flex-1">{c.text_de || c.text || ""}</span>
-                                            {c.is_correct && <span className="text-green-600 font-bold">&#10003;</span>}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-
-                                    {/* Correct Answers */}
-                                    {q.correct_answers && q.correct_answers.length > 0 && choicesArr.length === 0 && (
-                                      <div className="text-xs text-muted-foreground">
-                                        Richtig: {q.correct_answers.join(", ")}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {duplicates.total_duplicate_groups === 0 && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Copy className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">Keine Duplikate gefunden!</p>
-                    <p className="text-sm">Alle Fragen sind einzigartig.</p>
-                  </div>
-                )}
-              </>
-            )}
-
             {!duplicates && !loadingDupes && (
               <div className="text-center py-12 text-muted-foreground">
                 <Copy className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p>Klicken Sie auf "Scannen" um Duplikate zu finden</p>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Reports Tab */}
-        <TabsContent value="reports">
-          <AdminReportsTab token={token} />
-        </TabsContent>
-
-        {/* Tags Tab */}
-        <TabsContent value="tags">
-          <AdminTagsTab token={token} />
-        </TabsContent>
-
-        {/* Daily Podcast Tab */}
-        <TabsContent value="podcast">
-          <AdminPodcastTab token={token} />
-        </TabsContent>
-
-        {/* RAG Knowledge Base Tab */}
-        {process.env.REACT_APP_ADVANCED === "true" && (
-          <TabsContent value="rag">
-            <AdminRagTab token={token} />
-          </TabsContent>
-        )}
-      </Tabs>
-    </div>
-  );
-}
