@@ -1051,7 +1051,21 @@ async def submit_answer(question_id: str, answer: AnswerSubmit, user: dict = Dep
     if not correct_ids:
         # Fall back to correct_answers list (used by imported questions)
         correct_ids = question.get("correct_answers", [])
-    is_correct = set(answer.selected_choice_ids) == set(correct_ids) if correct_ids else False
+    question_type = question.get("question_type", "single_choice")
+    if question_type == "drag_drop" or question_type == "kategorisierung":
+        if answer.drag_drop_answer:
+            items = question.get("drag_drop_items", [])
+            is_correct = all(answer.drag_drop_answer.get(item["id"]) == item["correct_category"] for item in items)
+        else:
+            is_correct = False
+    elif question_type == "luckentext":
+        if answer.blank_answer:
+            correct_blanks = question.get("blank_answers", [])
+            is_correct = any(answer.blank_answer.strip().lower() == b.strip().lower() for b in correct_blanks)
+        else:
+            is_correct = False
+    else:
+        is_correct = set(answer.selected_choice_ids) == set(correct_ids) if correct_ids else False
     
     # Update user stats
     stats = await db.user_stats.find_one({"user_id": user["id"]})
