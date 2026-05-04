@@ -4,7 +4,35 @@ from pydantic import BaseModel
 from typing import List, Optional
 import uuid, os, json
 from datetime import datetime, timezone
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+except ImportError:
+    from openai import AsyncOpenAI as _OAI
+
+    class UserMessage:
+        def __init__(self, text: str):
+            self.text = text
+
+    class _Chat:
+        def __init__(self, api_key, session_id, system_message):
+            self._client = _OAI(api_key=api_key)
+            self._system = system_message
+            self._model = "gpt-4o"
+
+        def with_model(self, provider, model):
+            self._model = model
+            return self
+
+        async def send_message(self, msg):
+            r = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[{"role": "system", "content": self._system},
+                          {"role": "user", "content": msg.text}],
+            )
+            return r.choices[0].message.content
+
+    def LlmChat(api_key, session_id, system_message):  # noqa: N802
+        return _Chat(api_key=api_key, session_id=session_id, system_message=system_message)
 
 from database import db, logger
 from auth import get_current_user

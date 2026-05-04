@@ -24,7 +24,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import httpx
-import edge_tts
+import io
+from gtts import gTTS
 
 logger = logging.getLogger("daily-podcast")
 
@@ -157,19 +158,29 @@ def _split_speaker_parts(script: str):
     return parts
 
 
+_GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
+
+
 async def _synthesize_podcast(script: str, language: str) -> str:
-    """Generate base64 MP3 with alternating voices."""
-    mod_voice, exp_voice = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])
+    """Generate base64 MP3 using gTTS (works on cloud servers unlike edge-tts)."""
+    lang = _GTTS_LANG.get(language, "de")
     parts = _split_speaker_parts(script)
+    loop = asyncio.get_event_loop()
     audio_chunks = []
-    for speaker, text in parts:
+
+    for _, text in parts:
         if not text:
             continue
-        voice = mod_voice if speaker == "moderator" else exp_voice
-        comm = edge_tts.Communicate(text=text[:2500], voice=voice, rate="-3%")
-        async for ck in comm.stream():
-            if ck["type"] == "audio":
-                audio_chunks.append(ck["data"])
+        text = text[:2500]
+
+        def _render(t=text, l=lang):
+            buf = io.BytesIO()
+            gTTS(text=t, lang=l, slow=False).write_to_fp(buf)
+            return buf.getvalue()
+
+        chunk = await loop.run_in_executor(None, _render)
+        audio_chunks.append(chunk)
+
     return base64.b64encode(b"".join(audio_chunks)).decode("ascii") if audio_chunks else ""
 
 
