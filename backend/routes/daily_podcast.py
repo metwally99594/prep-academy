@@ -13,6 +13,7 @@ This generates value EVERY morning without using the Emergent budget for image A
 of fresh content for SEO and re-engagement.
 """
 import os
+import re
 import uuid
 import asyncio
 import logging
@@ -100,9 +101,10 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
     """Call Qwen3-235B via OpenRouter. Returns text or None."""
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
+        logger.error("OPENROUTER_API_KEY not set — cannot generate podcast")
         return None
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             r = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -119,11 +121,19 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
                     ],
                     "max_tokens": max_tokens,
                     "temperature": 0.7,
+                    "thinking": {"type": "disabled"},
                 },
             )
             data = r.json()
+            if "error" in data:
+                logger.error(f"OpenRouter API error: {data['error']}")
+                return None
             if "choices" in data and data["choices"]:
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"] or ""
+                # Strip Qwen3 thinking blocks if thinking mode leaked through
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+                return content if content else None
+            logger.error(f"OpenRouter unexpected response (no choices): {str(data)[:300]}")
     except Exception as e:
         logger.warning(f"Qwen call failed: {e}")
     return None
@@ -165,7 +175,7 @@ async def _synthesize_podcast(script: str, language: str) -> str:
     """Generate base64 MP3 using gTTS (works on cloud servers unlike edge-tts)."""
     lang = _GTTS_LANG.get(language, "de")
     parts = _split_speaker_parts(script)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     audio_chunks = []
 
     for _, text in parts:
@@ -178,9 +188,14 @@ async def _synthesize_podcast(script: str, language: str) -> str:
             gTTS(text=t, lang=l, slow=False).write_to_fp(buf)
             return buf.getvalue()
 
-        chunk = await loop.run_in_executor(None, _render)
-        audio_chunks.append(chunk)
+        try:
+            chunk = await loop.run_in_executor(None, _render)
+            audio_chunks.append(chunk)
+        except Exception as e:
+            logger.warning(f"gTTS chunk failed for lang={language}: {e}")
 
+    if not audio_chunks:
+        logger.error(f"gTTS produced no audio chunks for language={language}")
     return base64.b64encode(b"".join(audio_chunks)).decode("ascii") if audio_chunks else ""
 
 
