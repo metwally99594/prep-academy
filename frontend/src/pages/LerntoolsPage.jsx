@@ -86,44 +86,61 @@ export default function LerntoolsPage() {
 
   const headers = { Authorization: `Bearer ${token}` };
 
+  const pollJob = async (jobId, maxRetries = 60) => {
+    for (let i = 0; i < maxRetries; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const res = await axios.get(`${API}/learn/job/${jobId}`, { headers });
+      if (res.data.status === "done") return res.data.result;
+      if (res.data.status === "error") throw new Error(res.data.error || "AI-Fehler");
+    }
+    throw new Error("Timeout: Analyse dauert zu lange");
+  };
+
   const generateStudyGuide = async () => {
     setLoading(true); setGuideContent("");
     try {
-      const res = await axios.post(`${API}/learn/study-guide`, { specialty_id: specialty || null, topic: topic || null, language, model: "gpt-4o" }, { headers, timeout: 120000 });
-      setGuideContent(res.data.content);
-      toast.success(`Lernleitfaden erstellt (${res.data.question_count} Fragen)`);
-    } catch (e) { toast.error(e.response?.data?.detail || "Fehler"); }
+      const res = await axios.post(`${API}/learn/study-guide`, { specialty_id: specialty || null, topic: topic || null, language, model: "gpt-4o" }, { headers, timeout: 15000 });
+      const result = await pollJob(res.data.job_id);
+      setGuideContent(result.content);
+      toast.success("Lernleitfaden erstellt");
+    } catch (e) { toast.error(e.response?.data?.detail || e.message || "Fehler"); }
     finally { setLoading(false); }
   };
 
   const generateFlashcards = async () => {
     setLoading(true); setCards([]); setCardIdx(0); setFlipped(false);
     try {
-      const res = await axios.post(`${API}/learn/flashcards`, { specialty_id: specialty || null, topic: topic || null, count: 10, language, model: "gpt-4o" }, { headers, timeout: 120000 });
-      setCards(res.data.cards || []);
-      toast.success(`${res.data.count} Lernkarten erstellt`);
-    } catch (e) { toast.error(e.response?.data?.detail || "Fehler"); }
+      const res = await axios.post(`${API}/learn/flashcards`, { specialty_id: specialty || null, topic: topic || null, count: 10, language, model: "gpt-4o" }, { headers, timeout: 15000 });
+      const result = await pollJob(res.data.job_id);
+      setCards(result.cards || []);
+      toast.success(`${result.count || result.cards?.length || 0} Lernkarten erstellt`);
+    } catch (e) { toast.error(e.response?.data?.detail || e.message || "Fehler"); }
     finally { setLoading(false); }
   };
 
   const generateAudio = async () => {
     setLoading(true); setAudioData(null);
     try {
-      const res = await axios.post(`${API}/learn/audio-overview`, { specialty_id: specialty || null, topic: topic || null, language, voice }, { headers, timeout: 180000 });
-      setAudioData(res.data);
-      if (res.data.audio_base64) toast.success("Audio-Podcast erstellt!");
+      const scriptRes = await axios.post(`${API}/learn/audio-script`, { specialty_id: specialty || null, topic: topic || null, language, voice }, { headers, timeout: 15000 });
+      const scriptResult = await pollJob(scriptRes.data.job_id);
+      const ttsRes = await axios.post(`${API}/learn/audio-tts`, {
+        audio_id: scriptResult.id, script: scriptResult.script, voice, language, podcast_mode: true,
+      }, { headers, timeout: 90000 });
+      setAudioData({ script: scriptResult.script, audio_base64: ttsRes.data.audio_base64, question_count: 0 });
+      if (ttsRes.data.audio_base64) toast.success("Audio-Podcast erstellt!");
       else toast.warning("Skript erstellt, aber Audio fehlgeschlagen");
-    } catch (e) { toast.error(e.response?.data?.detail || "Fehler"); }
+    } catch (e) { toast.error(e.response?.data?.detail || e.message || "Fehler"); }
     finally { setLoading(false); }
   };
 
   const generateMindMap = async () => {
     setLoading(true); setMindMap(null);
     try {
-      const res = await axios.post(`${API}/learn/mind-map`, { specialty_id: specialty || null, topic: topic || null, language, model: "gpt-4o" }, { headers, timeout: 120000 });
-      setMindMap(res.data.mind_map);
+      const res = await axios.post(`${API}/learn/mind-map`, { specialty_id: specialty || null, topic: topic || null, language, model: "gpt-4o" }, { headers, timeout: 15000 });
+      const result = await pollJob(res.data.job_id);
+      setMindMap(result.mind_map);
       toast.success("Mind Map erstellt!");
-    } catch (e) { toast.error(e.response?.data?.detail || "Fehler"); }
+    } catch (e) { toast.error(e.response?.data?.detail || e.message || "Fehler"); }
     finally { setLoading(false); }
   };
 

@@ -316,9 +316,12 @@ async def get_guest_questions(specialty_id: Optional[str] = None, count: int = 5
         {"$match": query},
         {"$sample": {"size": count}},
         {"$project": {"_id": 0, "id": 1, "specialty_id": 1, "question_text": 1,
-                      "question_text_de": 1, "choices": 1, "explanation_de": 1, "year": 1}}
+                      "question_text_de": 1, "choices": 1, "choices_de": 1, "explanation_de": 1, "year": 1}}
     ]
     questions = await db.questions.aggregate(pipeline).to_list(count)
+    for q in questions:
+        if not q.get("choices") and q.get("choices_de"):
+            q["choices"] = q["choices_de"]
     return questions
 
 
