@@ -214,8 +214,16 @@ async def _get_random_mcq(db) -> Optional[dict]:
     # Random sample from questions collection (use $sample aggregation)
     pipeline = [
         {"$match": {
-            "choices": {"$exists": True, "$ne": []},
-            "question_text": {"$exists": True, "$ne": ""},
+            "$and": [
+                {"$or": [
+                    {"choices": {"$exists": True, "$ne": []}},
+                    {"choices_de": {"$exists": True, "$ne": []}},
+                ]},
+                {"$or": [
+                    {"question_text": {"$exists": True, "$ne": ""}},
+                    {"question_text_de": {"$exists": True, "$ne": ""}},
+                ]},
+            ],
             "id": {"$nin": list(used)},
         }},
         {"$sample": {"size": 1}},
@@ -234,7 +242,7 @@ async def _format_mcq_for_prompt(q: dict, db) -> dict:
     spec_name = (spec or {}).get("name_de") or (spec or {}).get("name") or spec_id or "Allgemeinmedizin"
 
     q_text = q.get("question_text_de") or q.get("question_text") or ""
-    choices = q.get("choices") or []
+    choices = (q.get("choices") or q.get("choices_de")) or []
     choice_lines = []
     correct_idx = -1
     for i, c in enumerate(choices):

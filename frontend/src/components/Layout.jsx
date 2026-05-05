@@ -126,7 +126,9 @@ export const Layout = () => {
       year: question.year || new Date().getFullYear(),
       exam_location: question.exam_location || "vienna",
       question_text_de: question.question_text_de || question.question_text || "",
-      choices: question.choices || [],
+      choices: (Array.isArray(question.choices) && question.choices.length > 0)
+        ? question.choices
+        : (Array.isArray(question.choices_de) ? question.choices_de : []),
       explanation_de: question.explanation_de || question.explanation || "",
     });
   };
