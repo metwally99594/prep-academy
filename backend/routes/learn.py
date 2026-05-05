@@ -57,7 +57,7 @@ async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500) -> s
                         "X-Title": "PrepAcademy Learn",
                     },
                     json={
-                        "model": "deepseek/deepseek-chat-v3-0324:free",
+                        "model": "openai/gpt-oss-120b:free",
                         "messages": [
                             {"role": "system", "content": system_msg},
                             {"role": "user", "content": user_msg},

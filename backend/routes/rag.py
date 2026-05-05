@@ -34,7 +34,7 @@ FALLBACK_EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_LLM_MODEL = "deepseek/deepseek-chat-v3.1"
+DEFAULT_LLM_MODEL = "openai/gpt-oss-120b:free"
 
 # ───────────────────────── LAZY SINGLETONS ─────────────────────────
 _embed_model = None

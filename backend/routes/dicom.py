@@ -420,7 +420,7 @@ class AnalyzeRequest(BaseModel):
     patient_context: str = ""
     language: str = "de"
     top_k: int = 8
-    model: str = "deepseek/deepseek-chat-v3.1"
+    model: str = "openai/gpt-oss-120b:free"
     # Manual override — user can force a body part when DICOM metadata is missing
     # (e.g., when uploading JPEG X-ray or when BodyPartExamined was not set)
     body_part_override: Optional[str] = None
@@ -428,7 +428,7 @@ class AnalyzeRequest(BaseModel):
 
 class CompareRequest(BaseModel):
     language: str = "de"
-    model: str = "deepseek/deepseek-chat-v3.1"
+    model: str = "openai/gpt-oss-120b:free"
 
 
 # ═══════════════════════ ENDPOINTS ═══════════════════════
