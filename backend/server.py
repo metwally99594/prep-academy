@@ -541,10 +541,13 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user
     questions = []
     for qid in ch.get("question_ids", []):
         q = await db.questions.find_one({"id": qid}, {"_id": 0, "id": 1, "specialty_id": 1,
-            "question_text": 1, "question_text_de": 1, "choices": 1, "explanation_de": 1,
-            "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
-            "blank_text": 1, "blank_answers": 1})
+            "question_text": 1, "question_text_de": 1, "choices": 1, "choices_de": 1,
+            "explanation_de": 1, "question_type": 1, "drag_drop_items": 1,
+            "drag_drop_categories": 1, "blank_text": 1, "blank_answers": 1})
         if q:
+            # Normalize choices so frontend always has a "choices" key
+            if not q.get("choices") and q.get("choices_de"):
+                q["choices"] = q["choices_de"]
             questions.append(q)
 
     already_played = any(r["user_id"] == user["id"] for r in ch.get("results", []))
@@ -1453,6 +1456,28 @@ LANG_PROMPTS = {
 def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
+async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000) -> str:
+    """OpenRouter DeepSeek text call — free tier, strips <think> blocks."""
+    import re as _re, httpx
+    or_key = os.environ.get("OPENROUTER_API_KEY")
+    if not or_key:
+        raise HTTPException(status_code=503, detail="AI nicht verfügbar — OPENROUTER_API_KEY fehlt")
+    async with httpx.AsyncClient(timeout=55.0) as client:
+        r = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+            json={"model": "deepseek/deepseek-chat-v3-0324:free",
+                  "messages": [{"role": "system", "content": system_msg},
+                                {"role": "user", "content": user_msg}],
+                  "max_tokens": max_tokens, "temperature": 0.4},
+        )
+        d = r.json()
+        if "choices" in d and d["choices"]:
+            content = d["choices"][0]["message"]["content"] or ""
+            return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+        raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
+
 @api_router.get("/ai/models")
 async def get_ai_models():
     return [
@@ -1477,25 +1502,11 @@ async def ai_explain(request: AIExplainRequest, user: dict = Depends(get_current
         raise HTTPException(status_code=404, detail="Question not found")
     
     try:
-        api_key = os.environ.get("EMERGENT_LLM_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="AI service not configured")
-        
-        provider, model_name = get_model_config(request.model)
         lang_instruction = LANG_PROMPTS.get(request.language, LANG_PROMPTS["de"])
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"explain-{request.question_id}-{user['id']}",
-            system_message=f"""Du bist ein medizinischer Lernassistent für österreichische Prüfungsvorbereitung.
-{lang_instruction}
-Erkläre klar und präzise."""
-        ).with_model(provider, model_name)
-        
         choices = question.get("choices") or question.get("choices_de") or []
         correct_choices = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
         q_text = question.get("question_text_de") or question.get("question_text", "")
-        
+        system_msg = f"Du bist ein medizinischer Lernassistent für österreichische Prüfungsvorbereitung.\n{lang_instruction}\nErkläre klar und präzise."
         prompt = f"""Frage: {q_text}
 
 Richtige Antworten: {', '.join(correct_choices)}
@@ -1503,11 +1514,10 @@ Richtige Antworten: {', '.join(correct_choices)}
 {f"Studentenfrage: {request.user_question}" if request.user_question else ""}
 
 Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wichtig sind."""
-
-        message = UserMessage(text=prompt)
-        response = await chat.send_message(message)
-        
+        response = await _or_text(system_msg, prompt, max_tokens=800)
         return {"explanation": response, "model": request.model, "language": request.language}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"AI explain error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate AI explanation")
@@ -1520,47 +1530,23 @@ async def ai_chat(request: AIChatRequest, user: dict = Depends(get_current_user)
         raise HTTPException(status_code=404, detail="Question not found")
     
     try:
-        api_key = os.environ.get("EMERGENT_LLM_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="AI service not configured")
-        
-        provider, model_name = get_model_config(request.model)
         lang_instruction = LANG_PROMPTS.get(request.language, LANG_PROMPTS["de"])
-        
         choices = question.get("choices") or question.get("choices_de") or []
         correct_choices = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
         all_choices = "\n".join([f"- {c.get('text_de') or c.get('text', '')} {'✓' if c.get('is_correct') else ''}" for c in choices])
         q_text = question.get("question_text_de") or question.get("question_text", "")
-        
+        expl = question.get("explanation_de") or question.get("explanation", "")
         system_message = f"""Du bist ein medizinischer KI-Assistent für die österreichische Prüfungsvorbereitung.
-
 {lang_instruction}
-
 Aktuelle Frage: {q_text}
-
-Antwortmöglichkeiten:
-{all_choices}
-
+Antwortmöglichkeiten:\n{all_choices}
 Richtige Antworten: {', '.join(correct_choices)}
-
-{f"Offizielle Erklärung: {question.get('explanation_de') or question.get('explanation', '')}" if question.get('explanation') or question.get('explanation_de') else ""}
-
-Regeln:
-1. Erkläre medizinische Konzepte klar und verständlich
-2. Wenn der Student fragt, warum eine Antwort falsch ist, erkläre den Grund
-3. Verwende praktische klinische Beispiele wenn möglich
-4. Sei freundlich und ermutigend"""
-
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"chat-{request.question_id}-{user['id']}-{uuid.uuid4().hex[:8]}",
-            system_message=system_message
-        ).with_model(provider, model_name)
-        
-        message = UserMessage(text=request.user_message)
-        response = await chat.send_message(message)
-        
+{f"Offizielle Erklärung: {expl}" if expl else ""}
+Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei freundlich und ermutigend."""
+        response = await _or_text(system_message, request.user_message, max_tokens=800)
         return {"response": response, "model": request.model, "language": request.language}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"AI chat error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get AI response")
@@ -1714,22 +1700,15 @@ async def upload_pdf(file: UploadFile = File(...), user: dict = Depends(get_curr
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         
-        # Auto-generate summary + key topics
-        try:
-            api_key = os.environ.get("EMERGENT_LLM_KEY")
-            if api_key:
-                chat = LlmChat(
-                    api_key=api_key,
-                    session_id=f"autosummary-{notebook_id}",
-                    system_message="Du bist ein medizinischer Experte. Antworte als JSON."
-                ).with_model("openai", "gpt-4o")
-                summary_prompt = f"""Analysiere dieses medizinische Dokument und antworte NUR als JSON:
-{{"summary": "3-4 Sätze Zusammenfassung", "topics": ["Thema1", "Thema2", ...], "suggested_questions": ["Frage1?", "Frage2?", "Frage3?", "Frage4?"]}}
-
-DOKUMENT:
-{full_text[:30000]}"""
-                resp = await LlmChat(api_key=api_key, session_id=f"as-{notebook_id}", system_message="Antworte NUR als valides JSON.").with_model("openai", "gpt-4o").send_message(UserMessage(text=summary_prompt))
+        # Auto-generate summary + key topics (non-blocking fire-and-forget)
+        async def _auto_summary():
+            try:
                 import json as json_lib
+                resp = await _or_text(
+                    "Du bist ein medizinischer Experte. Antworte NUR als valides JSON.",
+                    f'Analysiere dieses Dokument und antworte NUR als JSON:\n{{"summary": "3-4 Sätze", "topics": ["Thema1"], "suggested_questions": ["Frage1?"]}}\n\nDOKUMENT:\n{full_text[:3000]}',
+                    max_tokens=400,
+                )
                 try:
                     clean = resp.strip()
                     if clean.startswith("```"): clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -1739,10 +1718,11 @@ DOKUMENT:
                 await db.pdf_notebooks.update_one({"id": notebook_id}, {"$set": {
                     "auto_summary": auto_data.get("summary", ""),
                     "topics": auto_data.get("topics", []),
-                    "suggested_questions": auto_data.get("suggested_questions", [])
+                    "suggested_questions": auto_data.get("suggested_questions", []),
                 }})
-        except Exception as e:
-            logger.error(f"Auto-summary error: {e}")
+            except Exception as e:
+                logger.warning(f"Auto-summary error: {e}")
+        asyncio.create_task(_auto_summary())
         
         return {
             "id": notebook_id,
@@ -1801,42 +1781,27 @@ async def notebook_chat(request: NotebookChatRequest, user: dict = Depends(get_c
         raise HTTPException(status_code=404, detail="Notebook nicht gefunden")
     
     try:
-        api_key = os.environ.get("EMERGENT_LLM_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="AI service not configured")
-        
-        doc_text = notebook["text"][:60000]
+        doc_text = notebook["text"][:8000]
         # If chunk_index specified, use that chunk
         if request.chunk_index is not None and "chunks" in notebook:
             chunks = notebook.get("chunks", [])
             if 0 <= request.chunk_index < len(chunks):
-                doc_text = chunks[request.chunk_index]["text"]
-        system_msg = NOTEBOOK_SYSTEM_PROMPT.format(filename=notebook["filename"], doc_text=doc_text)
-        
+                doc_text = chunks[request.chunk_index]["text"][:8000]
+        system_msg = NOTEBOOK_SYSTEM_PROMPT.format(filename=notebook["filename"], doc_text=doc_text[:6000])
+
         # Build conversation with history
         history = await db.notebook_chats.find(
             {"notebook_id": request.notebook_id, "user_id": user["id"]}
         ).sort("created_at", -1).to_list(20)
         history.reverse()
-        
-        # Include last few messages for context
+
         context_msgs = ""
-        for h in history[-10:]:
+        for h in history[-6:]:
             role = "User" if h["role"] == "user" else "Assistant"
-            context_msgs += f"\n{role}: {h['content'][:500]}\n"
-        
-        if context_msgs:
-            full_message = f"[Bisheriger Chatverlauf:{context_msgs}]\n\nNeue Frage: {request.message}"
-        else:
-            full_message = request.message
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"nb-{request.notebook_id}-{user['id']}-{uuid.uuid4().hex[:6]}",
-            system_message=system_msg
-        ).with_model("openai", "gpt-4o")
-        
-        response = await chat.send_message(UserMessage(text=full_message))
+            context_msgs += f"\n{role}: {h['content'][:300]}\n"
+
+        full_message = f"[Chatverlauf:{context_msgs}]\n\nNeue Frage: {request.message}" if context_msgs else request.message
+        response = await _or_text(system_msg, full_message, max_tokens=800)
         
         # Save chat
         now = datetime.now(timezone.utc).isoformat()
@@ -1894,50 +1859,14 @@ async def summarize_notebook(notebook_id: str, chunk_index: int = -1, language: 
 DOKUMENT:
 {doc_text}"""
 
-    # Try Emergent LLM first, fall back to OpenRouter Qwen on failure (budget exhausted, etc.)
-    em_key = os.environ.get("EMERGENT_LLM_KEY")
-    if em_key:
-        try:
-            chat = LlmChat(
-                api_key=em_key,
-                session_id=f"summary-{notebook_id}-{uuid.uuid4().hex[:8]}",
-                system_message=system_msg,
-            ).with_model("openai", "gpt-4o")
-            response = await chat.send_message(UserMessage(text=prompt))
-            return {"summary": response}
-        except Exception as e:
-            logger.info(f"Emergent summarize fallback to OpenRouter: {e}")
-
-    or_key = os.environ.get("OPENROUTER_API_KEY")
-    if or_key:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                r = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {or_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://mcq-medical-prep.academy",
-                        "X-Title": "PrepAcademy Notebook",
-                    },
-                    json={
-                        "model": "qwen/qwen3-235b-a22b-2507",
-                        "messages": [
-                            {"role": "system", "content": system_msg},
-                            {"role": "user", "content": prompt},
-                        ],
-                        "max_tokens": 2000,
-                        "temperature": 0.3,
-                    },
-                )
-                d = r.json()
-                if "choices" in d and d["choices"]:
-                    return {"summary": d["choices"][0]["message"]["content"]}
-        except Exception as e:
-            logger.error(f"OpenRouter summarize failed: {e}")
-
-    raise HTTPException(status_code=503, detail="AI nicht verfügbar — bitte Profile → Universal Key → Add Balance")
+    try:
+        response = await _or_text(system_msg, prompt, max_tokens=800)
+        return {"summary": response}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Summarize error: {e}")
+        raise HTTPException(status_code=503, detail="AI nicht verfügbar")
 
 @api_router.post("/notebook/{notebook_id}/generate-mcq")
 async def generate_mcq(notebook_id: str, chunk_index: int = -1, language: str = "de", user: dict = Depends(get_current_user)):
@@ -1950,43 +1879,26 @@ async def generate_mcq(notebook_id: str, chunk_index: int = -1, language: str = 
         raise HTTPException(status_code=404, detail="Notebook nicht gefunden")
     
     try:
-        api_key = os.environ.get("EMERGENT_LLM_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="AI service not configured")
-        
-        doc_text = notebook["text"][:15000]
+        doc_text = notebook["text"][:4000]
         if chunk_index >= 0 and "chunks" in notebook:
             chunks = notebook.get("chunks", [])
             if 0 <= chunk_index < len(chunks):
-                doc_text = chunks[chunk_index]["text"][:15000]
-        
+                doc_text = chunks[chunk_index]["text"][:4000]
+
         LANG_MCQ = {"de": "auf Deutsch", "en": "in English", "ar": "باللغة العربية", "ru": "на русском языке", "uk": "українською мовою"}
         lang_str = LANG_MCQ.get(language, "auf Deutsch")
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"mcq-{notebook_id}-{uuid.uuid4().hex[:8]}",
-            system_message=f"Du bist ein Experte für medizinische MCQ-Prüfungsfragen. Antworte {lang_str}."
-        ).with_model("openai", "gpt-4o")
-        
+        system_msg = f"Du bist ein Experte für medizinische MCQ-Prüfungsfragen. Antworte {lang_str}."
         prompt = f"""Erstelle 5 MCQ-Prüfungsfragen basierend auf diesem Dokument. Format für JEDE Frage:
-
-**Frage X:** [Fragetext, idealerweise als klinisches Szenario]
-A) [Option]
-B) [Option]
-C) [Option]
-D) [Option]
-E) [Option]
+**Frage X:** [klinisches Szenario]
+A) ... B) ... C) ... D) ... E) ...
 ✅ Richtige Antwort: [Buchstabe]
-💡 Erklärung: [Kurze Begründung]
-
+💡 Erklärung: [kurze Begründung]
 ---
-
-DOKUMENT:
-{doc_text}"""
-        
-        response = await chat.send_message(UserMessage(text=prompt))
+DOKUMENT:\n{doc_text}"""
+        response = await _or_text(system_msg, prompt, max_tokens=800)
         return {"mcq": response}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"MCQ generation error: {e}")
         raise HTTPException(status_code=500, detail="MCQ-Generierung fehlgeschlagen")
@@ -2031,25 +1943,18 @@ async def get_quiz_job_status(job_id: str, user: dict = Depends(get_current_user
 
 async def _run_quiz_generation(job_id: str, notebook: dict, count: int, language: str, chunk_index: int, user: dict):
     """Background task: generate quiz in batches and save results."""
-    import json as json_lib
+    import json as json_lib, re as _re, httpx
+    or_key = os.environ.get("OPENROUTER_API_KEY")
+    if not or_key:
+        await db.quiz_jobs.update_one({"id": job_id}, {"$set": {"status": "error", "message": "OPENROUTER_API_KEY fehlt"}})
+        return
+
     try:
-        api_key = os.environ.get("EMERGENT_LLM_KEY")
-        if not api_key:
-            await db.quiz_jobs.update_one({"id": job_id}, {"$set": {"status": "error", "message": "AI not configured"}})
-            return
-
-        # Scale text limit based on question count
-        text_limit = min(15000 + (count - 10) * 500, 40000) if count > 10 else 15000
-
-        # Use specific chunk or full text
+        doc_text = notebook["text"][:4000]
         if chunk_index >= 0 and "chunks" in notebook:
             chunks = notebook.get("chunks", [])
             if 0 <= chunk_index < len(chunks):
-                doc_text = chunks[chunk_index]["text"][:text_limit]
-            else:
-                doc_text = notebook["text"][:text_limit]
-        else:
-            doc_text = notebook["text"][:text_limit]
+                doc_text = chunks[chunk_index]["text"][:4000]
 
         LANG_QUIZ = {
             "de": ("auf Deutsch", "Fragetext als klinisches Szenario auf Deutsch", "Kurze Erklärung auf Deutsch", "Alle Texte auf Deutsch"),
@@ -2060,8 +1965,8 @@ async def _run_quiz_generation(job_id: str, notebook: dict, count: int, language
         }
         lang_cfg = LANG_QUIZ.get(language, LANG_QUIZ["de"])
 
-        # Split into batches of 10 for reliable generation
-        batch_size = 10
+        # Generate all questions in a single call (context is limited, keep prompt small)
+        batch_size = min(count, 10)
         batches = [(i, min(i + batch_size, count)) for i in range(0, count, batch_size)]
         all_saved = []
         now = datetime.now(timezone.utc).isoformat()
@@ -2069,20 +1974,13 @@ async def _run_quiz_generation(job_id: str, notebook: dict, count: int, language
 
         for batch_idx, (start, end) in enumerate(batches):
             batch_count = end - start
-            # Update progress
             await db.quiz_jobs.update_one({"id": job_id}, {"$set": {
                 "message": f"Batch {batch_idx+1}/{len(batches)}: Generiere Fragen {start+1}-{end}..."
             }})
 
-            chat = LlmChat(
-                api_key=api_key,
-                session_id=f"quiz-{job_id[:6]}-b{batch_idx}",
-                system_message=f"Du bist ein Experte für medizinische MCQ-Prüfungsfragen. Antworte NUR als valides JSON-Array. Erstelle Fragen {lang_cfg[0]}."
-            ).with_model("openai", "gpt-4o")
-
             already_generated = ""
             if all_saved:
-                already_generated = f"\n\nBereits generierte Fragen (NICHT wiederholen):\n" + "\n".join([f"- {q['text']}" for q in all_saved[-10:]])
+                already_generated = "\n\nBereits generierte Fragen (NICHT wiederholen):\n" + "\n".join([f"- {q['text']}" for q in all_saved[-5:]])
 
             prompt = f"""Erstelle genau {batch_count} MCQ-Prüfungsfragen basierend auf dem folgenden medizinischen Dokument.
 
@@ -2115,7 +2013,22 @@ Regeln:
 DOKUMENT:
 {doc_text}"""
 
-            response = await chat.send_message(UserMessage(text=prompt))
+            async with httpx.AsyncClient(timeout=55.0) as client:
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                             "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+                    json={"model": "deepseek/deepseek-chat-v3-0324:free",
+                          "messages": [{"role": "system", "content": f"Du bist ein Experte für medizinische MCQ-Prüfungsfragen. Antworte NUR als valides JSON-Array. Erstelle Fragen {lang_cfg[0]}."},
+                                        {"role": "user", "content": prompt}],
+                          "max_tokens": 1200, "temperature": 0.4},
+                )
+                rd = r.json()
+            if "choices" not in rd or not rd["choices"]:
+                logger.warning(f"Quiz batch {batch_idx} no choices: {str(rd)[:200]}")
+                continue
+            response = rd["choices"][0]["message"]["content"] or ""
+            response = _re.sub(r"<think>.*?</think>", "", response, flags=_re.DOTALL).strip()
 
             # Parse JSON from response
             json_str = response.strip()
@@ -2373,8 +2286,7 @@ async def analyze_medical_report_upload(
     """Multipart upload version — handles large medical images reliably (no JSON base64 overhead)."""
     await check_analyzer_access(user)
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
+    if not os.environ.get("OPENROUTER_API_KEY"):
         raise HTTPException(status_code=500, detail="AI service not configured")
 
     if not files:
@@ -2412,8 +2324,7 @@ async def analyze_medical_report(request: AnalyzeRequest, user: dict = Depends(g
     """Start multi-AI analysis as a background job (returns job_id for polling)."""
     await check_analyzer_access(user)
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
+    if not os.environ.get("OPENROUTER_API_KEY"):
         raise HTTPException(status_code=500, detail="AI service not configured")
 
     # Collect images
@@ -3489,11 +3400,6 @@ async def _run_blog_generation(job_id: str, topic: str, specialty_id: str):
     """Background: generate blog post"""
     import re
     try:
-        api_key = os.environ.get("EMERGENT_LLM_KEY")
-        if not api_key:
-            await db.blog_jobs.update_one({"id": job_id}, {"$set": {"status": "error", "message": "AI not configured"}})
-            return
-        
         if not topic:
             specs_with_q = []
             async for s in db.specialties.find({}, {"_id": 0, "id": 1, "name_de": 1}):
@@ -3502,31 +3408,24 @@ async def _run_blog_generation(job_id: str, topic: str, specialty_id: str):
                     specs_with_q.append(s["name_de"])
             import random
             topic = f"Top Prüfungsfragen: {random.choice(specs_with_q)}" if specs_with_q else "Medizinische Prüfungsvorbereitung"
-        
+
         query = {"specialty_id": specialty_id} if specialty_id else {}
         pipeline = [{"$match": query}, {"$sample": {"size": 10}},
                     {"$project": {"_id": 0, "question_text_de": 1, "explanation_de": 1}}]
         sample_qs = await db.questions.aggregate(pipeline).to_list(10)
-        q_context = "\n".join([f"- {q.get('question_text_de','')[:150]}: {q.get('explanation_de','')[:200]}" for q in sample_qs if q.get("question_text_de")])
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"blog-{uuid.uuid4().hex[:6]}",
-            system_message="Du bist ein medizinischer Fachjournalist für Prep Academy. Schreibe informative, SEO-optimierte Blog-Artikel auf Deutsch. Verwende Markdown (## ###). 800-1200 Wörter."
-        ).with_model("openai", "gpt-4o")
-        
-        prompt = f"""Schreibe einen umfassenden Blog-Artikel über: "{topic}"
+        q_context = "\n".join([f"- {q.get('question_text_de','')[:100]}: {q.get('explanation_de','')[:150]}" for q in sample_qs if q.get("question_text_de")])
+
+        system_msg = "Du bist ein medizinischer Fachjournalist für Prep Academy. Schreibe informative, SEO-optimierte Blog-Artikel auf Deutsch. Verwende Markdown (## ###). Max 1000 Wörter."
+        prompt = f"""Schreibe einen Blog-Artikel über: "{topic}"
 Zielgruppe: Medizinstudenten für die österreichische Ärzte-Prüfung.
-Prüfungsfragen als Kontext:
-{q_context}
+Kontext:\n{q_context}
 Format:
 TITLE: [Titel]
-EXCERPT: [2 Sätze Zusammenfassung]
+EXCERPT: [2 Sätze]
 TAGS: [tag1, tag2, tag3]
 ---
 [Artikel in Markdown]"""
-        
-        response = await chat.send_message(UserMessage(text=prompt))
+        response = await _or_text(system_msg, prompt, max_tokens=800)
         
         parts = response.split("---", 1)
         meta = parts[0] if parts else ""

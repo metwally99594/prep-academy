@@ -1,5 +1,5 @@
 """Learning Tools Routes: Study Guide, Flashcards, Mind Maps, Audio Overview, Citations, Source-Grounded Chat"""
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
 import uuid, os, json
@@ -47,7 +47,7 @@ async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500) -> s
     if or_key:
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=90.0) as client:
+            async with httpx.AsyncClient(timeout=55.0) as client:
                 r = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -195,20 +195,46 @@ async def _get_context(req, user_id: str):
     return ctx, "Medizin", "questions"
 
 
+# ═══════ JOB HELPERS ═══════
+
+async def _start_job(user_id: str, job_type: str) -> str:
+    job_id = str(uuid.uuid4())
+    await db.learn_jobs.insert_one({
+        "id": job_id, "user_id": user_id, "type": job_type,
+        "status": "pending", "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return job_id
+
+async def _finish_job(job_id: str, result: dict):
+    await db.learn_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"status": "done", "result": result, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+async def _fail_job(job_id: str, error: str):
+    await db.learn_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"status": "error", "error": error, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+@router.get("/job/{job_id}")
+async def get_learn_job(job_id: str, user: dict = Depends(get_current_user)):
+    job = await db.learn_jobs.find_one({"id": job_id, "user_id": user["id"]}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job nicht gefunden")
+    return {"status": job["status"], "result": job.get("result"), "error": job.get("error")}
+
+
 # ═══════ 1. STUDY GUIDE ═══════
 
-@router.post("/study-guide")
-async def generate_study_guide(req: StudyGuideRequest, user: dict = Depends(get_current_user)):
-    context, label, source_type = await _get_context(req, user["id"])
-    if not context:
-        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-
-    lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    system_msg = f"Du bist ein medizinischer Dozent. Erstelle einen strukturierten Lernleitfaden.\n{lang}"
-    prompt = f"""Erstelle einen umfassenden Lernleitfaden für: {label}
+async def _bg_study_guide(job_id: str, context: str, label: str, language: str):
+    try:
+        lang = LANG_MAP.get(language, LANG_MAP["de"])
+        system_msg = f"Du bist ein medizinischer Dozent. Erstelle einen strukturierten Lernleitfaden.\n{lang}"
+        prompt = f"""Erstelle einen Lernleitfaden für: {label}
 
 Basierend auf folgendem Inhalt:
-{context[:15000]}
+{context}
 
 Struktur:
 1. **Übersicht** - Wichtigste Konzepte
@@ -216,25 +242,31 @@ Struktur:
 3. **Häufige Fallstricke** - Was oft falsch gemacht wird
 4. **Zusammenfassung** - Wichtigste Punkte
 5. **Prüfungstipps** - Strategien"""
+        response = await _llm_text(system_msg, prompt, max_tokens=800)
+        await _finish_job(job_id, {"content": response})
+    except Exception as e:
+        await _fail_job(job_id, str(e))
 
-    response = await _llm_text(system_msg, prompt, max_tokens=2000)
-    return {"id": str(uuid.uuid4()), "content": response, "model": req.model}
+@router.post("/study-guide")
+async def generate_study_guide(req: StudyGuideRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    context, label, _ = await _get_context(req, user["id"])
+    if not context:
+        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
+    job_id = await _start_job(user["id"], "study-guide")
+    background_tasks.add_task(_bg_study_guide, job_id, context[:4000], label, req.language)
+    return {"job_id": job_id, "status": "pending"}
 
 
 # ═══════ 2. FLASHCARDS ═══════
 
-@router.post("/flashcards")
-async def generate_flashcards(req: FlashcardRequest, user: dict = Depends(get_current_user)):
-    context, label, source_type = await _get_context(req, user["id"])
-    if not context:
-        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-
-    lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    system_msg = f"Du erstellst Lernkarten (Flashcards) aus medizinischen Inhalten.\n{lang}\nAntworte NUR als valides JSON-Array."
-    prompt = f"""Erstelle genau {req.count} Lernkarten basierend auf: {label}
+async def _bg_flashcards(job_id: str, context: str, label: str, language: str, count: int):
+    try:
+        lang = LANG_MAP.get(language, LANG_MAP["de"])
+        system_msg = f"Du erstellst Lernkarten (Flashcards) aus medizinischen Inhalten.\n{lang}\nAntworte NUR als valides JSON-Array."
+        prompt = f"""Erstelle genau {count} Lernkarten basierend auf: {label}
 
 Inhalt:
-{context[:12000]}
+{context}
 
 Format als JSON-Array:
 [
@@ -243,18 +275,26 @@ Format als JSON-Array:
 ]
 
 Nur das JSON-Array ausgeben, nichts anderes."""
+        response = await _llm_text(system_msg, prompt, max_tokens=800)
+        try:
+            clean = response.strip()
+            if clean.startswith("```"):
+                clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+            cards = json.loads(clean)
+        except (json.JSONDecodeError, IndexError):
+            cards = [{"front": "Fehler beim Generieren", "back": response[:200], "difficulty": "medium"}]
+        await _finish_job(job_id, {"cards": cards, "count": len(cards)})
+    except Exception as e:
+        await _fail_job(job_id, str(e))
 
-    response = await _llm_text(system_msg, prompt, max_tokens=2000)
-
-    try:
-        clean = response.strip()
-        if clean.startswith("```"):
-            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-        cards = json.loads(clean)
-    except (json.JSONDecodeError, IndexError):
-        cards = [{"front": "Fehler beim Generieren", "back": response[:200], "difficulty": "medium"}]
-
-    return {"id": str(uuid.uuid4()), "cards": cards, "count": len(cards), "model": req.model}
+@router.post("/flashcards")
+async def generate_flashcards(req: FlashcardRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    context, label, _ = await _get_context(req, user["id"])
+    if not context:
+        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
+    job_id = await _start_job(user["id"], "flashcards")
+    background_tasks.add_task(_bg_flashcards, job_id, context[:4000], label, req.language, req.count)
+    return {"job_id": job_id, "status": "pending"}
 
 
 @router.get("/flashcards")
@@ -267,95 +307,79 @@ async def get_flashcard_decks(user: dict = Depends(get_current_user)):
 
 # ═══════ 3. AUDIO OVERVIEW (2 steps to avoid timeout) ═══════
 
+# Per-language podcast prompts — used by audio-script background job
+_AUDIO_LANG_PROMPTS = {
+    "de": {
+        "system": "Du bist ein professioneller Podcast-Autor für medizinische Bildung. Antworte NUR auf Deutsch. Erstelle ein Zwei-Sprecher-Podcast-Skript zwischen [Moderator] und [Experte]. Min 6 Wechsel, max 3000 Zeichen, kein Markdown.",
+        "user": lambda label, kp: f"Thema: \"{label}\"\n\nInhalt:\n{kp}\n\nErstelle einen lebendigen Podcast-Dialog auf Deutsch.\n[Moderator] ...\n[Experte] ...\n(mindestens 6 Wechsel, klinische Beispiele, max 3000 Zeichen)",
+    },
+    "en": {
+        "system": "You are a professional podcast writer for medical education. Reply ONLY in English. Create a two-speaker podcast script between [Host] and [Expert]. Min 6 turns, max 3000 chars, no markdown.",
+        "user": lambda label, kp: f"Topic: \"{label}\"\n\nContent:\n{kp}\n\nCreate a lively podcast dialogue in English.\n[Host] ...\n[Expert] ...\n(at least 6 turns, clinical examples, max 3000 chars)",
+    },
+    "ar": {
+        "system": "أنت كاتب بودكاست محترف للتعليم الطبي. اكتب فقط باللغة العربية. أنشئ سيناريو بودكاست بمتحدثين [المقدم] و [الخبير]. على الأقل 6 تبادلات، 3000 حرف كحد أقصى، بدون Markdown.",
+        "user": lambda label, kp: f"الموضوع: \"{label}\"\n\nالمحتوى:\n{kp}\n\nأنشئ حواراً حياً بالعربية.\n[المقدم] ...\n[الخبير] ...\n(6 تبادلات على الأقل، أمثلة سريرية، 3000 حرف)",
+    },
+    "ru": {
+        "system": "Вы — профессиональный сценарист медицинского подкаста. Отвечайте ТОЛЬКО на русском. Создайте сценарий подкаста с двумя спикерами [Ведущий] и [Эксперт]. Минимум 6 обменов, макс 3000 символов, без Markdown.",
+        "user": lambda label, kp: f"Тема: \"{label}\"\n\nСодержание:\n{kp}\n\nСоздайте живой диалог на русском.\n[Ведущий] ...\n[Эксперт] ...\n(минимум 6 обменов, клинические примеры, макс 3000 символов)",
+    },
+    "uk": {
+        "system": "Ви — професійний сценарист медичного подкасту. Відповідайте ТІЛЬКИ українською. Створіть сценарій подкасту з двома спікерами [Ведучий] та [Експерт]. Мінімум 6 обмінів, макс 3000 символів, без Markdown.",
+        "user": lambda label, kp: f"Тема: \"{label}\"\n\nЗміст:\n{kp}\n\nСтворіть живий діалог українською.\n[Ведучий] ...\n[Експерт] ...\n(мінімум 6 обмінів, клінічні приклади, макс 3000 символів)",
+    },
+}
+
+async def _bg_audio_script(job_id: str, user_id: str, nb_id: str, language: str, voice: str, context_fallback: str, label: str):
+    try:
+        plang = (language or "de").lower()
+        prompts = _AUDIO_LANG_PROMPTS.get(plang, _AUDIO_LANG_PROMPTS["de"])
+        content = ""
+
+        if nb_id:
+            nb = await db.pdf_notebooks.find_one({"id": nb_id, "user_id": user_id}, {"_id": 0})
+            if nb:
+                label = nb.get("filename", "Dokument")
+                chunks = nb.get("chunks", [])
+                if chunks:
+                    # Take first 4000 chars from each of the first 3 chunks
+                    parts = []
+                    for c in chunks[:3]:
+                        parts.append(c.get("text", "")[:1300])
+                    content = "\n\n".join(parts)
+                else:
+                    content = nb.get("text", "")[:4000]
+
+        if not content:
+            content = context_fallback[:4000]
+
+        if not content:
+            await _fail_job(job_id, "Keine Inhalte gefunden")
+            return
+
+        script = await _llm_text(prompts["system"], prompts["user"](label, content), max_tokens=800)
+
+        audio_id = str(uuid.uuid4())
+        await db.audio_overviews.insert_one({
+            "id": audio_id, "user_id": user_id, "script": script,
+            "language": language, "voice": voice, "notebook_id": nb_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        await _finish_job(job_id, {"id": audio_id, "script": script, "voice": voice})
+    except Exception as e:
+        await _fail_job(job_id, str(e))
+
 @router.post("/audio-script")
-async def generate_audio_script(req: AudioRequest, user: dict = Depends(get_current_user)):
-    """Step 1: Smart Audio Script - Summarize key points from ALL chunks, then build podcast"""
-    lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    nb_id = req.notebook_id or ""
-
-    # Get ALL chunks from notebook for smart summarization
-    all_key_points = ""
+async def generate_audio_script(req: AudioRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    """Step 1: Generate podcast script as a background job to avoid 60s timeout."""
+    context_fallback = ""
     label = "Medizin"
-
-    # Per-language prompts (CRITICAL — LLM mirrors the prompt language)
-    LANG_PROMPTS = {
-        "de": {
-            "summary_system": "Du bist ein medizinischer Zusammenfasser. Antworte NUR auf Deutsch. Extrahiere prägnante Kernpunkte.",
-            "summary_user": lambda title, text: f"Abschnitt: \"{title}\"\n\n{text}\n\nExtrahiere die 3-5 WICHTIGSTEN prüfungsrelevanten Kernpunkte als Stichpunkte (max 200 Wörter). Antworte auf Deutsch.",
-            "podcast_system": "Du bist ein professioneller Podcast-Autor für medizinische Bildung. Antworte NUR auf Deutsch. Erstelle ein Zwei-Sprecher-Podcast-Skript zwischen [Moderator] und [Experte]. Min 6 Wechsel, max 4000 Zeichen, kein Markdown.",
-            "podcast_user": lambda label, kp: f"Thema: \"{label}\"\n\nWichtigste Punkte:\n\n{kp}\n\nErstelle einen lebendigen Podcast-Dialog auf Deutsch. Format:\n[Moderator] ...\n[Experte] ...\n[Moderator] ...\n... (mindestens 6 Wechsel)\nKlinische Beispiele und Merkhilfen einbauen. Max 4000 Zeichen.",
-        },
-        "en": {
-            "summary_system": "You are a medical content summarizer. Reply ONLY in English. Extract concise key points.",
-            "summary_user": lambda title, text: f"Section: \"{title}\"\n\n{text}\n\nExtract the 3-5 MOST IMPORTANT exam-relevant key points as bullet points (max 200 words). Reply in English only.",
-            "podcast_system": "You are a professional podcast writer for medical education. Reply ONLY in English. Create a two-speaker podcast script between [Host] and [Expert]. Min 6 turns, max 4000 chars, no markdown.",
-            "podcast_user": lambda label, kp: f"Topic: \"{label}\"\n\nKey points:\n\n{kp}\n\nCreate a lively podcast dialogue in English. Format:\n[Host] ...\n[Expert] ...\n[Host] ...\n... (at least 6 turns)\nInclude clinical examples and memory aids. Max 4000 chars.",
-        },
-        "ar": {
-            "summary_system": "أنت ملخص محتوى طبي. اكتب فقط باللغة العربية. استخرج النقاط الأساسية بإيجاز.",
-            "summary_user": lambda title, text: f"القسم: \"{title}\"\n\n{text}\n\nاستخرج 3-5 نقاط أساسية مهمة (200 كلمة حد أقصى). اكتب باللغة العربية فقط.",
-            "podcast_system": "أنت كاتب بودكاست محترف للتعليم الطبي. اكتب فقط باللغة العربية. أنشئ سيناريو بودكاست بمتحدثين [المقدم] و [الخبير]. على الأقل 6 تبادلات، 4000 حرف كحد أقصى، بدون تنسيق Markdown.",
-            "podcast_user": lambda label, kp: f"الموضوع: \"{label}\"\n\nالنقاط الأساسية:\n\n{kp}\n\nأنشئ حواراً حياً بالعربية. التنسيق:\n[المقدم] ...\n[الخبير] ...\n[المقدم] ...\n... (على الأقل 6 تبادلات)\nأدخل أمثلة سريرية وحيل للحفظ. 4000 حرف كحد أقصى.",
-        },
-        "ru": {
-            "summary_system": "Вы — медицинский редактор. Отвечайте ТОЛЬКО на русском. Извлекайте краткие ключевые моменты.",
-            "summary_user": lambda title, text: f"Раздел: \"{title}\"\n\n{text}\n\nИзвлеките 3-5 САМЫХ ВАЖНЫХ ключевых моментов в виде списка (макс 200 слов). Отвечайте только на русском.",
-            "podcast_system": "Вы — профессиональный сценарист медицинского подкаста. Отвечайте ТОЛЬКО на русском. Создайте сценарий подкаста с двумя спикерами [Ведущий] и [Эксперт]. Минимум 6 обменов, макс 4000 символов, без Markdown.",
-            "podcast_user": lambda label, kp: f"Тема: \"{label}\"\n\nКлючевые моменты:\n\n{kp}\n\nСоздайте живой диалог на русском. Формат:\n[Ведущий] ...\n[Эксперт] ...\n[Ведущий] ...\n... (минимум 6 обменов)\nВключите клинические примеры. Макс 4000 символов.",
-        },
-        "uk": {
-            "summary_system": "Ви — медичний редактор. Відповідайте ТІЛЬКИ українською. Витягуйте стислі ключові моменти.",
-            "summary_user": lambda title, text: f"Розділ: \"{title}\"\n\n{text}\n\nВитягніть 3-5 НАЙВАЖЛИВІШИХ ключових моментів у вигляді списку (макс 200 слів). Відповідайте тільки українською.",
-            "podcast_system": "Ви — професійний сценарист медичного подкасту. Відповідайте ТІЛЬКИ українською. Створіть сценарій подкасту з двома спікерами [Ведучий] та [Експерт]. Мінімум 6 обмінів, макс 4000 символів, без Markdown.",
-            "podcast_user": lambda label, kp: f"Тема: \"{label}\"\n\nКлючові моменти:\n\n{kp}\n\nСтворіть живий діалог українською. Формат:\n[Ведучий] ...\n[Експерт] ...\n[Ведучий] ...\n... (мінімум 6 обмінів)\nВключіть клінічні приклади. Макс 4000 символів.",
-        },
-    }
-    plang = (req.language or "de").lower()
-    prompts = LANG_PROMPTS.get(plang, LANG_PROMPTS["de"])
-
-    if nb_id:
-        nb = await db.pdf_notebooks.find_one({"id": nb_id, "user_id": user["id"]}, {"_id": 0})
-        if nb:
-            label = nb.get("filename", "Dokument")
-            chunks = nb.get("chunks", [])
-
-            if chunks and len(chunks) > 1:
-                # Step A: Extract key points from EACH section in the TARGET language
-                chunk_summaries = []
-                for i, chunk in enumerate(chunks[:8]):
-                    title = chunk.get("title", f"Abschnitt {i+1}")
-                    text = chunk.get("text", "")[:5000]
-                    try:
-                        summary = await _llm_text(prompts["summary_system"], prompts["summary_user"](title, text), max_tokens=800)
-                        chunk_summaries.append(f"### {title}\n{summary}")
-                    except Exception as e:
-                        logger.warning(f"Chunk {i} summary failed: {e}")
-                        chunk_summaries.append(f"### {title}\n{text[:500]}")
-
-                all_key_points = "\n\n".join(chunk_summaries)
-                logger.info(f"Smart audio [{plang}]: Summarized {len(chunk_summaries)} sections for podcast")
-            else:
-                all_key_points = nb.get("text", "")[:12000]
-
-    if not all_key_points:
-        context, label, _ = await _get_context(req, user["id"])
-        all_key_points = context[:12000]
-
-    if not all_key_points:
-        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-
-    # Step B: Build professional 2-speaker podcast in the TARGET language
-    script = await _llm_text(prompts["podcast_system"], prompts["podcast_user"](label, all_key_points), max_tokens=2000)
-
-    audio_id = str(uuid.uuid4())
-    await db.audio_overviews.insert_one({
-        "id": audio_id, "user_id": user["id"], "script": script,
-        "language": req.language, "voice": req.voice,
-        "notebook_id": nb_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-
-    return {"id": audio_id, "script": script, "voice": req.voice}
+    if not req.notebook_id:
+        context_fallback, label, _ = await _get_context(req, user["id"])
+    job_id = await _start_job(user["id"], "audio-script")
+    background_tasks.add_task(_bg_audio_script, job_id, user["id"], req.notebook_id or "", req.language, req.voice, context_fallback, label)
+    return {"job_id": job_id, "status": "pending"}
 
 
 # ═══════ Quick TTS (for Quiz "read aloud" feature) ═══════
@@ -654,18 +678,14 @@ Halte es unter 2500 Zeichen. Kein Markdown."""
 
 # ═══════ 4. MIND MAP ═══════
 
-@router.post("/mind-map")
-async def generate_mind_map(req: MindMapRequest, user: dict = Depends(get_current_user)):
-    context, label, source_type = await _get_context(req, user["id"])
-    if not context:
-        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-
-    lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    system_msg = f"Du erstellst eine Mind Map als JSON-Struktur.\n{lang}\nAntworte NUR als valides JSON."
-    prompt = f"""Erstelle eine Mind Map für: {label}
+async def _bg_mind_map(job_id: str, context: str, label: str, language: str):
+    try:
+        lang = LANG_MAP.get(language, LANG_MAP["de"])
+        system_msg = f"Du erstellst eine Mind Map als JSON-Struktur.\n{lang}\nAntworte NUR als valides JSON."
+        prompt = f"""Erstelle eine Mind Map für: {label}
 
 Inhalt:
-{context[:12000]}
+{context}
 
 JSON-Format:
 {{
@@ -684,18 +704,26 @@ JSON-Format:
 
 4-6 Hauptzweige, je 2-4 Unterpunkte. Farben: #c9a84c, #3b82f6, #10b981, #f59e0b, #ef4444, #8b5cf6.
 Nur JSON."""
+        response = await _llm_text(system_msg, prompt, max_tokens=800)
+        try:
+            clean = response.strip()
+            if clean.startswith("```"):
+                clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+            mind_map = json.loads(clean)
+        except (json.JSONDecodeError, IndexError):
+            mind_map = {"title": label, "children": [{"title": "Fehler beim Generieren", "children": []}]}
+        await _finish_job(job_id, {"mind_map": mind_map})
+    except Exception as e:
+        await _fail_job(job_id, str(e))
 
-    response = await _llm_text(system_msg, prompt, max_tokens=2000)
-
-    try:
-        clean = response.strip()
-        if clean.startswith("```"):
-            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-        mind_map = json.loads(clean)
-    except (json.JSONDecodeError, IndexError):
-        mind_map = {"title": label, "children": [{"title": "Fehler beim Generieren", "children": []}]}
-
-    return {"mind_map": mind_map, "model": req.model}
+@router.post("/mind-map")
+async def generate_mind_map(req: MindMapRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    context, label, _ = await _get_context(req, user["id"])
+    if not context:
+        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
+    job_id = await _start_job(user["id"], "mind-map")
+    background_tasks.add_task(_bg_mind_map, job_id, context[:4000], label, req.language)
+    return {"job_id": job_id, "status": "pending"}
 
 
 # ═══════ 5. CITATIONS (enhance existing chat) ═══════

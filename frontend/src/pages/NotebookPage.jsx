@@ -184,15 +184,26 @@ export default function NotebookPage() {
   // ═══ LERNTOOLS FUNCTIONS ═══
   const chunkPayload = selectedChunk >= 0 ? { chunk_index: selectedChunk } : {};
 
+  const pollJob = async (jobId, maxRetries = 60) => {
+    for (let i = 0; i < maxRetries; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const res = await axios.get(`${API}/learn/job/${jobId}`, { headers });
+      if (res.data.status === "done") return res.data.result;
+      if (res.data.status === "error") throw new Error(res.data.error || "AI-Fehler");
+    }
+    throw new Error("Timeout: Analyse dauert zu lange");
+  };
+
   const generateStudyGuide = async () => {
     if (!activeNotebook) return;
     setToolLoading(true); setGuideContent("");
     try {
       const res = await axios.post(`${API}/learn/study-guide`, {
         notebook_id: activeNotebook.id, language, model: "gpt-4o", ...chunkPayload
-      }, { headers, timeout: 120000 });
-      setGuideContent(res.data.content);
-    } catch { setGuideContent("Fehler beim Generieren des Lernleitfadens."); }
+      }, { headers, timeout: 15000 });
+      const result = await pollJob(res.data.job_id);
+      setGuideContent(result.content);
+    } catch (e) { setGuideContent(e.message || "Fehler beim Generieren des Lernleitfadens."); }
     finally { setToolLoading(false); }
   };
 
@@ -202,8 +213,9 @@ export default function NotebookPage() {
     try {
       const res = await axios.post(`${API}/learn/flashcards`, {
         notebook_id: activeNotebook.id, count: 10, language, model: "gpt-4o", ...chunkPayload
-      }, { headers, timeout: 120000 });
-      setCards(res.data.cards || []);
+      }, { headers, timeout: 15000 });
+      const result = await pollJob(res.data.job_id);
+      setCards(result.cards || []);
     } catch { setCards([{ front: "Fehler", back: "Konnte keine Lernkarten generieren", difficulty: "medium" }]); }
     finally { setToolLoading(false); }
   };
@@ -229,15 +241,14 @@ export default function NotebookPage() {
     if (!activeNotebook) return;
     setToolLoading(true); setAudioData(null); setAudioSavedDate(null);
     try {
-      // Step 1: Generate script
-      const scriptRes = await axios.post(`${API}/learn/audio-script`, {
+      // Step 1: Start background script generation, poll for result
+      const jobRes = await axios.post(`${API}/learn/audio-script`, {
         notebook_id: activeNotebook.id, language, voice, ...chunkPayload
-      }, { headers, timeout: 60000 });
-      
-      const scriptData = scriptRes.data;
+      }, { headers, timeout: 15000 });
+      const scriptData = await pollJob(jobRes.data.job_id);
       setAudioData({ script: scriptData.script, audio_base64: null, voice: scriptData.voice, loading_tts: true });
-      
-      // Step 2: Generate TTS (with notebook_id for saving)
+
+      // Step 2: Generate TTS (edge-tts is fast, no polling needed)
       try {
         const ttsRes = await axios.post(`${API}/learn/audio-tts`, {
           audio_id: scriptData.id, voice, notebook_id: activeNotebook.id,
@@ -248,7 +259,7 @@ export default function NotebookPage() {
       } catch {
         setAudioData({ script: scriptData.script, audio_base64: null, voice: scriptData.voice, error: "Audio konnte nicht generiert werden." });
       }
-    } catch { setAudioData({ script: "Fehler beim Generieren.", audio_base64: null }); }
+    } catch (e) { setAudioData({ script: e.message || "Fehler beim Generieren.", audio_base64: null }); }
     finally { setToolLoading(false); }
   };
 
@@ -258,8 +269,9 @@ export default function NotebookPage() {
     try {
       const res = await axios.post(`${API}/learn/mind-map`, {
         notebook_id: activeNotebook.id, language, model: "gpt-4o", ...chunkPayload
-      }, { headers, timeout: 120000 });
-      setMindMap(res.data.mind_map);
+      }, { headers, timeout: 15000 });
+      const result = await pollJob(res.data.job_id);
+      setMindMap(result.mind_map);
     } catch { setMindMap({ title: "Fehler", children: [] }); }
     finally { setToolLoading(false); }
   };
