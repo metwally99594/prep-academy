@@ -1016,14 +1016,16 @@ async def admin_get_question(question_id: str, admin: dict = Depends(get_admin_u
 
 @api_router.post("/questions", response_model=QuestionResponse)
 async def create_question(question: QuestionCreate, admin: dict = Depends(get_admin_user)):
+    _dump = question.dict() if hasattr(question, 'dict') else question.model_dump()
+    _choices_dump = [c.dict() if hasattr(c, 'dict') else c.model_dump() for c in question.choices]
     question_doc = {
         "id": str(uuid.uuid4()),
-        **question.model_dump(),
-        "choices": [c.model_dump() for c in question.choices],
+        **_dump,
+        "choices": _choices_dump,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.questions.insert_one(question_doc)
-    del question_doc["_id"]
+    question_doc.pop("_id", None)
     return question_doc
 
 @api_router.put("/questions/{question_id}", response_model=QuestionResponse)
@@ -1032,9 +1034,10 @@ async def update_question(question_id: str, question: QuestionUpdate, admin: dic
     if not existing:
         raise HTTPException(status_code=404, detail="Question not found")
     
-    update_data = {k: v for k, v in question.model_dump().items() if v is not None}
-    if "choices" in update_data:
-        update_data["choices"] = [c.model_dump() if hasattr(c, 'model_dump') else c for c in update_data["choices"]]
+    _q_dump = question.dict() if hasattr(question, 'dict') else question.model_dump()
+    update_data = {k: v for k, v in _q_dump.items() if v is not None}
+    if "choices" in update_data and isinstance(update_data["choices"], list):
+        update_data["choices"] = [c.dict() if hasattr(c, 'dict') else (c.model_dump() if hasattr(c, 'model_dump') else c) for c in update_data["choices"]]
     
     if update_data:
         await db.questions.update_one({"id": question_id}, {"$set": update_data})
