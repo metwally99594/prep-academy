@@ -41,29 +41,13 @@ router = APIRouter(prefix="/api/learn", tags=["learn"])
 
 
 async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500) -> str:
-    """Robust text-only LLM call. Tries Emergent (gpt-4o) first, falls back to OpenRouter (Qwen) if budget exhausted."""
-    em_key = os.environ.get("EMERGENT_LLM_KEY")
-    if em_key:
-        try:
-            chat = LlmChat(
-                api_key=em_key,
-                session_id=f"llm-{uuid.uuid4().hex[:8]}",
-                system_message=system_msg,
-            ).with_model("openai", "gpt-4o")
-            return await chat.send_message(UserMessage(text=user_msg))
-        except Exception as e:
-            err = str(e).lower()
-            if "budget" in err or "exceeded" in err or "rate" in err or "401" in err:
-                logger.info(f"Emergent LLM exhausted, falling back to OpenRouter: {e}")
-            else:
-                logger.warning(f"Emergent LLM error, trying OpenRouter: {e}")
-
-    # OpenRouter fallback (Qwen3 235B — text-only, very cheap)
+    """Text-only LLM call via OpenRouter (DeepSeek Chat V3 free tier)."""
+    import re as _re
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if or_key:
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=90.0) as client:
                 r = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -73,7 +57,7 @@ async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500) -> s
                         "X-Title": "PrepAcademy Learn",
                     },
                     json={
-                        "model": "qwen/qwen3-235b-a22b-2507",
+                        "model": "deepseek/deepseek-chat-v3-0324:free",
                         "messages": [
                             {"role": "system", "content": system_msg},
                             {"role": "user", "content": user_msg},
@@ -83,13 +67,17 @@ async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500) -> s
                     },
                 )
                 d = r.json()
-                if "choices" in d and d["choices"]:
-                    return d["choices"][0]["message"]["content"]
-                logger.warning(f"OpenRouter no choices: {str(d)[:200]}")
+                if "error" in d:
+                    logger.warning(f"OpenRouter error: {d['error']}")
+                elif "choices" in d and d["choices"]:
+                    content = d["choices"][0]["message"]["content"] or ""
+                    return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+                else:
+                    logger.warning(f"OpenRouter no choices: {str(d)[:200]}")
         except Exception as e:
-            logger.warning(f"OpenRouter fallback failed: {e}")
+            logger.warning(f"OpenRouter _llm_text failed: {e}")
 
-    raise HTTPException(status_code=503, detail="AI nicht verfügbar (Budget aufgebraucht — bitte Profile → Universal Key → Add Balance)")
+    raise HTTPException(status_code=503, detail="AI nicht verfügbar — bitte OpenRouter API-Key prüfen")
 
 
 # ═══════ MODELS ═══════
@@ -211,24 +199,12 @@ async def _get_context(req, user_id: str):
 
 @router.post("/study-guide")
 async def generate_study_guide(req: StudyGuideRequest, user: dict = Depends(get_current_user)):
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI not configured")
-    
     context, label, source_type = await _get_context(req, user["id"])
     if not context:
         raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-    
-    provider, model = MODEL_MAP.get(req.model, MODEL_MAP["gpt-4o"])
+
     lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"sg-{user['id']}-{uuid.uuid4().hex[:6]}",
-        system_message=f"""Du bist ein medizinischer Dozent. Erstelle einen strukturierten Lernleitfaden.
-{lang}"""
-    ).with_model(provider, model)
-    
+    system_msg = f"Du bist ein medizinischer Dozent. Erstelle einen strukturierten Lernleitfaden.\n{lang}"
     prompt = f"""Erstelle einen umfassenden Lernleitfaden für: {label}
 
 Basierend auf folgendem Inhalt:
@@ -241,7 +217,7 @@ Struktur:
 4. **Zusammenfassung** - Wichtigste Punkte
 5. **Prüfungstipps** - Strategien"""
 
-    response = await chat.send_message(UserMessage(text=prompt))
+    response = await _llm_text(system_msg, prompt, max_tokens=2000)
     return {"id": str(uuid.uuid4()), "content": response, "model": req.model}
 
 
@@ -249,25 +225,12 @@ Struktur:
 
 @router.post("/flashcards")
 async def generate_flashcards(req: FlashcardRequest, user: dict = Depends(get_current_user)):
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI not configured")
-    
     context, label, source_type = await _get_context(req, user["id"])
     if not context:
         raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-    
-    provider, model = MODEL_MAP.get(req.model, MODEL_MAP["gpt-4o"])
+
     lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"fc-{user['id']}-{uuid.uuid4().hex[:6]}",
-        system_message=f"""Du erstellst Lernkarten (Flashcards) aus medizinischen Inhalten.
-{lang}
-Antworte NUR als valides JSON-Array."""
-    ).with_model(provider, model)
-    
+    system_msg = f"Du erstellst Lernkarten (Flashcards) aus medizinischen Inhalten.\n{lang}\nAntworte NUR als valides JSON-Array."
     prompt = f"""Erstelle genau {req.count} Lernkarten basierend auf: {label}
 
 Inhalt:
@@ -281,8 +244,8 @@ Format als JSON-Array:
 
 Nur das JSON-Array ausgeben, nichts anderes."""
 
-    response = await chat.send_message(UserMessage(text=prompt))
-    
+    response = await _llm_text(system_msg, prompt, max_tokens=2000)
+
     try:
         clean = response.strip()
         if clean.startswith("```"):
@@ -290,7 +253,7 @@ Nur das JSON-Array ausgeben, nichts anderes."""
         cards = json.loads(clean)
     except (json.JSONDecodeError, IndexError):
         cards = [{"front": "Fehler beim Generieren", "back": response[:200], "difficulty": "medium"}]
-    
+
     return {"id": str(uuid.uuid4()), "cards": cards, "count": len(cards), "model": req.model}
 
 
@@ -666,24 +629,12 @@ async def get_saved_audio(notebook_id: str, language: str = "de", user: dict = D
 @router.post("/audio-overview")
 async def generate_audio_overview(req: AudioRequest, user: dict = Depends(get_current_user)):
     """Legacy: Combined script + TTS (may timeout for large files)"""
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI not configured")
-    
     context, label, source_type = await _get_context(req, user["id"])
     if not context:
         raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-    
+
     lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"audio-{user['id']}-{uuid.uuid4().hex[:6]}",
-        system_message=f"""Du erstellst ein kurzes Audio-Skript (max 2500 Zeichen).
-{lang}
-Natürlicher Sprechstil, keine Markdown-Formatierung."""
-    ).with_model("openai", "gpt-4o")
-    
+    system_msg = f"Du erstellst ein kurzes Audio-Skript (max 2500 Zeichen).\n{lang}\nNatürlicher Sprechstil, keine Markdown-Formatierung."
     prompt = f"""Erstelle ein Audio-Skript für einen kurzen Lernpodcast über: {label}
 
 Basierend auf:
@@ -691,12 +642,10 @@ Basierend auf:
 
 Halte es unter 2500 Zeichen. Kein Markdown."""
 
-    script = await chat.send_message(UserMessage(text=prompt))
-    
+    script = await _llm_text(system_msg, prompt, max_tokens=1500)
+
     try:
-        from emergentintegrations.llm.openai import OpenAITextToSpeech
-        tts = OpenAITextToSpeech(api_key=api_key)
-        audio_base64 = await tts.generate_speech_base64(text=script[:4090], model="tts-1", voice=req.voice, speed=0.95)
+        audio_base64 = await _synthesize_edge_tts(script[:4000], req.voice)
         return {"id": str(uuid.uuid4()), "script": script, "audio_base64": audio_base64, "voice": req.voice}
     except Exception as e:
         logger.error(f"TTS error: {e}")
@@ -707,25 +656,12 @@ Halte es unter 2500 Zeichen. Kein Markdown."""
 
 @router.post("/mind-map")
 async def generate_mind_map(req: MindMapRequest, user: dict = Depends(get_current_user)):
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI not configured")
-    
     context, label, source_type = await _get_context(req, user["id"])
     if not context:
         raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-    
-    provider, model = MODEL_MAP.get(req.model, MODEL_MAP["gpt-4o"])
+
     lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"mm-{user['id']}-{uuid.uuid4().hex[:6]}",
-        system_message=f"""Du erstellst eine Mind Map als JSON-Struktur.
-{lang}
-Antworte NUR als valides JSON."""
-    ).with_model(provider, model)
-    
+    system_msg = f"Du erstellst eine Mind Map als JSON-Struktur.\n{lang}\nAntworte NUR als valides JSON."
     prompt = f"""Erstelle eine Mind Map für: {label}
 
 Inhalt:
@@ -749,8 +685,8 @@ JSON-Format:
 4-6 Hauptzweige, je 2-4 Unterpunkte. Farben: #c9a84c, #3b82f6, #10b981, #f59e0b, #ef4444, #8b5cf6.
 Nur JSON."""
 
-    response = await chat.send_message(UserMessage(text=prompt))
-    
+    response = await _llm_text(system_msg, prompt, max_tokens=2000)
+
     try:
         clean = response.strip()
         if clean.startswith("```"):
@@ -758,7 +694,7 @@ Nur JSON."""
         mind_map = json.loads(clean)
     except (json.JSONDecodeError, IndexError):
         mind_map = {"title": label, "children": [{"title": "Fehler beim Generieren", "children": []}]}
-    
+
     return {"mind_map": mind_map, "model": req.model}
 
 
@@ -767,49 +703,35 @@ Nur JSON."""
 @router.post("/chat-with-citations")
 async def chat_with_citations(req: SourceChatRequest, user: dict = Depends(get_current_user)):
     """AI chat grounded in user's notebook sources with citations"""
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI not configured")
-    
-    # Get notebook sources
     notebook = await db.notebooks.find_one({"id": req.notebook_id, "user_id": user["id"]}, {"_id": 0})
     if not notebook:
         raise HTTPException(status_code=404, detail="Notebook nicht gefunden")
-    
+
     sources = notebook.get("sources", [])
     if not sources:
         raise HTTPException(status_code=400, detail="Keine Quellen im Notebook")
-    
-    # Build source context with IDs
+
     source_ctx = []
     for i, src in enumerate(sources):
         src_label = f"[Quelle {i+1}: {src.get('name', 'Unbenannt')}]"
         content = src.get("content", src.get("summary", ""))[:2000]
         source_ctx.append(f"{src_label}\n{content}")
-    
+
     sources_text = "\n\n---\n\n".join(source_ctx)
-    
-    provider, model = MODEL_MAP.get(req.model, MODEL_MAP["gpt-4o"])
     lang = LANG_MAP.get(req.language, LANG_MAP["de"])
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"src-{req.notebook_id}-{user['id']}-{uuid.uuid4().hex[:6]}",
-        system_message=f"""Du bist ein medizinischer Forschungsassistent. Beantworte Fragen NUR basierend auf den gegebenen Quellen.
+    system_msg = f"""Du bist ein medizinischer Forschungsassistent. Beantworte Fragen NUR basierend auf den gegebenen Quellen.
 {lang}
 WICHTIG: Zitiere IMMER deine Quellen mit [Quelle X] am Ende jedes Absatzes.
 Wenn die Quellen keine Antwort enthalten, sage das ehrlich.
 
 QUELLEN:
 {sources_text}"""
-    ).with_model(provider, model)
-    
-    response = await chat.send_message(UserMessage(text=req.message))
-    
-    # Extract citations
+
+    response = await _llm_text(system_msg, req.message, max_tokens=1500)
+
     import re
     citations = list(set(re.findall(r'\[Quelle \d+[^\]]*\]', response)))
-    
+
     return {
         "response": response,
         "citations": citations,
@@ -827,11 +749,6 @@ async def upload_source(
     user: dict = Depends(get_current_user),
 ):
     """Upload a source (PDF/text) to a learning notebook"""
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI not configured")
-    
-    # Read file
     content = await file.read()
     text = ""
     
@@ -852,14 +769,11 @@ async def upload_source(
     else:
         text = content.decode('utf-8', errors='replace')[:10000]
     
-    # Summarize with AI
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"sum-{uuid.uuid4().hex[:8]}",
-        system_message="Erstelle eine kurze Zusammenfassung (max 500 Wörter) dieses medizinischen Textes auf Deutsch."
-    ).with_model("openai", "gpt-4o")
-    
-    summary = await chat.send_message(UserMessage(text=text[:8000]))
+    summary = await _llm_text(
+        "Erstelle eine kurze Zusammenfassung (max 500 Wörter) dieses medizinischen Textes auf Deutsch.",
+        text[:8000],
+        max_tokens=800,
+    )
     
     # Get or create notebook
     notebook = await db.notebooks.find_one({"id": notebook_id, "user_id": user["id"]})
