@@ -1256,7 +1256,7 @@ async def get_due_reviews(user: dict = Depends(get_current_user), limit: int = 2
     questions = await db.questions.find(
         {"id": {"$in": q_ids}},
         {"_id": 0, "id": 1, "specialty_id": 1, "question_text": 1, "question_text_de": 1,
-         "choices": 1, "explanation_de": 1, "year": 1}
+         "choices": 1, "choices_de": 1, "explanation_de": 1, "year": 1}
     ).to_list(limit)
 
     # Attach SR metadata
@@ -1265,6 +1265,8 @@ async def get_due_reviews(user: dict = Depends(get_current_user), limit: int = 2
         sr = sr_map.get(q["id"], {})
         q["sr_interval"] = sr.get("interval", 1)
         q["sr_repetitions"] = sr.get("repetitions", 0)
+        if not q.get("choices") and q.get("choices_de"):
+            q["choices"] = q["choices_de"]
 
     total_due = await db.spaced_repetition.count_documents(
         {"user_id": user["id"], "next_review": {"$lte": today}}

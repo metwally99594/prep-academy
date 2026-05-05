@@ -24,7 +24,11 @@ export default function SpacedReviewPage() {
       axios.get(`${API}/review/due?limit=20`, { headers }),
       axios.get(`${API}/review/stats`, { headers }),
     ]).then(([dueRes, statsRes]) => {
-      setQuestions(dueRes.data.questions || []);
+      const qs = (dueRes.data.questions || []).map(q => ({
+        ...q,
+        choices: q.choices?.length > 0 ? q.choices : (q.choices_de || []),
+      }));
+      setQuestions(qs);
       setStats(statsRes.data);
       setStage("intro");
     }).catch(() => {}).finally(() => setLoading(false));
