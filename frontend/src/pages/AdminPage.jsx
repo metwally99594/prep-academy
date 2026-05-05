@@ -461,7 +461,9 @@ export default function AdminPage() {
 
   const editQuestion = (question) => {
     setEditingQuestion(question);
-    const filledChoices = question.choices || [];
+    const filledChoices = (Array.isArray(question.choices) && question.choices.length > 0)
+      ? question.choices
+      : (Array.isArray(question.choices_de) ? question.choices_de : []);
     const paddedChoices = [
       ...filledChoices,
       ...Array(Math.max(0, 5 - filledChoices.length)).fill(null).map(() => ({

@@ -2526,26 +2526,26 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
         second_role = "Du bist ein zweiter unabhängiger Facharzt (Prep Academy Medical AI). Arbeite besonders sorgfältig bei Differentialdiagnosen. Antworte IMMER auf Deutsch."
         third_role = "Du bist ein dritter Facharzt mit Zugang zu aktuellen Leitlinien (ESC, DGK, AWMF, WHO). Fokus auf evidenzbasierte Medizin. Antworte IMMER auf Deutsch."
 
-        # Run all 3 in parallel — Chinese & open-source models via OpenRouter
+        # Run all 3 in parallel — free-tier vision models via OpenRouter (no credits needed)
         results = await asyncio.gather(
-            _openrouter_vision_call("qwen/qwen3-vl-235b-a22b-instruct", primary_role + "\n\n" + system_msg, main_prompt, all_images, 2800),
-            _openrouter_vision_call("qwen/qwen3-vl-30b-a3b-instruct",   second_role  + "\n\n" + system_msg, main_prompt, all_images, 2200),
-            _openrouter_vision_call("nvidia/nemotron-nano-12b-v2-vl:free", third_role + "\n\n" + system_msg, main_prompt, all_images, 2200),
+            _openrouter_vision_call("qwen/qwen3-vl-235b-a22b-instruct:free", primary_role + "\n\n" + system_msg, main_prompt, all_images, 1200),
+            _openrouter_vision_call("qwen/qwen3-vl-30b-a3b-instruct:free",   second_role  + "\n\n" + system_msg, main_prompt, all_images, 1200),
+            _openrouter_vision_call("nvidia/nemotron-nano-12b-v2-vl:free",   third_role   + "\n\n" + system_msg, main_prompt, all_images, 1200),
             return_exceptions=True,
         )
         primary_analysis = results[0] if isinstance(results[0], str) else None
         second_opinion   = results[1] if isinstance(results[1], str) else None
         third_opinion    = results[2] if isinstance(results[2], str) else None
 
-        # Refusal fallback for primary
+        # Refusal fallback for primary — use free 30B as backup
         refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich", "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
         if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
             try:
                 primary_analysis = await _openrouter_vision_call(
-                    "qwen/qwen3-vl-30b-a3b-instruct",
+                    "qwen/qwen3-vl-30b-a3b-instruct:free",
                     "Du bist ein medizinischer Lernassistent. Beschreibe IMMER was sichtbar ist. Verweigere NIE.",
                     f"Beschreibe und analysiere {'diese medizinischen Bilder' if len(all_images) > 1 else 'dieses medizinische Bild'} ({report_type}) für Studierende.\n{context_text}\nGib eine VOLLSTÄNDIGE strukturierte Analyse auf Deutsch.",
-                    all_images, 2500,
+                    all_images, 1200,
                 ) or primary_analysis
             except Exception:
                 pass
