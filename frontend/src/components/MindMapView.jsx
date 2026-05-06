@@ -26,7 +26,7 @@ function BranchItem({ branch }) {
       <button onClick={() => setOpen(!open)} className="flex items-center gap-2 py-2 text-left w-full text-sm font-semibold hover:bg-white/5 rounded-lg">
         {kids.length > 0 && <ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} style={{ color }} />}
         {kids.length === 0 && <div className="w-2 h-2 rounded-full" style={{ background: color }} />}
-        <span>{branch.title}</span>
+        <span>{branch.name || branch.title}</span>
       </button>
       {open && kids.length > 0 && (
         <div className="space-y-1">
@@ -48,14 +48,14 @@ function LeafItem({ leaf }) {
     <div className="ml-6 pl-3 border-l border-white/5">
       <button onClick={() => kids.length > 0 && setOpen(!open)} className="flex items-center gap-2 py-1 text-left w-full text-sm hover:bg-white/5 rounded">
         <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
-        <span className="text-muted-foreground">{leaf.title}</span>
+        <span className="text-muted-foreground">{leaf.name || leaf.title}</span>
       </button>
       {open && kids.length > 0 && (
         <div className="ml-4 space-y-0.5">
           {kids.map((sub, si) => (
             <div key={si} className="flex items-center gap-2 py-0.5 text-xs text-muted-foreground/70 pl-2">
               <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-              {sub.title}
+              {sub.name || sub.title}
             </div>
           ))}
         </div>
