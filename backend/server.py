@@ -2484,23 +2484,23 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
         second_role = "Du bist ein zweiter unabhängiger Facharzt (Prep Academy Medical AI). Arbeite besonders sorgfältig bei Differentialdiagnosen. Antworte IMMER auf Deutsch."
         third_role = "Du bist ein dritter Facharzt mit Zugang zu aktuellen Leitlinien (ESC, DGK, AWMF, WHO). Fokus auf evidenzbasierte Medizin. Antworte IMMER auf Deutsch."
 
-        # Run all 3 in parallel — free-tier vision models via OpenRouter (no credits needed)
+        # Run all 3 in parallel — Gemini models via OpenRouter (vision-capable, low cost)
         results = await asyncio.gather(
-            _openrouter_vision_call("google/gemini-2.0-flash-exp:free",  primary_role + "\n\n" + system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call("meta-llama/llama-4-scout:free",     second_role  + "\n\n" + system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call("qwen/qwen2.5-vl-72b-instruct:free", third_role   + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call("google/gemini-2.5-flash",      primary_role + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call("google/gemini-2.5-flash-lite", second_role  + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call("google/gemini-3-flash-preview", third_role  + "\n\n" + system_msg, main_prompt, all_images, 1500),
             return_exceptions=True,
         )
         primary_analysis = results[0] if isinstance(results[0], str) else None
         second_opinion   = results[1] if isinstance(results[1], str) else None
         third_opinion    = results[2] if isinstance(results[2], str) else None
 
-        # Refusal fallback for primary — use free 30B as backup
+        # Refusal fallback for primary — use lite as backup
         refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich", "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
         if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
             try:
                 primary_analysis = await _openrouter_vision_call(
-                    "meta-llama/llama-4-scout:free",
+                    "google/gemini-2.5-flash-lite",
                     "Du bist ein medizinischer Lernassistent. Beschreibe IMMER was sichtbar ist. Verweigere NIE.",
                     f"Beschreibe und analysiere {'diese medizinischen Bilder' if len(all_images) > 1 else 'dieses medizinische Bild'} ({report_type}) für Studierende.\n{context_text}\nGib eine VOLLSTÄNDIGE strukturierte Analyse auf Deutsch.",
                     all_images, 1200,
@@ -2523,13 +2523,13 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
             }})
             return
 
-        full_analysis = f"## Erstanalyse — Gemini 2.0 Flash (Google 🌐)\n{primary_analysis}"
+        full_analysis = f"## Erstanalyse — Gemini 2.5 Flash (Google 🌐)\n{primary_analysis}"
         ai_count = 1
         if second_opinion:
-            full_analysis += f"\n\n---\n\n## Zweitmeinung — Llama 4 Scout (Meta 🦙)\n{second_opinion}"
+            full_analysis += f"\n\n---\n\n## Zweitmeinung — Gemini 2.5 Flash Lite (Google 🌐)\n{second_opinion}"
             ai_count += 1
         if third_opinion:
-            full_analysis += f"\n\n---\n\n## Drittmeinung — Qwen2.5-VL 72B (Alibaba 🇨🇳)\n{third_opinion}"
+            full_analysis += f"\n\n---\n\n## Drittmeinung — Gemini 3 Flash (Google 🌐)\n{third_opinion}"
             ai_count += 1
 
         analysis_id = str(uuid.uuid4())
