@@ -98,7 +98,7 @@ SUPPORTED_LANGS = ["de", "en", "ar", "ru", "uk"]
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[str]:
-    """Call Qwen3-235B via OpenRouter. Returns text or None."""
+    """Call Ling 1T via OpenRouter (free, strong multilingual: de/en/ar/ru/uk). Returns text or None."""
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
         logger.error("OPENROUTER_API_KEY not set — cannot generate podcast")
@@ -114,14 +114,13 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
                     "X-Title": "PrepAcademy Daily Podcast",
                 },
                 json={
-                    "model": "qwen/qwen3-235b-a22b-2507",
+                    "model": "inclusionai/ling-2.6-1t:free",
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
                     ],
                     "max_tokens": max_tokens,
                     "temperature": 0.7,
-                    "thinking": {"type": "disabled"},
                 },
             )
             data = r.json()
@@ -130,12 +129,11 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
                 return None
             if "choices" in data and data["choices"]:
                 content = data["choices"][0]["message"]["content"] or ""
-                # Strip Qwen3 thinking blocks if thinking mode leaked through
                 content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
                 return content if content else None
             logger.error(f"OpenRouter unexpected response (no choices): {str(data)[:300]}")
     except Exception as e:
-        logger.warning(f"Qwen call failed: {e}")
+        logger.warning(f"Ling call failed: {e}")
     return None
 
 

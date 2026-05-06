@@ -44,6 +44,22 @@ const BlogPage = lazy(() => import("@/pages/BlogPage"));
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 export const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
+// Global 401 interceptor — clears stale token and redirects to login
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    if (
+      error.response?.status === 401 &&
+      localStorage.getItem("token") &&
+      !error.config?.url?.includes('/auth/')
+    ) {
+      localStorage.removeItem("token");
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth Context
 export const AuthContext = createContext(null);
 
