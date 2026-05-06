@@ -1504,26 +1504,34 @@ def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000) -> str:
-    """OpenRouter DeepSeek text call — free tier, strips <think> blocks."""
+    """OpenRouter text call — free tier, strips <think> blocks."""
     import re as _re, httpx
+    _TEXT_MODEL = "openai/gpt-oss-120b:free"
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
         raise HTTPException(status_code=503, detail="AI nicht verfügbar — OPENROUTER_API_KEY fehlt")
-    async with httpx.AsyncClient(timeout=55.0) as client:
-        r = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
-                     "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
-            json={"model": "openai/gpt-oss-120b:free",
-                  "messages": [{"role": "system", "content": system_msg},
-                                {"role": "user", "content": user_msg}],
-                  "max_tokens": max_tokens, "temperature": 0.4},
-        )
-        d = r.json()
-        if "choices" in d and d["choices"]:
-            content = d["choices"][0]["message"]["content"] or ""
-            return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
-        raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
+    try:
+        async with httpx.AsyncClient(timeout=55.0) as client:
+            r = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                         "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+                json={"model": _TEXT_MODEL,
+                      "messages": [{"role": "system", "content": system_msg},
+                                    {"role": "user", "content": user_msg}],
+                      "max_tokens": max_tokens, "temperature": 0.4},
+            )
+            d = r.json()
+            if "choices" in d and d["choices"]:
+                content = d["choices"][0]["message"]["content"] or ""
+                return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+            _record_model_failure(_TEXT_MODEL)
+            raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        _record_model_failure(_TEXT_MODEL)
+        raise HTTPException(status_code=503, detail=f"AI-Verbindungsfehler: {str(e)[:200]}")
 
 @api_router.get("/ai/models")
 async def get_ai_models():
@@ -2413,6 +2421,22 @@ async def get_analyzer_job(job_id: str, user: dict = Depends(get_current_user)):
     return job
 
 
+# ── Phase 3: Model failure tracking ──
+from collections import defaultdict as _defaultdict
+_model_failure_log: dict = _defaultdict(list)  # model_id → [datetime, ...]
+
+def _record_model_failure(model: str) -> None:
+    """Track per-model failures; ALERT if ≥3 failures in the last hour."""
+    now = datetime.now(timezone.utc)
+    _model_failure_log[model] = [t for t in _model_failure_log[model] if (now - t).total_seconds() < 3600]
+    _model_failure_log[model].append(now)
+    count = len(_model_failure_log[model])
+    if count >= 3:
+        logger.error(f"[MODEL-ALERT] {model!r} failed {count}x in the last hour — consider fallback")
+    else:
+        logger.warning(f"[MODEL-WARN] {model!r} failure #{count}/3 in the last hour")
+
+
 async def _openrouter_vision_call(model: str, system_msg: str, user_text: str, images_b64: list, max_tokens: int = 2500) -> str | None:
     """Call OpenRouter chat/completions with vision content. Returns text or None on failure."""
     or_key = os.environ.get("OPENROUTER_API_KEY")
@@ -2446,9 +2470,11 @@ async def _openrouter_vision_call(model: str, system_msg: str, user_text: str, i
             if "choices" in data and data["choices"]:
                 return data["choices"][0]["message"]["content"]
             logger.warning(f"OpenRouter {model} no choices: {str(data)[:300]}")
+            _record_model_failure(model)
             return None
     except Exception as e:
         logger.warning(f"OpenRouter {model} failed: {e}")
+        _record_model_failure(model)
         return None
 
 
@@ -3449,6 +3475,16 @@ async def get_all_reports(admin: dict = Depends(get_admin_user)):
 # ============ ADMIN ROUTES (extracted to routes/admin.py) ============
 
 # ============ TELEGRAM BOT STATUS ============
+
+@api_router.get("/admin/model-health")
+async def get_model_health(admin: dict = Depends(get_admin_user)):
+    """Return per-model failure counts in the last hour."""
+    now = datetime.now(timezone.utc)
+    result = {}
+    for model, timestamps in _model_failure_log.items():
+        recent = [t for t in timestamps if (now - t).total_seconds() < 3600]
+        result[model] = {"failures_last_hour": len(recent), "alert": len(recent) >= 3}
+    return {"models": result, "checked_at": now.isoformat()}
 
 @api_router.get("/admin/telegram/status")
 async def get_telegram_status(admin: dict = Depends(get_admin_user)):
