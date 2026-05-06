@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { Loader2 } from "lucide-react";
 
 // Eager load critical pages
@@ -39,6 +40,10 @@ const ChallengePage = lazy(() => import("@/pages/ChallengePage"));
 const SEOSpecialtyPage = lazy(() => import("@/pages/SEOSpecialtyPage"));
 const SpacedReviewPage = lazy(() => import("@/pages/SpacedReviewPage"));
 const BlogPage = lazy(() => import("@/pages/BlogPage"));
+const ImpressumPage = lazy(() => import("@/pages/ImpressumPage"));
+const PrivacyPage = lazy(() => import("@/pages/PrivacyPage"));
+const TermsPage = lazy(() => import("@/pages/TermsPage"));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 // API Configuration - Use relative URL for production, full URL for development
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -295,6 +300,10 @@ function AppRouter() {
             <ProtectedRoute><BillingSuccessPage /></ProtectedRoute>
           } />
           <Route path="/podcast" element={<DailyPodcastPage />} />
+          <Route path="/impressum" element={<ImpressumPage />} />
+          <Route path="/datenschutz" element={<PrivacyPage />} />
+          <Route path="/agb" element={<TermsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </Suspense>
@@ -308,6 +317,7 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <AppRouter />
+            <KeyboardShortcuts />
             <Toaster position="top-center" richColors closeButton dir="ltr" />
           </BrowserRouter>
         </AuthProvider>

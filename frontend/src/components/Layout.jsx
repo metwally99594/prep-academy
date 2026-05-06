@@ -769,11 +769,18 @@ export const Layout = () => {
       </main>
 
       {/* Footer */}
-      <footer className="py-6 mt-auto" style={{ borderTop: '1px solid transparent', borderImage: 'linear-gradient(90deg, transparent, hsl(42 65% 52% / 0.15), transparent) 1' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-1">
-          <p className="text-sm text-muted-foreground">
-            Prep Academy - Medizinische Prüfungsvorbereitung © {new Date().getFullYear()}
-          </p>
+      <footer className="py-8 mt-auto" style={{ borderTop: '1px solid transparent', borderImage: 'linear-gradient(90deg, transparent, hsl(42 65% 52% / 0.15), transparent) 1' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              PrepAcademy Elite © {new Date().getFullYear()} — Medizinische Prüfungsvorbereitung
+            </p>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground/60">
+              <Link to="/impressum" className="hover:text-muted-foreground transition-colors">Impressum</Link>
+              <Link to="/datenschutz" className="hover:text-muted-foreground transition-colors">Datenschutz</Link>
+              <Link to="/agb" className="hover:text-muted-foreground transition-colors">AGB</Link>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

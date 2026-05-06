@@ -6,16 +6,57 @@
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0c1229" />
-    <meta name="description" content="PrepAcademy Elite - Medizinische Prüfungsvorbereitung" />
+
+    <!-- Primary SEO -->
+    <title>PrepAcademy Elite | Medizinische Prüfungsvorbereitung Österreich & Deutschland</title>
+    <meta name="description" content="PrepAcademy Elite — Die KI-gestützte Lernplattform für Medizinstudierende. Über 2.500 Prüfungsfragen, PDF Notebook mit KI-Analyse, EKG- & Röntgen-Analyzer und tägliche Podcasts. Jetzt kostenlos starten." />
+    <meta name="keywords" content="medizinische prüfungsvorbereitung, MedAT, EKG analyse, röntgen KI, medizin lernen, USMLE, österreich medizin, pdf notebook medizin, KI tutor medizin" />
+    <meta name="author" content="PrepAcademy Elite" />
+    <link rel="canonical" href="https://prepacademy.at/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://prepacademy.at/" />
+    <meta property="og:title" content="PrepAcademy Elite | KI-gestützte Medizinische Prüfungsvorbereitung" />
+    <meta property="og:description" content="2.500+ Prüfungsfragen, KI-Analyzer für EKG & Röntgen, PDF Notebook, tägliche Podcasts. Für angehende Ärzte in Österreich und Deutschland." />
+    <meta property="og:image" content="https://prepacademy.at/hero-dark.png" />
+    <meta property="og:locale" content="de_AT" />
+    <meta property="og:site_name" content="PrepAcademy Elite" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PrepAcademy Elite | KI Medizinische Prüfungsvorbereitung" />
+    <meta name="twitter:description" content="KI-gestützte Lernplattform für Medizinstudierende. EKG-Analyse, PDF Notebook, 2.500+ Prüfungsfragen." />
+    <meta name="twitter:image" content="https://prepacademy.at/hero-dark.png" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "EducationalOrganization",
+      "name": "PrepAcademy Elite",
+      "url": "https://prepacademy.at",
+      "description": "KI-gestützte Lernplattform für medizinische Prüfungsvorbereitung",
+      "educationalCredentialAwarded": "Medizinische Exzellenz",
+      "areaServed": ["AT", "DE", "CH"]
+    }
+    </script>
+
+    <!-- PWA / App -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="PrepAcademy" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo-elite.png" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <title>PrepAcademy Elite</title>
+
+    <!-- Plausible Analytics (cookie-free, GDPR compliant) -->
+    <script defer data-domain="prepacademy.at" src="https://plausible.io/js/script.js"></script>
+
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
       body{font-family:'Manrope',system-ui,sans-serif;background:#06081a}
@@ -46,9 +87,7 @@
       setTimeout(function(){ var ls = document.getElementById('loading-screen'); if(ls) ls.classList.add('hide'); }, 3000);
     </script>
     <script>
-      // NUCLEAR UNINSTALL: remove any/all service workers + wipe ALL caches immediately.
-      // Prevents stale cached JS from sabotaging users. If it was ever registered,
-      // force-reload once without it so fresh code is fetched from the network.
+      // Remove stale service workers
       (function() {
         if (!('serviceWorker' in navigator)) return;
         navigator.serviceWorker.getRegistrations().then(function(regs) {
