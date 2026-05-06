@@ -13,8 +13,17 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # JWT settings
-JWT_SECRET = os.environ.get('JWT_SECRET', 'medical-mcq-secret')
+_JWT_DEFAULT = 'medical-mcq-secret'
+JWT_SECRET = os.environ.get('JWT_SECRET', _JWT_DEFAULT)
 JWT_ALGORITHM = "HS256"
+if JWT_SECRET == _JWT_DEFAULT:
+    import warnings
+    warnings.warn(
+        "JWT_SECRET is using the insecure default value. "
+        "Set JWT_SECRET environment variable in production!",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 
 # Logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

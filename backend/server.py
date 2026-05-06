@@ -1,7 +1,10 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import os
 import json
 from typing import List, Optional
@@ -28,8 +31,18 @@ from auth import (
     get_current_user, get_admin_user, security
 )
 
-# Create the main app
-app = FastAPI()
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+# Disable Swagger/OpenAPI in production for security
+_IS_PRODUCTION = os.environ.get("ENVIRONMENT", "production").lower() == "production"
+app = FastAPI(
+    docs_url=None if _IS_PRODUCTION else "/docs",
+    redoc_url=None if _IS_PRODUCTION else "/redoc",
+    openapi_url=None if _IS_PRODUCTION else "/openapi.json",
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 api_router = APIRouter(prefix="/api")
 
 # ============ GAMIFICATION CONFIG (imported from database.py) ============
@@ -70,12 +83,14 @@ async def _background_db_sync():
         logger.error(f"Background specialties error: {e}")
 
     try:
-        admin = await db.users.find_one({"email": "admin@medical.com"})
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@medical.com")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+        admin = await db.users.find_one({"email": admin_email})
         if not admin:
             admin_user = {
                 "id": str(uuid.uuid4()),
-                "email": "admin@medical.com",
-                "password": hash_password("admin123"),
+                "email": admin_email,
+                "password": hash_password(admin_password),
                 "name": "المدير",
                 "is_admin": True,
                 "auth_provider": "email",
@@ -83,6 +98,8 @@ async def _background_db_sync():
             }
             await db.users.insert_one(admin_user)
             logger.info("Background: Created admin user")
+        if admin_password == "admin123":
+            logger.warning("SECURITY: ADMIN_PASSWORD is using the default value. Change it via environment variable!")
     except Exception as e:
         logger.error(f"Background admin error: {e}")
 
@@ -197,11 +214,13 @@ async def shutdown_db_client():
 # ============ AUTH ROUTES ============
 
 @api_router.post("/auth/register", response_model=dict)
-async def register(user: UserCreate):
+@limiter.limit("5/minute")
+async def register(request: Request, user: UserCreate):
     existing = await db.users.find_one({"email": user.email})
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
+        # Generic message to prevent email enumeration
+        raise HTTPException(status_code=400, detail="Registration failed. Please try again.")
+
     user_doc = {
         "id": str(uuid.uuid4()),
         "email": user.email,
@@ -212,7 +231,7 @@ async def register(user: UserCreate):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
-    
+
     # Initialize user stats
     await db.user_stats.insert_one({
         "user_id": user_doc["id"],
@@ -227,18 +246,18 @@ async def register(user: UserCreate):
     return {"token": token, "user": {k: v for k, v in user_doc.items() if k not in ["password", "_id"]}}
 
 @api_router.post("/auth/login", response_model=dict)
-async def login(credentials: UserLogin):
+@limiter.limit("10/minute")
+async def login(request: Request, credentials: UserLogin):
+    from auth import _DUMMY_HASH
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
-    if not user:
+
+    # Always run bcrypt to prevent timing-based user enumeration
+    stored_hash = user["password"] if user and user.get("password") else _DUMMY_HASH
+    password_ok = verify_password(credentials.password, stored_hash)
+
+    if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Check if user has password (email auth) or is Google-only user
-    if not user.get("password"):
-        raise HTTPException(status_code=401, detail="Please login with Google")
-    
-    if not verify_password(credentials.password, user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
     token = create_token(user["id"], user.get("is_admin", False))
     return {"token": token, "user": {k: v for k, v in user.items() if k != "password"}}
 
@@ -540,7 +559,13 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user
     if not ch:
         raise HTTPException(status_code=404, detail="Challenge nicht gefunden")
 
-    # Get questions
+    def strip_correct_from_choices(choices):
+        """Remove is_correct flag from choices before sending to client."""
+        if not choices:
+            return choices
+        return [{k: v for k, v in c.items() if k != "is_correct"} for c in choices]
+
+    # Get questions (correct answers and is_correct flags are never sent to client)
     questions = []
     for qid in ch.get("question_ids", []):
         q = await db.questions.find_one({"id": qid}, {"_id": 0, "id": 1, "specialty_id": 1,
@@ -548,9 +573,10 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user
             "explanation_de": 1, "question_type": 1, "drag_drop_items": 1,
             "drag_drop_categories": 1, "blank_text": 1, "blank_answers": 1})
         if q:
-            # Normalize choices so frontend always has a "choices" key
-            if not q.get("choices") and q.get("choices_de"):
-                q["choices"] = q["choices_de"]
+            # Strip correct answer indicators before sending to client
+            q["choices"] = strip_correct_from_choices(q.get("choices") or q.get("choices_de") or [])
+            q.pop("choices_de", None)
+            q.pop("blank_answers", None)  # also hide fill-in-blank answers
             questions.append(q)
 
     already_played = any(r["user_id"] == user["id"] for r in ch.get("results", []))
@@ -573,12 +599,21 @@ async def submit_challenge_result(challenge_id: str, score: int = 0, total: int 
     if not ch:
         raise HTTPException(status_code=404, detail="Challenge nicht gefunden")
 
+    # Server-side validation: score must be non-negative and ≤ actual question count
+    actual_count = ch.get("count", len(ch.get("question_ids", [])))
+    if score < 0 or total < 0:
+        raise HTTPException(status_code=400, detail="Ungültige Punktzahl")
+    if score > actual_count or total > actual_count:
+        raise HTTPException(status_code=400, detail="Ungültige Punktzahl")
+    # Use server-authoritative total (question count) instead of client-supplied total
+    validated_total = actual_count
+
     result_entry = {
         "user_id": user["id"],
         "user_name": user.get("name", "Anonym"),
         "score": score,
-        "total": total,
-        "accuracy": round(score / total * 100, 1) if total > 0 else 0,
+        "total": validated_total,
+        "accuracy": round(score / validated_total * 100, 1) if validated_total > 0 else 0,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -604,8 +639,10 @@ async def get_questions(
     year: Optional[int] = None,
     exam_location: Optional[str] = None,
     limit: int = 30,
-    skip: int = 0
+    skip: int = 0,
+    user: dict = Depends(get_current_user),
 ):
+    limit = min(limit, 100)  # hard cap to prevent mass extraction
     query = {}
     if specialty_id:
         query["specialty_id"] = specialty_id
@@ -613,14 +650,15 @@ async def get_questions(
         query["year"] = year
     if exam_location:
         query["exam_location"] = exam_location
-    
+
     questions = await db.questions.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return questions
 
 @api_router.get("/questions/search/text")
 async def search_questions(
     q: str,
-    limit: int = 50
+    limit: int = 50,
+    user: dict = Depends(get_current_user),
 ):
     """Smart search: works with punctuation, numbering, partial text, full questions"""
     if not q or len(q) < 2:
@@ -716,7 +754,7 @@ async def get_available_years(specialty_id: Optional[str] = None):
     return [y["_id"] for y in years]
 
 @api_router.get("/simulation/questions")
-async def get_simulation_questions(city: str = "vienna"):
+async def get_simulation_questions(city: str = "vienna", user: dict = Depends(get_current_user)):
     """Get 250 questions for exam simulation - redistributes from empty specialties."""
     exam_structure = [
         ("internal", 30), ("surgery", 30), ("pediatrics", 30),
@@ -784,6 +822,7 @@ async def get_quiz_questions(
     exam_location: Optional[str] = None,
     limit: int = 50,
     mode: str = "exam",
+    user: dict = Depends(get_current_user),
 ):
     """Get questions for quiz. mode=study returns ALL questions, mode=exam uses random sampling"""
     query = {}
@@ -934,7 +973,7 @@ async def custom_quiz_count(request: CustomQuizRequest, user: dict = Depends(get
     return {"count": count}
 
 @api_router.get("/questions/{question_id}", response_model=QuestionResponse)
-async def get_question(question_id: str):
+async def get_question(question_id: str, user: dict = Depends(get_current_user)):
     question = await db.questions.find_one({"id": question_id}, {"_id": 0})
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -2874,6 +2913,9 @@ async def update_dashboard_settings(user: dict = Depends(get_current_user), exam
 @api_router.post("/dashboard/track-activity")
 async def track_activity(user: dict = Depends(get_current_user), questions: int = 1, correct: int = 0):
     """Track daily activity and update streak"""
+    # Validate inputs to prevent stat manipulation
+    questions = max(0, min(questions, 500))
+    correct = max(0, min(correct, questions))  # correct can never exceed questions answered
     user_id = user["id"]
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
@@ -3530,13 +3572,19 @@ async def _start_daily_podcast():
     logger.info("Daily podcast background loop scheduled")
 
 # CORS Configuration
+# IMPORTANT: allow_credentials=True is incompatible with allow_origins=["*"].
+# Always use an explicit list of trusted origins.
 cors_origins_env = os.environ.get('CORS_ORIGINS', '')
-if cors_origins_env == '*':
-    cors_origins = ["*"]
-elif cors_origins_env:
-    cors_origins = cors_origins_env.split(',')
+if cors_origins_env and cors_origins_env != '*':
+    cors_origins = [o.strip() for o in cors_origins_env.split(',') if o.strip()]
 else:
-    cors_origins = ["*"]
+    # Safe defaults for known deployment domains
+    cors_origins = [
+        "https://prep-academy-rho.vercel.app",
+        "https://prep-academy.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
 
 app.add_middleware(
     CORSMiddleware,

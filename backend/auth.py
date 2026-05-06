@@ -8,6 +8,9 @@ from database import db, JWT_SECRET, JWT_ALGORITHM
 
 security = HTTPBearer(auto_error=False)
 
+# Dummy hash used for constant-time comparison when user doesn't exist (prevents timing attacks)
+_DUMMY_HASH = bcrypt.hashpw(b"dummy-timing-protection", bcrypt.gensalt()).decode()
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
