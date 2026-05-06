@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API } from "@/App";
 import { FileText, Upload, Send, Trash2, Sparkles, ArrowLeft, MessageSquare, BookOpen, Loader2, Lock, Brain, ListChecks, HelpCircle, GraduationCap, CheckCircle2,
-  Layers, Headphones, GitBranch, Play, Pause, ArrowRight, RotateCcw, Globe, Volume2, ChevronRight, X,
+  Layers, Headphones, GitBranch, Play, Pause, ArrowRight, RotateCcw, Volume2, ChevronRight, X,
 } from "lucide-react";
 import MindMapView from "@/components/MindMapView";
 
@@ -10,10 +10,80 @@ const LANGS = [
   { id: "de", name: "DE" }, { id: "en", name: "EN" }, { id: "ar", name: "AR" }, { id: "ru", name: "RU" }, { id: "uk", name: "UK" },
 ];
 const VOICES = [
-  { id: "nova", name: "Nova (weiblich)" }, { id: "alloy", name: "Alloy (neutral)" }, 
+  { id: "nova", name: "Nova (weiblich)" }, { id: "alloy", name: "Alloy (neutral)" },
   { id: "shimmer", name: "Shimmer (weiblich)" }, { id: "echo", name: "Echo (männlich)" },
   { id: "onyx", name: "Onyx (tief)" }, { id: "fable", name: "Fable (warm)" },
 ];
+
+const ANALYSIS_STAGES = [
+  { id: "layer1", label: "Globale Analyse", desc: "Überblick & Struktur", icon: "🔍", color: "#c9a84c" },
+  { id: "layer2", label: "Detailanalyse", desc: "Chunks & Konzepte", icon: "🧠", color: "#818cf8" },
+  { id: "layer3", label: "Wissensvernetzung", desc: "Synthese & Verbindungen", icon: "🔗", color: "#34d399" },
+];
+
+function AnalysisProgressBanner({ progress, preview, onDismiss }) {
+  if (!progress) return null;
+  const isDone = progress.stage === "done";
+  const currentIdx = isDone ? 3 : ANALYSIS_STAGES.findIndex(s => s.id === progress.stage);
+
+  return (
+    <div className="mb-3 rounded-xl border overflow-hidden" style={{ borderColor: isDone ? 'rgba(52,211,153,0.3)' : 'rgba(201,168,76,0.2)' }}>
+      {/* Stage indicator row */}
+      <div className="flex items-center px-4 py-2.5 gap-3" style={{ background: isDone ? 'rgba(52,211,153,0.05)' : 'rgba(201,168,76,0.05)' }}>
+        {isDone
+          ? <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+          : <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: ANALYSIS_STAGES[currentIdx]?.color }} />}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            {ANALYSIS_STAGES.map((s, i) => {
+              const done = isDone || i < currentIdx;
+              const active = !isDone && i === currentIdx;
+              return (
+                <div key={s.id} className="flex items-center gap-1.5">
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all ${
+                    done ? 'bg-emerald-500/15 text-emerald-400' : active ? 'text-white' : 'bg-muted/50 text-muted-foreground'
+                  }`} style={active ? { background: `${s.color}20`, color: s.color } : {}}>
+                    <span>{done ? '✓' : s.icon}</span>
+                    <span>{s.label}</span>
+                  </div>
+                  {i < 2 && <ChevronRight size={12} className="text-muted-foreground/40" />}
+                </div>
+              );
+            })}
+          </div>
+          <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: isDone ? '100%' : `${(currentIdx / 3) * 100 + 15}%`, background: isDone ? '#34d399' : ANALYSIS_STAGES[currentIdx]?.color }} />
+          </div>
+        </div>
+        {isDone && (
+          <button onClick={onDismiss} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors flex-shrink-0">
+            <X size={14} />
+          </button>
+        )}
+        {!isDone && (
+          <span className="text-xs text-muted-foreground font-mono flex-shrink-0">{progress.elapsed}s</span>
+        )}
+      </div>
+
+      {/* Preview after done */}
+      {isDone && preview?.master_summary && (
+        <div className="px-4 pb-3">
+          <p className="text-xs text-muted-foreground/80 leading-relaxed line-clamp-2">{preview.master_summary}</p>
+          {preview.top_exam_points?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {preview.top_exam_points.slice(0, 3).map((pt, i) => (
+                <span key={i} className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
+                  {typeof pt === "string" ? pt.slice(0, 50) : pt}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function NotebookPage() {
   const [token] = useState(localStorage.getItem("token"));
@@ -33,10 +103,10 @@ export default function NotebookPage() {
   const headers = { Authorization: `Bearer ${token}` };
 
   // Lerntools state
-  const [activeTab, setActiveTab] = useState("chat"); // chat | study-guide | flashcards | audio | mind-map
+  const [activeTab, setActiveTab] = useState("chat");
   const [language, setLanguage] = useState("de");
   const [toolLoading, setToolLoading] = useState(false);
-  const [selectedChunk, setSelectedChunk] = useState(-1); // -1 = all
+  const [selectedChunk, setSelectedChunk] = useState(-1);
 
   // Study Guide
   const [guideContent, setGuideContent] = useState("");
@@ -59,13 +129,30 @@ export default function NotebookPage() {
   // Quiz count
   const [quizCount, setQuizCount] = useState(10);
 
+  // Hierarchical Analysis state
+  const [analysisProgress, setAnalysisProgress] = useState(null); // {stage, elapsed, stageStart}
+  const [analysisPreview, setAnalysisPreview] = useState(null);
+
   useEffect(() => {
     if (token) fetchNotebooks();
   }, [token]); // eslint-disable-line
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  // Reload saved audio when language changes (don't show stale German audio for Ukrainian etc.)
+  // Tick elapsed time while analysis is running
+  useEffect(() => {
+    if (!analysisProgress || analysisProgress.stage === "done") return;
+    const iv = setInterval(() => {
+      setAnalysisProgress(prev =>
+        prev && prev.stage !== "done"
+          ? { ...prev, elapsed: Math.round((Date.now() - prev.stageStart) / 1000) }
+          : prev
+      );
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [analysisProgress?.stage]); // eslint-disable-line
+
+  // Reload saved audio when language changes
   useEffect(() => {
     if (activeTab === "audio" && activeNotebook) {
       loadSavedAudio();
@@ -80,16 +167,55 @@ export default function NotebookPage() {
     } catch (e) { if (e.response?.status === 403) setAccessDenied(true); }
   };
 
+  // Run 3-layer hierarchical analysis after upload (fire-and-forget)
+  const runAnalysisChain = async (nb) => {
+    const nbId = nb.id;
+
+    // Layer 1: Global scan (~15s)
+    setAnalysisProgress({ stage: "layer1", elapsed: 0, stageStart: Date.now() });
+    try {
+      await axios.post(`${API}/notebook/analyze/global/${nbId}`, {}, { headers, timeout: 60000 });
+    } catch { /* non-fatal — backend will retry on task call */ }
+
+    // Layer 2: Chunk analysis (~30s, background job)
+    setAnalysisProgress({ stage: "layer2", elapsed: 0, stageStart: Date.now() });
+    try {
+      const jobRes = await axios.post(`${API}/notebook/analyze/chunks/${nbId}`, {}, { headers, timeout: 15000 });
+      const jobId = jobRes.data.job_id;
+      if (jobId) {
+        for (let i = 0; i < 40; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          try {
+            const poll = await axios.get(`${API}/notebook/analyze/jobs/${jobId}`, { headers });
+            if (poll.data.status === "done" || poll.data.status === "error") break;
+          } catch { break; }
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    // Layer 3: Synthesis (~5s)
+    setAnalysisProgress({ stage: "layer3", elapsed: 0, stageStart: Date.now() });
+    try {
+      const synthRes = await axios.post(`${API}/notebook/synthesize/${nbId}`, {}, { headers, timeout: 30000 });
+      setAnalysisPreview(synthRes.data);
+    } catch { /* non-fatal */ }
+
+    setAnalysisProgress({ stage: "done", elapsed: 0, stageStart: 0 });
+  };
+
   const uploadPDF = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
+    setAnalysisProgress(null);
+    setAnalysisPreview(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
       const res = await axios.post(`${API}/notebook/upload`, formData, { headers: { ...headers, "Content-Type": "multipart/form-data" } });
       await fetchNotebooks();
       openNotebook(res.data);
+      runAnalysisChain(res.data); // fire-and-forget: shows progress banner
     } catch (e) {
       if (e.response?.status === 403) setAccessDenied(true);
       else alert(e.response?.data?.detail || "Fehler beim Hochladen");
@@ -98,6 +224,7 @@ export default function NotebookPage() {
 
   const openNotebook = async (nb) => {
     setActiveNotebook(nb); setNotebookMeta(null); setActiveTab("chat");
+    setAnalysisProgress(null); setAnalysisPreview(null);
     try {
       const [histRes, metaRes] = await Promise.all([
         axios.get(`${API}/notebook/${nb.id}/history`, { headers }),
@@ -153,27 +280,13 @@ export default function NotebookPage() {
       const chunkParam = selectedChunk >= 0 ? `&chunk_index=${selectedChunk}` : '';
       const res = await axios.post(`${API}/notebook/${activeNotebook.id}/generate-quiz?count=${quizCount}&language=${language}${chunkParam}`, {}, { headers });
       const jobId = res.data.job_id;
-      if (!jobId) {
-        setQuizGenResult(res.data);
-        return;
-      }
-      // Poll for completion
+      if (!jobId) { setQuizGenResult(res.data); return; }
       for (let i = 0; i < 60; i++) {
         await new Promise(r => setTimeout(r, 3000));
         try {
           const poll = await axios.get(`${API}/quiz-job/${jobId}`, { headers });
-          if (poll.data.status === "done") {
-            setQuizGenResult({ success: true, message: poll.data.message, count: poll.data.count });
-            return;
-          }
-          if (poll.data.status === "error") {
-            setQuizGenResult({ success: false, message: poll.data.message || "Fehler" });
-            return;
-          }
-          // Show progress message
-          if (poll.data.message) {
-            setQuizGenResult(null); // clear old
-          }
+          if (poll.data.status === "done") { setQuizGenResult({ success: true, message: poll.data.message, count: poll.data.count }); return; }
+          if (poll.data.status === "error") { setQuizGenResult({ success: false, message: poll.data.message || "Fehler" }); return; }
         } catch { /* continue polling */ }
       }
       setQuizGenResult({ success: false, message: "Zeitüberschreitung. Bitte erneut versuchen." });
@@ -181,29 +294,18 @@ export default function NotebookPage() {
     finally { setGeneratingQuiz(false); }
   };
 
-  // ═══ LERNTOOLS FUNCTIONS ═══
-  const chunkPayload = selectedChunk >= 0 ? { chunk_index: selectedChunk } : {};
-
-  const pollJob = async (jobId, maxRetries = 60) => {
-    for (let i = 0; i < maxRetries; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      const res = await axios.get(`${API}/learn/job/${jobId}`, { headers });
-      if (res.data.status === "done") return res.data.result;
-      if (res.data.status === "error") throw new Error(res.data.error || "AI-Fehler");
-    }
-    throw new Error("Timeout: Analyse dauert zu lange");
-  };
+  // ═══ LERNTOOLS — New hierarchical endpoints ═══
 
   const generateStudyGuide = async () => {
     if (!activeNotebook) return;
     setToolLoading(true); setGuideContent("");
     try {
-      const res = await axios.post(`${API}/learn/study-guide`, {
-        notebook_id: activeNotebook.id, language, model: "gpt-4o", ...chunkPayload
-      }, { headers, timeout: 15000 });
-      const result = await pollJob(res.data.job_id);
-      setGuideContent(result.content);
-    } catch (e) { setGuideContent(e.message || "Fehler beim Generieren des Lernleitfadens."); }
+      const res = await axios.post(
+        `${API}/notebook/lernleitfaden/${activeNotebook.id}?language=${language}`,
+        {}, { headers, timeout: 180000 }
+      );
+      setGuideContent(res.data.content || "Kein Inhalt.");
+    } catch (e) { setGuideContent(e.response?.data?.detail || e.message || "Fehler beim Generieren des Lernleitfadens."); }
     finally { setToolLoading(false); }
   };
 
@@ -211,29 +313,26 @@ export default function NotebookPage() {
     if (!activeNotebook) return;
     setToolLoading(true); setCards([]); setCardIdx(0); setFlipped(false);
     try {
-      const res = await axios.post(`${API}/learn/flashcards`, {
-        notebook_id: activeNotebook.id, count: 10, language, model: "gpt-4o", ...chunkPayload
-      }, { headers, timeout: 15000 });
-      const result = await pollJob(res.data.job_id);
-      setCards(result.cards || []);
-    } catch { setCards([{ front: "Fehler", back: "Konnte keine Lernkarten generieren", difficulty: "medium" }]); }
+      const res = await axios.post(
+        `${API}/notebook/lernkarten/${activeNotebook.id}?language=${language}&count=15`,
+        {}, { headers, timeout: 180000 }
+      );
+      setCards(res.data.cards || []);
+    } catch { setCards([{ front: "Fehler", back: "Konnte keine Lernkarten generieren", difficulty: "medium", category: "Allgemein" }]); }
     finally { setToolLoading(false); }
   };
 
   const loadSavedAudio = async () => {
     if (!activeNotebook) return;
     try {
-      const res = await axios.get(`${API}/learn/audio-saved/${activeNotebook.id}?language=${language}`, { headers });
+      const res = await axios.get(`${API}/notebook/audio-saved/${activeNotebook.id}?language=${language}`, { headers });
       if (res.data.found) {
         setAudioData({ script: res.data.script, audio_base64: res.data.audio_base64, voice: res.data.voice });
         setAudioSavedDate(res.data.created_at);
         return true;
       }
-      // No saved audio for this language → clear stale data
       setAudioData(null); setAudioSavedDate(null);
-    } catch {
-      setAudioData(null); setAudioSavedDate(null);
-    }
+    } catch { setAudioData(null); setAudioSavedDate(null); }
     return false;
   };
 
@@ -241,25 +340,13 @@ export default function NotebookPage() {
     if (!activeNotebook) return;
     setToolLoading(true); setAudioData(null); setAudioSavedDate(null);
     try {
-      // Step 1: Start background script generation, poll for result
-      const jobRes = await axios.post(`${API}/learn/audio-script`, {
-        notebook_id: activeNotebook.id, language, voice, ...chunkPayload
-      }, { headers, timeout: 15000 });
-      const scriptData = await pollJob(jobRes.data.job_id);
-      setAudioData({ script: scriptData.script, audio_base64: null, voice: scriptData.voice, loading_tts: true });
-
-      // Step 2: Generate TTS (edge-tts is fast, no polling needed)
-      try {
-        const ttsRes = await axios.post(`${API}/learn/audio-tts`, {
-          audio_id: scriptData.id, voice, notebook_id: activeNotebook.id,
-          podcast_mode: true, language,
-        }, { headers: { ...headers, "Content-Type": "application/json" }, timeout: 120000 });
-        setAudioData({ script: scriptData.script, audio_base64: ttsRes.data.audio_base64, voice: ttsRes.data.voice });
-        setAudioSavedDate(new Date().toISOString());
-      } catch {
-        setAudioData({ script: scriptData.script, audio_base64: null, voice: scriptData.voice, error: "Audio konnte nicht generiert werden." });
-      }
-    } catch (e) { setAudioData({ script: e.message || "Fehler beim Generieren.", audio_base64: null }); }
+      const res = await axios.post(
+        `${API}/notebook/audio/${activeNotebook.id}?language=${language}&voice=${voice}`,
+        {}, { headers, timeout: 180000 }
+      );
+      setAudioData({ script: res.data.script, audio_base64: res.data.audio_base64, voice: res.data.voice });
+      setAudioSavedDate(new Date().toISOString());
+    } catch (e) { setAudioData({ script: e.response?.data?.detail || e.message || "Fehler beim Generieren.", audio_base64: null }); }
     finally { setToolLoading(false); }
   };
 
@@ -267,11 +354,11 @@ export default function NotebookPage() {
     if (!activeNotebook) return;
     setToolLoading(true); setMindMap(null);
     try {
-      const res = await axios.post(`${API}/learn/mind-map`, {
-        notebook_id: activeNotebook.id, language, model: "gpt-4o", ...chunkPayload
-      }, { headers, timeout: 15000 });
-      const result = await pollJob(res.data.job_id);
-      setMindMap(result.mind_map);
+      const res = await axios.post(
+        `${API}/notebook/mindmap/${activeNotebook.id}?language=${language}`,
+        {}, { headers, timeout: 180000 }
+      );
+      setMindMap(res.data.mind_map);
     } catch { setMindMap({ title: "Fehler", children: [] }); }
     finally { setToolLoading(false); }
   };
@@ -309,7 +396,7 @@ export default function NotebookPage() {
       <div data-testid="notebook-chat" className="max-w-4xl mx-auto px-4 py-4 flex flex-col" style={{ height: "calc(100vh - 80px)" }}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-3 pb-3" style={{ borderBottom: '1px solid rgba(201,168,76,0.1)' }}>
-          <button data-testid="notebook-back-btn" onClick={() => { setActiveNotebook(null); setNotebookMeta(null); setMessages([]); setActiveTab("chat"); }}
+          <button data-testid="notebook-back-btn" onClick={() => { setActiveNotebook(null); setNotebookMeta(null); setMessages([]); setActiveTab("chat"); setAnalysisProgress(null); setAnalysisPreview(null); }}
             className="p-2 rounded-lg hover:bg-muted transition-colors">
             <ArrowLeft size={20} />
           </button>
@@ -324,7 +411,6 @@ export default function NotebookPage() {
             <select value={language} onChange={e => setLanguage(e.target.value)} className="h-7 rounded-md bg-muted/50 border border-border px-1.5 text-xs" data-testid="nb-lang-select">
               {LANGS.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
-            {/* Chunk selector */}
             {notebookMeta?.chunks?.length > 1 && (
               <select value={selectedChunk} onChange={e => setSelectedChunk(parseInt(e.target.value))}
                 className="h-7 rounded-md bg-muted/50 border border-border px-1.5 text-xs max-w-[160px]" data-testid="chunk-select">
@@ -354,6 +440,13 @@ export default function NotebookPage() {
             </div>
           </div>
         </div>
+
+        {/* Analysis Progress Banner */}
+        <AnalysisProgressBanner
+          progress={analysisProgress}
+          preview={analysisPreview}
+          onDismiss={() => setAnalysisProgress(null)}
+        />
 
         {/* Quiz Result Banner */}
         {quizGenResult && (
@@ -409,7 +502,26 @@ export default function NotebookPage() {
                         {notebookMeta.topics.map((t, i) => <span key={i} className="px-2.5 py-1 rounded-full text-xs" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>{t}</span>)}
                       </div>
                     )}
-                    {notebookMeta?.auto_summary && <p className="text-xs text-muted-foreground max-w-md text-center bg-muted/30 px-4 py-3 rounded-xl">{notebookMeta.auto_summary}</p>}
+                    {/* Show analysis preview if available */}
+                    {analysisPreview?.master_summary && (
+                      <div className="max-w-md w-full px-4 py-3 rounded-xl border" style={{ borderColor: 'rgba(52,211,153,0.2)', background: 'rgba(52,211,153,0.03)' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 size={14} className="text-emerald-400" />
+                          <span className="text-xs font-medium text-emerald-400">Tiefenanalyse abgeschlossen</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{analysisPreview.master_summary}</p>
+                        {analysisPreview.top_exam_points?.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {analysisPreview.top_exam_points.slice(0, 4).map((pt, i) => (
+                              <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-muted/50">{typeof pt === "string" ? pt.slice(0, 40) : pt}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {notebookMeta?.auto_summary && !analysisPreview && (
+                      <p className="text-xs text-muted-foreground max-w-md text-center bg-muted/30 px-4 py-3 rounded-xl">{notebookMeta.auto_summary}</p>
+                    )}
                     <div className="flex flex-wrap gap-2 mt-1 justify-center max-w-lg">
                       {(notebookMeta?.suggested_questions?.length > 0 ? notebookMeta.suggested_questions : ["Fasse zusammen", "Was sind die Hauptthemen?", "Erkläre die wichtigsten Konzepte"]).map(q => (
                         <button key={q} onClick={() => setInput(q)} className="px-3 py-1.5 border border-border rounded-full text-xs hover:bg-muted/50 transition-all">
@@ -457,19 +569,42 @@ export default function NotebookPage() {
           {/* STUDY GUIDE TAB */}
           {activeTab === "study-guide" && (
             <div className="space-y-4">
-              {toolLoading && <div className="flex items-center justify-center py-12 gap-3"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} /><span className="text-sm text-muted-foreground">Lernleitfaden wird erstellt...</span></div>}
+              {toolLoading && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <span className="text-sm text-muted-foreground">Lernleitfaden wird erstellt...</span>
+                  <span className="text-xs text-muted-foreground/60">KI analysiert Ihre medizinischen Inhalte</span>
+                </div>
+              )}
               {guideContent && <div className="p-6 rounded-xl border border-border/30 bg-muted/10 text-sm leading-relaxed whitespace-pre-wrap" data-testid="guide-output">{guideContent}</div>}
-              {!toolLoading && !guideContent && <button onClick={generateStudyGuide} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all"><BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">Lernleitfaden generieren</p></button>}
+              {!toolLoading && !guideContent && (
+                <button onClick={generateStudyGuide} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all">
+                  <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Lernleitfaden generieren</p>
+                  <p className="text-xs mt-1 opacity-60">Tiefenanalyse → strukturierter Lernplan</p>
+                </button>
+              )}
             </div>
           )}
 
           {/* FLASHCARDS TAB */}
           {activeTab === "flashcards" && (
             <div className="space-y-4">
-              {toolLoading && <div className="flex items-center justify-center py-12 gap-3"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} /><span className="text-sm text-muted-foreground">Lernkarten werden erstellt...</span></div>}
+              {toolLoading && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <span className="text-sm text-muted-foreground">Lernkarten werden erstellt...</span>
+                  <span className="text-xs text-muted-foreground/60">KI erstellt klinische Beispiele für jede Karte</span>
+                </div>
+              )}
               {cards.length > 0 && (
                 <>
-                  <div className="text-center text-sm text-muted-foreground font-mono">Karte {cardIdx + 1} / {cards.length}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-center text-sm text-muted-foreground font-mono">Karte {cardIdx + 1} / {cards.length}</div>
+                    {cards[cardIdx]?.category && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground">{cards[cardIdx].category}</span>
+                    )}
+                  </div>
                   <div onClick={() => setFlipped(!flipped)}
                     className="p-8 min-h-[180px] flex items-center justify-center cursor-pointer transition-all duration-300 rounded-xl border"
                     style={{ borderColor: flipped ? 'rgba(16,185,129,0.3)' : 'rgba(201,168,76,0.15)', background: flipped ? 'rgba(16,185,129,0.03)' : 'rgba(201,168,76,0.03)' }}
@@ -486,7 +621,13 @@ export default function NotebookPage() {
                   </div>
                 </>
               )}
-              {!toolLoading && cards.length === 0 && <button onClick={generateFlashcards} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all"><Layers className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">Lernkarten generieren</p></button>}
+              {!toolLoading && cards.length === 0 && (
+                <button onClick={generateFlashcards} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all">
+                  <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Lernkarten generieren</p>
+                  <p className="text-xs mt-1 opacity-60">15 Karten mit klinischen Beispielen</p>
+                </button>
+              )}
             </div>
           )}
 
@@ -507,16 +648,16 @@ export default function NotebookPage() {
                   {!audioData && !toolLoading && <button onClick={generateAudio} className="px-4 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'rgba(201,168,76,0.15)', color: '#c9a84c' }} data-testid="generate-audio-btn">Podcast generieren</button>}
                 </div>
               </div>
-              {toolLoading && <div className="flex items-center justify-center py-12 gap-3"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} /><span className="text-sm text-muted-foreground">Audio wird generiert...</span></div>}
+              {toolLoading && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <span className="text-sm text-muted-foreground">Audio wird generiert...</span>
+                  <span className="text-xs text-muted-foreground/60">Skript + Sprachsynthese</span>
+                </div>
+              )}
               {audioData && (
                 <>
-                  {audioData.loading_tts && (
-                    <div className="flex items-center gap-3 p-5 rounded-xl border" style={{ borderColor: 'rgba(201,168,76,0.15)', background: 'rgba(201,168,76,0.03)' }}>
-                      <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
-                      <div><h3 className="font-semibold text-sm">Audio wird generiert...</h3><p className="text-xs text-muted-foreground">Skript bereit, TTS läuft</p></div>
-                    </div>
-                  )}
-                  {audioData.audio_base64 && !audioData.loading_tts && (
+                  {audioData.audio_base64 && (
                     <div className="flex items-center gap-4 p-5 rounded-xl border" style={{ borderColor: 'rgba(201,168,76,0.15)', background: 'rgba(201,168,76,0.03)' }}>
                       <button onClick={toggleAudio} className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)' }} data-testid="play-audio-btn">
                         {isPlaying ? <Pause className="w-6 h-6 text-[#06081a]" /> : <Play className="w-6 h-6 text-[#06081a] ml-1" />}
@@ -529,8 +670,11 @@ export default function NotebookPage() {
                       <audio ref={audioRef} src={`data:audio/mp3;base64,${audioData.audio_base64}`} onEnded={() => setIsPlaying(false)} />
                     </div>
                   )}
-                  {audioData.error && !audioData.loading_tts && (
+                  {audioData.error && (
                     <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/5 text-sm text-red-400">{audioData.error}</div>
+                  )}
+                  {!audioData.audio_base64 && !audioData.error && (
+                    <div className="p-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-sm text-yellow-400">Audio konnte nicht generiert werden. Skript ist verfügbar.</div>
                   )}
                   {audioData.script && (
                     <details className="rounded-xl border border-border/30 p-4">
@@ -546,9 +690,21 @@ export default function NotebookPage() {
           {/* MIND MAP TAB */}
           {activeTab === "mind-map" && (
             <div>
-              {toolLoading && <div className="flex items-center justify-center py-12 gap-3"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} /><span className="text-sm text-muted-foreground">Mind Map wird erstellt...</span></div>}
+              {toolLoading && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <span className="text-sm text-muted-foreground">Mind Map wird erstellt...</span>
+                  <span className="text-xs text-muted-foreground/60">Wissensstruktur aus Tiefenanalyse</span>
+                </div>
+              )}
               {mindMap && <div className="p-6 rounded-xl border border-border/30 bg-muted/10" data-testid="mindmap-output"><MindMapView data={mindMap} /></div>}
-              {!toolLoading && !mindMap && <button onClick={generateMindMap} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all"><GitBranch className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">Mind Map generieren</p></button>}
+              {!toolLoading && !mindMap && (
+                <button onClick={generateMindMap} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all">
+                  <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Mind Map generieren</p>
+                  <p className="text-xs mt-1 opacity-60">Verknüpfte Konzepte visualisieren</p>
+                </button>
+              )}
             </div>
           )}
         </div>

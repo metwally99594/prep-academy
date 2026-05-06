@@ -2157,6 +2157,530 @@ DOKUMENT:
         await db.quiz_jobs.update_one({"id": job_id}, {"$set": {"status": "error", "message": f"Quiz-Generierung fehlgeschlagen: {str(e)[:200]}"}})
 
 
+# ══════════════════════════════════════════════════════════════════
+# NOTEBOOK HIERARCHICAL ANALYSIS ENGINE  (3-Layer Deep Analysis)
+# ══════════════════════════════════════════════════════════════════
+
+_NB_MODELS = [
+    "qwen/qwen3.6-plus:free",       # primary: 1M-context, strong reasoning
+    "deepseek/deepseek-r1:free",    # fallback: deep reasoning
+    "openai/gpt-oss-120b:free",     # last resort: reliable speed
+]
+
+
+async def _or_notebook(system_msg: str, user_msg: str, max_tokens: int = 2000) -> str:
+    """Model chain for notebook analysis. Tries each model in order."""
+    import re as _re, httpx
+    or_key = os.environ.get("OPENROUTER_API_KEY")
+    if not or_key:
+        raise HTTPException(status_code=503, detail="OPENROUTER_API_KEY fehlt")
+    for model in _NB_MODELS:
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                             "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy Notebook"},
+                    json={"model": model,
+                          "messages": [{"role": "system", "content": system_msg},
+                                       {"role": "user", "content": user_msg}],
+                          "max_tokens": max_tokens, "temperature": 0.3},
+                )
+            data = r.json()
+            if "choices" in data and data["choices"]:
+                content = data["choices"][0]["message"]["content"] or ""
+                content = __import__("re").sub(r"<think>.*?</think>", "", content, flags=__import__("re").DOTALL).strip()
+                if content:
+                    logger.info(f"[NB] {model} OK")
+                    return content
+            logger.warning(f"[NB] {model} no choices: {str(data)[:150]}")
+            _record_model_failure(model)
+        except Exception as e:
+            logger.warning(f"[NB] {model} failed: {e}")
+            _record_model_failure(model)
+    raise HTTPException(status_code=503, detail="Alle Notebook-Modelle nicht verfügbar")
+
+
+async def _nb_parse_json(raw: str) -> dict:
+    """Strip markdown fences and parse JSON; return {} on failure."""
+    import json as _json
+    txt = raw.strip()
+    if txt.startswith("```"):
+        txt = txt.split("```", 1)[1]
+        if txt.startswith("json"):
+            txt = txt[4:]
+        txt = txt.rsplit("```", 1)[0].strip()
+    try:
+        return _json.loads(txt)
+    except Exception:
+        return {}
+
+
+# ── Layer 1: Global Scan ──────────────────────────────────────────
+
+async def _run_layer1(notebook: dict) -> dict:
+    doc_preview = (notebook.get("text") or "")[:8000]
+    chunks_info = "; ".join(
+        f"Abschnitt {c['index']+1}: {c.get('title','?')} ({c.get('word_count',0)} Wörter)"
+        for c in (notebook.get("chunks") or [])
+    )
+    system = "Du bist ein erfahrener Medizinprofessor. Antworte IMMER als valides JSON ohne Markdown."
+    prompt = f"""Analysiere dieses medizinische Dokument global.
+Dateiname: {notebook.get('filename','?')}
+Struktur: {chunks_info or 'Einzeldokument'}
+Inhalt (Vorschau): {doc_preview}
+
+Antworte NUR als JSON (kein anderer Text):
+{{
+  "title": "Aussagekräftiger Titel des Dokuments",
+  "topics": ["Hauptthema1", "Hauptthema2"],
+  "structure": "Kurze Beschreibung des Dokumentaufbaus",
+  "key_terminology": [{{"term": "Begriff", "def": "Präzise Definition"}}],
+  "abstract": "3-4 Sätze Zusammenfassung des gesamten Inhalts",
+  "exam_focus": ["Wichtigstes Prüfungsthema 1", "Wichtigstes Prüfungsthema 2"]
+}}"""
+    raw = await _or_notebook(system, prompt, max_tokens=1200)
+    result = await _nb_parse_json(raw)
+    if not result:
+        result = {"title": notebook.get("filename", "Dokument"), "topics": [], "structure": "", "key_terminology": [], "abstract": raw[:500], "exam_focus": []}
+    return result
+
+
+# ── Layer 2: Per-Chunk Deep Analysis (parallel) ───────────────────
+
+async def _run_layer2_chunk(chunk: dict, chunk_idx: int, total_chunks: int, global_ctx: str) -> dict:
+    system = "Du bist ein medizinischer Analytiker. Antworte IMMER als valides JSON ohne Markdown."
+    prompt = f"""Du analysierst Abschnitt {chunk_idx+1} von {total_chunks} eines medizinischen Dokuments.
+
+Globaler Kontext des gesamten Dokuments:
+{global_ctx}
+
+Inhalt dieses Abschnitts:
+{(chunk.get('text') or '')[:4000]}
+
+Antworte NUR als JSON (kein anderer Text):
+{{
+  "chunk_index": {chunk_idx},
+  "main_topics": ["Thema im Abschnitt"],
+  "terminology": [{{"term": "Fachbegriff", "def": "Definition", "clinical_relevance": "Klinische Bedeutung"}}],
+  "clinical_examples": ["Konkretes Beispiel aus dem Text"],
+  "exam_points": ["Prüfungsrelevanter Fakt — präzise und lernbar"],
+  "cross_refs": ["Bezug zu einem anderen Abschnitt oder Thema"],
+  "pathophysiology": "Pathophysiologische Erklärungen wenn vorhanden, sonst leer",
+  "differentials": ["Differentialdiagnose wenn vorhanden"]
+}}"""
+    raw = await _or_notebook(system, prompt, max_tokens=1500)
+    result = await _nb_parse_json(raw)
+    result["chunk_index"] = chunk_idx
+    return result
+
+
+async def _run_layer2_all(notebook: dict, global_analysis: dict) -> list:
+    chunks = notebook.get("chunks") or [{"index": 0, "text": notebook.get("text", "")[:8000]}]
+    total = len(chunks)
+    global_ctx = f"Titel: {global_analysis.get('title','')}\nThemen: {', '.join(global_analysis.get('topics',[]))}\nStruktur: {global_analysis.get('structure','')}\nAbstrakt: {global_analysis.get('abstract','')}"
+    tasks = [_run_layer2_chunk(c, c.get("index", i), total, global_ctx) for i, c in enumerate(chunks)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    good = [r for r in results if isinstance(r, dict)]
+    return good
+
+
+# ── Layer 3: Synthesis ────────────────────────────────────────────
+
+async def _run_layer3(global_analysis: dict, chunk_analyses: list) -> dict:
+    all_exam_points = []
+    all_terminology = []
+    for ca in chunk_analyses:
+        all_exam_points.extend(ca.get("exam_points") or [])
+        all_terminology.extend(ca.get("terminology") or [])
+
+    system = "Du bist ein Experte für medizinische Prüfungsvorbereitung. Antworte als valides JSON."
+    prompt = f"""Erstelle eine Synthese aus der globalen und chunk-spezifischen Analyse.
+
+Globale Analyse:
+Titel: {global_analysis.get('title','')}
+Themen: {', '.join(global_analysis.get('topics',[]))}
+Abstrakt: {global_analysis.get('abstract','')}
+
+Alle Prüfungspunkte ({len(all_exam_points)} gesamt):
+{chr(10).join(f'- {p}' for p in all_exam_points[:40])}
+
+Wichtigste Fachbegriffe:
+{chr(10).join(f'- {t.get("term","")}: {t.get("def","")}' for t in all_terminology[:20])}
+
+Antworte NUR als JSON:
+{{
+  "master_summary": "Umfassende Zusammenfassung in 5-7 Sätzen",
+  "top_exam_points": ["Die 10 wichtigsten Prüfungspunkte aus dem gesamten Dokument"],
+  "key_concepts": [{{"concept": "Begriff", "explanation": "Erklärung", "clinical_example": "Beispiel"}}],
+  "learning_paths": [{{"level": "Grundlagen|Fortgeschritten|Experte", "topics": ["Thema1"]}}],
+  "cross_references": ["Wichtige Verknüpfung zwischen Themen im Dokument"]
+}}"""
+    raw = await _or_notebook(system, prompt, max_tokens=2000)
+    result = await _nb_parse_json(raw)
+    if not result:
+        result = {"master_summary": global_analysis.get("abstract", ""), "top_exam_points": all_exam_points[:10], "key_concepts": [], "learning_paths": [], "cross_references": []}
+    return result
+
+
+# ── Orchestrator: ensure full analysis exists ─────────────────────
+
+async def _ensure_analysis(notebook_id: str, user_id: str) -> dict:
+    """Return synthesis from DB, or run all 3 layers and store results."""
+    synthesis = await db.notebook_synthesis.find_one({"notebook_id": notebook_id, "user_id": user_id}, {"_id": 0})
+    if synthesis:
+        return synthesis
+
+    notebook = await db.pdf_notebooks.find_one({"id": notebook_id, "user_id": user_id}, {"_id": 0})
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook nicht gefunden")
+
+    # Layer 1 — global analysis
+    global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user_id}, {"_id": 0})
+    if not global_doc:
+        global_data = await _run_layer1(notebook)
+        global_doc = {"id": str(uuid.uuid4()), "notebook_id": notebook_id, "user_id": user_id,
+                      "created_at": datetime.now(timezone.utc).isoformat(), **global_data}
+        await db.notebook_global_analysis.insert_one(global_doc)
+
+    # Layer 2 — chunk analyses
+    existing_chunks = await db.notebook_chunk_analyses.find({"notebook_id": notebook_id, "user_id": user_id}, {"_id": 0}).to_list(100)
+    if not existing_chunks:
+        chunk_analyses = await _run_layer2_all(notebook, global_doc)
+        if chunk_analyses:
+            docs = [{"id": str(uuid.uuid4()), "notebook_id": notebook_id, "user_id": user_id,
+                     "created_at": datetime.now(timezone.utc).isoformat(), **ca} for ca in chunk_analyses]
+            await db.notebook_chunk_analyses.insert_many(docs)
+            existing_chunks = chunk_analyses
+
+    # Layer 3 — synthesis
+    synthesis_data = await _run_layer3(global_doc, existing_chunks)
+    synthesis = {"id": str(uuid.uuid4()), "notebook_id": notebook_id, "user_id": user_id,
+                 "created_at": datetime.now(timezone.utc).isoformat(), **synthesis_data}
+    await db.notebook_synthesis.insert_one(synthesis)
+    return synthesis
+
+
+# ── Analysis Endpoints ────────────────────────────────────────────
+
+@api_router.post("/notebook/analyze/global/{notebook_id}")
+async def analyze_global(notebook_id: str, user: dict = Depends(get_current_user)):
+    """Layer 1: Global document scan. Returns and caches global analysis."""
+    await check_notebook_access(user)
+    existing = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    if existing:
+        return {"cached": True, **existing}
+    notebook = await db.pdf_notebooks.find_one({"id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook nicht gefunden")
+    global_data = await _run_layer1(notebook)
+    doc = {"id": str(uuid.uuid4()), "notebook_id": notebook_id, "user_id": user["id"],
+           "created_at": datetime.now(timezone.utc).isoformat(), **global_data}
+    await db.notebook_global_analysis.insert_one(doc)
+    return {"cached": False, **global_data}
+
+
+@api_router.post("/notebook/analyze/chunks/{notebook_id}")
+async def analyze_chunks(notebook_id: str, user: dict = Depends(get_current_user)):
+    """Layer 2: Per-chunk deep analysis (background job)."""
+    await check_notebook_access(user)
+    existing = await db.notebook_chunk_analyses.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    if existing:
+        all_chunks = await db.notebook_chunk_analyses.find({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}).to_list(100)
+        return {"cached": True, "count": len(all_chunks)}
+    notebook = await db.pdf_notebooks.find_one({"id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook nicht gefunden")
+    global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    if not global_doc:
+        raise HTTPException(status_code=400, detail="Bitte zuerst Layer 1 (globale Analyse) ausführen")
+
+    job_id = str(uuid.uuid4())
+    await db.nb_analysis_jobs.insert_one({"id": job_id, "notebook_id": notebook_id, "user_id": user["id"],
+                                           "status": "processing", "created_at": datetime.now(timezone.utc).isoformat()})
+
+    async def _bg():
+        try:
+            chunk_analyses = await _run_layer2_all(notebook, global_doc)
+            if chunk_analyses:
+                docs = [{"id": str(uuid.uuid4()), "notebook_id": notebook_id, "user_id": user["id"],
+                         "created_at": datetime.now(timezone.utc).isoformat(), **ca} for ca in chunk_analyses]
+                await db.notebook_chunk_analyses.insert_many(docs)
+            await db.nb_analysis_jobs.update_one({"id": job_id}, {"$set": {"status": "done", "count": len(chunk_analyses)}})
+        except Exception as e:
+            logger.error(f"Layer2 job {job_id} error: {e}")
+            await db.nb_analysis_jobs.update_one({"id": job_id}, {"$set": {"status": "error", "message": str(e)[:200]}})
+    asyncio.create_task(_bg())
+    return {"job_id": job_id, "status": "processing"}
+
+
+@api_router.get("/notebook/analyze/jobs/{job_id}")
+async def get_analysis_job(job_id: str, user: dict = Depends(get_current_user)):
+    """Poll Layer 2 analysis job status."""
+    job = await db.nb_analysis_jobs.find_one({"id": job_id, "user_id": user["id"]}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job nicht gefunden")
+    return job
+
+
+@api_router.post("/notebook/synthesize/{notebook_id}")
+async def synthesize_notebook(notebook_id: str, user: dict = Depends(get_current_user)):
+    """Layer 3: Cross-document synthesis. Requires Layer 1+2 to be done."""
+    await check_notebook_access(user)
+    existing = await db.notebook_synthesis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    if existing:
+        return {"cached": True, **{k: v for k, v in existing.items() if k != "_id"}}
+    global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    if not global_doc:
+        raise HTTPException(status_code=400, detail="Layer 1 fehlt — bitte zuerst /analyze/global aufrufen")
+    chunk_docs = await db.notebook_chunk_analyses.find({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}).to_list(100)
+    synthesis_data = await _run_layer3(global_doc, chunk_docs)
+    doc = {"id": str(uuid.uuid4()), "notebook_id": notebook_id, "user_id": user["id"],
+           "created_at": datetime.now(timezone.utc).isoformat(), **synthesis_data}
+    await db.notebook_synthesis.insert_one(doc)
+    return {"cached": False, **synthesis_data}
+
+
+@api_router.get("/notebook/analysis-status/{notebook_id}")
+async def get_analysis_status(notebook_id: str, user: dict = Depends(get_current_user)):
+    """Check which analysis layers are complete for a notebook."""
+    await check_notebook_access(user)
+    layer1 = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0, "title": 1, "topics": 1, "abstract": 1})
+    layer2_count = await db.notebook_chunk_analyses.count_documents({"notebook_id": notebook_id, "user_id": user["id"]})
+    layer3 = await db.notebook_synthesis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0, "master_summary": 1, "top_exam_points": 1})
+    return {
+        "layer1_done": bool(layer1),
+        "layer1_preview": layer1,
+        "layer2_done": layer2_count > 0,
+        "layer2_chunks": layer2_count,
+        "layer3_done": bool(layer3),
+        "layer3_preview": layer3,
+        "all_done": bool(layer1) and layer2_count > 0 and bool(layer3),
+    }
+
+
+# ── Deep Task Endpoints (use analysis, not raw PDF) ───────────────
+
+@api_router.post("/notebook/lernkarten/{notebook_id}")
+async def generate_lernkarten(notebook_id: str, count: int = 15, language: str = "de",
+                               user: dict = Depends(get_current_user)):
+    """Generate deep flashcards using hierarchical analysis (not raw PDF)."""
+    await check_notebook_access(user)
+    synthesis = await _ensure_analysis(notebook_id, user["id"])
+    chunk_analyses = await db.notebook_chunk_analyses.find(
+        {"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}
+    ).to_list(100)
+
+    all_concepts = []
+    for ca in chunk_analyses:
+        for t in (ca.get("terminology") or []):
+            if t.get("term"):
+                all_concepts.append({"term": t["term"], "def": t.get("def", ""), "example": t.get("clinical_relevance", "")})
+        for ep in (ca.get("exam_points") or []):
+            all_concepts.append({"term": ep, "def": "", "example": (ca.get("clinical_examples") or [""])[0]})
+
+    LANG = {"de": "Deutsch", "en": "English", "ar": "العربية", "ru": "Русский", "uk": "Українська"}
+    lang_name = LANG.get(language, "Deutsch")
+
+    system = f"Du bist ein Experte für medizinische Lernkarten. Antworte auf {lang_name}. Antworte NUR als JSON-Array."
+    prompt = f"""Erstelle {count} tiefe Lernkarten basierend auf dieser Analyse eines medizinischen Dokuments.
+
+Dokument: {synthesis.get('master_summary', '')}
+
+Verfügbare Konzepte ({len(all_concepts)} gesamt, nutze die wichtigsten):
+{chr(10).join(f"- {c['term']}: {c['def']}" for c in all_concepts[:30])}
+
+Top-Prüfungspunkte:
+{chr(10).join(f"- {p}" for p in (synthesis.get('top_exam_points') or [])[:15])}
+
+Erstelle genau {count} Lernkarten als JSON-Array. Jede Karte MUSS haben:
+[
+  {{
+    "front": "Präzise Frage oder Begriff (auf {lang_name})",
+    "back": "Vollständige Antwort mit klinischem Beispiel (auf {lang_name})",
+    "difficulty": "easy|medium|hard",
+    "category": "Pathophysiologie|Diagnostik|Therapie|Pharmakologie|Anatomie|Klinik"
+  }}
+]
+
+Regeln:
+- Jede Karte enthält MINDESTENS ein klinisches Beispiel oder Anwendungsfall
+- Schwierigkeitsverteilung: 30% easy, 50% medium, 20% hard
+- Keine Duplikate
+- Klinische Relevanz bei jeder Karte"""
+    raw = await _or_notebook(system, prompt, max_tokens=3000)
+    import json as _json, re as _re
+    txt = raw.strip()
+    if txt.startswith("```"):
+        txt = txt.split("```", 1)[1]
+        if txt.startswith("json"): txt = txt[4:]
+        txt = txt.rsplit("```", 1)[0].strip()
+    try:
+        cards = _json.loads(txt)
+        if not isinstance(cards, list): raise ValueError
+    except Exception:
+        cards = [{"front": "Fehler", "back": "Karten konnten nicht generiert werden", "difficulty": "medium", "category": "Allgemein"}]
+
+    return {"cards": cards, "count": len(cards), "source": "hierarchical_analysis"}
+
+
+@api_router.post("/notebook/lernleitfaden/{notebook_id}")
+async def generate_lernleitfaden(notebook_id: str, language: str = "de",
+                                  user: dict = Depends(get_current_user)):
+    """Generate a deep study guide from hierarchical analysis."""
+    await check_notebook_access(user)
+    synthesis = await _ensure_analysis(notebook_id, user["id"])
+    global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+    chunk_analyses = await db.notebook_chunk_analyses.find(
+        {"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}
+    ).to_list(100)
+
+    all_exam_pts = []
+    all_paths = synthesis.get("learning_paths") or []
+    for ca in chunk_analyses:
+        all_exam_pts.extend(ca.get("exam_points") or [])
+
+    LANG = {"de": "Deutsch", "en": "English", "ar": "العربية", "ru": "Русский", "uk": "Українська"}
+    lang_name = LANG.get(language, "Deutsch")
+    system = f"Du bist ein Experte für medizinische Prüfungsvorbereitung. Antworte VOLLSTÄNDIG auf {lang_name}."
+    prompt = f"""Erstelle einen umfassenden Lernleitfaden (Lernleitfaden) auf {lang_name} basierend auf dieser Analyse.
+
+Dokument: {(global_doc or {}).get('title','Medizinisches Dokument')}
+Zusammenfassung: {synthesis.get('master_summary','')}
+
+Prüfungsschwerpunkte ({len(all_exam_pts)} gesamt):
+{chr(10).join(f"- {p}" for p in all_exam_pts[:30])}
+
+Schlüsselkonzepte:
+{chr(10).join(f"- {c.get('concept','')}: {c.get('explanation','')}" for c in (synthesis.get('key_concepts') or [])[:15])}
+
+Lernpfade: {', '.join(f"{lp.get('level','')}: {', '.join(lp.get('topics',[])[:3])}" for lp in all_paths)}
+
+Erstelle einen strukturierten Lernleitfaden mit:
+1. 📋 **Überblick** — Was du nach dem Lernen wissen wirst
+2. 🎯 **Lernziele** — 5-7 konkrete messbare Ziele
+3. 📚 **Kernthemen** — Für jedes Hauptthema:
+   - Wichtigste Fakten
+   - Klinische Bedeutung
+   - Prüfungsrelevante Punkte
+   - Goldene Regeln / Merkregeln
+4. ⚡ **Top 10 Prüfungspunkte** — Die wahrscheinlichsten MCQ-Inhalte
+5. 🔗 **Zusammenhänge** — Verknüpfungen zwischen Themen
+6. ❓ **5 Musterfragen** — Mit vollständigen Erklärungen
+7. 🧠 **Lernplan** — 3 Phasen (Grundlagen → Vertiefung → Prüfungsvorbereitung)"""
+    result = await _or_notebook(system, prompt, max_tokens=3000)
+    return {"content": result, "source": "hierarchical_analysis"}
+
+
+@api_router.post("/notebook/mindmap/{notebook_id}")
+async def generate_mindmap(notebook_id: str, language: str = "de",
+                            user: dict = Depends(get_current_user)):
+    """Generate a deep mind map from hierarchical analysis."""
+    await check_notebook_access(user)
+    synthesis = await _ensure_analysis(notebook_id, user["id"])
+    global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+
+    LANG = {"de": "Deutsch", "en": "English", "ar": "العربية", "ru": "Русский", "uk": "Українська"}
+    lang_name = LANG.get(language, "Deutsch")
+    system = "Du bist ein Experte für Wissensstrukturen. Antworte NUR als valides JSON ohne Markdown."
+    prompt = f"""Erstelle eine tiefe Mind-Map auf {lang_name} für das medizinische Dokument.
+
+Titel: {(global_doc or {}).get('title','Medizinisches Dokument')}
+Hauptthemen: {', '.join((global_doc or {}).get('topics',[])[:8])}
+Schlüsselkonzepte: {', '.join(c.get('concept','') for c in (synthesis.get('key_concepts') or [])[:10])}
+Verknüpfungen: {'; '.join((synthesis.get('cross_references') or [])[:5])}
+
+Antworte NUR als JSON:
+{{
+  "title": "Dokumenttitel",
+  "children": [
+    {{
+      "name": "Hauptthema (auf {lang_name})",
+      "color": "#hex",
+      "children": [
+        {{"name": "Unterthema", "children": [{{"name": "Detail/Fakt"}}]}}
+      ]
+    }}
+  ]
+}}
+
+Erstelle 4-6 Hauptthemen, jedes mit 3-5 Unterthemen, jedes Unterthema mit 2-3 Details."""
+    raw = await _or_notebook(system, prompt, max_tokens=2000)
+    mind_map = await _nb_parse_json(raw)
+    if not mind_map:
+        mind_map = {"title": (global_doc or {}).get("title", "Dokument"), "children": [{"name": t, "children": []} for t in (global_doc or {}).get("topics", [])[:6]]}
+    return {"mind_map": mind_map, "source": "hierarchical_analysis"}
+
+
+@api_router.post("/notebook/audio/{notebook_id}")
+async def generate_audio_script(notebook_id: str, language: str = "de", voice: str = "nova",
+                                  user: dict = Depends(get_current_user)):
+    """Generate a deep audio podcast script from hierarchical analysis."""
+    await check_notebook_access(user)
+    synthesis = await _ensure_analysis(notebook_id, user["id"])
+    global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
+
+    LANG_INST = {"de": "Deutsch", "en": "English", "ar": "العربية", "ru": "Русский", "uk": "Українська"}
+    lang_name = LANG_INST.get(language, "Deutsch")
+    system = f"Du bist ein Medizin-Podcast-Moderator. Antworte vollständig auf {lang_name}. Natürlich, engagiert, lehrreich."
+    prompt = f"""Erstelle ein vollständiges Podcast-Skript auf {lang_name} für das medizinische Dokument.
+
+Thema: {(global_doc or {}).get('title','Medizinisches Dokument')}
+Inhalt: {synthesis.get('master_summary','')}
+Top-Prüfungspunkte: {'; '.join((synthesis.get('top_exam_points') or [])[:8])}
+Schlüsselkonzepte: {', '.join(c.get('concept','') for c in (synthesis.get('key_concepts') or [])[:6])}
+
+Das Skript soll:
+- 4-6 Minuten Hördauer (ca. 600-900 Wörter)
+- Natürliche Podcast-Sprache (nicht akademisch trocken)
+- Klinische Beispiele und Praxisbezug einbauen
+- Wichtige Prüfungspunkte hervorheben
+- Mit einer kurzen Zusammenfassung enden
+- KEINE Musik-Hinweise, Pausen-Markierungen oder technischen Anweisungen — nur der gesprochene Text"""
+    script = await _or_notebook(system, prompt, max_tokens=1500)
+
+    # TTS generation
+    audio_b64 = None
+    try:
+        import io, base64
+        import edge_tts
+        VOICE_MAP = {"de": "de-DE-KatjaNeural", "en": "en-US-JennyNeural", "ar": "ar-SA-ZariyahNeural",
+                     "ru": "ru-RU-SvetlanaNeural", "uk": "uk-UA-PolinaNeural"}
+        tts_voice = VOICE_MAP.get(language, "de-DE-KatjaNeural")
+        communicate = edge_tts.Communicate(script, tts_voice)
+        buf = io.BytesIO()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                buf.write(chunk["data"])
+        audio_b64 = base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        logger.warning(f"TTS failed: {e}")
+
+    # Save to DB
+    audio_doc = {"id": str(uuid.uuid4()), "notebook_id": notebook_id, "user_id": user["id"],
+                  "language": language, "voice": voice, "script": script,
+                  "audio_base64": audio_b64, "source": "hierarchical_analysis",
+                  "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.notebook_audios.replace_one({"notebook_id": notebook_id, "user_id": user["id"], "language": language}, audio_doc, upsert=True)
+    return {"script": script, "audio_base64": audio_b64, "voice": voice, "source": "hierarchical_analysis"}
+
+
+@api_router.get("/notebook/audio-saved/{notebook_id}")
+async def get_saved_audio(notebook_id: str, language: str = "de", user: dict = Depends(get_current_user)):
+    """Return previously generated audio for a notebook + language."""
+    await check_notebook_access(user)
+    doc = await db.notebook_audios.find_one({"notebook_id": notebook_id, "user_id": user["id"], "language": language}, {"_id": 0})
+    if not doc:
+        return {"found": False}
+    return {"found": True, "script": doc.get("script", ""), "audio_base64": doc.get("audio_base64"), "voice": doc.get("voice", "nova"), "created_at": doc.get("created_at")}
+
+
+# ── Invalidate analysis on notebook delete ────────────────────────
+
+# (Called from delete_notebook endpoint — added inline there)
+
+# ══════════════════════════════════════════════════════════════════
+
 
 # ============ MEDICAL REPORT ANALYZER - PREMIUM ============
 
