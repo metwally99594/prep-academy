@@ -2452,13 +2452,35 @@ async def _openrouter_vision_call(model: str, system_msg: str, user_text: str, i
         return None
 
 
+_ANALYZER_MODEL_LABELS = {
+    "google/gemma-4-31b-it:free":          "Gemma 4 31B (Google)",
+    "nvidia/nemotron-nano-12b-v2-vl:free": "Nemotron 12B VL (NVIDIA)",
+    "baidu/qianfan-ocr-fast:free":         "Qianfan OCR (Baidu)",
+    "google/gemma-4-26b-a4b-it:free":      "Gemma 4 26B (Google)",
+}
+
+_SECOND_OPINION_FALLBACKS = [
+    "nvidia/nemotron-nano-12b-v2-vl:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "baidu/qianfan-ocr-fast:free",
+]
+
+_CATEGORY_KEYWORDS = {
+    "ECG":       ["EKG", "QRS", "P-Welle", "Sinusrhythmus", "Vorhofflimmern", "Herzrhythmus", "RR-Intervall", "ST", "QT", "T-Welle", "Herzfrequenz"],
+    "XRay":      ["Röntgen", "Thorax", "Lunge", "Pneumonie", "Atelektase", "Pleura", "Kardiomegalie", "Hilus", "Zwerchfell"],
+    "CT":        ["CT", "Computertomographie", "Hounsfield", "Densität", "Schnitt", "axial", "koronal", "sagittal"],
+    "MRI":       ["MRT", "Magnetresonanz", "T1", "T2", "FLAIR", "Sequenz", "Signalveränderung", "Hyperintens"],
+    "Ultrasound":["Ultraschall", "Sonographie", "Echostruktur", "hyperechogen", "hypoechogen", "Schallschatten"],
+    "BloodTest": ["Hämoglobin", "Leukozyten", "Thrombozyten", "CRP", "Kreatinin", "GOT", "GPT", "Elektrolyt"],
+    "Echo":      ["Echokardiographie", "Ejektionsfraktion", "Wandbewegung", "Mitral", "Aorta", "Perikard", "LVEF"],
+}
+
 async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_type: str, clinical_context: str):
     """
-    Multi-AI medical analysis using OpenRouter — 100% free vision models.
-    Models used (all FREE via OpenRouter):
-      - google/gemma-4-31b-it:free     — Erstanalyse (31B, Google flagship free)
-      - nvidia/nemotron-nano-12b-v2-vl:free — Zweitmeinung (12B, NVIDIA VL specialist)
-      - baidu/qianfan-ocr-fast:free    — Drittmeinung (OCR-optimized for EKG/Blutbild)
+    Multi-AI medical analysis — free vision models with fallback chain.
+    Primary: google/gemma-4-31b-it:free
+    Second:  nvidia/nemotron-nano-12b-v2-vl:free → gemma-4-26b → qianfan (fallback chain)
+    Third:   baidu/qianfan-ocr-fast:free
     """
     try:
         specialist_prompt = ANALYZER_SPECIALISTS.get(report_type, ANALYZER_SPECIALISTS["Other"])
@@ -2478,58 +2500,96 @@ Verweigere die Analyse NICHT. Dies ist ein Lernwerkzeug für Medizinstudenten.
 Gib deine beste fachliche Einschätzung als erfahrener Facharzt.
 Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empfehlungen, Zusammenfassung."""
 
-        # Roles for the 3 independent AI doctors
         primary_role = "Du bist ein erfahrener Facharzt (Prep Academy Medical AI) mit Spezialisierung auf Bildgebung und Befundinterpretation. Antworte IMMER auf Deutsch."
-        second_role = "Du bist ein zweiter unabhängiger Facharzt (Prep Academy Medical AI). Arbeite besonders sorgfältig bei Differentialdiagnosen. Antworte IMMER auf Deutsch."
-        third_role = "Du bist ein dritter Facharzt mit Zugang zu aktuellen Leitlinien (ESC, DGK, AWMF, WHO). Fokus auf evidenzbasierte Medizin. Antworte IMMER auf Deutsch."
+        second_role  = "Du bist ein zweiter unabhängiger Facharzt (Prep Academy Medical AI). Arbeite besonders sorgfältig bei Differentialdiagnosen. Antworte IMMER auf Deutsch."
+        third_role   = "Du bist ein dritter Facharzt mit Zugang zu aktuellen Leitlinien (ESC, DGK, AWMF, WHO). Fokus auf evidenzbasierte Medizin. Antworte IMMER auf Deutsch."
 
-        # Run all 3 in parallel — free vision models via OpenRouter
+        # Run primary + third in parallel; second uses fallback chain
+        primary_model_id = "google/gemma-4-31b-it:free"
+        third_model_id   = "baidu/qianfan-ocr-fast:free"
         results = await asyncio.gather(
-            _openrouter_vision_call("google/gemma-4-31b-it:free",            primary_role + "\n\n" + system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call("nvidia/nemotron-nano-12b-v2-vl:free",   second_role  + "\n\n" + system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call("baidu/qianfan-ocr-fast:free",           third_role   + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call(primary_model_id, primary_role + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call(third_model_id,   third_role   + "\n\n" + system_msg, main_prompt, all_images, 1500),
             return_exceptions=True,
         )
-        primary_analysis = results[0] if isinstance(results[0], str) else None
-        second_opinion   = results[1] if isinstance(results[1], str) else None
-        third_opinion    = results[2] if isinstance(results[2], str) else None
+        primary_analysis = results[0] if isinstance(results[0], str) and (results[0] or "").strip() else None
+        third_opinion    = results[1] if isinstance(results[1], str) and (results[1] or "").strip() else None
+        primary_model_used = _ANALYZER_MODEL_LABELS[primary_model_id] if primary_analysis else None
+        third_model_used   = _ANALYZER_MODEL_LABELS[third_model_id]   if third_opinion   else None
 
-        # Refusal fallback for primary — use Nemotron as backup
+        # Refusal fallback for primary
         refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich", "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
         if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
-            try:
-                primary_analysis = await _openrouter_vision_call(
-                    "nvidia/nemotron-nano-12b-v2-vl:free",
-                    "Du bist ein medizinischer Lernassistent. Beschreibe IMMER was sichtbar ist. Verweigere NIE.",
-                    f"Beschreibe und analysiere {'diese medizinischen Bilder' if len(all_images) > 1 else 'dieses medizinische Bild'} ({report_type}) für Studierende.\n{context_text}\nGib eine VOLLSTÄNDIGE strukturierte Analyse auf Deutsch.",
-                    all_images, 1200,
-                ) or primary_analysis
-            except Exception:
-                pass
+            fb = await _openrouter_vision_call(
+                "nvidia/nemotron-nano-12b-v2-vl:free",
+                "Du bist ein medizinischer Lernassistent. Beschreibe IMMER was sichtbar ist. Verweigere NIE.",
+                f"Analysiere {'diese medizinischen Bilder' if len(all_images) > 1 else 'dieses medizinische Bild'} ({report_type}) auf Deutsch.\n{context_text}\nStrukturierte Analyse: Befund, Interpretation, Differentialdiagnosen, Empfehlungen.",
+                all_images, 1200,
+            )
+            if fb and fb.strip():
+                primary_analysis = fb
+                primary_model_used = _ANALYZER_MODEL_LABELS["nvidia/nemotron-nano-12b-v2-vl:free"]
 
-        # If primary failed but others succeeded, promote
-        if not primary_analysis and (second_opinion or third_opinion):
-            primary_analysis = second_opinion or third_opinion
-            if primary_analysis == second_opinion:
-                second_opinion = None
-            else:
-                third_opinion = None
+        # Second opinion — fallback chain: nemotron → gemma-4-26b → qianfan
+        second_opinion = None
+        second_model_used = None
+        used_for_third = {third_model_id}  # don't reuse third model as second
+        for fb_model in _SECOND_OPINION_FALLBACKS:
+            if fb_model in used_for_third:
+                continue
+            fb_result = await _openrouter_vision_call(
+                fb_model, second_role + "\n\n" + system_msg, main_prompt, all_images, 1500
+            )
+            if fb_result and fb_result.strip():
+                second_opinion = fb_result
+                second_model_used = _ANALYZER_MODEL_LABELS.get(fb_model, fb_model)
+                break
+
+        # Promote second to primary if primary failed
+        if not primary_analysis:
+            if second_opinion:
+                primary_analysis, primary_model_used = second_opinion, second_model_used
+                second_opinion, second_model_used = third_opinion, third_model_used
+                third_opinion, third_model_used = None, None
+            elif third_opinion:
+                primary_analysis, primary_model_used = third_opinion, third_model_used
+                third_opinion, third_model_used = None, None
 
         if not primary_analysis:
             await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
                 "status": "error",
-                "message": "Alle 3 KI-Modelle konnten das Bild nicht analysieren. Bitte versuche es mit einem klareren Bild erneut."
+                "message": "Alle KI-Modelle konnten das Bild nicht analysieren. Bitte versuche es mit einem klareren Bild erneut."
             }})
             return
 
-        full_analysis = f"## Erstanalyse — Gemma 4 31B (Google 🌐)\n{primary_analysis}"
-        ai_count = 1
+        # ── Category mismatch detection ──
+        category_warning = None
+        if report_type in _CATEGORY_KEYWORDS:
+            keywords = _CATEGORY_KEYWORDS[report_type]
+            found = sum(1 for kw in keywords if kw.lower() in primary_analysis.lower())
+            if found < 2:  # fewer than 2 expected keywords → likely wrong type
+                category_warning = (
+                    f"⚠️ **Hinweis:** Die Analyse enthält wenige {report_type}-typische Befunde. "
+                    f"Bitte überprüfe, ob der gewählte Untersuchungstyp ({report_type}) korrekt ist.\n\n"
+                )
+
+        # ── Confidence score (based on # of AI models that responded) ──
+        ai_count = sum(1 for x in [primary_analysis, second_opinion, third_opinion] if x)
+        confidence_score = {1: 55, 2: 72, 3: 85}.get(ai_count, 55)
+
+        # Build models_used list for frontend display
+        models_used = []
+        if primary_model_used:   models_used.append({"role": "Erstanalyse",   "model": primary_model_used})
+        if second_model_used:    models_used.append({"role": "Zweitmeinung",  "model": second_model_used})
+        if third_model_used:     models_used.append({"role": "Drittmeinung", "model": third_model_used})
+
+        # Build analysis text
+        warning_prefix = category_warning or ""
+        full_analysis = f"{warning_prefix}## Erstanalyse — {primary_model_used}\n{primary_analysis}"
         if second_opinion:
-            full_analysis += f"\n\n---\n\n## Zweitmeinung — Nemotron 12B VL (NVIDIA 🖥️)\n{second_opinion}"
-            ai_count += 1
+            full_analysis += f"\n\n---\n\n## Zweitmeinung — {second_model_used}\n{second_opinion}"
         if third_opinion:
-            full_analysis += f"\n\n---\n\n## Drittmeinung — Qianfan OCR (Baidu 🔍)\n{third_opinion}"
-            ai_count += 1
+            full_analysis += f"\n\n---\n\n## Drittmeinung — {third_model_used}\n{third_opinion}"
 
         analysis_id = str(uuid.uuid4())
         analysis_doc = {
@@ -2540,6 +2600,8 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
             "has_second_opinion": bool(second_opinion),
             "has_third_opinion": bool(third_opinion),
             "ai_count": ai_count,
+            "confidence_score": confidence_score,
+            "models_used": models_used,
             "image_count": len(all_images),
             "image_preview": all_images[0][:200] + "..." if all_images else "",
             "created_at": datetime.now(timezone.utc).isoformat()
@@ -2555,6 +2617,8 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
                 "has_second_opinion": bool(second_opinion),
                 "has_third_opinion": bool(third_opinion),
                 "ai_count": ai_count,
+                "confidence_score": confidence_score,
+                "models_used": models_used,
             }
         }})
     except Exception as e:

@@ -215,14 +215,24 @@ export default function AnalyzerPage() {
     } catch { /* */ }
   };
 
-  const getConfidence = (text) => { const m = (text || "").match(/(\d{1,3})\s*%/); return m ? Math.min(parseInt(m[1]), 100) : 75; };
+  const getConfidence = (result) => {
+    if (result?.confidence_score) return result.confidence_score;
+    const m = (result?.analysis || "").match(/(\d{1,3})\s*%/);
+    return m ? Math.min(parseInt(m[1]), 100) : 55;
+  };
+  const getModelsLabel = (result) => {
+    if (result?.models_used?.length) {
+      return result.models_used.map(m => m.model).join(' + ');
+    }
+    return result?.ai_count > 1 ? `${result.ai_count} KI-Modelle` : '1 KI-Modell';
+  };
   const getFindings = (text) => ((text || "").match(/^[-•]\s/gm) || []).length;
 
   // Build a professional printable HTML report (opens print dialog → save as PDF)
   const printReport = (item) => {
     const typeObj = REPORT_TYPES.find(t => t.id === item.report_type) || { label: item.report_type, emoji: '📋' };
-    const conf = getConfidence(item.analysis || '');
-    const confColor = conf >= 80 ? '#10b981' : conf >= 50 ? '#f59e0b' : '#ef4444';
+    const conf = getConfidence(item);
+    const confColor = conf >= 80 ? '#10b981' : conf >= 60 ? '#f59e0b' : '#ef4444';
     const dateStr = new Date(item.created_at || Date.now()).toLocaleString('de-DE', { dateStyle: 'long', timeStyle: 'short' });
     const logoUrl = `${window.location.origin}/logo-elite.png`;
 
@@ -340,7 +350,7 @@ export default function AnalyzerPage() {
     <div class="kpi">
       <div class="lbl">KI-Modelle</div>
       <div class="val">${item.ai_count || 1}×</div>
-      <div class="sub">Qwen3-VL${item.has_second_opinion ? ' + Qwen3 30B' : ''}${item.has_third_opinion ? ' + Nemotron' : ''}</div>
+      <div class="sub">${(item.models_used || []).map(m => m.model.split(' ')[0]).join(' + ') || 'Gemma 4 31B'}</div>
     </div>
     <div class="kpi">
       <div class="lbl">Befunde</div>
@@ -383,8 +393,8 @@ export default function AnalyzerPage() {
   );
 
   const selectedType = REPORT_TYPES.find(t => t.id === reportType);
-  const confidence = result ? getConfidence(result.analysis) : 0;
-  const confColor = confidence >= 80 ? '#10b981' : confidence >= 50 ? '#f59e0b' : '#ef4444';
+  const confidence = result ? getConfidence(result) : 0;
+  const confColor = confidence >= 80 ? '#10b981' : confidence >= 60 ? '#f59e0b' : '#ef4444';
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-6" data-testid="analyzer-page">
@@ -423,7 +433,7 @@ export default function AnalyzerPage() {
           {/* Privacy Note */}
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs" style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)', color: '#c9a84c' }}>
             <Shield className="w-4 h-4 flex-shrink-0" />
-            3 KI-Modelle: Qwen3-VL 235B + Qwen3-VL 30B (Alibaba 🇨🇳) + Nemotron Vision 12B (NVIDIA Open Source)
+            3 KI-Modelle: Gemma 4 31B (Google) + Nemotron 12B VL (NVIDIA) + Qianfan OCR (Baidu) — mit Fallback-Chain
           </div>
 
           {/* Disclaimer */}
@@ -518,7 +528,7 @@ export default function AnalyzerPage() {
             className="w-full gap-2 h-12 text-base font-semibold"
             style={images.length > 0 && !analyzing ? { background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' } : {}}
             data-testid="analyze-btn">
-            {analyzing ? <><Loader2 className="w-5 h-5 animate-spin" /> Multi-AI Analyse (Qwen3-VL 235B + Qwen3-VL 30B + Nemotron Vision)...</>
+            {analyzing ? <><Loader2 className="w-5 h-5 animate-spin" /> Multi-AI Analyse läuft (Gemma 4 31B + Nemotron 12B + Qianfan)...</>
               : <>{selectedType && <span className="text-lg">{selectedType.emoji}</span>} {images.length > 1 ? `${images.length} Bilder` : selectedType?.label || 'Bericht'} analysieren (3 KI)</>}
           </Button>
 
@@ -531,7 +541,7 @@ export default function AnalyzerPage() {
                 <div className="flex-1">
                   <h3 className="font-bold text-sm">KI-Analysebericht — {result.report_type}</h3>
                   <p className="text-[10px] text-muted-foreground">
-                    {result.ai_count || 1} KI-Modelle: Qwen3-VL 235B{result.has_second_opinion ? ' + Qwen3-VL 30B' : ''}{result.has_third_opinion ? ' + Nemotron 12B' : ''} · {new Date().toLocaleTimeString('de-DE')}
+                    {result.ai_count || 1} KI-Modell{(result.ai_count || 1) > 1 ? 'e' : ''}: {getModelsLabel(result)} · {new Date().toLocaleTimeString('de-DE')}
                   </p>
                 </div>
                 <Button variant="outline" size="sm" className="gap-1 h-7" onClick={() => printReport(result)} data-testid="print-report-btn">
