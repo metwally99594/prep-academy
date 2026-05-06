@@ -2454,12 +2454,11 @@ async def _openrouter_vision_call(model: str, system_msg: str, user_text: str, i
 
 async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_type: str, clinical_context: str):
     """
-    Multi-AI medical analysis using OpenRouter — Chinese & open-source vision models.
-    Models used (all FREE or near-zero cost via OpenRouter):
-      - Qwen3-VL 235B (Alibaba flagship)        — Erstanalyse
-      - Qwen3-VL 30B (Alibaba mid-tier)         — Zweitmeinung
-      - Nvidia Nemotron Nano 12B Vision FREE    — Drittmeinung
-      - Baidu Qianfan OCR FREE                  — OCR fallback for text-heavy reports (EKG/Blutbild)
+    Multi-AI medical analysis using OpenRouter — 100% free vision models.
+    Models used (all FREE via OpenRouter):
+      - google/gemma-4-31b-it:free     — Erstanalyse (31B, Google flagship free)
+      - nvidia/nemotron-nano-12b-v2-vl:free — Zweitmeinung (12B, NVIDIA VL specialist)
+      - baidu/qianfan-ocr-fast:free    — Drittmeinung (OCR-optimized for EKG/Blutbild)
     """
     try:
         specialist_prompt = ANALYZER_SPECIALISTS.get(report_type, ANALYZER_SPECIALISTS["Other"])
@@ -2484,23 +2483,23 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
         second_role = "Du bist ein zweiter unabhängiger Facharzt (Prep Academy Medical AI). Arbeite besonders sorgfältig bei Differentialdiagnosen. Antworte IMMER auf Deutsch."
         third_role = "Du bist ein dritter Facharzt mit Zugang zu aktuellen Leitlinien (ESC, DGK, AWMF, WHO). Fokus auf evidenzbasierte Medizin. Antworte IMMER auf Deutsch."
 
-        # Run all 3 in parallel — Gemini models via OpenRouter (vision-capable, low cost)
+        # Run all 3 in parallel — free vision models via OpenRouter
         results = await asyncio.gather(
-            _openrouter_vision_call("google/gemini-2.5-flash",      primary_role + "\n\n" + system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call("google/gemini-2.5-flash-lite", second_role  + "\n\n" + system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call("google/gemini-3-flash-preview", third_role  + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call("google/gemma-4-31b-it:free",            primary_role + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call("nvidia/nemotron-nano-12b-v2-vl:free",   second_role  + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call("baidu/qianfan-ocr-fast:free",           third_role   + "\n\n" + system_msg, main_prompt, all_images, 1500),
             return_exceptions=True,
         )
         primary_analysis = results[0] if isinstance(results[0], str) else None
         second_opinion   = results[1] if isinstance(results[1], str) else None
         third_opinion    = results[2] if isinstance(results[2], str) else None
 
-        # Refusal fallback for primary — use lite as backup
+        # Refusal fallback for primary — use Nemotron as backup
         refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich", "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
         if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
             try:
                 primary_analysis = await _openrouter_vision_call(
-                    "google/gemini-2.5-flash-lite",
+                    "nvidia/nemotron-nano-12b-v2-vl:free",
                     "Du bist ein medizinischer Lernassistent. Beschreibe IMMER was sichtbar ist. Verweigere NIE.",
                     f"Beschreibe und analysiere {'diese medizinischen Bilder' if len(all_images) > 1 else 'dieses medizinische Bild'} ({report_type}) für Studierende.\n{context_text}\nGib eine VOLLSTÄNDIGE strukturierte Analyse auf Deutsch.",
                     all_images, 1200,
@@ -2523,13 +2522,13 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
             }})
             return
 
-        full_analysis = f"## Erstanalyse — Gemini 2.5 Flash (Google 🌐)\n{primary_analysis}"
+        full_analysis = f"## Erstanalyse — Gemma 4 31B (Google 🌐)\n{primary_analysis}"
         ai_count = 1
         if second_opinion:
-            full_analysis += f"\n\n---\n\n## Zweitmeinung — Gemini 2.5 Flash Lite (Google 🌐)\n{second_opinion}"
+            full_analysis += f"\n\n---\n\n## Zweitmeinung — Nemotron 12B VL (NVIDIA 🖥️)\n{second_opinion}"
             ai_count += 1
         if third_opinion:
-            full_analysis += f"\n\n---\n\n## Drittmeinung — Gemini 3 Flash (Google 🌐)\n{third_opinion}"
+            full_analysis += f"\n\n---\n\n## Drittmeinung — Qianfan OCR (Baidu 🔍)\n{third_opinion}"
             ai_count += 1
 
         analysis_id = str(uuid.uuid4())
