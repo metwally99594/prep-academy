@@ -4,4 +4,4 @@ Disallow: /dashboard
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://prepacademy.at/sitemap.xml
+Sitemap: https://prep-academy-rho.vercel.app/sitemap.xml

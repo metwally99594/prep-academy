@@ -17,47 +17,62 @@ export default function ImpressumPage() {
 
       <div className="prose prose-sm dark:prose-invert max-w-none space-y-6 text-muted-foreground leading-relaxed">
         <section>
-          <h2 className="text-lg font-semibold text-foreground mb-2">Angaben gemäß § 5 TMG / § 25 MedienG</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-2">Angaben gemäß § 5 TMG</h2>
           <p>
-            <strong className="text-foreground">PrepAcademy Elite</strong><br />
-            [Name des Unternehmens / Inhabers]<br />
-            [Straße und Hausnummer]<br />
-            [PLZ Ort]<br />
-            Österreich
+            <strong className="text-foreground">Mohamed Metwally</strong><br />
+            Lussmer Ring 69<br />
+            28777 Bremen<br />
+            Deutschland
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-2">Kontakt</h2>
           <p>
-            E-Mail: <a href="mailto:kontakt@prepacademy.at" className="text-[#c9a84c] hover:underline">kontakt@prepacademy.at</a><br />
-            Website: <a href="https://prepacademy.at" className="text-[#c9a84c] hover:underline">prepacademy.at</a>
+            Telefon: <a href="tel:+4915561785638" className="text-[#c9a84c] hover:underline">+49 15561 785638</a><br />
+            E-Mail: <a href="mailto:mohamedmetwle99@gmail.com" className="text-[#c9a84c] hover:underline">mohamedmetwle99@gmail.com</a>
           </p>
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-foreground mb-2">Unternehmensgegenstand</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-2">Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV</h2>
           <p>
-            PrepAcademy Elite bietet eine KI-gestützte Online-Lernplattform für die medizinische Prüfungsvorbereitung an.
+            Mohamed Metwally<br />
+            Lussmer Ring 69<br />
+            28777 Bremen<br />
+            Deutschland
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-2">Haftungsausschluss</h2>
+
           <h3 className="font-medium text-foreground mt-3 mb-1">Haftung für Inhalte</h3>
           <p>
-            Die Inhalte dieser Plattform wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Die auf PrepAcademy bereitgestellten medizinischen Inhalte dienen ausschließlich zu Lernzwecken und ersetzen keine ärztliche Beratung oder Diagnose.
+            Die Inhalte unserer Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit
+            und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir
+            gemäß § 7 Abs. 1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich.
           </p>
+
           <h3 className="font-medium text-foreground mt-3 mb-1">Haftung für Links</h3>
           <p>
-            Unser Angebot enthält Links zu externen Webseiten Dritter, auf deren Inhalte wir keinen Einfluss haben. Deshalb können wir für diese fremden Inhalte auch keine Gewähr übernehmen.
+            Unser Angebot enthält Links zu externen Websites Dritter, auf deren Inhalte wir keinen Einfluss haben.
+            Deshalb können wir für diese fremden Inhalte auch keine Gewähr übernehmen. Für die Inhalte der
+            verlinkten Seiten ist stets der jeweilige Anbieter oder Betreiber der Seiten verantwortlich.
           </p>
-        </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-foreground mb-2">Urheberrecht</h2>
+          <h3 className="font-medium text-foreground mt-3 mb-1">Urheberrecht</h3>
           <p>
-            Die durch die Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem österreichischen und deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers.
+            Die durch den Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem deutschen
+            Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der
+            Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers.
+          </p>
+
+          <h3 className="font-medium text-foreground mt-3 mb-1">Medizinischer Hinweis</h3>
+          <p>
+            Die bereitgestellten Inhalte dienen ausschließlich Bildungszwecken und ersetzen keine professionelle
+            ärztliche Beratung, Diagnose oder Behandlung. Bei medizinischen Fragen wenden Sie sich bitte an einen
+            zugelassenen Arzt oder medizinisches Fachpersonal.
           </p>
         </section>
 
@@ -68,6 +83,8 @@ export default function ImpressumPage() {
             <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] hover:underline">
               ec.europa.eu/consumers/odr
             </a>
+            . Unsere E-Mail-Adresse finden Sie oben im Impressum. Wir sind nicht verpflichtet und nicht bereit,
+            an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
           </p>
         </section>
 

@@ -92,7 +92,7 @@ function LockedFeatureModal({ feature, onClose }) {
           <strong className="text-foreground">{feature}</strong> ist nur für freigeschaltete Nutzer verfügbar.<br />
           Kontaktieren Sie den Administrator zur Aktivierung.
         </p>
-        <a href="mailto:kontakt@prepacademy.at"
+        <a href="mailto:mohamedmetwle99@gmail.com"
           className="block w-full py-2.5 rounded-xl text-sm font-semibold mb-2"
           style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
           Zugang anfragen
@@ -847,7 +847,7 @@ export const Layout = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              PrepAcademy Elite © {new Date().getFullYear()} — Medizinische Prüfungsvorbereitung
+              © 2026 Mohamed Metwally — Medizinische Prüfungsvorbereitung
             </p>
             <div className="flex items-center gap-4 text-xs text-muted-foreground/60">
               <Link to="/impressum" className="hover:text-muted-foreground transition-colors">Impressum</Link>
