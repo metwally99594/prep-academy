@@ -4,7 +4,7 @@ import axios from "axios";
 import { AuthContext, API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Play, Pause, SkipBack, SkipForward, Calendar, Sparkles, Headphones, RotateCcw } from "lucide-react";
+import { Loader2, Play, Pause, SkipBack, SkipForward, Calendar, Sparkles, Headphones, RotateCcw, Lock } from "lucide-react";
 
 const LANGS = [
   { id: "de", label: "🇩🇪 Deutsch" },
@@ -20,6 +20,7 @@ export default function DailyPodcastPage() {
   const [current, setCurrent] = useState(null);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [locked, setLocked] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -33,12 +34,14 @@ export default function DailyPodcastPage() {
   const loadDaily = async (id = null) => {
     setLoading(true);
     setCurrent(null);
+    setLocked(false);
     try {
       const url = id ? `${API}/podcast/${id}` : `${API}/podcast/daily?language=${language}`;
       const res = await axios.get(url, { headers });
       setCurrent(res.data);
     } catch (err) {
-      setCurrent(null);
+      if (err?.response?.status === 403) setLocked(true);
+      else setCurrent(null);
     } finally {
       setLoading(false);
     }
@@ -78,7 +81,7 @@ export default function DailyPodcastPage() {
         <h1 className="text-4xl sm:text-5xl font-bold mb-2" style={{fontFamily: 'Playfair Display, serif'}}>
           5 Minuten <span className="text-amber-500">Medizin</span> pro Tag
         </h1>
-        <p className="text-muted-foreground text-base mb-5">Jeden Tag ein neuer klinischer Fall — frei zum Hören</p>
+        <p className="text-muted-foreground text-base mb-5">Jeden Tag ein neuer klinischer Fall — für freigeschaltete Benutzer</p>
 
         <div className="inline-flex flex-wrap gap-1.5 p-1 bg-muted/30 border border-border rounded-xl">
           {LANGS.map(l => (
@@ -93,6 +96,17 @@ export default function DailyPodcastPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-amber-500" /></div>
+      ) : locked ? (
+        <Card className="p-10 text-center" data-testid="podcast-locked">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-amber-500/10">
+            <Lock className="w-8 h-8 text-amber-500/70" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Zugang nicht freigeschaltet</h2>
+          <p className="text-muted-foreground text-sm">
+            Der Daily Podcast ist nur für freigeschaltete Benutzer verfügbar.<br />
+            Kontaktieren Sie den Administrator, um Zugang zu erhalten.
+          </p>
+        </Card>
       ) : !current ? (
         <Card className="p-10 text-center">
           <Sparkles className="w-12 h-12 mx-auto text-muted-foreground mb-3" />

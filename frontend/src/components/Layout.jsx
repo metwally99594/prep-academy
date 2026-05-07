@@ -26,12 +26,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { 
-  Stethoscope, 
-  User, 
-  LogOut, 
-  Heart, 
-  BarChart3, 
+import {
+  Stethoscope,
+  User,
+  LogOut,
+  Heart,
+  BarChart3,
   Settings,
   Menu,
   X,
@@ -55,6 +55,7 @@ import {
   BookOpen,
   ShieldCheck,
   FileScan,
+  Lock,
 } from "lucide-react";
 import { useState } from "react";
 import axios from "axios";
@@ -74,6 +75,36 @@ const SPECIALTIES = [
   { id: "special", name: "Special" },
 ];
 
+// ── Locked feature modal ──────────────────────────────────────────
+function LockedFeatureModal({ feature, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative max-w-sm w-full rounded-2xl border p-6 shadow-2xl text-center"
+        style={{ background: '#0c1229', borderColor: 'rgba(201,168,76,0.2)' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
+          <Lock size={26} style={{ color: '#c9a84c' }} />
+        </div>
+        <h3 className="text-lg font-bold mb-2">Funktion gesperrt</h3>
+        <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+          <strong className="text-foreground">{feature}</strong> ist nur für freigeschaltete Nutzer verfügbar.<br />
+          Kontaktieren Sie den Administrator zur Aktivierung.
+        </p>
+        <a href="mailto:kontakt@prepacademy.at"
+          className="block w-full py-2.5 rounded-xl text-sm font-semibold mb-2"
+          style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+          Zugang anfragen
+        </a>
+        <button onClick={onClose} className="block w-full py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors">
+          Schließen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const Layout = () => {
   const { user, token, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -81,6 +112,7 @@ export const Layout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [lockedModal, setLockedModal] = useState(null); // feature name string or null
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
@@ -235,12 +267,21 @@ export const Layout = () => {
                       <span className="hidden xl:inline">Eigene Auswahl</span>
                     </Button>
                   </Link>
-                  <Link to="/analyzer">
-                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="analyzer-nav-btn">
+                  {user.analyzer_enabled || user.is_admin ? (
+                    <Link to="/analyzer">
+                      <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="analyzer-nav-btn">
+                        <Activity className="w-4 h-4" />
+                        <span className="hidden lg:inline">Analyzer</span>
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0 opacity-50" data-testid="analyzer-nav-btn"
+                      onClick={() => setLockedModal("Analyzer")}>
                       <Activity className="w-4 h-4" />
                       <span className="hidden lg:inline">Analyzer</span>
+                      <Lock className="w-3 h-3 opacity-60" />
                     </Button>
-                  </Link>
+                  )}
                   {process.env.REACT_APP_ADVANCED === "true" && (
                     <>
                       <Link to="/rag">
@@ -257,18 +298,21 @@ export const Layout = () => {
                       </Link>
                     </>
                   )}
-                  <Link to="/billing">
-                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10" data-testid="premium-nav-btn">
-                      <Crown className="w-4 h-4" />
-                      <span className="hidden lg:inline">Premium</span>
-                    </Button>
-                  </Link>
-                  <Link to="/podcast">
-                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="podcast-nav-btn">
+                  {user.podcast_enabled || user.is_admin ? (
+                    <Link to="/podcast">
+                      <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="podcast-nav-btn">
+                        <Headphones className="w-4 h-4" />
+                        <span className="hidden lg:inline">Daily</span>
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0 opacity-50" data-testid="podcast-nav-btn"
+                      onClick={() => setLockedModal("Daily Podcast")}>
                       <Headphones className="w-4 h-4" />
                       <span className="hidden lg:inline">Daily</span>
+                      <Lock className="w-3 h-3 opacity-60" />
                     </Button>
-                  </Link>
+                  )}
                   <Link to="/favorites">
                     <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="favorites-nav-btn">
                       <Heart className="w-4 h-4" />
@@ -299,12 +343,21 @@ export const Layout = () => {
                       <span className="hidden xl:inline">Rangliste</span>
                     </Button>
                   </Link>
-                  <Link to="/notebook">
-                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="notebook-nav-btn">
+                  {user.notebook_enabled || user.is_admin ? (
+                    <Link to="/notebook">
+                      <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="notebook-nav-btn">
+                        <FileText className="w-4 h-4" />
+                        <span className="hidden lg:inline">Notebook</span>
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0 opacity-50" data-testid="notebook-nav-btn"
+                      onClick={() => setLockedModal("PDF Notebook")}>
                       <FileText className="w-4 h-4" />
                       <span className="hidden lg:inline">Notebook</span>
+                      <Lock className="w-3 h-3 opacity-60" />
                     </Button>
-                  </Link>
+                  )}
                   <Link to="/blog">
                     <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="blog-nav-btn">
                       <BookOpen className="w-4 h-4" />
@@ -422,12 +475,21 @@ export const Layout = () => {
                 Eigene Auswahl
               </Button>
             </Link>
-            <Link to="/analyzer" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="ghost" className="w-full justify-start gap-2">
+            {user.analyzer_enabled || user.is_admin ? (
+              <Link to="/analyzer" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Activity className="w-4 h-4" />
+                  Analyzer
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="ghost" className="w-full justify-start gap-2 opacity-50"
+                onClick={() => { setMobileMenuOpen(false); setLockedModal("Analyzer"); }}>
                 <Activity className="w-4 h-4" />
                 Analyzer
+                <Lock className="w-3 h-3 ml-auto opacity-60" />
               </Button>
-            </Link>
+            )}
             {process.env.REACT_APP_ADVANCED === "true" && (
               <>
                 <Link to="/rag" onClick={() => setMobileMenuOpen(false)}>
@@ -462,12 +524,21 @@ export const Layout = () => {
                 Rangliste
               </Button>
             </Link>
-            <Link to="/notebook" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="ghost" className="w-full justify-start gap-2">
+            {user.notebook_enabled || user.is_admin ? (
+              <Link to="/notebook" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start gap-2">
+                  <FileText className="w-4 h-4" />
+                  Notebook
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="ghost" className="w-full justify-start gap-2 opacity-50"
+                onClick={() => { setMobileMenuOpen(false); setLockedModal("PDF Notebook"); }}>
                 <FileText className="w-4 h-4" />
                 Notebook
+                <Lock className="w-3 h-3 ml-auto opacity-60" />
               </Button>
-            </Link>
+            )}
             <Link to="/blog" onClick={() => setMobileMenuOpen(false)}>
               <Button variant="ghost" className="w-full justify-start gap-2">
                 <BookOpen className="w-4 h-4" />
@@ -762,6 +833,9 @@ export const Layout = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Locked feature modal */}
+      {lockedModal && <LockedFeatureModal feature={lockedModal} onClose={() => setLockedModal(null)} />}
 
       {/* Main Content */}
       <main className="flex-1">

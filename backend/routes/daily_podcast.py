@@ -506,9 +506,18 @@ async def daily_podcast_loop(db):
 def make_router(db, get_current_user):
     router = APIRouter(prefix="/api/podcast", tags=["podcast"])
 
+    async def _check_podcast_access(user: dict):
+        """Raise 403 if user doesn't have podcast access."""
+        if user.get("is_admin"):
+            return
+        u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "podcast_enabled": 1})
+        if not u or not u.get("podcast_enabled"):
+            raise HTTPException(status_code=403, detail="Podcast-Zugang nicht freigeschaltet. Kontaktieren Sie den Administrator.")
+
     @router.get("/daily")
-    async def get_daily_podcast(language: str = "de"):
-        """Public endpoint — returns today's podcast for the requested language."""
+    async def get_daily_podcast(language: str = "de", user: dict = Depends(get_current_user)):
+        """Returns today's podcast — requires podcast_enabled permission."""
+        await _check_podcast_access(user)
         if language not in SUPPORTED_LANGS:
             language = "de"
         today = datetime.now(timezone.utc).date().isoformat()
@@ -517,7 +526,6 @@ def make_router(db, get_current_user):
             {"_id": 0},
         )
         if not doc:
-            # Fallback: latest available for that language
             doc = await db.daily_podcasts.find_one(
                 {"language": language},
                 {"_id": 0},
@@ -528,13 +536,14 @@ def make_router(db, get_current_user):
         return doc
 
     @router.get("/list")
-    async def list_podcasts(language: str = "de", limit: int = 14):
+    async def list_podcasts(language: str = "de", limit: int = 14, user: dict = Depends(get_current_user)):
         """Last N days of podcasts for browsing."""
+        await _check_podcast_access(user)
         if language not in SUPPORTED_LANGS:
             language = "de"
         cursor = db.daily_podcasts.find(
             {"language": language},
-            {"_id": 0, "audio_base64": 0, "script": 0},  # exclude heavy fields for the list
+            {"_id": 0, "audio_base64": 0, "script": 0},
         ).sort("created_at", -1).limit(min(limit, 30))
         items = []
         async for d in cursor:
@@ -542,7 +551,8 @@ def make_router(db, get_current_user):
         return {"items": items}
 
     @router.get("/{podcast_id}")
-    async def get_podcast(podcast_id: str):
+    async def get_podcast(podcast_id: str, user: dict = Depends(get_current_user)):
+        await _check_podcast_access(user)
         doc = await db.daily_podcasts.find_one({"id": podcast_id}, {"_id": 0})
         if not doc:
             raise HTTPException(status_code=404, detail="Podcast nicht gefunden")

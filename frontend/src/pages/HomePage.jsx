@@ -403,30 +403,30 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══════ SECTION 6.5: PRICING ═══════ */}
+      {/* ═══════ SECTION 6.5: ZUGANG ═══════ */}
       <section className="py-24 sm:py-32 relative" id="pricing">
         <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #080c22 50%, #06081a 100%)' }} />
         <div className="max-w-5xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
-          <SectionLabel number="06" text="Preise" />
+          <SectionLabel number="06" text="Zugang" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Einfache, transparente<br />
-            <span style={{ color: '#c9a84c' }}>Preisgestaltung</span>
+            Medizinisches Lernen<br />
+            <span style={{ color: '#c9a84c' }}>kostenlos für alle</span>
           </h2>
-          <p className="text-white/40 mb-16 max-w-xl">Starten Sie kostenlos. Upgraden Sie wenn Sie bereit sind.</p>
+          <p className="text-white/40 mb-16 max-w-xl">Registrieren Sie sich kostenlos und starten Sie sofort. Erweiterte KI-Funktionen werden auf Anfrage freigeschaltet.</p>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-            {/* Free */}
+            {/* Free for all */}
             <div className="p-8 rounded-2xl border" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.08)' }}>
-              <div className="text-xs font-mono tracking-widest text-white/30 uppercase mb-4">Free</div>
-              <div className="text-4xl font-bold text-white mb-1">€0</div>
-              <p className="text-sm text-white/30 mb-8">Für immer kostenlos</p>
+              <div className="text-xs font-mono tracking-widest text-white/30 uppercase mb-4">Für alle</div>
+              <div className="text-4xl font-bold text-white mb-1">Kostenlos</div>
+              <p className="text-sm text-white/30 mb-8">Nach Registrierung sofort verfügbar</p>
               <ul className="space-y-3 mb-8">
                 {[
-                  "5 KI-Analysen pro Tag",
-                  "3 PDF-Uploads pro Tag",
                   "Unbegrenzter Quiz-Zugang",
-                  "Grundlegende Statistiken",
-                  "Tägliche Podcasts",
+                  "Alle Fachrichtungen & Jahrgänge",
+                  "Fortschrittsstatistiken",
+                  "Tägliche Lernziele",
+                  "Dunkelmodus & mobile Ansicht",
                 ].map(f => (
                   <li key={f} className="flex items-center gap-3 text-sm text-white/50">
                     <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#c9a84c' }} />
@@ -437,35 +437,33 @@ export default function HomePage() {
               {!user ? (
                 <Link to="/register" className="block">
                   <button className="w-full py-3 rounded-xl border text-sm font-semibold text-white/60 hover:text-white hover:border-white/20 transition-all" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                    Kostenlos starten
+                    Kostenlos registrieren
                   </button>
                 </Link>
               ) : (
                 <Link to="/dashboard" className="block">
                   <button className="w-full py-3 rounded-xl border text-sm font-semibold text-white/40 cursor-default" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                    Aktueller Plan ✓
+                    Bereits registriert ✓
                   </button>
                 </Link>
               )}
             </div>
 
-            {/* Premium */}
+            {/* Admin-gated */}
             <div className="p-8 rounded-2xl border relative overflow-hidden" style={{ background: 'rgba(201,168,76,0.04)', borderColor: 'rgba(201,168,76,0.2)' }}>
               <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #c9a84c, transparent)' }} />
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-xs font-mono tracking-widest uppercase" style={{ color: '#c9a84c' }}>Premium</span>
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(201,168,76,0.15)', color: '#c9a84c' }}>Beliebt</span>
+                <span className="text-xs font-mono tracking-widest uppercase" style={{ color: '#c9a84c' }}>Erweiterte Funktionen</span>
               </div>
-              <div className="text-4xl font-bold text-white mb-1">€14,99<span className="text-lg text-white/30 font-normal">/Monat</span></div>
-              <p className="text-sm text-white/30 mb-8">oder €69 für 6 Monate (23% sparen)</p>
+              <div className="text-2xl font-bold text-white mb-1">Auf Anfrage</div>
+              <p className="text-sm text-white/30 mb-8">Freischaltung durch Administrator</p>
               <ul className="space-y-3 mb-8">
                 {[
-                  "Unbegrenzte KI-Analysen",
-                  "Unbegrenzte PDF-Uploads",
-                  "Prioritäts-KI-Verarbeitung",
-                  "Erweiterte Statistiken",
-                  "Prüfungs-Simulationen",
-                  "Premium AI-Modelle",
+                  "KI-Dokumentenanalyse (Analyzer)",
+                  "Notebook — PDF zu Lernkarten & Audio",
+                  "Täglicher Medizin-Podcast",
+                  "Hierarchische Wissensvernetzung",
+                  "Audio-Zusammenfassungen & MindMaps",
                 ].map(f => (
                   <li key={f} className="flex items-center gap-3 text-sm text-white/70">
                     <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#c9a84c' }} />
@@ -473,11 +471,11 @@ export default function HomePage() {
                   </li>
                 ))}
               </ul>
-              <Link to={user ? "/billing" : "/register"} className="block">
+              <a href="mailto:kontakt@prepacademy.at" className="block">
                 <button className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
-                  {user ? "Jetzt upgraden" : "Jetzt starten"}
+                  Zugang anfragen
                 </button>
-              </Link>
+              </a>
             </div>
           </div>
         </div>

@@ -211,69 +211,6 @@ async def startup_event():
 async def shutdown_db_client():
     client.close()
 
-# ============ USAGE TRACKING (Free Tier Limits) ============
-
-async def _check_usage(user: dict, feature: str, free_limit: int) -> None:
-    """Raise HTTP 429 if a free-tier user has exceeded their daily quota for `feature`."""
-    if user.get("is_admin"):
-        return
-    # Premium bypass: check premium_until field
-    premium_until = user.get("premium_until")
-    if premium_until:
-        try:
-            if isinstance(premium_until, str):
-                from datetime import timezone as _tz
-                premium_until = datetime.fromisoformat(premium_until.replace("Z", "+00:00"))
-            if premium_until > datetime.now(timezone.utc):
-                return
-        except Exception:
-            pass
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    doc = await db.daily_usage.find_one({"user_id": user["id"], "date": today, "feature": feature}, {"_id": 0, "count": 1})
-    count = doc["count"] if doc else 0
-    if count >= free_limit:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Tageslimit erreicht: {free_limit}x {feature} im Free-Tier. Auf Premium upgraden für unbegrenzte Nutzung.",
-        )
-
-
-async def _record_usage(user_id: str, feature: str) -> None:
-    """Increment the daily usage counter for a user+feature."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    await db.daily_usage.update_one(
-        {"user_id": user_id, "date": today, "feature": feature},
-        {"$inc": {"count": 1}, "$setOnInsert": {"created_at": datetime.now(timezone.utc).isoformat()}},
-        upsert=True,
-    )
-
-
-@api_router.get("/usage/daily")
-async def get_daily_usage(user: dict = Depends(get_current_user)):
-    """Return today's usage counts and limits for the current user."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    docs = await db.daily_usage.find({"user_id": user["id"], "date": today}, {"_id": 0, "feature": 1, "count": 1}).to_list(20)
-    usage = {d["feature"]: d["count"] for d in docs}
-
-    # Is this user premium?
-    premium_until = user.get("premium_until")
-    is_premium = False
-    if premium_until:
-        try:
-            if isinstance(premium_until, str):
-                premium_until = datetime.fromisoformat(premium_until.replace("Z", "+00:00"))
-            is_premium = premium_until > datetime.now(timezone.utc)
-        except Exception:
-            pass
-
-    LIMITS = {"analyzer": 5, "notebook_upload": 3, "notebook_audio": 1}
-    return {
-        "is_premium": is_premium or user.get("is_admin", False),
-        "date": today,
-        "usage": {f: {"used": usage.get(f, 0), "limit": None if (is_premium or user.get("is_admin")) else LIMITS.get(f)} for f in LIMITS},
-    }
-
-
 # ============ AUTH ROUTES ============
 
 @api_router.post("/auth/register", response_model=dict)
@@ -1738,7 +1675,6 @@ DEINE KERNREGELN:
 async def upload_pdf(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     """Upload a PDF, extract text, and split into smart chunks"""
     await check_notebook_access(user)
-    await _check_usage(user, "notebook_upload", 3)
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Nur PDF-Dateien sind erlaubt")
     
@@ -1842,7 +1778,6 @@ async def upload_pdf(file: UploadFile = File(...), user: dict = Depends(get_curr
             except Exception as e:
                 logger.warning(f"Auto-summary error: {e}")
         asyncio.create_task(_auto_summary())
-        await _record_usage(user["id"], "notebook_upload")
 
         return {
             "id": notebook_id,
@@ -2682,7 +2617,6 @@ async def generate_audio_script(notebook_id: str, language: str = "de", voice: s
                                   user: dict = Depends(get_current_user)):
     """Generate a deep audio podcast script from hierarchical analysis."""
     await check_notebook_access(user)
-    await _check_usage(user, "notebook_audio", 1)
     synthesis = await _ensure_analysis(notebook_id, user["id"])
     global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
 
@@ -2728,7 +2662,6 @@ Das Skript soll:
                   "audio_base64": audio_b64, "source": "hierarchical_analysis",
                   "created_at": datetime.now(timezone.utc).isoformat()}
     await db.notebook_audios.replace_one({"notebook_id": notebook_id, "user_id": user["id"], "language": language}, audio_doc, upsert=True)
-    await _record_usage(user["id"], "notebook_audio")
     return {"script": script, "audio_base64": audio_b64, "voice": voice, "source": "hierarchical_analysis"}
 
 
@@ -2781,6 +2714,56 @@ async def toggle_analyzer_access(user_id: str, user: dict = Depends(get_current_
     new_val = not target.get("analyzer_enabled", False)
     await db.users.update_one({"id": user_id}, {"$set": {"analyzer_enabled": new_val}})
     return {"user_id": user_id, "analyzer_enabled": new_val}
+
+
+# ── Podcast Access ────────────────────────────────────────────────
+
+async def check_podcast_access(user: dict):
+    """Check if user has podcast access (admin always does)."""
+    if user.get("is_admin"):
+        return True
+    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "podcast_enabled": 1})
+    if not u or not u.get("podcast_enabled"):
+        raise HTTPException(status_code=403, detail="Podcast-Zugang nicht freigeschaltet. Kontaktieren Sie den Administrator.")
+    return True
+
+
+@api_router.get("/podcast/access")
+async def get_podcast_access(user: dict = Depends(get_current_user)):
+    try:
+        await check_podcast_access(user)
+        return {"access": True}
+    except HTTPException:
+        raise
+
+
+@api_router.post("/admin/podcast/toggle/{user_id}")
+async def toggle_podcast_access(user_id: str, user: dict = Depends(get_current_user)):
+    """Admin: Enable/disable podcast access for a user."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Nur für Administratoren")
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    new_val = not target.get("podcast_enabled", False)
+    await db.users.update_one({"id": user_id}, {"$set": {"podcast_enabled": new_val}})
+    return {"user_id": user_id, "podcast_enabled": new_val}
+
+
+# ── Unified permissions PATCH (for future use) ────────────────────
+
+@api_router.patch("/admin/users/{user_id}/permissions")
+async def set_user_permissions(user_id: str, body: dict, user: dict = Depends(get_current_user)):
+    """Admin: Set multiple feature permissions at once."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Nur für Administratoren")
+    allowed = {"notebook_enabled", "analyzer_enabled", "podcast_enabled"}
+    updates = {k: bool(v) for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="Keine gültigen Felder")
+    await db.users.update_one({"id": user_id}, {"$set": updates})
+    return {"user_id": user_id, **updates}
+
 
 ANALYZER_SPECIALISTS = {
     "ECG": """Du bist ein erfahrener Kardiologe und EKG-Spezialist.
@@ -2931,7 +2914,6 @@ async def analyze_medical_report_upload(
 ):
     """Multipart upload version — handles large medical images reliably (no JSON base64 overhead)."""
     await check_analyzer_access(user)
-    await _check_usage(user, "analyzer", 5)
 
     if not os.environ.get("OPENROUTER_API_KEY"):
         raise HTTPException(status_code=500, detail="AI service not configured")
@@ -2962,7 +2944,6 @@ async def analyze_medical_report_upload(
     })
 
     asyncio.create_task(_run_analyzer_job(job_id, user, all_images, report_type, clinical_context or ""))
-    await _record_usage(user["id"], "analyzer")
 
     return {"job_id": job_id, "status": "processing"}
 
@@ -2971,7 +2952,6 @@ async def analyze_medical_report_upload(
 async def analyze_medical_report(request: AnalyzeRequest, user: dict = Depends(get_current_user)):
     """Start multi-AI analysis as a background job (returns job_id for polling)."""
     await check_analyzer_access(user)
-    await _check_usage(user, "analyzer", 5)
 
     if not os.environ.get("OPENROUTER_API_KEY"):
         raise HTTPException(status_code=500, detail="AI service not configured")
@@ -3002,7 +2982,6 @@ async def analyze_medical_report(request: AnalyzeRequest, user: dict = Depends(g
     })
 
     asyncio.create_task(_run_analyzer_job(job_id, user, all_images, request.report_type, request.clinical_context or ""))
-    await _record_usage(user["id"], "analyzer")
 
     return {"job_id": job_id, "status": "processing"}
 
