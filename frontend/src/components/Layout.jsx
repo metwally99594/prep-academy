@@ -76,30 +76,105 @@ const SPECIALTIES = [
 ];
 
 // ── Locked feature modal ──────────────────────────────────────────
-function LockedFeatureModal({ feature, onClose }) {
+const FEATURE_KEY_MAP = {
+  "PDF Notebook": "notebook",
+  "Medical Analyzer": "analyzer",
+  "Daily Podcast": "podcast",
+};
+
+function LockedFeatureModal({ feature, onClose, token }) {
+  const [phase, setPhase] = useState("info"); // "info" | "form" | "sent"
+  const [msg, setMsg] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const submit = async () => {
+    const featureKey = FEATURE_KEY_MAP[feature] || feature.toLowerCase();
+    setSending(true);
+    try {
+      await axios.post(`${API}/access-requests`,
+        { feature: featureKey, user_message: msg },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPhase("sent");
+    } catch (err) {
+      const detail = err.response?.data?.detail || "Fehler beim Senden";
+      if (detail.includes("ausstehende Anfrage")) {
+        setPhase("sent");
+      } else {
+        toast.error(detail);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative max-w-sm w-full rounded-2xl border p-6 shadow-2xl text-center"
+      <div className="relative max-w-sm w-full rounded-2xl border p-6 shadow-2xl"
         style={{ background: '#0c1229', borderColor: 'rgba(201,168,76,0.2)' }}
         onClick={e => e.stopPropagation()}>
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-          style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
-          <Lock size={26} style={{ color: '#c9a84c' }} />
-        </div>
-        <h3 className="text-lg font-bold mb-2">Funktion gesperrt</h3>
-        <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-          <strong className="text-foreground">{feature}</strong> ist nur für freigeschaltete Nutzer verfügbar.<br />
-          Kontaktieren Sie den Administrator zur Aktivierung.
-        </p>
-        <a href="mailto:mohamedmetwle99@gmail.com"
-          className="block w-full py-2.5 rounded-xl text-sm font-semibold mb-2"
-          style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
-          Zugang anfragen
-        </a>
-        <button onClick={onClose} className="block w-full py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors">
-          Schließen
-        </button>
+
+        {phase === "sent" ? (
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
+              <ShieldCheck size={26} className="text-emerald-500" />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Anfrage gesendet</h3>
+            <p className="text-sm text-muted-foreground mb-5">
+              Der Administrator wurde benachrichtigt und wird Ihre Anfrage für <strong className="text-foreground">{feature}</strong> bearbeiten.
+            </p>
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              Schließen
+            </button>
+          </div>
+        ) : phase === "form" ? (
+          <>
+            <h3 className="text-lg font-bold mb-1">Zugang anfragen</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Senden Sie eine Anfrage für <strong className="text-foreground">{feature}</strong>.
+            </p>
+            <textarea
+              className="w-full rounded-xl border bg-background/50 p-3 text-sm resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+              rows={3}
+              placeholder="Optional: Warum benötigen Sie diesen Zugang?"
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              maxLength={500}
+            />
+            <button onClick={submit} disabled={sending}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold mb-2 disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              {sending ? "Wird gesendet…" : "Anfrage senden"}
+            </button>
+            <button onClick={() => setPhase("info")}
+              className="w-full py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Zurück
+            </button>
+          </>
+        ) : (
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
+              <Lock size={26} style={{ color: '#c9a84c' }} />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Funktion gesperrt</h3>
+            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
+              <strong className="text-foreground">{feature}</strong> ist nur für freigeschaltete Nutzer verfügbar.
+            </p>
+            <button onClick={() => setPhase("form")}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold mb-2"
+              style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              Zugang anfragen
+            </button>
+            <button onClick={onClose}
+              className="w-full py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Schließen
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -835,7 +910,7 @@ export const Layout = () => {
       </Dialog>
 
       {/* Locked feature modal */}
-      {lockedModal && <LockedFeatureModal feature={lockedModal} onClose={() => setLockedModal(null)} />}
+      {lockedModal && <LockedFeatureModal feature={lockedModal} onClose={() => setLockedModal(null)} token={token} />}
 
       {/* Main Content */}
       <main className="flex-1">

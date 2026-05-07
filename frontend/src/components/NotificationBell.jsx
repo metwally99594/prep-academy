@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API, useAuth } from "@/App";
-import { 
+import {
   Bell, Trophy, Flame, Zap, Check, Send, Loader2, Flag, MessageSquare,
+  Lock, Unlock, XCircle,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,9 @@ const NOTIF_ICONS = {
   trophy: Trophy,
   flame: Flame,
   zap: Zap,
+  lock: Lock,
+  unlock: Unlock,
+  "x-circle": XCircle,
 };
 
 export default function NotificationBell() {
@@ -138,7 +142,15 @@ export default function NotificationBell() {
             notifications.map((notif) => {
               const isReport = notif.type === "report";
               const isReportReply = notif.type === "report_reply";
-              const IconComp = isReport ? Flag : isReportReply ? MessageSquare : (NOTIF_ICONS[notif.icon] || Bell);
+              const isAccessRequest = notif.type === "access_request";
+              const isAccessGranted = notif.type === "access_granted";
+              const isAccessRejected = notif.type === "access_rejected";
+              const IconComp = isReport ? Flag
+                : isReportReply ? MessageSquare
+                : isAccessRequest ? Lock
+                : isAccessGranted ? Unlock
+                : isAccessRejected ? XCircle
+                : (NOTIF_ICONS[notif.icon] || Bell);
 
               return (
                 <div
@@ -150,15 +162,21 @@ export default function NotificationBell() {
                     <div className={`p-2 rounded-lg shrink-0 ${
                       isReport ? 'bg-red-500/15' :
                       isReportReply ? 'bg-emerald-500/15' :
-                      notif.type === 'level_up' ? 'bg-amber-500/15' : 
-                      notif.type === 'streak_warning' ? 'bg-orange-500/15' : 
+                      isAccessRequest ? 'bg-amber-500/15' :
+                      isAccessGranted ? 'bg-emerald-500/15' :
+                      isAccessRejected ? 'bg-red-500/15' :
+                      notif.type === 'level_up' ? 'bg-amber-500/15' :
+                      notif.type === 'streak_warning' ? 'bg-orange-500/15' :
                       'bg-primary/10'
                     }`}>
                       <IconComp className={`w-4 h-4 ${
                         isReport ? 'text-red-500' :
                         isReportReply ? 'text-emerald-500' :
-                        notif.type === 'level_up' ? 'text-amber-500' : 
-                        notif.type === 'streak_warning' ? 'text-orange-500' : 
+                        isAccessRequest ? 'text-amber-500' :
+                        isAccessGranted ? 'text-emerald-500' :
+                        isAccessRejected ? 'text-red-500' :
+                        notif.type === 'level_up' ? 'text-amber-500' :
+                        notif.type === 'streak_warning' ? 'text-orange-500' :
                         'text-primary'
                       }`} />
                     </div>

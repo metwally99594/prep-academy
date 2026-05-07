@@ -796,12 +796,20 @@ export default function AdminPage() {
             <p className="text-muted-foreground">Fragen und Benutzer verwalten</p>
           </div>
         </div>
-        <Link to="/">
-          <Button variant="ghost" className="gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Zurück
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/admin/analytics">
+            <Button variant="outline" className="gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </Button>
+          </Link>
+          <Link to="/">
+            <Button variant="ghost" className="gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Zurück
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-8">

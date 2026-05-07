@@ -4216,6 +4216,10 @@ from routes.daily_podcast import make_router as make_podcast_router, daily_podca
 podcast_router = make_podcast_router(db, get_current_user)
 app.include_router(podcast_router)
 
+from routes.analytics import make_analytics_router
+analytics_router = make_analytics_router(db, get_current_user, get_admin_user)
+app.include_router(analytics_router)
+
 # Include Medical RAG + DICOM routers (only if heavy ML packages are installed)
 # These are disabled in Emergent free deployment (which has 250m CPU + 1Gi memory limit)
 # To re-enable: install chromadb + sentence-transformers + pydicom + opencv-python-headless

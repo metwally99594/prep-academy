@@ -24,6 +24,7 @@ const ReviewPage = lazy(() => import("@/pages/ReviewPage"));
 const SearchResultsPage = lazy(() => import("@/pages/SearchResultsPage"));
 const StatsPage = lazy(() => import("@/pages/StatsPage"));
 const AdminPage = lazy(() => import("@/pages/AdminPage"));
+const AdminAnalyticsPage = lazy(() => import("@/pages/AdminAnalyticsPage"));
 const LeaderboardPage = lazy(() => import("@/pages/LeaderboardPage"));
 const NotebookPage = lazy(() => import("@/pages/NotebookPage"));
 const CustomQuizPage = lazy(() => import("@/pages/CustomQuizPage"));
@@ -270,6 +271,9 @@ function AppRouter() {
           } />
           <Route path="/admin" element={
             <ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>
+          } />
+          <Route path="/admin/analytics" element={
+            <ProtectedRoute adminOnly><AdminAnalyticsPage /></ProtectedRoute>
           } />
           <Route path="/notebook" element={
             <ProtectedRoute><NotebookPage /></ProtectedRoute>
