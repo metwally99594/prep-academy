@@ -186,33 +186,126 @@ def make_export_router(db, get_current_user):
                     except Exception as img_err:
                         logger.debug("[PDF] image skip q%d: %s", count, img_err)
 
-                # choices
-                choices = q.get("choices") or []
-                for ci, choice in enumerate(choices[:6]):
-                    label = CHOICE_LABELS[ci]
-                    text  = choice.get("text_de") or choice.get("text") or ""
-                    if choice.get("is_correct"):
-                        pdf.set_text_color(*GREEN)
+                # ── render by question type ──────────────────────────────
+                qtype = (q.get("question_type") or "mcq").lower()
+
+                if qtype in ("mcq", "multi_select"):
+                    choices = q.get("choices") or q.get("choices_de") or []
+                    for ci, choice in enumerate(choices[:6]):
+                        label = CHOICE_LABELS[ci]
+                        text  = choice.get("text_de") or choice.get("text") or ""
+                        if choice.get("is_correct"):
+                            pdf.set_text_color(*GREEN)
+                            pdf.set_font("Helvetica", "B", 10)
+                        else:
+                            pdf.set_text_color(*GREY)
+                            pdf.set_font("Helvetica", "", 10)
+                        pdf.set_x(MARGIN)
+                        pdf.multi_cell(USABLE_W, 6, f"  {label})  {_safe(text)}")
+                    pdf.ln(4)
+
+                    correct_labels = [
+                        CHOICE_LABELS[i] for i, c in enumerate(choices[:6]) if c.get("is_correct")
+                    ]
+                    answer_text = "Antwort: " + ", ".join(correct_labels) if correct_labels else "Antwort: -"
+                    pdf.set_fill_color(220, 250, 230)
+                    pdf.set_draw_color(100, 200, 130)
+                    pdf.set_text_color(20, 100, 50)
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.set_x(MARGIN)
+                    pdf.cell(USABLE_W, 8, f"  {_safe(answer_text)}", fill=True, **_NL)
+                    pdf.ln(3)
+
+                elif qtype in ("drag_drop", "categorize"):
+                    idata = q.get("interactive_data") or {}
+                    items    = idata.get("items") or []
+                    cats     = idata.get("categories") or []
+                    mapping  = idata.get("correct_mapping") or {}
+
+                    # Items
+                    pdf.set_text_color(*BRAND)
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.set_x(MARGIN)
+                    pdf.cell(USABLE_W, 6, "  Items:", **_NL)
+                    pdf.set_font("Helvetica", "", 10)
+                    pdf.set_text_color(*GREY)
+                    for item in items:
+                        iid  = item.get("id", "")
+                        itxt = item.get("text_de") or item.get("text") or ""
+                        pdf.set_x(MARGIN)
+                        pdf.multi_cell(USABLE_W, 6, f"    [{iid}]  {_safe(itxt)}")
+                    pdf.ln(2)
+
+                    # Categories
+                    pdf.set_text_color(*BRAND)
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.set_x(MARGIN)
+                    pdf.cell(USABLE_W, 6, "  Kategorien:", **_NL)
+                    pdf.set_font("Helvetica", "", 10)
+                    pdf.set_text_color(*GREY)
+                    for cat in cats:
+                        cid  = cat.get("id", "")
+                        clbl = cat.get("label_de") or cat.get("label") or cid
+                        pdf.set_x(MARGIN)
+                        pdf.cell(USABLE_W, 6, f"    [{cid}]  {_safe(clbl)}", **_NL)
+                    pdf.ln(2)
+
+                    # Correct mapping
+                    if mapping:
+                        cat_labels = {c.get("id", ""): c.get("label_de") or c.get("label") or c.get("id", "") for c in cats}
+                        item_texts = {it.get("id", ""): it.get("text_de") or it.get("text") or it.get("id", "") for it in items}
+                        pdf.set_fill_color(220, 250, 230)
+                        pdf.set_text_color(20, 100, 50)
                         pdf.set_font("Helvetica", "B", 10)
-                    else:
+                        pdf.set_x(MARGIN)
+                        pdf.cell(USABLE_W, 6, "  Zuordnung (korrekt):", fill=True, **_NL)
+                        pdf.set_font("Helvetica", "", 9)
+                        for iid, cid in mapping.items():
+                            itxt = _safe(item_texts.get(iid, iid))
+                            clbl = _safe(cat_labels.get(cid, cid))
+                            pdf.set_x(MARGIN)
+                            pdf.multi_cell(USABLE_W, 6, f"    {itxt}  ->  {clbl}", fill=True)
+                    pdf.ln(3)
+
+                elif qtype == "fill_blank":
+                    idata = q.get("interactive_data") or {}
+                    prompt_de = idata.get("prompt_de") or ""
+                    blanks    = idata.get("blanks") or []
+
+                    if prompt_de:
+                        pdf.set_text_color(*GREY)
+                        pdf.set_font("Helvetica", "I", 10)
+                        pdf.set_x(MARGIN)
+                        pdf.multi_cell(USABLE_W, 6, _safe(prompt_de))
+                        pdf.ln(2)
+
+                    pdf.set_fill_color(220, 250, 230)
+                    pdf.set_text_color(20, 100, 50)
+                    pdf.set_font("Helvetica", "B", 10)
+                    pdf.set_x(MARGIN)
+                    pdf.cell(USABLE_W, 6, "  Luecken (korrekte Antworten):", fill=True, **_NL)
+                    pdf.set_font("Helvetica", "", 9)
+                    for blank in blanks:
+                        label   = blank.get("label") or blank.get("id") or ""
+                        hint    = blank.get("hint_de") or blank.get("hint") or ""
+                        answers = blank.get("correct_answers") or []
+                        ans_str = " / ".join(_safe(a) for a in answers)
+                        hint_str = f" ({_safe(hint)})" if hint else ""
+                        pdf.set_x(MARGIN)
+                        pdf.multi_cell(USABLE_W, 6, f"    Luecke {_safe(label)}{hint_str}: {ans_str}", fill=True)
+                    pdf.ln(3)
+
+                else:
+                    # unknown type — fallback: try rendering as MCQ
+                    choices = q.get("choices") or q.get("choices_de") or []
+                    for ci, choice in enumerate(choices[:6]):
+                        label = CHOICE_LABELS[ci]
+                        text  = choice.get("text_de") or choice.get("text") or ""
                         pdf.set_text_color(*GREY)
                         pdf.set_font("Helvetica", "", 10)
-                    pdf.set_x(MARGIN)
-                    pdf.multi_cell(USABLE_W, 6, f"  {label})  {_safe(text)}")
-                pdf.ln(4)
-
-                # answer box
-                correct_labels = [
-                    CHOICE_LABELS[i] for i, c in enumerate(choices[:6]) if c.get("is_correct")
-                ]
-                answer_text = "Antwort: " + ", ".join(correct_labels) if correct_labels else "Antwort: -"
-                pdf.set_fill_color(220, 250, 230)
-                pdf.set_draw_color(100, 200, 130)
-                pdf.set_text_color(20, 100, 50)
-                pdf.set_font("Helvetica", "B", 10)
-                pdf.set_x(MARGIN)
-                pdf.cell(USABLE_W, 8, f"  {_safe(answer_text)}", fill=True, **_NL)
-                pdf.ln(3)
+                        pdf.set_x(MARGIN)
+                        pdf.multi_cell(USABLE_W, 6, f"  {label})  {_safe(text)}")
+                    pdf.ln(3)
 
                 # explanation (no partial border strings — use fill color only)
                 explanation = q.get("explanation_de") or q.get("explanation") or ""
