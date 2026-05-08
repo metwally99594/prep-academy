@@ -653,6 +653,7 @@ export default function AdminPage() {
     setDialogOpen(true);
   };
 
+
   const downloadExportPDF = async () => {
     setExportDownloading(true);
     try {
@@ -660,7 +661,7 @@ export default function AdminPage() {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || "Export fehlgeschlagen");
+        throw new Error(err.detail || `Export fehlgeschlagen (${response.status})`);
       }
       const blob = await response.blob();
       const disp = response.headers.get("content-disposition") || "";
@@ -676,7 +677,9 @@ export default function AdminPage() {
       URL.revokeObjectURL(blobUrl);
       toast.success("PDF erfolgreich erstellt");
     } catch (err) {
-      toast.error(err.message || "Download fehlgeschlagen");
+      console.error("[PDF export] failed:", err);
+      toast.error(err.message || "Download fehlgeschlagen", { duration: 8000 });
+
     } finally {
       setExportDownloading(false);
     }
