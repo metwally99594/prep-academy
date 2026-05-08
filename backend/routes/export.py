@@ -1,4 +1,4 @@
-"""Questions PDF Export for users with can_export_pdf permission."""
+"""Questions PDF Export — admin-only."""
 from fastapi import APIRouter, HTTPException, Depends
 from starlette.responses import StreamingResponse
 from datetime import datetime, timezone
@@ -19,6 +19,8 @@ def make_export_router(db, get_current_user):
 
     @router.get("/export/categories")
     async def get_categories(user: dict = Depends(get_current_user)):
+        if not user.get("is_admin"):
+            raise HTTPException(403, "Nur für Administratoren verfügbar")
         pipeline = [{"$group": {"_id": {"spec": "$specialty_id", "loc": "$exam_location"}, "count": {"$sum": 1}}}]
         raw = await db.questions.aggregate(pipeline).to_list(500)
         specialties_map = {}
@@ -53,8 +55,8 @@ def make_export_router(db, get_current_user):
         university: str = "all",
         user: dict = Depends(get_current_user),
     ):
-        if not user.get("can_export_pdf") and not user.get("is_permanent") and not user.get("is_admin"):
-            raise HTTPException(403, "Kein Zugang zum PDF-Export")
+        if not user.get("is_admin"):
+            raise HTTPException(403, "Nur für Administratoren verfügbar")
 
         try:
             from fpdf import FPDF

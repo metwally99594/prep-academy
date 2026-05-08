@@ -104,7 +104,7 @@ async def migrate_existing_users(db) -> None:
         if user.get("is_admin"):
             await db.users.update_one(
                 {"id": user["id"]},
-                {"$set": {"is_permanent": True, "trial_extensions_count": 0, "can_export_pdf": True}},
+                {"$set": {"is_permanent": True, "trial_extensions_count": 0}},
             )
         else:
             ends = (now + timedelta(days=TRIAL_DAYS)).isoformat()
@@ -115,7 +115,6 @@ async def migrate_existing_users(db) -> None:
                     "trial_ends_at": ends,
                     "is_permanent": False,
                     "trial_extensions_count": 0,
-                    "can_export_pdf": False,
                     "notebook_enabled": True,
                     "analyzer_enabled": True,
                     "podcast_enabled": True,
@@ -268,7 +267,6 @@ def make_trial_router(db, get_current_user, get_admin_user):
             "notebook_enabled": True,
             "analyzer_enabled": True,
             "podcast_enabled": True,
-            "can_export_pdf": True,
         }})
         asyncio.ensure_future(send_trial_made_permanent_email(user))
         return {"is_permanent": True}

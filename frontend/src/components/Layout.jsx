@@ -420,7 +420,7 @@ export const Layout = () => {
                       <span className="hidden xl:inline">Rangliste</span>
                     </Button>
                   </Link>
-                  {(user.can_export_pdf || user.is_permanent || user.is_admin) && (
+                  {user.is_admin && (
                     <Link to="/export">
                       <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="export-nav-btn">
                         <FileDown className="w-4 h-4" />
@@ -609,7 +609,7 @@ export const Layout = () => {
                 Rangliste
               </Button>
             </Link>
-            {(user.can_export_pdf || user.is_permanent || user.is_admin) && (
+            {user.is_admin && (
               <Link to="/export" onClick={() => setMobileMenuOpen(false)}>
                 <Button variant="ghost" className="w-full justify-start gap-2">
                   <FileDown className="w-4 h-4" />

@@ -244,7 +244,6 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
         "notebook_enabled": True,
         "analyzer_enabled": True,
         "podcast_enabled": True,
-        "can_export_pdf": False,
     }
     await db.users.insert_one(user_doc)
     await db.user_stats.insert_one({

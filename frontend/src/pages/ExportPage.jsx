@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API, useAuth } from "@/App";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Download, FileDown, Loader2, Lock, BookOpen, MapPin, ChevronRight,
+  Download, FileDown, Loader2, BookOpen, MapPin, ChevronRight,
 } from "lucide-react";
 
 const UNI_LABELS = {
@@ -18,14 +19,20 @@ function uniLabel(id) {
 
 export default function ExportPage() {
   const { user, token } = useAuth();
+  const navigate = useNavigate();
   const [categories, setCategories] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(null); // "subject-uni" key
 
-  const canExport = user?.can_export_pdf || user?.is_permanent || user?.is_admin;
+  useEffect(() => {
+    if (user && !user.is_admin) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    if (!user?.is_admin) return;
+    const headers = { Authorization: `Bearer ${token}` };
     axios.get(`${API}/export/categories`, { headers })
       .then(r => setCategories(r.data))
       .catch(() => toast.error("Fehler beim Laden"))
@@ -33,10 +40,6 @@ export default function ExportPage() {
   }, [token]);
 
   const downloadPDF = async (subject, university) => {
-    if (!canExport) {
-      toast.error("Kein Zugang zum PDF-Export");
-      return;
-    }
     const key = `${subject}-${university}`;
     setDownloading(key);
     try {
@@ -73,7 +76,7 @@ export default function ExportPage() {
     return (
       <button
         onClick={() => downloadPDF(subject, university)}
-        disabled={!!downloading || !canExport}
+        disabled={!!downloading}
         className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed
           ${variant === "primary"
             ? "bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25"
@@ -106,21 +109,6 @@ export default function ExportPage() {
           </p>
         </div>
       </div>
-
-      {/* Access locked */}
-      {!canExport && (
-        <div className="glass-card rounded-2xl p-6 flex items-center gap-4 border-amber-500/20 bg-amber-500/5">
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-            <Lock className="w-6 h-6 text-amber-500/70" />
-          </div>
-          <div>
-            <h3 className="font-semibold mb-1">Export nicht freigeschaltet</h3>
-            <p className="text-sm text-muted-foreground">
-              Der PDF-Export ist nur für freigeschaltete Nutzer verfügbar. Kontaktieren Sie den Administrator.
-            </p>
-          </div>
-        </div>
-      )}
 
       {categories && (
         <>
