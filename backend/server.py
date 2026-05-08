@@ -223,6 +223,7 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
         raise HTTPException(status_code=400, detail="Registration failed. Please try again.")
 
     verification_token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
     user_doc = {
         "id": str(uuid.uuid4()),
         "email": user.email,
@@ -230,10 +231,20 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
         "name": user.name,
         "is_admin": False,
         "auth_provider": "email",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now.isoformat(),
         "email_verified": False,
         "verification_token": verification_token,
-        "verification_token_expires": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+        "verification_token_expires": (now + timedelta(hours=24)).isoformat(),
+        # Trial
+        "trial_started_at": now.isoformat(),
+        "trial_ends_at": (now + timedelta(days=30)).isoformat(),
+        "is_permanent": False,
+        "trial_extensions_count": 0,
+        # Features enabled during trial
+        "notebook_enabled": True,
+        "analyzer_enabled": True,
+        "podcast_enabled": True,
+        "can_export_pdf": False,
     }
     await db.users.insert_one(user_doc)
     await db.user_stats.insert_one({
@@ -243,6 +254,8 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
     })
 
     background_tasks.add_task(send_verification_email, user_doc, verification_token)
+    from services.email_service import send_trial_started_email
+    background_tasks.add_task(send_trial_started_email, user_doc, 30)
 
     admins = await db.users.find({"is_admin": True}, {"_id": 0, "email": 1, "name": 1}).to_list(20)
     for admin in admins:
@@ -4310,6 +4323,14 @@ from routes.analytics import make_analytics_router
 analytics_router = make_analytics_router(db, get_current_user, get_admin_user)
 app.include_router(analytics_router)
 
+from routes.trial import make_trial_router
+trial_router = make_trial_router(db, get_current_user, get_admin_user)
+app.include_router(trial_router)
+
+from routes.export import make_export_router
+export_router = make_export_router(db, get_current_user)
+app.include_router(export_router)
+
 # Include Medical RAG + DICOM routers (only if heavy ML packages are installed)
 # These are disabled in Emergent free deployment (which has 250m CPU + 1Gi memory limit)
 # To re-enable: install chromadb + sentence-transformers + pydicom + opencv-python-headless
@@ -4337,6 +4358,13 @@ else:
 async def _start_daily_podcast():
     asyncio.create_task(daily_podcast_loop(db))
     logger.info("Daily podcast background loop scheduled")
+
+@app.on_event("startup")
+async def _start_trial_system():
+    from routes.trial import migrate_existing_users, trial_loop
+    await migrate_existing_users(db)
+    asyncio.create_task(trial_loop(db))
+    logger.info("Trial system started")
 
 # CORS Configuration
 # IMPORTANT: allow_credentials=True is incompatible with allow_origins=["*"].

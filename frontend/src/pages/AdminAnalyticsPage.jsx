@@ -10,7 +10,7 @@ import {
   ArrowLeft, Users, Activity, Star, Clock, Search,
   Check, X, ChevronDown, ChevronUp, BarChart3,
   BookOpen, Flame, Zap, Lock, Unlock, AlertCircle,
-  TrendingUp, Calendar, Shield,
+  TrendingUp, Calendar, Shield, Crown, RefreshCcw, Infinity,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -95,6 +95,7 @@ function UserDetailModal({ userId, token, onClose, onPermissionChange }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState({});
+  const [trialAction, setTrialAction] = useState(null); // "extend" | "permanent" | "revoke"
 
   useEffect(() => {
     const headers = { Authorization: `Bearer ${token}` };
@@ -120,6 +121,31 @@ function UserDetailModal({ userId, token, onClose, onPermissionChange }) {
       toast.error("Fehler beim Aktualisieren");
     } finally {
       setToggling(p => ({ ...p, [feature]: false }));
+    }
+  };
+
+  const doTrialAction = async (action) => {
+    setTrialAction(action);
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      if (action === "extend") {
+        const r = await axios.post(`${API}/admin/users/${userId}/trial/extend`, { days: 30 }, { headers });
+        setDetail(prev => ({ ...prev, user: { ...prev.user, trial_ends_at: r.data.trial_ends_at, is_permanent: false } }));
+        toast.success("Probezeit um 30 Tage verlängert");
+      } else if (action === "permanent") {
+        await axios.post(`${API}/admin/users/${userId}/make-permanent`, {}, { headers });
+        setDetail(prev => ({ ...prev, user: { ...prev.user, is_permanent: true } }));
+        toast.success("Permanenter Zugang gesetzt");
+      } else if (action === "revoke") {
+        await axios.post(`${API}/admin/users/${userId}/revoke`, {}, { headers });
+        setDetail(prev => ({ ...prev, user: { ...prev.user, is_permanent: false, notebook_enabled: false, analyzer_enabled: false, podcast_enabled: false } }));
+        toast.success("Zugang widerrufen");
+      }
+      onPermissionChange?.();
+    } catch {
+      toast.error("Aktion fehlgeschlagen");
+    } finally {
+      setTrialAction(null);
     }
   };
 
@@ -229,6 +255,58 @@ function UserDetailModal({ userId, token, onClose, onPermissionChange }) {
               </div>
             </div>
 
+            {/* Trial controls */}
+            <div>
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" /> Probezeit
+              </h4>
+              <div className="rounded-xl border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Status</span>
+                  {detail.user?.is_permanent
+                    ? <span className="text-amber-400 flex items-center gap-1"><Crown className="w-3 h-3" />Permanent</span>
+                    : detail.user?.trial_ends_at
+                    ? (() => {
+                        const d = Math.max(0, Math.floor((new Date(detail.user.trial_ends_at) - Date.now()) / 86400000));
+                        return d > 0
+                          ? <span className="text-emerald-400">{d} Tage verbleibend</span>
+                          : <span className="text-red-400">Abgelaufen</span>;
+                      })()
+                    : <span className="text-muted-foreground">Kein Trial</span>
+                  }
+                </div>
+                {detail.user?.trial_ends_at && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Endet am</span>
+                    <span>{new Date(detail.user.trial_ends_at).toLocaleDateString("de-DE")}</span>
+                  </div>
+                )}
+                {!!detail.user?.trial_extensions_count && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Verlängerungen</span>
+                    <span>{detail.user.trial_extensions_count}×</span>
+                  </div>
+                )}
+                <div className="flex gap-1.5 pt-1 flex-wrap">
+                  <button onClick={() => doTrialAction("extend")} disabled={!!trialAction}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 transition-colors">
+                    {trialAction === "extend" ? <div className="w-3 h-3 border border-t-transparent border-emerald-400 rounded-full animate-spin" /> : <RefreshCcw className="w-3 h-3" />}
+                    +30 Tage
+                  </button>
+                  <button onClick={() => doTrialAction("permanent")} disabled={!!trialAction || detail.user?.is_permanent}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 transition-colors">
+                    {trialAction === "permanent" ? <div className="w-3 h-3 border border-t-transparent border-amber-400 rounded-full animate-spin" /> : <Crown className="w-3 h-3" />}
+                    Permanent
+                  </button>
+                  <button onClick={() => doTrialAction("revoke")} disabled={!!trialAction}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors">
+                    {trialAction === "revoke" ? <div className="w-3 h-3 border border-t-transparent border-red-400 rounded-full animate-spin" /> : <Lock className="w-3 h-3" />}
+                    Sperren
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Recommendation */}
             {detail.recommendation && (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex gap-2">
@@ -269,6 +347,7 @@ function UserDetailModal({ userId, token, onClose, onPermissionChange }) {
 export default function AdminAnalyticsPage() {
   const { token } = useAuth();
   const [overview, setOverview] = useState(null);
+  const [trialOverview, setTrialOverview] = useState(null);
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -283,14 +362,16 @@ export default function AdminAnalyticsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [ov, us, rq] = await Promise.all([
+      const [ov, us, rq, tr] = await Promise.all([
         axios.get(`${API}/admin/analytics/overview`, { headers }),
         axios.get(`${API}/admin/analytics/users`, { headers }),
         axios.get(`${API}/admin/access-requests?status=pending`, { headers }),
+        axios.get(`${API}/admin/trials/overview`, { headers }),
       ]);
       setOverview(ov.data);
       setUsers(us.data);
       setRequests(rq.data);
+      setTrialOverview(tr.data);
     } catch {
       toast.error("Fehler beim Laden der Analytics");
     } finally {
@@ -380,6 +461,31 @@ export default function AdminAnalyticsPage() {
               <div className="text-xs text-muted-foreground">{label}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Trial overview */}
+      {trialOverview && (
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <Crown className="w-4 h-4 text-amber-400" /> Probezeit Übersicht
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Aktive Probezeit", val: trialOverview.active, icon: Activity, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+              { label: "Endet diese Woche", val: trialOverview.expiring_this_week, icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10" },
+              { label: "Abgelaufen", val: trialOverview.expired, icon: X, color: "text-red-400", bg: "bg-red-500/10" },
+              { label: "Permanente", val: trialOverview.permanent, icon: Crown, color: "text-amber-400", bg: "bg-amber-500/10" },
+            ].map(({ label, val, icon: Icon, color, bg }) => (
+              <div key={label} className="rounded-xl border border-border p-4 text-center">
+                <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mx-auto mb-2`}>
+                  <Icon className={`w-4 h-4 ${color}`} />
+                </div>
+                <div className="text-2xl font-bold">{val ?? "–"}</div>
+                <div className="text-xs text-muted-foreground">{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

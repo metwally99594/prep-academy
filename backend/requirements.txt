@@ -20,3 +20,4 @@ PyMuPDF==1.24.14
 openai==1.30.5
 gTTS==2.5.1
 slowapi==0.1.9
+fpdf2==2.8.1

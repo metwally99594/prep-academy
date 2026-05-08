@@ -56,10 +56,12 @@ import {
   ShieldCheck,
   FileScan,
   Lock,
+  FileDown,
 } from "lucide-react";
 import { useState } from "react";
 import axios from "axios";
 import NotificationBell from "@/components/NotificationBell";
+import TrialBanner from "@/components/TrialBanner";
 
 const SPECIALTIES = [
   { id: "surgery", name: "Chirurgie" },
@@ -418,6 +420,14 @@ export const Layout = () => {
                       <span className="hidden xl:inline">Rangliste</span>
                     </Button>
                   </Link>
+                  {(user.can_export_pdf || user.is_permanent || user.is_admin) && (
+                    <Link to="/export">
+                      <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="export-nav-btn">
+                        <FileDown className="w-4 h-4" />
+                        <span className="hidden xl:inline">Export</span>
+                      </Button>
+                    </Link>
+                  )}
                   {user.notebook_enabled || user.is_admin ? (
                     <Link to="/notebook">
                       <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="notebook-nav-btn">
@@ -599,6 +609,14 @@ export const Layout = () => {
                 Rangliste
               </Button>
             </Link>
+            {(user.can_export_pdf || user.is_permanent || user.is_admin) && (
+              <Link to="/export" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start gap-2">
+                  <FileDown className="w-4 h-4" />
+                  Export
+                </Button>
+              </Link>
+            )}
             {user.notebook_enabled || user.is_admin ? (
               <Link to="/notebook" onClick={() => setMobileMenuOpen(false)}>
                 <Button variant="ghost" className="w-full justify-start gap-2">
@@ -911,6 +929,9 @@ export const Layout = () => {
 
       {/* Locked feature modal */}
       {lockedModal && <LockedFeatureModal feature={lockedModal} onClose={() => setLockedModal(null)} token={token} />}
+
+      {/* Trial banner */}
+      <TrialBanner />
 
       {/* Main Content */}
       <main className="flex-1">

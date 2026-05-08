@@ -212,6 +212,106 @@ async def send_admin_new_request_email(admin_email: str, user: dict, feature_lab
     )
 
 
+# ── Trial Templates ────────────────────────────────────────────────────────
+
+async def send_trial_started_email(user: dict, days: int = 30) -> None:
+    body = f"""
+      <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">🎁 Ihre Probezeit hat begonnen!</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 20px 0">
+        Herzlich willkommen! Ihre <strong style="color:#c9a84c">{days}-tägige kostenlose Probezeit</strong>
+        ist jetzt aktiv. Alle Funktionen stehen Ihnen uneingeschränkt zur Verfügung.
+      </p>
+      {_btn('Jetzt starten', _FRONTEND)}
+      <div style="background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.1);border-radius:10px;padding:16px;margin-top:8px">
+        <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em">Freigeschaltete Funktionen</p>
+        <ul style="margin:0;padding-left:18px;color:rgba(255,255,255,0.7);font-size:14px;line-height:1.9">
+          <li>✅ Alle Prüfungsfragen (2.500+)</li>
+          <li>✅ PDF Notebook mit KI-Analyse</li>
+          <li>✅ Medical Analyzer (EKG + Röntgen)</li>
+          <li>✅ Daily Podcast</li>
+        </ul>
+      </div>
+    """
+    await _send(user["email"], user.get("name",""), f"Ihre {days}-tägige Probezeit hat begonnen! 🎁", _wrap(body))
+
+
+async def send_trial_5days_warning_email(user: dict, days_left: int) -> None:
+    body = f"""
+      <h2 style="color:#f59e0b;font-size:20px;margin:0 0 16px 0">Probezeit endet in {days_left} Tagen</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 20px 0">
+        Ihre Probezeit läuft in <strong style="color:#f59e0b">{days_left} Tagen</strong> ab.
+        Nutzen Sie die verbleibende Zeit optimal oder kontaktieren Sie uns für eine Verlängerung.
+      </p>
+      {_btn('Verlängerung anfragen', f"{_FRONTEND}/dashboard")}
+    """
+    await _send(user["email"], user.get("name",""), f"⚠️ Probezeit endet in {days_left} Tagen – PrepAcademy", _wrap(body))
+
+
+async def send_trial_2days_warning_email(user: dict, days_left: int) -> None:
+    label = "morgen" if days_left <= 1 else f"in {days_left} Tagen"
+    body = f"""
+      <h2 style="color:#ef4444;font-size:20px;margin:0 0 16px 0">⚠️ Probezeit endet {label}!</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 20px 0">
+        Letzte Chance: Ihre Probezeit endet <strong style="color:#ef4444">{label}</strong>.
+        Danach stehen nur noch die Grundfunktionen zur Verfügung.
+      </p>
+      {_btn('Verlängerung anfragen', f"{_FRONTEND}/dashboard")}
+      <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:16px 0 0 0">
+        Kontakt: <a href="mailto:mohamedmetwle99@gmail.com" style="color:#c9a84c">mohamedmetwle99@gmail.com</a>
+      </p>
+    """
+    await _send(user["email"], user.get("name",""), f"🚨 Probezeit endet {label}! – PrepAcademy", _wrap(body))
+
+
+async def send_trial_expired_email(user: dict) -> None:
+    body = f"""
+      <h2 style="color:#ef4444;font-size:20px;margin:0 0 16px 0">Probezeit abgelaufen</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 20px 0">
+        Ihre kostenlose Probezeit ist abgelaufen. Der Lernmodus (Study) steht Ihnen weiterhin
+        zur Verfügung. Für den vollen Zugang kontaktieren Sie den Administrator.
+      </p>
+      {_btn('Verlängerung anfragen', f"{_FRONTEND}/dashboard")}
+      <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:16px 0 0 0">
+        Kontakt: <a href="mailto:mohamedmetwle99@gmail.com" style="color:#c9a84c">mohamedmetwle99@gmail.com</a>
+      </p>
+    """
+    await _send(user["email"], user.get("name",""), "Ihre Probezeit ist abgelaufen – PrepAcademy", _wrap(body))
+
+
+async def send_trial_extended_email(user: dict, days: int, new_end: str) -> None:
+    try:
+        end_date = datetime.fromisoformat(new_end.replace("Z","+00:00")).strftime("%d.%m.%Y")
+    except Exception:
+        end_date = new_end
+    body = f"""
+      <h2 style="color:#22c55e;font-size:20px;margin:0 0 16px 0">Probezeit verlängert ✅</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 20px 0">
+        Ihre Probezeit wurde um <strong style="color:#c9a84c">{days} Tage</strong> verlängert.
+        Neues Enddatum: <strong style="color:#c9a84c">{end_date}</strong>
+      </p>
+      {_btn('Weiter lernen', _FRONTEND)}
+    """
+    await _send(user["email"], user.get("name",""), f"Probezeit verlängert (+{days} Tage) ✅", _wrap(body))
+
+
+async def send_trial_made_permanent_email(user: dict) -> None:
+    body = f"""
+      <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">👑 Permanenter Zugang freigeschaltet!</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 20px 0">
+        Ihr Konto hat jetzt <strong style="color:#c9a84c">permanenten Vollzugang</strong> zu allen
+        PrepAcademy-Funktionen ohne zeitliche Begrenzung.
+      </p>
+      {_btn('Zur App', _FRONTEND)}
+    """
+    await _send(user["email"], user.get("name",""), "👑 Permanenter Zugang freigeschaltet – PrepAcademy", _wrap(body))
+
+
 async def send_admin_new_user_email(admin_email: str, user: dict) -> None:
     link = f"{_FRONTEND}/admin/analytics"
     body = f"""
