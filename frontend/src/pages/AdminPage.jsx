@@ -48,8 +48,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { 
   Settings,
   ArrowLeft,
@@ -302,8 +300,11 @@ export default function AdminPage() {
   const [filterSpecialty, setFilterSpecialty] = useState("all");
   const [filterCity, setFilterCity] = useState("all");
   const [activeTab, setActiveTab] = useState("questions");
-  const [exportingPDF, setExportingPDF] = useState(false);
-  const [exportProgress, setExportProgress] = useState('');
+  const [exportCats, setExportCats] = useState(null);
+  const [exportCatsLoading, setExportCatsLoading] = useState(false);
+  const [exportSubject, setExportSubject] = useState("all");
+  const [exportUniversity, setExportUniversity] = useState("all");
+  const [exportDownloading, setExportDownloading] = useState(false);
   const [deletingQuestion, setDeletingQuestion] = useState(null);
   const [selectedQuestions, setSelectedQuestions] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -350,6 +351,15 @@ export default function AdminPage() {
   useEffect(() => {
     fetchQuestions();
   }, [questionPage]);
+
+  useEffect(() => {
+    if (activeTab !== "export" || exportCats || exportCatsLoading) return;
+    setExportCatsLoading(true);
+    axios.get(`${API}/export/categories`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setExportCats(r.data))
+      .catch(() => toast.error("Fehler beim Laden der Kategorien"))
+      .finally(() => setExportCatsLoading(false));
+  }, [activeTab, token]); // eslint-disable-line
 
   const fetchData = async () => {
     try {
@@ -643,136 +653,32 @@ export default function AdminPage() {
     setDialogOpen(true);
   };
 
-  const exportQuestionsToPDF = async (specialtyFilter = null, cityFilter = null) => {
-    setExportingPDF(true);
-    setExportProgress('Fragen laden...');
+  const downloadExportPDF = async () => {
+    setExportDownloading(true);
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-      let url = `${API}/admin/export/questions?`;
-      if (specialtyFilter) url += `specialty_id=${specialtyFilter}&`;
-      if (cityFilter) url += `exam_location=${cityFilter}&`;
-      
-      const response = await axios.get(url, { headers });
-      const { questions: exportedQuestions, total, exported_at } = response.data;
-      
-      const date = new Date(exported_at).toLocaleDateString('de-DE');
-      const cityLabel = cityFilter === 'vienna' ? ' - Wien' : cityFilter === 'innsbruck' ? ' - Innsbruck' : '';
-
-      const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;top:-99999px;left:0;width:800px;background:#fff;font-family:Arial,sans-serif;padding:40px;';
-      document.body.appendChild(container);
-
-      const grouped = {};
-      exportedQuestions.forEach((q) => {
-        const specName = q.specialty_name || 'Unbekannt';
-        if (!grouped[specName]) grouped[specName] = [];
-        grouped[specName].push(q);
-      });
-
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const usableW = pageW - margin * 2;
-
-      const headerDiv = document.createElement('div');
-      headerDiv.style.cssText = 'width:800px;padding:60px 40px;background:#fff;text-align:center;';
-      headerDiv.innerHTML = `
-        <div style="font-size:36px;font-weight:bold;color:#667eea;margin-bottom:10px;">Prep Academy</div>
-        <div style="font-size:18px;color:#444;margin-bottom:30px;">Fragenexport${cityLabel} - ${date}</div>
-        <div style="display:inline-block;background:#667eea;color:#fff;padding:20px 40px;border-radius:12px;">
-          <div style="font-size:42px;font-weight:bold;">${total}</div>
-          <div style="font-size:14px;">Fragen insgesamt</div>
-        </div>
-      `;
-      container.appendChild(headerDiv);
-
-      const headerCanvas = await html2canvas(headerDiv, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const headerImgData = headerCanvas.toDataURL('image/jpeg', 0.92);
-      const headerRatio = headerCanvas.height / headerCanvas.width;
-      const headerImgH = usableW * headerRatio;
-      pdf.addImage(headerImgData, 'JPEG', margin, margin, usableW, headerImgH);
-      container.removeChild(headerDiv);
-
-      let globalIndex = 0;
-      const specNames = Object.keys(grouped);
-
-      for (let si = 0; si < specNames.length; si++) {
-        const specName = specNames[si];
-        const specQuestions = grouped[specName];
-
-        pdf.addPage();
-        const specDiv = document.createElement('div');
-        specDiv.style.cssText = 'width:800px;padding:20px 40px;background:#fff;';
-        specDiv.innerHTML = `<h2 style="color:#667eea;border-bottom:3px solid #667eea;padding-bottom:12px;font-size:24px;margin:0;">${specName} (${specQuestions.length} Fragen)</h2>`;
-        container.appendChild(specDiv);
-        const specCanvas = await html2canvas(specDiv, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-        const specImgData = specCanvas.toDataURL('image/jpeg', 0.92);
-        const specRatio = specCanvas.height / specCanvas.width;
-        pdf.addImage(specImgData, 'JPEG', margin, margin, usableW, usableW * specRatio);
-        let yPos = margin + usableW * specRatio + 5;
-        container.removeChild(specDiv);
-
-        for (let qi = 0; qi < specQuestions.length; qi++) {
-          globalIndex++;
-          const q = specQuestions[qi];
-          const choicesArr = (Array.isArray(q.choices) && q.choices.length > 0) ? q.choices : (Array.isArray(q.choices_de) ? q.choices_de : []);
-          const correctAnswers = q.correct_answers || [];
-          const locName = q.exam_location === 'vienna' ? 'Wien' : q.exam_location === 'innsbruck' ? 'Innsbruck' : (q.exam_location || '');
-
-          let choicesHTML = choicesArr.map((c, i) => {
-            const isCorrect = c.is_correct || correctAnswers.includes(c.id);
-            return `<div style="margin:4px 0;padding:8px 12px;background:${isCorrect ? '#dcfce7' : '#f3f4f6'};border-radius:6px;font-size:14px;">
-              <strong>${String.fromCharCode(65 + i)}.</strong> ${c.text_de || c.text || ''} ${isCorrect ? '<span style="color:#16a34a;font-weight:bold;">✓</span>' : ''}
-            </div>`;
-          }).join('');
-
-          const imageHTML = q.image_base64 ? `<div style="margin:10px 0;"><img src="${q.image_base64}" style="max-width:380px;max-height:280px;border-radius:8px;border:1px solid #e5e7eb;" /></div>` : '';
-          const explanationHTML = (q.explanation_de || q.explanation) ? `<div style="margin-top:10px;padding:10px;background:#fef3c7;border-radius:6px;font-size:13px;"><strong>Erklärung:</strong> ${q.explanation_de || q.explanation}</div>` : '';
-
-          const qDiv = document.createElement('div');
-          qDiv.style.cssText = 'width:800px;padding:16px 40px;background:#fff;';
-          qDiv.innerHTML = `
-            <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;background:#fff;">
-              <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
-                <span style="background:#667eea;color:#fff;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;">${q.year || ''}</span>
-                <span style="background:#f3f4f6;padding:3px 10px;border-radius:6px;font-size:12px;">${locName}</span>
-                <span style="margin-left:auto;color:#999;font-size:12px;">Frage ${globalIndex}/${total}</span>
-              </div>
-              <p style="font-weight:600;margin:0 0 12px 0;font-size:15px;line-height:1.5;">${globalIndex}. ${q.question_text_de || q.question_text || ''}</p>
-              ${imageHTML}
-              ${choicesHTML}
-              ${explanationHTML}
-            </div>
-          `;
-          container.appendChild(qDiv);
-
-          const qCanvas = await html2canvas(qDiv, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-          setExportProgress(`Frage ${globalIndex}/${total} wird gerendert...`);
-          const qImgData = qCanvas.toDataURL('image/jpeg', 0.92);
-          const qRatio = qCanvas.height / qCanvas.width;
-          const qImgH = usableW * qRatio;
-
-          if (yPos + qImgH > pageH - margin) {
-            pdf.addPage();
-            yPos = margin;
-          }
-          pdf.addImage(qImgData, 'JPEG', margin, yPos, usableW, qImgH);
-          yPos += qImgH + 3;
-          container.removeChild(qDiv);
-        }
+      const url = `${API}/export/questions/pdf?subject=${encodeURIComponent(exportSubject)}&university=${encodeURIComponent(exportUniversity)}`;
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || "Export fehlgeschlagen");
       }
-
-      document.body.removeChild(container);
-      const fileName = `PrepAcademy_Export${cityLabel.replace(/ /g,'_')}_${date.replace(/\./g,'-')}.pdf`;
-      pdf.save(fileName);
-      toast.success(`${total} Fragen als PDF exportiert`);
-    } catch (error) {
-      console.error("Failed to export questions:", error);
-      toast.error("Fehler beim Exportieren");
+      const blob = await response.blob();
+      const disp = response.headers.get("content-disposition") || "";
+      const nameMatch = disp.match(/filename="([^"]+)"/);
+      const filename = nameMatch ? nameMatch[1] : "PrepAcademy_Export.pdf";
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      toast.success("PDF erfolgreich erstellt");
+    } catch (err) {
+      toast.error(err.message || "Download fehlgeschlagen");
     } finally {
-      setExportingPDF(false);
-      setExportProgress('');
+      setExportDownloading(false);
     }
   };
 
@@ -1417,24 +1323,121 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="export">
-          <div className="glass-card rounded-2xl p-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2 mb-6">
+          <div className="glass-card rounded-2xl p-6 space-y-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
               <Download className="w-5 h-5 text-primary" />
               Fragen exportieren
             </h2>
-            {exportingPDF && exportProgress && (
-              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                <span className="text-sm text-blue-700 font-medium">{exportProgress}</span>
+
+            {exportCatsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
               </div>
+            ) : exportCats ? (
+              <>
+                {/* Subject filter */}
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Fachgebiet</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                    <button
+                      onClick={() => setExportSubject("all")}
+                      className={`text-left px-3 py-2.5 rounded-xl border text-sm transition-all ${
+                        exportSubject === "all"
+                          ? "border-amber-500/60 bg-amber-500/10 text-amber-300"
+                          : "border-border text-muted-foreground hover:border-amber-500/30 hover:text-foreground"
+                      }`}
+                    >
+                      <div className="font-medium">Alle Fachgebiete</div>
+                      <div className="text-xs opacity-70">{exportCats.total.toLocaleString()} Fragen</div>
+                    </button>
+                    {exportCats.subjects.map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => setExportSubject(s.id)}
+                        className={`text-left px-3 py-2.5 rounded-xl border text-sm transition-all ${
+                          exportSubject === s.id
+                            ? "border-amber-500/60 bg-amber-500/10 text-amber-300"
+                            : "border-border text-muted-foreground hover:border-amber-500/30 hover:text-foreground"
+                        }`}
+                      >
+                        <div className="font-medium">{s.name}</div>
+                        <div className="text-xs opacity-70">{s.count.toLocaleString()} Fragen</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* University filter */}
+                {exportCats.universities.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Standort</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setExportUniversity("all")}
+                        className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
+                          exportUniversity === "all"
+                            ? "border-primary/60 bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                        }`}
+                      >
+                        Alle Standorte
+                      </button>
+                      {exportCats.universities.map(u => (
+                        <button
+                          key={u.id}
+                          onClick={() => setExportUniversity(u.id)}
+                          className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
+                            exportUniversity === u.id
+                              ? "border-primary/60 bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                          }`}
+                        >
+                          {u.name}
+                          <span className="ml-1.5 text-xs opacity-60">({u.count.toLocaleString()})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview + export */}
+                <div className="flex items-center justify-between pt-4 border-t border-border flex-wrap gap-4">
+                  <div>
+                    {(() => {
+                      const previewCount =
+                        exportSubject === "all" && exportUniversity === "all" ? exportCats.total :
+                        exportSubject !== "all" && exportUniversity === "all" ? (exportCats.subjects.find(s => s.id === exportSubject)?.count ?? 0) :
+                        exportSubject === "all" && exportUniversity !== "all" ? (exportCats.universities.find(u => u.id === exportUniversity)?.count ?? 0) :
+                        null;
+                      return (
+                        <div className="text-sm font-medium">
+                          {previewCount !== null ? (
+                            <><span className="text-2xl font-bold text-amber-400">{previewCount.toLocaleString()}</span>{" "}Fragen ausgewählt</>
+                          ) : (
+                            <span className="text-base font-medium">Auswahl: Gefiltert</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {exportSubject === "all" ? "Alle Fachgebiete" : exportCats.subjects.find(s => s.id === exportSubject)?.name}
+                      {" · "}
+                      {exportUniversity === "all" ? "Alle Standorte" : (exportCats.universities.find(u => u.id === exportUniversity)?.name ?? exportUniversity)}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={downloadExportPDF}
+                    disabled={exportDownloading}
+                    className="gap-2 bg-amber-600 hover:bg-amber-500 text-white min-w-[160px]"
+                  >
+                    {exportDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    PDF exportieren
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground text-sm py-8 text-center">Kategorien konnten nicht geladen werden.</p>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Button onClick={() => exportQuestionsToPDF()} disabled={exportingPDF} className="h-auto p-4 flex flex-col items-center gap-2" data-testid="export-all-btn">
-                {exportingPDF ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
-                <span>Alle Fragen exportieren</span>
-                <span className="text-xs opacity-70">{adminStats?.total_questions || 0} Fragen</span>
-              </Button>
-            </div>
           </div>
         </TabsContent>
 

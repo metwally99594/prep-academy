@@ -48,7 +48,6 @@ const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
-const ExportPage = lazy(() => import("@/pages/ExportPage"));
 
 // API Configuration - Use relative URL for production, full URL for development
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -313,9 +312,6 @@ function AppRouter() {
             <ProtectedRoute><BillingSuccessPage /></ProtectedRoute>
           } />
           <Route path="/podcast" element={<DailyPodcastPage />} />
-          <Route path="/export" element={
-            <ProtectedRoute><ExportPage /></ProtectedRoute>
-          } />
           <Route path="/impressum" element={<ImpressumPage />} />
           <Route path="/datenschutz" element={<PrivacyPage />} />
           <Route path="/agb" element={<TermsPage />} />
