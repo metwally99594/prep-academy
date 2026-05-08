@@ -346,218 +346,230 @@ async def export_categories(admin: dict = Depends(get_admin_user)):
         raise HTTPException(status_code=500, detail=f"Kategorien-Fehler: {str(e)}")
 
 
-@router.get("/export/questions/pdf")
+@router.get(“/export/questions/pdf”)
 async def export_pdf_stream(
     admin: dict = Depends(get_admin_user),
     subject: Optional[str] = None,
     university: Optional[str] = None,
 ):
-    """
+    “””
     Server-side PDF export using MongoDB cursor streaming.
     Processes one question at a time — no large list held in RAM.
-    subject  = specialty_id  (e.g. "internal", "surgery", "all")
-    university = exam_location (e.g. "innsbruck", "vienna", "all")
-    """
+    Compatible with fpdf2 >= 2.8 (uses new_x/new_y, not deprecated ln).
+    subject    = specialty_id  (e.g. “internal”, “surgery”, “all”)
+    university = exam_location (e.g. “innsbruck”, “vienna”, “all”)
+    “””
     try:
         from fpdf import FPDF
     except ImportError:
-        raise HTTPException(status_code=500, detail="fpdf2 nicht installiert — pip install fpdf2==2.8.7")
+        raise HTTPException(status_code=500, detail=”fpdf2 not installed”)
 
-    # ── font setup ────────────────────────────────────────────────────────────
-    _font_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "fonts")
-    _has_unicode = (
-        _os.path.exists(_os.path.join(_font_dir, "DejaVuSans.ttf"))
-        and _os.path.exists(_os.path.join(_font_dir, "DejaVuSans-Bold.ttf"))
-    )
+    try:
+        # ── constants ────────────────────────────────────────────────────────
+        BRAND    = (102, 126, 234)
+        GREEN    = (22, 163, 74)
+        AMBER_BG = (254, 243, 199)
+        AMBER_FG = (120, 80, 0)
+        GREY_FG  = (80, 80, 80)
+        DARK_FG  = (20, 20, 20)
+        PAGE_W   = 210
+        MARGIN   = 15
+        USABLE_W = PAGE_W - 2 * MARGIN
 
-    def _safe(text: str) -> str:
-        """Ensure text is safe for the current font encoding."""
-        if not text:
-            return ""
-        if _has_unicode:
-            return text
-        subs = {
-            "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
-            "Ä": "Ae", "Ö": "Oe", "Ü": "Ue",
-            "–": "-", "—": "-", "…": "...",
-            "“": '"', "”": '"', "„": '"',
-            "‘": "'", "’": "'",
-            "•": "-", "✓": "[+]", "✔": "[+]",
-            "°": " Grad",
+        # fpdf2 >= 2.8: cell() no longer accepts ln=True/False.
+        # Use new_x/new_y strings instead.
+        NL  = {“new_x”: “LMARGIN”, “new_y”: “NEXT”}   # advance line (was ln=True)
+        INL = {“new_x”: “RIGHT”,   “new_y”: “NONE”}    # stay inline  (was ln=False)
+
+        # ── ASCII fallback for non-Unicode fonts ──────────────────────────────
+        _font_dir     = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), “..”, “fonts”)
+        _has_unicode  = (
+            _os.path.exists(_os.path.join(_font_dir, “DejaVuSans.ttf”))
+            and _os.path.exists(_os.path.join(_font_dir, “DejaVuSans-Bold.ttf”))
+        )
+        CORRECT_MARK  = “ [+]”
+
+        def _safe(text: str) -> str:
+            if not text:
+                return “”
+            if _has_unicode:
+                return text
+            for k, v in {
+                “ä”: “ae”, “ö”: “oe”, “ü”: “ue”, “ß”: “ss”,
+                “Ä”: “Ae”, “Ö”: “Oe”, “Ü”: “Ue”,
+                “–“: “-”, “—“: “-”, “…”: “...”,
+                ““”: ‘”’, “””: ‘”’, “„”: ‘”’,
+                “‘”: “’”, “’”: “’”,
+                “•”: “-”, “✓”: “[+]”, “✔”: “[+]”, “°”: “ Grad”,
+            }.items():
+                text = text.replace(k, v)
+            return text.encode(“latin-1”, “replace”).decode(“latin-1”)
+
+        # ── query ─────────────────────────────────────────────────────────────
+        query: dict = {}
+        if subject and subject != “all”:
+            query[“specialty_id”] = subject
+        if university and university != “all”:
+            query[“exam_location”] = university
+
+        logger.info(
+            f”[PDF stream] start — admin={admin.get(‘email’)!r} “
+            f”subject={subject!r} university={university!r}”
+        )
+
+        # Specialties lookup (small, OK to load upfront)
+        specialties    = await db.specialties.find({}, {“_id”: 0}).to_list(100)
+        specialty_names = {
+            s[“id”]: s.get(“name_de”) or s.get(“name”) or s[“id”]
+            for s in specialties
         }
-        for k, v in subs.items():
-            text = text.replace(k, v)
-        return text.encode("latin-1", "replace").decode("latin-1")
 
-    CORRECT_MARK = " ✓" if _has_unicode else " [+]"
-    BRAND = (102, 126, 234)   # #667eea
-    GREEN = (22, 163, 74)
-    AMBER_BG = (254, 243, 199)
-    AMBER_FG = (120, 80, 0)
-    GREY_FG  = (80, 80, 80)
-    DARK_FG  = (20, 20, 20)
+        # ── init PDF ──────────────────────────────────────────────────────────
+        pdf = FPDF(“P”, “mm”, “A4”)
+        pdf.set_auto_page_break(auto=True, margin=15)
 
-    # ── query ─────────────────────────────────────────────────────────────────
-    query: dict = {}
-    if subject:
-        query["specialty_id"] = subject
-    if university and university != "all":
-        query["exam_location"] = university
+        if _has_unicode:
+            pdf.add_font(“DejaVu”, “”,  _os.path.join(_font_dir, “DejaVuSans.ttf”))
+            pdf.add_font(“DejaVu”, “B”, _os.path.join(_font_dir, “DejaVuSans-Bold.ttf”))
+            FONT = “DejaVu”
+        else:
+            FONT = “Helvetica”
 
-    logger.info(
-        f"[PDF stream] start — admin={admin.get('email')!r} "
-        f"subject={subject!r} university={university!r}"
-    )
+        # Cover page
+        pdf.add_page()
+        pdf.set_font(FONT, “B”, 26)
+        pdf.set_text_color(*BRAND)
+        pdf.ln(25)
+        pdf.cell(0, 14, _safe(“Prep Academy”), align=”C”, **NL)
 
-    # Specialties: small lookup table, fine to load upfront
-    specialties = await db.specialties.find({}, {"_id": 0}).to_list(100)
-    specialty_names = {s["id"]: s.get("name_de") or s.get("name") or s["id"]
-                       for s in specialties}
+        subtitle = “Fragenexport”
+        if subject and subject != “all”:
+            subtitle += f” - {specialty_names.get(subject, subject)}”
+        if university and university != “all”:
+            loc_label = (“Wien” if university == “vienna”
+                         else “Innsbruck” if university == “innsbruck”
+                         else university)
+            subtitle += f” / {loc_label}”
 
-    # ── initialise PDF ────────────────────────────────────────────────────────
-    PAGE_W   = 210
-    MARGIN   = 15
-    USABLE_W = PAGE_W - 2 * MARGIN
+        pdf.set_font(FONT, “”, 13)
+        pdf.set_text_color(*GREY_FG)
+        pdf.cell(0, 9, _safe(subtitle), align=”C”, **NL)
+        pdf.ln(5)
+        pdf.set_font(FONT, “”, 10)
+        date_str = datetime.now(timezone.utc).strftime(“%d.%m.%Y %H:%M UTC”)
+        pdf.cell(0, 7, _safe(f”Erstellt am {date_str}”), align=”C”, **NL)
 
-    pdf = FPDF("P", "mm", "A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
+        # ── stream via cursor — NO to_list() ──────────────────────────────────
+        count             = 0
+        current_specialty = None
 
-    if _has_unicode:
-        pdf.add_font("DejaVu",  "",  _os.path.join(_font_dir, "DejaVuSans.ttf"),      uni=True)
-        pdf.add_font("DejaVu",  "B", _os.path.join(_font_dir, "DejaVuSans-Bold.ttf"), uni=True)
-        FONT = "DejaVu"
-    else:
-        FONT = "Helvetica"
+        cursor = db.questions.find(query, {“_id”: 0}).sort(
+            [(“specialty_id”, 1), (“year”, 1)]
+        )
 
-    # Cover page
-    pdf.add_page()
-    pdf.set_font(FONT, "B", 26)
-    pdf.set_text_color(*BRAND)
-    pdf.ln(25)
-    pdf.cell(0, 14, _safe("Prep Academy"), ln=True, align="C")
+        async for q in cursor:
+            count += 1
+            spec_id   = q.get(“specialty_id”) or “”
+            spec_name = specialty_names.get(spec_id, spec_id or “Unbekannt”)
 
-    subtitle = "Fragenexport"
-    if subject:
-        subtitle += f" – {specialty_names.get(subject, subject)}"
-    if university and university != "all":
-        loc_label = ("Wien" if university == "vienna"
-                     else "Innsbruck" if university == "innsbruck"
-                     else university)
-        subtitle += f" / {loc_label}"
+            # Specialty section header
+            if spec_name != current_specialty:
+                current_specialty = spec_name
+                pdf.add_page()
+                pdf.set_font(FONT, “B”, 15)
+                pdf.set_text_color(*BRAND)
+                pdf.cell(0, 9, _safe(spec_name), **NL)
+                pdf.set_draw_color(*BRAND)
+                pdf.set_line_width(0.4)
+                pdf.line(MARGIN, pdf.get_y(), PAGE_W - MARGIN, pdf.get_y())
+                pdf.ln(5)
+                pdf.set_text_color(*DARK_FG)
 
-    pdf.set_font(FONT, "", 13)
-    pdf.set_text_color(*GREY_FG)
-    pdf.cell(0, 9, _safe(subtitle), ln=True, align="C")
-    pdf.ln(5)
-    pdf.set_font(FONT, "", 10)
-    date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
-    pdf.cell(0, 7, _safe(f"Erstellt am {date_str}"), ln=True, align="C")
+            # Year / location badges (inline cells)
+            year     = str(q.get(“year”) or “”)
+            loc      = q.get(“exam_location”) or “”
+            loc_name = (“Wien” if loc == “vienna”
+                         else “Innsbruck” if loc == “innsbruck”
+                         else loc)
 
-    # ── stream questions via cursor — no to_list() ────────────────────────────
-    count            = 0
-    current_specialty = None
+            pdf.set_font(FONT, “B”, 9)
+            pdf.set_text_color(255, 255, 255)
+            if year:
+                pdf.set_fill_color(*BRAND)
+                w = pdf.get_string_width(year) + 5
+                pdf.cell(w, 6, _safe(year), fill=True, **INL)
+                pdf.cell(2, 6, “”, **INL)
+            if loc_name:
+                pdf.set_fill_color(100, 100, 100)
+                w = pdf.get_string_width(loc_name) + 5
+                pdf.cell(w, 6, _safe(loc_name), fill=True, **INL)
+            pdf.ln(8)
 
-    cursor = db.questions.find(query, {"_id": 0}).sort(
-        [("specialty_id", 1), ("year", 1)]
-    )
+            # Question text
+            qtext = q.get(“question_text_de”) or q.get(“question_text”) or “”
+            pdf.set_font(FONT, “B”, 11)
+            pdf.set_text_color(*DARK_FG)
+            pdf.multi_cell(0, 6, _safe(f”{count}. {qtext}”))
+            pdf.ln(2)
 
-    async for q in cursor:
-        count += 1
-        spec_id   = q.get("specialty_id") or ""
-        spec_name = specialty_names.get(spec_id, spec_id or "Unbekannt")
+            # Image — decode, embed, free bytes immediately
+            img_b64 = q.get(“image_base64”) or “”
+            if img_b64:
+                try:
+                    raw       = img_b64.split(“,”, 1)[-1] if “,” in img_b64 else img_b64
+                    img_bytes = _b64.b64decode(raw)
+                    pdf.image(io.BytesIO(img_bytes), w=min(USABLE_W * 0.6, 110))
+                    pdf.ln(2)
+                    del img_bytes
+                except Exception as img_err:
+                    logger.warning(f”[PDF stream] skip image q#{count}: {img_err}”)
 
-        # ── specialty section header (new page per specialty) ──────────────
-        if spec_name != current_specialty:
-            current_specialty = spec_name
-            pdf.add_page()
-            pdf.set_font(FONT, "B", 15)
-            pdf.set_text_color(*BRAND)
-            pdf.cell(0, 9, _safe(spec_name), ln=True)
-            pdf.set_draw_color(*BRAND)
-            pdf.set_line_width(0.4)
-            pdf.line(MARGIN, pdf.get_y(), PAGE_W - MARGIN, pdf.get_y())
-            pdf.ln(5)
+            # Choices
+            choices         = q.get(“choices”) or q.get(“choices_de”) or []
+            correct_answers = q.get(“correct_answers”) or []
+            for i, c in enumerate(choices):
+                is_correct = c.get(“is_correct”) or (c.get(“id”) in correct_answers)
+                letter     = chr(65 + i)
+                ctext      = c.get(“text_de”) or c.get(“text”) or “”
+                if is_correct:
+                    pdf.set_font(FONT, “B”, 10)
+                    pdf.set_text_color(*GREEN)
+                    pdf.multi_cell(0, 6, _safe(f”  {letter}. {ctext}{CORRECT_MARK}”))
+                else:
+                    pdf.set_font(FONT, “”, 10)
+                    pdf.set_text_color(*GREY_FG)
+                    pdf.multi_cell(0, 6, _safe(f”  {letter}. {ctext}”))
             pdf.set_text_color(*DARK_FG)
 
-        # ── year / location badges ─────────────────────────────────────────
-        year     = str(q.get("year") or "")
-        loc      = q.get("exam_location") or ""
-        loc_name = ("Wien"      if loc == "vienna"
-                    else "Innsbruck" if loc == "innsbruck"
-                    else loc)
+            # Explanation
+            expl = q.get(“explanation_de”) or q.get(“explanation”) or “”
+            if expl:
+                pdf.ln(1)
+                pdf.set_fill_color(*AMBER_BG)
+                pdf.set_font(FONT, “I”, 9)
+                pdf.set_text_color(*AMBER_FG)
+                pdf.multi_cell(0, 6, _safe(f”Erklaerung: {expl}”), fill=True)
+                pdf.set_text_color(*DARK_FG)
 
-        pdf.set_font(FONT, "B", 9)
-        pdf.set_text_color(255, 255, 255)
-        if year:
-            pdf.set_fill_color(*BRAND)
-            w = pdf.get_string_width(year) + 5
-            pdf.cell(w, 6, _safe(year), ln=False, fill=True)
-            pdf.cell(2, 6, "")
-        if loc_name:
-            pdf.set_fill_color(100, 100, 100)
-            w = pdf.get_string_width(loc_name) + 5
-            pdf.cell(w, 6, _safe(loc_name), ln=False, fill=True)
-        pdf.ln(8)
+            pdf.ln(6)
 
-        # ── question text ──────────────────────────────────────────────────
-        qtext = q.get("question_text_de") or q.get("question_text") or ""
-        pdf.set_font(FONT, "B", 11)
-        pdf.set_text_color(*DARK_FG)
-        pdf.multi_cell(0, 6, _safe(f"{count}. {qtext}"))
-        pdf.ln(2)
+        # ── output ────────────────────────────────────────────────────────────
+        logger.info(f”[PDF stream] done — {count} questions, serialising…”)
+        pdf_bytes = bytes(pdf.output())
+        logger.info(f”[PDF stream] output {len(pdf_bytes):,} bytes”)
 
-        # ── image (processed immediately, bytes freed after) ───────────────
-        img_b64 = q.get("image_base64") or ""
-        if img_b64:
-            try:
-                raw       = img_b64.split(",", 1)[-1] if "," in img_b64 else img_b64
-                img_bytes = _b64.b64decode(raw)
-                img_w     = min(USABLE_W * 0.6, 110)
-                pdf.image(io.BytesIO(img_bytes), w=img_w)
-                pdf.ln(2)
-                del img_bytes   # free immediately — do not hold in RAM
-            except Exception as img_err:
-                logger.warning(f"[PDF stream] skip image q#{count}: {img_err}")
+        date_tag = datetime.now().strftime(“%Y%m%d”)
+        fname    = f”PrepAcademy_Export_{subject or ‘all’}_{date_tag}.pdf”
 
-        # ── choices ────────────────────────────────────────────────────────
-        choices         = q.get("choices") or q.get("choices_de") or []
-        correct_answers = q.get("correct_answers") or []
-        for i, c in enumerate(choices):
-            is_correct = c.get("is_correct") or (c.get("id") in correct_answers)
-            letter     = chr(65 + i)
-            ctext      = c.get("text_de") or c.get("text") or ""
-            if is_correct:
-                pdf.set_font(FONT, "B", 10)
-                pdf.set_text_color(*GREEN)
-                pdf.multi_cell(0, 6, _safe(f"  {letter}. {ctext}{CORRECT_MARK}"))
-            else:
-                pdf.set_font(FONT, "", 10)
-                pdf.set_text_color(*GREY_FG)
-                pdf.multi_cell(0, 6, _safe(f"  {letter}. {ctext}"))
-        pdf.set_text_color(*DARK_FG)
+        return Response(
+            content=pdf_bytes,
+            media_type=”application/pdf”,
+            headers={“Content-Disposition”: f’attachment; filename=”{fname}”’},
+        )
 
-        # ── explanation ────────────────────────────────────────────────────
-        expl = q.get("explanation_de") or q.get("explanation") or ""
-        if expl:
-            pdf.ln(1)
-            pdf.set_fill_color(*AMBER_BG)
-            pdf.set_font(FONT, "I", 9)
-            pdf.set_text_color(*AMBER_FG)
-            pdf.multi_cell(0, 6, _safe(f"Erklaerung: {expl}"), fill=True)
-            pdf.set_text_color(*DARK_FG)
-
-        pdf.ln(6)
-
-    # ── finalise ──────────────────────────────────────────────────────────────
-    logger.info(f"[PDF stream] done — {count} questions, building bytes…")
-    pdf_bytes = bytes(pdf.output())
-    logger.info(f"[PDF stream] output {len(pdf_bytes):,} bytes")
-
-    date_tag = datetime.now().strftime("%Y%m%d")
-    fname    = f"PrepAcademy_Export_{subject or 'all'}_{date_tag}.pdf"
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
-    )
+    except Exception as e:
+        logger.error(f”[PDF stream] FAILED: {type(e).__name__}: {e}”, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f”PDF generation failed ({type(e).__name__}): {str(e)}”,
+        )
