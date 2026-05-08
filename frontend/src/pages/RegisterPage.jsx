@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Stethoscope, Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Loader2, MailCheck } from "lucide-react";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -14,56 +14,73 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [doneEmail, setDoneEmail] = useState("");
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!name || !email || !password) {
-      toast.error("Bitte füllen Sie alle Felder aus");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast.error("Passwörter stimmen nicht überein");
-      return;
-    }
-
-    if (password.length < 6) {
-      toast.error("Passwort muss mindestens 6 Zeichen haben");
-      return;
-    }
+    if (!name || !email || !password) { toast.error("Bitte füllen Sie alle Felder aus"); return; }
+    if (password !== confirmPassword) { toast.error("Passwörter stimmen nicht überein"); return; }
+    if (password.length < 6) { toast.error("Passwort muss mindestens 6 Zeichen haben"); return; }
 
     setLoading(true);
     try {
-      await register(email, password, name);
-      toast.success("Konto erfolgreich erstellt");
-      navigate("/");
+      const data = await register(email, password, name);
+      if (data && data.token) {
+        toast.success("Konto erstellt");
+        navigate("/");
+      } else {
+        setDoneEmail(data?.email || email);
+        setDone(true);
+      }
     } catch (error) {
-      console.error("Register error:", error);
       toast.error(error.response?.data?.detail || "Registrierung fehlgeschlagen");
     } finally {
       setLoading(false);
     }
   };
 
+  if (done) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4"
+        style={{ background: "linear-gradient(135deg,#080818 0%,#0c1229 50%,#080818 100%)" }}>
+        <div className="w-full max-w-md text-center">
+          <div className="rounded-2xl border border-amber-500/20 p-10" style={{ background: "rgba(12,18,41,0.8)" }}>
+            <MailCheck className="w-14 h-14 text-amber-400 mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-white mb-2">E-Mail bestätigen</h1>
+            <p className="text-white/50 text-sm mb-2">
+              Wir haben einen Bestätigungslink an
+            </p>
+            <p className="text-amber-400 font-medium mb-4">{doneEmail}</p>
+            <p className="text-white/40 text-sm mb-6">
+              Bitte prüfen Sie Ihr Postfach und klicken Sie auf den Link, um Ihr Konto zu aktivieren.
+            </p>
+            <Link to="/login">
+              <Button variant="ghost" className="text-amber-400 hover:text-amber-300">Zur Anmeldung</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-background to-primary/5">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12"
+      style={{ background: "linear-gradient(135deg,#080818 0%,#0c1229 50%,#080818 100%)" }}>
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-3 mb-6">
-            <div className="p-3 rounded-2xl bg-primary/10">
-              <Stethoscope className="w-8 h-8 text-primary" />
-            </div>
+          <Link to="/" className="inline-block mb-4">
+            <img src="/logo-elite.png" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
+              style={{ filter: "drop-shadow(0 0 16px rgba(201,168,76,0.2))" }} />
           </Link>
-          <h1 className="text-2xl font-bold mb-2" data-testid="register-title">Konto erstellen</h1>
-          <p className="text-muted-foreground">Registrieren Sie sich und beginnen Sie zu lernen</p>
+          <h1 className="text-2xl font-bold mb-2 text-white" data-testid="register-title">Konto erstellen</h1>
+          <p className="text-white/50">Registrieren Sie sich und beginnen Sie zu lernen</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="glass-card rounded-2xl p-8 space-y-5">
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-[#c9a84c]/10 p-8 space-y-5"
+          style={{ background: "rgba(12,18,41,0.8)", backdropFilter: "blur(20px)" }}>
           <div className="space-y-2">
             <Label htmlFor="name">Vollständiger Name</Label>
             <div className="relative">
@@ -135,18 +152,15 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <Button 
-            type="submit" 
-            className="w-full h-12 text-base" 
-            disabled={loading}
-            data-testid="register-submit-btn"
-          >
-            {loading ? "Konto wird erstellt..." : "Registrieren"}
+          <Button type="submit" disabled={loading} data-testid="register-submit-btn"
+            className="w-full h-12 text-base font-semibold border-0"
+            style={{ background: "linear-gradient(135deg,#c9a84c,#dbb85c)", color: "#06081a" }}>
+            {loading ? <><Loader2 className="w-5 h-5 animate-spin mr-2" />Konto wird erstellt…</> : "Registrieren"}
           </Button>
 
           <div className="text-center text-sm">
-            <span className="text-muted-foreground">Bereits ein Konto? </span>
-            <Link to="/login" className="text-primary hover:underline" data-testid="login-link">
+            <span className="text-white/40">Bereits ein Konto? </span>
+            <Link to="/login" className="text-amber-400 hover:underline" data-testid="login-link">
               Anmelden
             </Link>
           </div>

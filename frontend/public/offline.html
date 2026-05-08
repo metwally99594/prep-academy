@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Offline – PrepAcademy</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',sans-serif;background:#06081a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
+    .card{max-width:360px}
+    .icon{font-size:64px;margin-bottom:20px;opacity:.6}
+    h1{font-size:22px;font-weight:700;color:#c9a84c;margin-bottom:8px}
+    p{color:rgba(255,255,255,.45);font-size:14px;line-height:1.6;margin-bottom:24px}
+    button{background:linear-gradient(135deg,#c9a84c,#dbb85c);color:#06081a;border:none;padding:12px 28px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Keine Verbindung</h1>
+    <p>PrepAcademy benötigt eine Internetverbindung. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.</p>
+    <button onclick="location.reload()">Erneut versuchen</button>
+  </div>
+</body>
+</html>

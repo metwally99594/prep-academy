@@ -45,6 +45,9 @@ const ImpressumPage = lazy(() => import("@/pages/ImpressumPage"));
 const PrivacyPage = lazy(() => import("@/pages/PrivacyPage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
+const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
+const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 
 // API Configuration - Use relative URL for production, full URL for development
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -173,11 +176,13 @@ const AuthProvider = ({ children }) => {
 
   const register = async (email, password, name) => {
     const response = await axios.post(`${API}/auth/register`, { email, password, name });
-    const { token: newToken, user: userData } = response.data;
-    localStorage.setItem("token", newToken);
-    setToken(newToken);
-    setUser(userData);
-    return userData;
+    const data = response.data;
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      setToken(data.token);
+      setUser(data.user);
+    }
+    return data;
   };
 
   const logout = () => {
@@ -230,6 +235,9 @@ function AppRouter() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/guest-quiz" element={<GuestQuizPage />} />
@@ -315,6 +323,12 @@ function AppRouter() {
 }
 
 function App() {
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    }
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider>

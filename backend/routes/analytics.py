@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 import uuid
+import asyncio
 
 FEATURE_FIELD_MAP = {
     "notebook": "notebook_enabled",
@@ -77,7 +78,7 @@ def make_analytics_router(db, get_current_user, get_admin_user):
         }
         await db.access_requests.insert_one(req)
 
-        admins = await db.users.find({"is_admin": True}, {"_id": 0, "id": 1}).to_list(20)
+        admins = await db.users.find({"is_admin": True}, {"_id": 0, "id": 1, "email": 1, "name": 1}).to_list(20)
         for admin in admins:
             await db.notifications.insert_one({
                 "id":         str(uuid.uuid4()),
@@ -90,6 +91,14 @@ def make_analytics_router(db, get_current_user, get_admin_user):
                 "request_id": req["id"],
                 "created_at": now_iso,
             })
+            if admin.get("email"):
+                try:
+                    from services.email_service import send_admin_new_request_email
+                    asyncio.ensure_future(send_admin_new_request_email(
+                        admin["email"], user, FEATURE_LABELS.get(feature, feature)
+                    ))
+                except Exception:
+                    pass
 
         return {"status": "pending", "request_id": req["id"]}
 
@@ -154,6 +163,19 @@ def make_analytics_router(db, get_current_user, get_admin_user):
             "feature":  req["feature"],
             "created_at": now_iso,
         })
+
+        # Send email to user
+        try:
+            req_user = await db.users.find_one({"id": req["user_id"]}, {"_id": 0, "email": 1, "name": 1})
+            if req_user and req_user.get("email"):
+                if new_status == "approved":
+                    from services.email_service import send_access_granted_email
+                    asyncio.ensure_future(send_access_granted_email(req_user, feature_label))
+                else:
+                    from services.email_service import send_access_rejected_email
+                    asyncio.ensure_future(send_access_rejected_email(req_user, feature_label, admin_note))
+        except Exception:
+            pass
 
         return {"status": new_status, "request_id": req_id}
 

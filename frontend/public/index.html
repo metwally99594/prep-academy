@@ -89,26 +89,6 @@
       observer.observe(document.getElementById('root'), { childList: true });
       setTimeout(function(){ var ls = document.getElementById('loading-screen'); if(ls) ls.classList.add('hide'); }, 3000);
     </script>
-    <script>
-      // Remove stale service workers
-      (function() {
-        if (!('serviceWorker' in navigator)) return;
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-          var hadSW = regs && regs.length > 0;
-          Promise.all((regs || []).map(function(r) { return r.unregister(); })).then(function() {
-            if (window.caches) {
-              caches.keys().then(function(keys) {
-                Promise.all(keys.map(function(k) { return caches.delete(k); })).then(function() {
-                  if (hadSW && !sessionStorage.getItem('__sw_nuked')) {
-                    sessionStorage.setItem('__sw_nuked', '1');
-                    window.location.reload();
-                  }
-                });
-              });
-            }
-          });
-        }).catch(function(){});
-      })();
-    </script>
+    <!-- Service worker registered by App.js -->
   </body>
 </html>

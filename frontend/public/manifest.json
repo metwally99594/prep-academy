@@ -1,6 +1,6 @@
 {
   "short_name": "PrepAcademy",
-  "name": "Prep Academy - Medizinische Prüfungsvorbereitung",
+  "name": "PrepAcademy Elite",
   "icons": [
     {
       "src": "logo-elite.png",
@@ -17,9 +17,9 @@
   ],
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#0c1229",
+  "theme_color": "#c9a84c",
   "background_color": "#06081a",
-  "description": "Die fortschrittlichste Plattform für medizinische Prüfungsvorbereitung in Österreich. 3000+ MCQ Fragen.",
+  "description": "KI-gestützte Lernplattform für medizinische Prüfungsvorbereitung",
   "categories": ["education", "medical"],
   "lang": "de",
   "orientation": "portrait-primary"

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
@@ -9,7 +9,8 @@ import os
 import json
 from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timezone, timedelta
 import asyncio
 
 
@@ -215,12 +216,13 @@ async def shutdown_db_client():
 
 @api_router.post("/auth/register", response_model=dict)
 @limiter.limit("5/minute")
-async def register(request: Request, user: UserCreate):
+async def register(request: Request, user: UserCreate, background_tasks: BackgroundTasks):
+    from services.email_service import send_verification_email, send_admin_new_user_email
     existing = await db.users.find_one({"email": user.email})
     if existing:
-        # Generic message to prevent email enumeration
         raise HTTPException(status_code=400, detail="Registration failed. Please try again.")
 
+    verification_token = secrets.token_urlsafe(32)
     user_doc = {
         "id": str(uuid.uuid4()),
         "email": user.email,
@@ -228,22 +230,106 @@ async def register(request: Request, user: UserCreate):
         "name": user.name,
         "is_admin": False,
         "auth_provider": "email",
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "email_verified": False,
+        "verification_token": verification_token,
+        "verification_token_expires": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
     }
     await db.users.insert_one(user_doc)
-
-    # Initialize user stats
     await db.user_stats.insert_one({
         "user_id": user_doc["id"],
-        "total_questions": 0,
-        "correct_answers": 0,
-        "wrong_answers": 0,
-        "by_specialty": {},
-        "by_year": {}
+        "total_questions": 0, "correct_answers": 0, "wrong_answers": 0,
+        "by_specialty": {}, "by_year": {}
     })
-    
-    token = create_token(user_doc["id"], False)
-    return {"token": token, "user": {k: v for k, v in user_doc.items() if k not in ["password", "_id"]}}
+
+    background_tasks.add_task(send_verification_email, user_doc, verification_token)
+
+    admins = await db.users.find({"is_admin": True}, {"_id": 0, "email": 1, "name": 1}).to_list(20)
+    for admin in admins:
+        if admin.get("email"):
+            background_tasks.add_task(send_admin_new_user_email, admin["email"], user_doc)
+
+    return {"message": "Bitte bestätigen Sie Ihre E-Mail-Adresse.", "email": user_doc["email"]}
+
+
+@api_router.get("/auth/verify-email", response_model=dict)
+async def verify_email(token: str, background_tasks: BackgroundTasks):
+    from services.email_service import send_welcome_email
+    user = await db.users.find_one({"verification_token": token}, {"_id": 0})
+    if not user:
+        raise HTTPException(400, "Ungültiger oder abgelaufener Verifizierungslink.")
+    expires = user.get("verification_token_expires")
+    if expires and datetime.fromisoformat(expires) < datetime.now(timezone.utc):
+        raise HTTPException(400, "Der Verifizierungslink ist abgelaufen. Bitte fordern Sie einen neuen an.")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"email_verified": True, "verification_token": None, "verification_token_expires": None}}
+    )
+    background_tasks.add_task(send_welcome_email, user)
+    return {"success": True, "message": "E-Mail erfolgreich bestätigt."}
+
+
+@api_router.post("/auth/resend-verification", response_model=dict)
+@limiter.limit("3/minute")
+async def resend_verification(request: Request, body: dict, background_tasks: BackgroundTasks):
+    from services.email_service import send_verification_email
+    email = (body.get("email") or "").strip().lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if user and not user.get("email_verified", True):
+        new_token = secrets.token_urlsafe(32)
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {
+                "verification_token": new_token,
+                "verification_token_expires": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+            }}
+        )
+        background_tasks.add_task(send_verification_email, user, new_token)
+    return {"message": "Falls die E-Mail existiert und nicht verifiziert ist, wurde ein neuer Link gesendet."}
+
+
+@api_router.post("/auth/forgot-password", response_model=dict)
+@limiter.limit("5/minute")
+async def forgot_password(request: Request, body: dict, background_tasks: BackgroundTasks):
+    from services.email_service import send_password_reset_email
+    email = (body.get("email") or "").strip().lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if user:
+        reset_token = secrets.token_urlsafe(32)
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {
+                "reset_token": reset_token,
+                "reset_token_expires": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+            }}
+        )
+        background_tasks.add_task(send_password_reset_email, user, reset_token)
+    # Always return success to prevent email enumeration
+    return {"message": "Falls ein Konto mit dieser E-Mail existiert, haben wir einen Link gesendet."}
+
+
+@api_router.post("/auth/reset-password", response_model=dict)
+async def reset_password(body: dict):
+    token = (body.get("token") or "").strip()
+    new_password = body.get("new_password", "")
+    if len(new_password) < 6:
+        raise HTTPException(400, "Passwort muss mindestens 6 Zeichen haben.")
+    user = await db.users.find_one({"reset_token": token}, {"_id": 0})
+    if not user:
+        raise HTTPException(400, "Ungültiger oder abgelaufener Reset-Link.")
+    expires = user.get("reset_token_expires")
+    if expires and datetime.fromisoformat(expires) < datetime.now(timezone.utc):
+        raise HTTPException(400, "Der Reset-Link ist abgelaufen. Bitte fordern Sie einen neuen an.")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "password": hash_password(new_password),
+            "reset_token": None,
+            "reset_token_expires": None,
+        }}
+    )
+    return {"success": True, "message": "Passwort erfolgreich zurückgesetzt."}
+
 
 @api_router.post("/auth/login", response_model=dict)
 @limiter.limit("10/minute")
@@ -251,24 +337,28 @@ async def login(request: Request, credentials: UserLogin):
     from auth import _DUMMY_HASH
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
 
-    # Always run bcrypt to prevent timing-based user enumeration
     stored_hash = user["password"] if user and user.get("password") else _DUMMY_HASH
     password_ok = verify_password(credentials.password, stored_hash)
 
     if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    # email_verified is False only for new accounts — existing accounts (no field) are treated as verified
+    if user.get("email_verified") is False:
+        raise HTTPException(status_code=403, detail="email_not_verified")
+
     token = create_token(user["id"], user.get("is_admin", False))
-    return {"token": token, "user": {k: v for k, v in user.items() if k != "password"}}
+    return {"token": token, "user": {k: v for k, v in user.items() if k not in ["password", "verification_token", "verification_token_expires", "reset_token", "reset_token_expires"]}}
+
 
 @api_router.post("/auth/google/callback", response_model=dict)
 async def google_callback(data: GoogleAuthCallback):
-    """Google Auth is disabled"""
     raise HTTPException(status_code=410, detail="Google Auth is disabled. Please use email/password.")
+
 
 @api_router.get("/auth/me", response_model=dict)
 async def get_me(user: dict = Depends(get_current_user)):
-    return {k: v for k, v in user.items() if k != "password"}
+    return {k: v for k, v in user.items() if k not in ["password", "verification_token", "verification_token_expires", "reset_token", "reset_token_expires"]}
 
 # ============ SPECIALTY ROUTES ============
 
