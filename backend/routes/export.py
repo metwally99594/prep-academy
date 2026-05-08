@@ -94,41 +94,48 @@ def make_export_router(db, get_current_user):
                     return ""
                 return str(text)[:8000].encode("latin-1", errors="replace").decode("latin-1")
 
+            MARGIN   = 10          # 10 mm left+right — gives max horizontal room
+            PAGE_W   = 210
+            USABLE_W = PAGE_W - 2 * MARGIN   # 190 mm
+
             pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=18)
-            pdf.set_margins(15, 15, 15)
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_margins(MARGIN, 15, MARGIN)
 
             # ── cover page ───────────────────────────────────────────────────
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 28)
             pdf.set_text_color(40, 40, 40)
             pdf.ln(20)
-            pdf.cell(0, 12, "PrepAcademy Elite", align="C", **_NL)
+            pdf.set_x(MARGIN)
+            pdf.cell(USABLE_W, 12, "PrepAcademy Elite", align="C", **_NL)
             pdf.set_font("Helvetica", "", 16)
             pdf.set_text_color(100, 100, 100)
-            pdf.cell(0, 8, "Fragensammlung", align="C", **_NL)
+            pdf.set_x(MARGIN)
+            pdf.cell(USABLE_W, 8, "Fragensammlung", align="C", **_NL)
             pdf.ln(10)
 
             spec_label = spec_names.get(subject, subject) if subject != "all" else "Alle Fachgebiete"
             loc_label  = _LOC_NAMES.get(university, university) if university != "all" else "Alle Standorte"
 
-            pdf.set_fill_color(245, 245, 250)
-            pdf.set_draw_color(210, 210, 220)
-            pdf.rect(40, pdf.get_y(), 130, 50, style="FD")
-            pdf.ln(6)
             pdf.set_font("Helvetica", "B", 11)
             pdf.set_text_color(60, 60, 60)
-            pdf.cell(0, 8, "Fachgebiet:", align="C", **_NL)
+            pdf.set_x(MARGIN)
+            pdf.cell(USABLE_W, 8, "Fachgebiet:", align="C", **_NL)
             pdf.set_font("Helvetica", "", 13)
-            pdf.cell(0, 8, _safe(spec_label), align="C", **_NL)
+            pdf.set_x(MARGIN)
+            pdf.cell(USABLE_W, 8, _safe(spec_label), align="C", **_NL)
             pdf.set_font("Helvetica", "B", 11)
-            pdf.cell(0, 8, "Standort:", align="C", **_NL)
+            pdf.set_x(MARGIN)
+            pdf.cell(USABLE_W, 8, "Standort:", align="C", **_NL)
             pdf.set_font("Helvetica", "", 13)
-            pdf.cell(0, 8, _safe(loc_label), align="C", **_NL)
+            pdf.set_x(MARGIN)
+            pdf.cell(USABLE_W, 8, _safe(loc_label), align="C", **_NL)
             pdf.ln(14)
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(130, 130, 130)
-            pdf.cell(0, 6, datetime.now(timezone.utc).strftime("%d.%m.%Y"), align="C", **_NL)
+            pdf.set_x(MARGIN)
+            pdf.cell(USABLE_W, 6, datetime.now(timezone.utc).strftime("%d.%m.%Y"), align="C", **_NL)
 
             # ── stream questions via cursor (no to_list) ──────────────────────
             CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"]
@@ -138,6 +145,7 @@ def make_export_router(db, get_current_user):
             async for q in cursor:
                 count += 1
                 pdf.add_page()
+                pdf.set_x(MARGIN)   # safety: always start at left margin
 
                 # header bar
                 pdf.set_fill_color(*BRAND)
@@ -146,18 +154,20 @@ def make_export_router(db, get_current_user):
                 header_txt = f"Frage {count}"
                 spec_id = q.get("specialty_id", "")
                 if subject == "all" and spec_id:
-                    header_txt += f" — {_safe(spec_names.get(spec_id, spec_id))}"
+                    header_txt += f" - {_safe(spec_names.get(spec_id, spec_id))}"
                 loc = q.get("exam_location", "")
                 if loc:
                     header_txt += f" ({_LOC_NAMES.get(loc, loc)})"
-                pdf.cell(0, 8, _safe(header_txt), fill=True, **_NL)
+                pdf.set_x(MARGIN)
+                pdf.cell(USABLE_W, 8, _safe(header_txt), fill=True, **_NL)
                 pdf.ln(3)
 
                 # question text
                 pdf.set_text_color(30, 30, 30)
                 pdf.set_font("Helvetica", "B", 11)
                 q_text = q.get("question_text_de") or q.get("question_text") or ""
-                pdf.multi_cell(0, 7, _safe(q_text))
+                pdf.set_x(MARGIN)
+                pdf.multi_cell(USABLE_W, 7, _safe(q_text))
                 pdf.ln(3)
 
                 # image
@@ -167,16 +177,17 @@ def make_export_router(db, get_current_user):
                         if "," in img_b64:
                             img_b64 = img_b64.split(",", 1)[1]
                         img_bytes = base64.b64decode(img_b64)
-                        max_w = min(120, pdf.w - pdf.l_margin - pdf.r_margin)
-                        pdf.image(io.BytesIO(img_bytes), w=max_w)
+                        img_w = min(120, USABLE_W)
+                        pdf.set_x(MARGIN)
+                        pdf.image(io.BytesIO(img_bytes), x=MARGIN, w=img_w)
                         del img_bytes
+                        pdf.set_x(MARGIN)
                         pdf.ln(2)
                     except Exception as img_err:
                         logger.debug("[PDF] image skip q%d: %s", count, img_err)
 
                 # choices
                 choices = q.get("choices") or []
-                pdf.set_font("Helvetica", "", 10)
                 for ci, choice in enumerate(choices[:6]):
                     label = CHOICE_LABELS[ci]
                     text  = choice.get("text_de") or choice.get("text") or ""
@@ -186,7 +197,8 @@ def make_export_router(db, get_current_user):
                     else:
                         pdf.set_text_color(*GREY)
                         pdf.set_font("Helvetica", "", 10)
-                    pdf.multi_cell(0, 6, f"  {label})  {_safe(text)}")
+                    pdf.set_x(MARGIN)
+                    pdf.multi_cell(USABLE_W, 6, f"  {label})  {_safe(text)}")
                 pdf.ln(4)
 
                 # answer box
@@ -198,19 +210,21 @@ def make_export_router(db, get_current_user):
                 pdf.set_draw_color(100, 200, 130)
                 pdf.set_text_color(20, 100, 50)
                 pdf.set_font("Helvetica", "B", 10)
-                pdf.cell(0, 8, f"  {_safe(answer_text)}", fill=True, border=1, **_NL)
+                pdf.set_x(MARGIN)
+                pdf.cell(USABLE_W, 8, f"  {_safe(answer_text)}", fill=True, **_NL)
                 pdf.ln(3)
 
-                # explanation
+                # explanation (no partial border strings — use fill color only)
                 explanation = q.get("explanation_de") or q.get("explanation") or ""
                 if explanation:
                     pdf.set_fill_color(*EXPL_BG)
-                    pdf.set_draw_color(100, 140, 220)
                     pdf.set_text_color(*EXPL_FG)
                     pdf.set_font("Helvetica", "B", 9)
-                    pdf.cell(0, 6, "  Erklarung:", fill=True, border="TLR", **_NL)
+                    pdf.set_x(MARGIN)
+                    pdf.cell(USABLE_W, 6, "  Erklarung:", fill=True, **_NL)
                     pdf.set_font("Helvetica", "", 9)
-                    pdf.multi_cell(0, 6, f"  {_safe(explanation)}", fill=True, border="BLR")
+                    pdf.set_x(MARGIN)
+                    pdf.multi_cell(USABLE_W, 6, f"  {_safe(explanation)}", fill=True)
 
             # ── finalise ──────────────────────────────────────────────────────
             logger.info("[PDF export] done — %d questions", count)
