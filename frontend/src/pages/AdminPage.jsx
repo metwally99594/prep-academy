@@ -192,12 +192,22 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       <p className="text-sm text-muted-foreground mb-6">
         Laden Sie eine JSON-Datei mit Fragen hoch. Doppelte Fragen werden automatisch übersprungen.
       </p>
-      <div className="mb-6 p-4 rounded-xl bg-muted/50 border border-border">
-        <h3 className="font-medium mb-2 text-sm">JSON-Format:</h3>
-        <pre className="text-xs text-muted-foreground overflow-x-auto">{`[
+      <details className="mb-6 rounded-xl border border-border overflow-hidden">
+        <summary className="flex items-center justify-between px-4 py-3 bg-muted/40 cursor-pointer select-none hover:bg-muted/70 transition-colors">
+          <span className="text-sm font-semibold">JSON-Format Dokumentation</span>
+          <span className="text-xs text-muted-foreground">▾ aufklappen</span>
+        </summary>
+
+        <div className="p-4 space-y-5">
+
+          {/* MCQ / Multi-Select */}
+          <div>
+            <p className="font-semibold text-sm mb-2">──── JSON-Format (MCQ / Multi-Select) ────</p>
+            <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">{`[
   {
     "specialty_id": "surgery",
     "question_text_de": "Was ist...?",
+    "question_type": "mcq",
     "choices_de": [
       {"id": "a", "text": "Antwort A", "is_correct": false},
       {"id": "b", "text": "Antwort B", "is_correct": true}
@@ -209,7 +219,82 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     "image_base64": "data:image/png;base64,..."
   }
 ]`}</pre>
-      </div>
+          </div>
+
+          {/* Drag & Drop */}
+          <div>
+            <p className="font-semibold text-sm mb-2">──── JSON-Format (Drag &amp; Drop / Kategorisierung) ────</p>
+            <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">{`{
+  "specialty_id": "internal",
+  "question_type": "drag_drop",
+  "question_text_de": "Ordnen Sie die Symptome zu.",
+  "interactive_data": {
+    "items": [
+      {"id": "i1", "text_de": "Brustschmerz"},
+      {"id": "i2", "text_de": "Schwindel beim Aufstehen"}
+    ],
+    "categories": [
+      {"id": "cat_a", "label_de": "Kardial"},
+      {"id": "cat_b", "label_de": "Harmlos"}
+    ],
+    "correct_mapping": {"i1": "cat_a", "i2": "cat_b"}
+  },
+  "year": 2025,
+  "exam_location": "vienna"
+}`}</pre>
+          </div>
+
+          {/* Fill in the blank */}
+          <div>
+            <p className="font-semibold text-sm mb-2">──── JSON-Format (Lückentext) ────</p>
+            <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">{`{
+  "specialty_id": "internal",
+  "question_type": "fill_blank",
+  "question_text_de": "Beschriften Sie die Herzkammern.",
+  "interactive_data": {
+    "prompt_de": "Tragen Sie den korrekten Begriff ein:",
+    "blanks": [
+      {
+        "id": "b1",
+        "label": "1",
+        "hint_de": "Oben rechts",
+        "correct_answers": ["Rechter Vorhof", "RA"],
+        "case_sensitive": false
+      }
+    ]
+  },
+  "year": 2025,
+  "exam_location": "vienna"
+}`}</pre>
+          </div>
+
+          {/* Erlaubte Werte */}
+          <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm space-y-2">
+            <p className="font-semibold">──── Erlaubte Werte ────</p>
+            <p>
+              <span className="font-medium">Fragetypen:&nbsp;</span>
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">mcq</code>{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">multi_select</code>{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">drag_drop</code>{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">categorize</code>{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">fill_blank</code>
+            </p>
+            <p>
+              <span className="font-medium">Specialty IDs:&nbsp;</span>
+              <span className="text-muted-foreground text-xs">
+                surgery, internal, ophthalmology, dermatology, ent, obgyn, neurology, emergency, pediatrics, psychiatry
+              </span>
+            </p>
+            <p>
+              <span className="font-medium">Orte:&nbsp;</span>
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">vienna</code>{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">innsbruck</code>{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">andere</code>
+            </p>
+          </div>
+
+        </div>
+      </details>
       {!file ? (
         <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-primary/30 rounded-2xl cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-all" data-testid="import-dropzone">
           <Upload className="w-10 h-10 text-primary/50 mb-3" />
