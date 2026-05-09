@@ -4,6 +4,7 @@ Run with: pytest backend/tests/test_community.py -v
 Requires: running server with community routes wired.
 """
 import sys, os, uuid, time
+from unittest.mock import AsyncMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
@@ -400,3 +401,144 @@ class TestCommunityAPI:
         if resp.status_code == 200:
             data = resp.json()
             assert "posts" in data
+
+
+# ── Notification Helpers ──
+
+
+@pytest.fixture
+def mock_notifications_db():
+    """Patch db.notifications.insert_one and db.users.find_one for notification tests."""
+    with patch("routes.community.db") as mock_db:
+        mock_db.notifications.insert_one = AsyncMock()
+        mock_db.users.find_one = AsyncMock()
+        yield mock_db
+
+
+def _run_async(coro):
+    """Run an async function synchronously for testing."""
+    import asyncio
+    return asyncio.run(coro)
+
+
+class TestCreateCommunityNotification:
+
+    def test_inserts_document(self, mock_notifications_db):
+        from routes.community import _create_community_notification
+
+        mock_notifications_db.notifications.insert_one.return_value = None
+        _run_async(_create_community_notification(
+            user_id="user123",
+            notification_type="community_comment",
+            title="New comment",
+            message="test message",
+        ))
+
+        mock_notifications_db.notifications.insert_one.assert_called_once()
+        args = mock_notifications_db.notifications.insert_one.call_args[0][0]
+        assert args["user_id"] == "user123"
+        assert args["type"] == "community_comment"
+        assert args["title"] == "New comment"
+        assert args["message"] == "test message"
+        assert args["read"] is False
+        assert "id" in args
+        assert "created_at" in args
+
+    def test_truncates_long_message(self, mock_notifications_db):
+        from routes.community import _create_community_notification
+
+        long_msg = "x" * 500
+        _run_async(_create_community_notification(
+            user_id="u1", notification_type="test", title="t", message=long_msg,
+        ))
+
+        args = mock_notifications_db.notifications.insert_one.call_args[0][0]
+        assert len(args["message"]) <= 300
+
+    def test_default_icon(self, mock_notifications_db):
+        from routes.community import _create_community_notification
+
+        _run_async(_create_community_notification(
+            user_id="u1", notification_type="test", title="t", message="m",
+        ))
+
+        args = mock_notifications_db.notifications.insert_one.call_args[0][0]
+        assert args["icon"] == "message-circle"
+        assert args["data"] == {}
+
+    def test_custom_icon_and_data(self, mock_notifications_db):
+        from routes.community import _create_community_notification
+
+        _run_async(_create_community_notification(
+            user_id="u1", notification_type="test", title="t", message="m",
+            icon="at-sign", data={"target_type": "post", "target_id": "pid"},
+        ))
+
+        args = mock_notifications_db.notifications.insert_one.call_args[0][0]
+        assert args["icon"] == "at-sign"
+        assert args["data"] == {"target_type": "post", "target_id": "pid"}
+
+
+class TestNotifyMentionedUsers:
+
+    def test_creates_notifications(self, mock_notifications_db):
+        from routes.community import _notify_mentioned_users
+
+        mock_notifications_db.users.find_one.side_effect = [
+            {"id": "user_a", "name": "Alice"},
+            {"id": "user_b", "name": "Bob"},
+        ]
+
+        _run_async(_notify_mentioned_users(
+            content="Hey @Alice and @Bob check this out",
+            actor_id="actor1",
+            actor_name="Charly",
+            target_type="post",
+            target_id="post123",
+        ))
+
+        assert mock_notifications_db.notifications.insert_one.call_count == 2
+
+    def test_skips_actor(self, mock_notifications_db):
+        from routes.community import _notify_mentioned_users
+
+        mock_notifications_db.users.find_one.return_value = {"id": "actor1", "name": "Self"}
+
+        _run_async(_notify_mentioned_users(
+            content="Hello @Self",
+            actor_id="actor1",
+            actor_name="Self",
+            target_type="post",
+            target_id="post123",
+        ))
+
+        mock_notifications_db.notifications.insert_one.assert_not_called()
+
+    def test_skips_unknown_usernames(self, mock_notifications_db):
+        from routes.community import _notify_mentioned_users
+
+        mock_notifications_db.users.find_one.return_value = None
+
+        _run_async(_notify_mentioned_users(
+            content="Hello @UnknownUser",
+            actor_id="actor1",
+            actor_name="Test",
+            target_type="post",
+            target_id="post123",
+        ))
+
+        mock_notifications_db.notifications.insert_one.assert_not_called()
+
+    def test_no_mentions_noop(self, mock_notifications_db):
+        from routes.community import _notify_mentioned_users
+
+        _run_async(_notify_mentioned_users(
+            content="No mentions here",
+            actor_id="actor1",
+            actor_name="Test",
+            target_type="post",
+            target_id="post123",
+        ))
+
+        mock_notifications_db.notifications.insert_one.assert_not_called()
+        mock_notifications_db.users.find_one.assert_not_called()

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 import uuid
 import time
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -23,6 +24,7 @@ from services.community_service import (
     compute_hot_score, compute_trending_score,
     check_phi, check_dangerous_advice,
     check_post_rate, check_comment_rate, check_content_quality,
+    extract_mentions,
 )
 from services.moderation_service import (
     evaluate_auto_moderation, is_title_all_caps, has_external_links,
@@ -57,6 +59,52 @@ def _visible_status_filter(user: dict) -> dict:
     if user.get("is_admin"):
         return {}
     return {"status": {"$in": ["published"]}}
+
+
+async def _create_community_notification(
+    user_id: str,
+    notification_type: str,
+    title: str,
+    message: str,
+    icon: str = "message-circle",
+    data: Optional[dict] = None,
+):
+    """Create a notification for a community event. Does NOT notify the acting user."""
+    try:
+        await db.notifications.insert_one({
+            "id": uuid.uuid4().hex,
+            "user_id": user_id,
+            "type": notification_type,
+            "icon": icon,
+            "title": title,
+            "message": message[:300],
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "data": data or {},
+        })
+    except Exception as e:
+        logger.warning(f"Failed to create notification for {user_id}: {e}")
+
+
+async def _notify_mentioned_users(content: str, actor_id: str, actor_name: str, target_type: str, target_id: str):
+    """Notify users mentioned with @username in content. Does NOT notify the actor."""
+    mentions = extract_mentions(content)
+    if not mentions:
+        return
+    for username in mentions:
+        mentioned_user = await db.users.find_one({"name": username})
+        if not mentioned_user:
+            continue
+        if mentioned_user["id"] == actor_id:
+            continue
+        await _create_community_notification(
+            user_id=mentioned_user["id"],
+            notification_type="community_mention",
+            title=f"You were mentioned by {actor_name}",
+            message=content[:200],
+            icon="at-sign",
+            data={"target_type": target_type, "target_id": target_id},
+        )
 
 
 # ── Posts ──
@@ -162,6 +210,9 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
             await db.community_moderation_queue.insert_one(entry)
         except Exception as e:
             logger.warning(f"Failed to create moderation entry: {e}")
+
+    # Notify @mentioned users
+    asyncio.create_task(_notify_mentioned_users(body.content, user["id"], user.get("name", "Unknown"), "post", post_id))
 
     return {
         "id": post_id,
@@ -361,6 +412,7 @@ async def create_comment(body: CommunityCommentCreate, user: dict = Depends(get_
         raise HTTPException(status_code=429, detail=rate_err)
 
     # Validate parent if provided
+    parent = None
     if body.parent_id:
         parent = await _get_comment_or_404(body.parent_id)
         if parent["post_id"] != body.post_id:
@@ -407,6 +459,31 @@ async def create_comment(body: CommunityCommentCreate, user: dict = Depends(get_
         except Exception as e:
             logger.warning(f"Failed to create moderation entry: {e}")
 
+    # Notifications (only for published comments)
+    if status == "published":
+        # Notify post author
+        if post["author_id"] != user["id"]:
+            asyncio.create_task(_create_community_notification(
+                user_id=post["author_id"],
+                notification_type="community_comment",
+                title="New comment on your post",
+                message=sanitized[:200],
+                icon="message-circle",
+                data={"target_type": "post", "target_id": body.post_id},
+            ))
+        # Notify parent comment author on reply
+        if parent and parent["author_id"] != user["id"]:
+            asyncio.create_task(_create_community_notification(
+                user_id=parent["author_id"],
+                notification_type="community_reply",
+                title="Reply to your comment",
+                message=sanitized[:200],
+                icon="message-square",
+                data={"target_type": "comment", "target_id": comment_id, "post_id": body.post_id},
+            ))
+        # Notify @mentioned users
+        asyncio.create_task(_notify_mentioned_users(sanitized, user["id"], user.get("name", "Unknown"), "comment", comment_id))
+
     return {"id": comment_id, "status": status, "created_at": now}
 
 
@@ -443,6 +520,12 @@ async def toggle_reaction(body: CommunityReaction, user: dict = Depends(get_curr
     reaction_value = 1 if body.reaction == "upvote" else -1
     score_field = "upvote_count" if body.reaction == "upvote" else "downvote_count"
 
+    collection = db.community_posts if body.target_type == "post" else db.community_comments
+    target = await collection.find_one({"id": body.target_id}, {"author_id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail=f"{body.target_type} not found")
+    target_author_id = target["author_id"]
+
     existing = await db.community_reactions.find_one({
         "user_id": user["id"],
         "target_type": body.target_type,
@@ -467,7 +550,6 @@ async def toggle_reaction(body: CommunityReaction, user: dict = Depends(get_curr
             score_delta = reaction_value * 2
             inc_field = score_field
             # Decrement old
-            collection = db.community_posts if body.target_type == "post" else db.community_comments
             await collection.update_one(
                 {"id": body.target_id},
                 {"$inc": {f"stats.{old_score_field}": -1, "stats.score": -reaction_value if existing["reaction"] == "upvote" else 1}},
@@ -484,15 +566,27 @@ async def toggle_reaction(body: CommunityReaction, user: dict = Depends(get_curr
         })
         delta = reaction_value
         score_delta = reaction_value
+        inc_field = score_field
 
-    collection = db.community_posts if body.target_type == "post" else db.community_comments
     await collection.update_one(
         {"id": body.target_id},
         {"$inc": {f"stats.{inc_field}": delta, "stats.score": score_delta}},
     )
 
     # Get updated counts
-    updated = await collection.find_one({"id": body.target_id}, {"stats": 1})
+    updated = await collection.find_one({"id": body.target_id}, {"stats": 1, "author_id": 1})
+
+    # Notify target author
+    if target_author_id != user["id"]:
+        asyncio.create_task(_create_community_notification(
+            user_id=target_author_id,
+            notification_type="community_reaction",
+            title=f"{user.get('name', 'Someone')} {body.reaction}d your {body.target_type}",
+            message="",
+            icon="thumbs-up" if body.reaction == "upvote" else "thumbs-down",
+            data={"target_type": body.target_type, "target_id": body.target_id, "reaction": body.reaction},
+        ))
+
     return {"status": "ok", "stats": updated.get("stats", {}) if updated else {}}
 
 

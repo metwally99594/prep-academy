@@ -235,3 +235,13 @@ def check_comment_rate(user_id: str) -> Optional[str]:
     timestamps.append(now)
     _post_rate_store[f"comment:{user_id}"] = timestamps
     return None
+
+
+# ── @mention extraction ──
+
+_MENTION_RE = re.compile(r"@(\w[\w.-]+)")
+
+
+def extract_mentions(text: str) -> list[str]:
+    """Extract @username mentions from text (without the @)."""
+    return _MENTION_RE.findall(text)
