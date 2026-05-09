@@ -28,6 +28,7 @@ from services.community_service import (
     check_burst_rate,
     extract_mentions,
 )
+from services.community_cache import cache_get, cache_set, cache_invalidate, build_cache_key
 from services.moderation_service import (
     evaluate_auto_moderation, is_title_all_caps, has_external_links,
     build_moderation_entry, should_auto_hide, should_auto_queue,
@@ -263,6 +264,7 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
         "updated_at": now,
     }
     await db.community_posts.insert_one(post_doc)
+    cache_invalidate()
 
     # Moderation queue entry if flagged
     if should_queue:
@@ -302,6 +304,14 @@ async def get_feed(
     if sort_err:
         raise HTTPException(status_code=400, detail=sort_err)
 
+    # Cap page_size at backend level
+    page_size = min(page_size, 50)
+
+    cache_key = build_cache_key("feed", sort=sort, specialty=specialty, topic=topic, post_type=post_type, search=search, page=page, page_size=page_size, cursor=cursor)
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return CommunityPostListResponse(**cached)
+
     query = {"status": "published"}
     if specialty:
         query["specialty_tags"] = specialty
@@ -327,20 +337,27 @@ async def get_feed(
 
     use_cursor_pagination = cursor is not None and cursor != ""
 
+    feed_projection = {
+        "_id": 1, "id": 1, "author_id": 1, "title": 1, "content": 1,
+        "specialty_tags": 1, "topic_tags": 1, "type": 1, "status": 1,
+        "stats": 1, "image_ids": 1, "is_duplicate": 1, "duplicate_of": 1,
+        "created_at": 1, "updated_at": 1,
+    }
+
     if use_cursor_pagination:
         try:
             cursor_value = cfg["coerce"](cursor)
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Invalid cursor value for this sort mode")
         query[sort_field] = {"$lt": cursor_value}
-        db_cursor = db.community_posts.find(query).sort(sort_spec).limit(page_size)
+        db_cursor = db.community_posts.find(query, feed_projection).sort(sort_spec).limit(page_size)
         posts = await db_cursor.to_list(length=page_size)
 
         total = len(posts)
         next_cursor = str(posts[-1][sort_field]) if len(posts) == page_size else None
     else:
         total = await db.community_posts.count_documents(query)
-        db_cursor = db.community_posts.find(query).sort(sort_spec).skip((page - 1) * page_size).limit(page_size)
+        db_cursor = db.community_posts.find(query, feed_projection).sort(sort_spec).skip((page - 1) * page_size).limit(page_size)
         posts = await db_cursor.to_list(length=page_size)
         next_cursor = None
 
@@ -376,7 +393,9 @@ async def get_feed(
             updated_at=p.get("updated_at", ""),
         ))
 
-    return CommunityPostListResponse(posts=results, total=total, page=page, page_size=page_size, next_cursor=next_cursor)
+    response = CommunityPostListResponse(posts=results, total=total, page=page, page_size=page_size, next_cursor=next_cursor)
+    cache_set(cache_key, response.model_dump())
+    return response
 
 
 @router.get("/community/posts/{post_id}")
@@ -552,6 +571,7 @@ async def create_comment(body: CommunityCommentCreate, user: dict = Depends(get_
         {"id": body.post_id},
         {"$inc": {"stats.comment_count": 1}},
     )
+    cache_invalidate()
 
     # Moderation queue if flagged
     if should_queue:
@@ -699,6 +719,7 @@ async def toggle_reaction(body: CommunityReaction, user: dict = Depends(get_curr
         {"id": body.target_id},
         {"$inc": {f"stats.{inc_field}": delta, "stats.score": score_delta}},
     )
+    cache_invalidate()
 
     # Get updated counts
     updated = await collection.find_one({"id": body.target_id}, {"stats": 1, "author_id": 1})
@@ -896,6 +917,7 @@ async def take_moderation_action(body: ModerationAction, admin: dict = Depends(g
     )
 
     # Audit log entry
+    cache_invalidate()
     try:
         audit_entry = build_audit_entry(body.action, body.target_type, body.target_id, admin["id"], body.reason, {"previous_status": target.get("status")})
         await db.community_moderation_audit.insert_one(audit_entry)
@@ -954,6 +976,12 @@ async def get_trending(
     user: dict = Depends(get_current_user),
 ):
     """Return hot/trending posts based on engagement velocity."""
+    limit = min(limit, 50)
+    cache_key = build_cache_key("trending", hours=hours, limit=limit)
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     cutoff = datetime.now(timezone.utc).timestamp() - hours * 3600
     since = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
 
@@ -977,7 +1005,14 @@ async def get_trending(
         posts = await cursor.to_list(length=limit)
     except Exception:
         # Fallback: sort by score
-        cursor = db.community_posts.find({"status": "published", "created_at": {"$gte": since}}).sort("stats.score", -1).limit(limit)
+        cursor = db.community_posts.find(
+            {"status": "published", "created_at": {"$gte": since}},
+            {"_id": 1, "id": 1, "author_id": 1, "title": 1, "content": 1,
+             "specialty_tags": 1, "topic_tags": 1, "type": 1, "status": 1,
+             "stats": 1, "image_ids": 1, "is_duplicate": 1, "duplicate_of": 1,
+             "ai_summary": 1, "educational_safety_approved": 1,
+             "created_at": 1, "updated_at": 1},
+        ).sort("stats.score", -1).limit(limit)
         posts = await cursor.to_list(length=limit)
 
     # Batch load author names (fixes N+1)
@@ -1010,7 +1045,9 @@ async def get_trending(
             updated_at=p.get("updated_at", ""),
         ))
 
-    return {"posts": results}
+    response = {"posts": results}
+    cache_set(cache_key, response)
+    return response
 
 
 # ── Community Stats ──
@@ -1019,6 +1056,11 @@ async def get_trending(
 @router.get("/community/stats")
 async def get_community_stats(user: dict = Depends(get_current_user)):
     """Aggregate community activity counters."""
+    cache_key = build_cache_key("stats")
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     week_ago = datetime.fromtimestamp(now.timestamp() - 86400 * 7, tz=timezone.utc).isoformat()
@@ -1036,7 +1078,7 @@ async def get_community_stats(user: dict = Depends(get_current_user)):
         for s in ("critical", "high", "medium", "low")
     }
 
-    return {
+    response = {
         "total_posts": total_posts,
         "total_comments": total_comments,
         "posts_today": posts_today,
@@ -1046,6 +1088,8 @@ async def get_community_stats(user: dict = Depends(get_current_user)):
         "moderation_queue_pending": queue_pending,
         "moderation_queue_by_severity": queue_by_severity,
     }
+    cache_set(cache_key, response, ttl=60)
+    return response
 
 
 # ── Tags (known lists) ──
