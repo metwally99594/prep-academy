@@ -58,6 +58,7 @@ import {
   Lock,
   GraduationCap,
   MessageSquare,
+  Users,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -473,6 +474,12 @@ export const Layout = () => {
                       )}
                     </Button>
                   </Link>
+                  <Link to="/community">
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="community-nav-btn">
+                      <Users className="w-4 h-4" />
+                      <span className="hidden lg:inline">Community</span>
+                    </Button>
+                  </Link>
                   {user.is_admin && (
                     <Link to="/admin">
                       <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="admin-nav-btn">
@@ -690,6 +697,12 @@ export const Layout = () => {
                     {unreadMessages > 9 ? "9+" : unreadMessages}
                   </span>
                 )}
+              </Button>
+            </Link>
+            <Link to="/community" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start gap-2">
+                <Users className="w-4 h-4" />
+                Community
               </Button>
             </Link>
             {user.is_admin && (

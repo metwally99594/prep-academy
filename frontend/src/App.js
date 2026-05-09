@@ -49,6 +49,8 @@ const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const MessagingPage = lazy(() => import("@/pages/MessagingPage"));
+const CommunityPage = lazy(() => import("@/pages/CommunityPage"));
+const CommunityPostPage = lazy(() => import("@/pages/CommunityPostPage"));
 
 // API Configuration - Use relative URL for production, full URL for development
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -317,6 +319,12 @@ function AppRouter() {
           } />
           <Route path="/messages" element={
             <ProtectedRoute><MessagingPage /></ProtectedRoute>
+          } />
+          <Route path="/community" element={
+            <ProtectedRoute><CommunityPage /></ProtectedRoute>
+          } />
+          <Route path="/community/:postId" element={
+            <ProtectedRoute><CommunityPostPage /></ProtectedRoute>
           } />
           <Route path="/podcast" element={<DailyPodcastPage />} />
           <Route path="/impressum" element={<ImpressumPage />} />
