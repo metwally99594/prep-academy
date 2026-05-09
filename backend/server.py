@@ -3438,10 +3438,11 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
                 + ". Zweitmeinung beachten."
             )
 
-        # Risk level notice (for uncertain/dangerous)
+        # Risk level notice (for non-low_risk)
         risk_note = ""
-        if risk_result["level"] != "safe":
-            risk_emoji = "🟠" if risk_result["level"] == "uncertain" else "🔴"
+        if risk_result["level"] != "low_risk":
+            _risk_emoji = {"moderate_risk": "🟡", "critical_review_required": "🟠", "dangerous": "🔴"}
+            risk_emoji = _risk_emoji.get(risk_result["level"], "🟠")
             risk_note = (
                 f"\n\n---\n{risk_emoji} **Risikostufe: {risk_result['level'].upper()}** "
                 f"(Score: {risk_result['score']}/100)\n"

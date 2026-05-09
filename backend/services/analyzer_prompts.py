@@ -387,55 +387,58 @@ def strip_analysis_json_block(raw: str) -> str:
 
 def apply_confidence_gate(text: str, confidence: float) -> str:
     """
-    Post-processing safety gate based on confidence level.
+    Proportional safety gate: language aggressiveness ∝ (1 - confidence).
 
-    confidence thresholds (normalized 0-1):
-      >= 0.75  → HIGH   — no modifications
-      0.60-0.74 → MEDIUM — remove percentage values from differentials
-      < 0.60   → LOW    — disable differentials, flag malignancy terms, add notice
+    Thresholds (from model-count proxy: 1→0.55, 2→0.72, 3→0.85):
 
-    confidence is derived from: {1 model: 0.55, 2 models: 0.72, 3 models: 0.85}
+      >= 0.85  FULL    — no modifications (3 models, high agreement)
+      0.72-0.84 MEDIUM  — strip explicit probability percentages only
+      0.60-0.71 LOW     — strip all percentages + soft malignancy warnings
+      < 0.60   MINIMAL — disable differentials + hard-flag malignancy + notice
     """
-    if confidence >= 0.75:
+    if confidence >= 0.85:
         return text
 
-    # MEDIUM + LOW: strip probability percentages everywhere
-    text = _re.sub(r'\b(\d+)\s*%', r'(Prozentangabe entfernt)', text)
+    # MEDIUM (0.72+): Remove explicit "(80%)" or "80%" in differential context
+    if confidence < 0.85:
+        # Remove parenthesised percentages like "(85%)" or "(>80%)"
+        text = _re.sub(r'\(\s*>?\d+\s*%\s*\)', '', text)
 
+    # LOW (< 0.72): Remove ALL probability percentages
+    if confidence < 0.72:
+        text = _re.sub(r'\b\d+\s*%\b', '', text)
+        # Soft warning on high-risk terms (bracket, don't remove)
+        _SOFT_RISK = ["Karzinom", "Malignom", "Metastase", "Neoplasie"]
+        for term in _SOFT_RISK:
+            text = _re.sub(
+                rf'\b({_re.escape(term)}\w*)\b',
+                r'[\1 — eingeschränkte Konfidenz]',
+                text, flags=_re.IGNORECASE,
+            )
+
+    # MINIMAL (< 0.60): disable differentials + hard-flag + notice
     if confidence < 0.60:
-        # LOW: replace differential diagnosis section
         text = _re.sub(
             r'(##\s*(?:Differential(?:diagnos\w*)|Differenzialdiagnos\w*))(.*?)(?=\n##|\Z)',
             (
-                r'\1\n_Differentialdiagnosen wurden aufgrund eingeschränkter Konfidenz deaktiviert. '
-                r'Klinische Korrelation erforderlich._\n'
+                r'\1\n_Deaktiviert — Konfidenz zu niedrig für Differentialdiagnosen. '
+                r'Klinische Korrelation zwingend erforderlich._\n'
             ),
-            text,
-            flags=_re.DOTALL | _re.IGNORECASE,
+            text, flags=_re.DOTALL | _re.IGNORECASE,
         )
-
-        # LOW: flag high-risk terms
-        _HIGH_RISK = [
-            "Karzinom", "Karzinoms", "Karzinome",
-            "Malignom", "Malignoms", "Malignome",
-            "Metastase", "Metastasen",
-            "Neoplasie", "Neoplasien",
-            "maligne", "maligner", "malignes",
-        ]
-        for term in _HIGH_RISK:
+        # Hard-flag remaining high-risk terms
+        _HARD_RISK = ["maligne", "maligner", "malignes"]
+        for term in _HARD_RISK:
             text = _re.sub(
                 rf'\b{_re.escape(term)}\b',
-                f'[{term} — Konfidenz zu niedrig für diese Aussage]',
-                text,
-                flags=_re.IGNORECASE,
+                f'[{term} — Konfidenz unzureichend]',
+                text, flags=_re.IGNORECASE,
             )
-
-        # Add confidence notice at end
         text += (
             "\n\n---\n"
-            "ℹ️ **Konfidenz-Hinweis:** Nur ein KI-Modell hat geantwortet. "
-            "Differentialdiagnosen und Prozentwerte wurden deaktiviert. "
-            "Ärztliche Überprüfung dringend empfohlen."
+            "ℹ️ **Konfidenz-Hinweis (MINIMAL):** Nur 1 Modell geantwortet. "
+            "Differentialdiagnosen deaktiviert. Prozentwerte entfernt. "
+            "Ärztliche Überprüfung zwingend erforderlich."
         )
 
     return text
@@ -678,7 +681,16 @@ def classify_risk(
             + (f" (strittige Befunde: {', '.join(dt)})" if dt else "")
         )
 
-    level = "dangerous" if score >= 60 else ("uncertain" if score >= 30 else "safe")
+    # 4-level severity (replaces 3-level)
+    if score >= 71:
+        level = "dangerous"
+    elif score >= 46:
+        level = "critical_review_required"
+    elif score >= 21:
+        level = "moderate_risk"
+    else:
+        level = "low_risk"
+
     return {"level": level, "score": min(score, 100), "reasons": reasons}
 
 
@@ -760,8 +772,8 @@ def should_trigger_human_review(
         triggers.append(f"{len(violations)} Sicherheitsverletzungen")
     if len(visibility_data.get("partial", [])) >= 3:
         triggers.append("eingeschränkte Sichtbarkeit in ≥3 Regionen")
-    if risk_level in ("dangerous", "uncertain"):
-        triggers.append(f"Risikostufe: {risk_level.upper()}")
+    if risk_level in ("dangerous", "critical_review_required", "moderate_risk"):
+        triggers.append(f"Risikostufe: {risk_level.replace('_', ' ').upper()}")
     if voting_result and voting_result.get("disagreement"):
         triggers.append("KI-Modelle nicht einig")
     iq = visibility_data.get("image_quality", "unknown")
