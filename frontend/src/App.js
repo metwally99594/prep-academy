@@ -51,6 +51,7 @@ const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const MessagingPage = lazy(() => import("@/pages/MessagingPage"));
 const CommunityPage = lazy(() => import("@/pages/CommunityPage"));
 const CommunityPostPage = lazy(() => import("@/pages/CommunityPostPage"));
+const ModerationQueuePage = lazy(() => import("@/pages/ModerationQueuePage"));
 
 // API Configuration - Use relative URL for production, full URL for development
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -285,6 +286,9 @@ function AppRouter() {
           } />
           <Route path="/admin/analytics" element={
             <ProtectedRoute adminOnly><AdminAnalyticsPage /></ProtectedRoute>
+          } />
+          <Route path="/admin/moderation" element={
+            <ProtectedRoute adminOnly><ModerationQueuePage /></ProtectedRoute>
           } />
           <Route path="/notebook" element={
             <ProtectedRoute><NotebookPage /></ProtectedRoute>

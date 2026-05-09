@@ -59,6 +59,7 @@ import {
   GraduationCap,
   MessageSquare,
   Users,
+  ShieldAlert,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -481,12 +482,20 @@ export const Layout = () => {
                     </Button>
                   </Link>
                   {user.is_admin && (
-                    <Link to="/admin">
-                      <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="admin-nav-btn">
-                        <Settings className="w-4 h-4" />
-                        <span className="hidden lg:inline">Admin</span>
-                      </Button>
-                    </Link>
+                    <>
+                      <Link to="/admin">
+                        <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="admin-nav-btn">
+                          <Settings className="w-4 h-4" />
+                          <span className="hidden lg:inline">Admin</span>
+                        </Button>
+                      </Link>
+                      <Link to="/admin/moderation">
+                        <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="moderation-nav-btn">
+                          <ShieldAlert className="w-4 h-4 text-amber-500" />
+                          <span className="hidden lg:inline">Moderation</span>
+                        </Button>
+                      </Link>
+                    </>
                   )}
                 </>
               )}
@@ -706,12 +715,20 @@ export const Layout = () => {
               </Button>
             </Link>
             {user.is_admin && (
-              <Link to="/admin" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full justify-start gap-2">
-                  <Settings className="w-4 h-4" />
-                  Admin
-                </Button>
-              </Link>
+              <>
+                <Link to="/admin" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start gap-2">
+                    <Settings className="w-4 h-4" />
+                    Admin
+                  </Button>
+                </Link>
+                <Link to="/admin/moderation" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-500" />
+                    Moderation
+                  </Button>
+                </Link>
+              </>
             )}
           </div>
         )}
