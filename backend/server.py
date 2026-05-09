@@ -2645,23 +2645,51 @@ Regeln:
 @api_router.post("/notebook/lernleitfaden/{notebook_id}")
 async def generate_lernleitfaden(notebook_id: str, language: str = "de",
                                   user: dict = Depends(get_current_user)):
-    """Generate a deep study guide from hierarchical analysis."""
+    """Start async Lernleitfaden generation — returns job_id immediately."""
     await check_notebook_access(user)
-    synthesis = await _ensure_analysis(notebook_id, user["id"])
-    global_doc = await db.notebook_global_analysis.find_one({"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0})
-    chunk_analyses = await db.notebook_chunk_analyses.find(
-        {"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}
-    ).to_list(100)
 
-    all_exam_pts = []
-    all_paths = synthesis.get("learning_paths") or []
-    for ca in chunk_analyses:
-        all_exam_pts.extend(ca.get("exam_points") or [])
+    # Return cached done result instantly
+    cached = await db.nb_leitfaden_jobs.find_one(
+        {"notebook_id": notebook_id, "user_id": user["id"], "language": language, "status": "done"},
+        {"_id": 0},
+    )
+    if cached:
+        return {"job_id": cached["id"], "status": "done", "content": cached.get("content")}
 
-    LANG = {"de": "Deutsch", "en": "English", "ar": "العربية", "ru": "Русский", "uk": "Українська"}
-    lang_name = LANG.get(language, "Deutsch")
-    system = f"Du bist ein Experte für medizinische Prüfungsvorbereitung. Antworte VOLLSTÄNDIG auf {lang_name}."
-    prompt = f"""Erstelle einen umfassenden Lernleitfaden (Lernleitfaden) auf {lang_name} basierend auf dieser Analyse.
+    # Avoid duplicate in-flight jobs
+    existing = await db.nb_leitfaden_jobs.find_one(
+        {"notebook_id": notebook_id, "user_id": user["id"], "language": language, "status": "processing"},
+        {"_id": 0, "id": 1},
+    )
+    if existing:
+        return {"job_id": existing["id"], "status": "processing"}
+
+    job_id = str(uuid.uuid4())
+    await db.nb_leitfaden_jobs.insert_one({
+        "id": job_id, "notebook_id": notebook_id, "user_id": user["id"],
+        "language": language, "status": "processing",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    async def _bg():
+        try:
+            synthesis = await _ensure_analysis(notebook_id, user["id"])
+            global_doc = await db.notebook_global_analysis.find_one(
+                {"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}
+            )
+            chunk_analyses = await db.notebook_chunk_analyses.find(
+                {"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}
+            ).to_list(100)
+
+            all_exam_pts = []
+            all_paths = synthesis.get("learning_paths") or []
+            for ca in chunk_analyses:
+                all_exam_pts.extend(ca.get("exam_points") or [])
+
+            LANG = {"de": "Deutsch", "en": "English", "ar": "العربية", "ru": "Русский", "uk": "Українська"}
+            lang_name = LANG.get(language, "Deutsch")
+            system = f"Du bist ein Experte für medizinische Prüfungsvorbereitung. Antworte VOLLSTÄNDIG auf {lang_name}."
+            prompt = f"""Erstelle einen umfassenden Lernleitfaden (Lernleitfaden) auf {lang_name} basierend auf dieser Analyse.
 
 Dokument: {(global_doc or {}).get('title','Medizinisches Dokument')}
 Zusammenfassung: {synthesis.get('master_summary','')}
@@ -2686,8 +2714,30 @@ Erstelle einen strukturierten Lernleitfaden mit:
 5. 🔗 **Zusammenhänge** — Verknüpfungen zwischen Themen
 6. ❓ **5 Musterfragen** — Mit vollständigen Erklärungen
 7. 🧠 **Lernplan** — 3 Phasen (Grundlagen → Vertiefung → Prüfungsvorbereitung)"""
-    result = await _or_notebook(system, prompt, max_tokens=3000)
-    return {"content": result, "source": "hierarchical_analysis"}
+            result = await _or_notebook(system, prompt, max_tokens=3000)
+            await db.nb_leitfaden_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "done", "content": result,
+                          "completed_at": datetime.now(timezone.utc).isoformat()}},
+            )
+        except Exception as e:
+            logger.error(f"Lernleitfaden job {job_id} error: {e}")
+            await db.nb_leitfaden_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "error", "message": str(e)[:300]}},
+            )
+
+    asyncio.create_task(_bg())
+    return {"job_id": job_id, "status": "processing"}
+
+
+@api_router.get("/notebook/lernleitfaden/job/{job_id}")
+async def get_lernleitfaden_job(job_id: str, user: dict = Depends(get_current_user)):
+    """Poll Lernleitfaden generation job status."""
+    job = await db.nb_leitfaden_jobs.find_one({"id": job_id, "user_id": user["id"]}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job nicht gefunden")
+    return job
 
 
 @api_router.post("/notebook/mindmap/{notebook_id}")

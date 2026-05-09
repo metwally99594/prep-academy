@@ -302,11 +302,41 @@ export default function NotebookPage() {
     try {
       const res = await axios.post(
         `${API}/notebook/lernleitfaden/${activeNotebook.id}?language=${language}`,
-        {}, { headers, timeout: 180000 }
+        {}, { headers, timeout: 15000 }
       );
-      setGuideContent(res.data.content || "Kein Inhalt.");
-    } catch (e) { setGuideContent(e.response?.data?.detail || e.message || "Fehler beim Generieren des Lernleitfadens."); }
-    finally { setToolLoading(false); }
+      // Cached result returned immediately
+      if (res.data.status === "done" && res.data.content) {
+        setGuideContent(res.data.content);
+        return;
+      }
+      const jobId = res.data.job_id;
+      if (!jobId) throw new Error("Kein Job erhalten");
+      // Poll until done (up to ~5 min at 3s intervals)
+      for (let i = 0; i < 100; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const poll = await axios.get(
+            `${API}/notebook/lernleitfaden/job/${jobId}`,
+            { headers, timeout: 10000 }
+          );
+          if (poll.data.status === "done") {
+            setGuideContent(poll.data.content || "Kein Inhalt.");
+            return;
+          }
+          if (poll.data.status === "error") {
+            throw new Error(poll.data.message || "Generierung fehlgeschlagen");
+          }
+        } catch (pollErr) {
+          if (pollErr.message?.includes("Generierung fehlgeschlagen")) throw pollErr;
+          // transient network error — retry next tick
+        }
+      }
+      throw new Error("Zeitüberschreitung — bitte erneut versuchen");
+    } catch (e) {
+      setGuideContent(e.response?.data?.detail || e.message || "Fehler beim Generieren des Lernleitfadens.");
+    } finally {
+      setToolLoading(false);
+    }
   };
 
   const generateFlashcards = async () => {
