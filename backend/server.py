@@ -36,7 +36,10 @@ from services.analyzer_prompts import (
     VISIBILITY_SYSTEM, VISIBILITY_USER,
     parse_visibility_response, parse_analysis_json, strip_analysis_json_block,
     apply_confidence_gate, validate_modality_output, build_safety_layer_from_visibility,
+    compute_model_agreement, merge_visibility_with_segmentation,
+    classify_risk, normalize_clinical_language, should_trigger_human_review,
 )
+from services.image_segmentation import detect_anatomical_regions
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -3177,24 +3180,40 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
                     logger.info(f"[ANALYZER] Auto-detected category={detected_category!r} for job {job_id}")
 
         # ════════════════════════════════════════════════
-        # STEP 3 — Visibility Detection
-        # Quick targeted call: what anatomy is actually visible?
-        # Result drives the safety layer in Step 4.
+        # STEP 3 — Visibility Detection (LLM) + Anatomical Segmentation (OpenCV)
+        # Both run in parallel. Results are merged for a stronger signal.
         # ════════════════════════════════════════════════
-        visibility_data = {"visible": [], "partial": [], "hidden": [], "image_quality": "unknown"}
+        _llm_vis_default = {"visible": [], "partial": [], "hidden": [], "image_quality": "unknown"}
+        visibility_data = _llm_vis_default
+
         if all_images:
-            visibility_raw = await _openrouter_vision_call(
-                primary_model_id,
-                VISIBILITY_SYSTEM,
-                VISIBILITY_USER,
-                all_images[:1],
-                max_tokens=200,
+            loop = asyncio.get_event_loop()
+            # Run LLM visibility call and OpenCV segmentation concurrently
+            vis_raw_result, seg_result = await asyncio.gather(
+                _openrouter_vision_call(
+                    primary_model_id, VISIBILITY_SYSTEM, VISIBILITY_USER,
+                    all_images[:1], max_tokens=200,
+                ),
+                loop.run_in_executor(
+                    None, detect_anatomical_regions, all_images[0], detected_category
+                ),
+                return_exceptions=True,
             )
-            if visibility_raw:
-                visibility_data = parse_visibility_response(visibility_raw)
-                logger.info(f"[ANALYZER] Visibility job={job_id}: quality={visibility_data.get('image_quality')}, "
-                            f"visible={visibility_data.get('visible')}, partial={visibility_data.get('partial')}, "
-                            f"hidden={visibility_data.get('hidden')}")
+            llm_visibility = (
+                parse_visibility_response(vis_raw_result)
+                if isinstance(vis_raw_result, str) and vis_raw_result
+                else _llm_vis_default
+            )
+            if not isinstance(seg_result, dict):
+                seg_result = {"detected_regions": [], "partial_regions": [], "method": "error"}
+
+            # Merge LLM + OpenCV for better accuracy
+            visibility_data = merge_visibility_with_segmentation(llm_visibility, seg_result)
+            logger.info(
+                f"[ANALYZER] Visibility job={job_id}: quality={visibility_data.get('image_quality')}, "
+                f"visible={visibility_data.get('visible')}, partial={visibility_data.get('partial')}, "
+                f"hidden={visibility_data.get('hidden')}, seg_method={seg_result.get('method')}"
+            )
 
         # ════════════════════════════════════════════════
         # STEP 4 — Build safety layer + system prompt
@@ -3309,6 +3328,20 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
         confidence_float = confidence_score / 100.0
 
         # ════════════════════════════════════════════════
+        # STEP 7b — Multi-model Voting (Feature 1)
+        # Compare all available analyses for disagreement.
+        # ════════════════════════════════════════════════
+        voting_result = compute_model_agreement(
+            [a for a in [primary_analysis, second_opinion, third_opinion] if a]
+        )
+        if voting_result.get("disagreement"):
+            logger.warning(
+                f"[ANALYZER] Model disagreement job={job_id}: "
+                f"agreement={voting_result['agreement_score']}, "
+                f"terms={voting_result.get('disagreement_terms')}"
+            )
+
+        # ════════════════════════════════════════════════
         # STEP 8 — Confidence Gate
         # Low confidence → disable differentials + flag malignancy terms
         # ════════════════════════════════════════════════
@@ -3317,12 +3350,48 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
             second_report = apply_confidence_gate(second_report, confidence_float)
 
         # ════════════════════════════════════════════════
-        # STEP 9 — Hard Modality Validation (regex/term blacklist)
+        # STEP 8b — Clinical Language Normalization (Feature 4)
+        # Replace overconfident phrases based on confidence threshold.
+        # ════════════════════════════════════════════════
+        primary_report, lang_changes = normalize_clinical_language(primary_report, confidence_float)
+        if lang_changes:
+            logger.info(f"[ANALYZER] Language normalization job={job_id}: {lang_changes}")
+
+        # ════════════════════════════════════════════════
+        # STEP 9 — Hard Modality Validation (Feature 5 - regex/term blacklist)
         # Detect cross-modality hallucinations in the output.
         # ════════════════════════════════════════════════
         primary_report, violations = validate_modality_output(primary_report, detected_category)
         if violations:
             logger.warning(f"[ANALYZER] Validation violations job={job_id}: {violations}")
+
+        # ════════════════════════════════════════════════
+        # STEP 9b — Risk Classifier (Feature 3)
+        # Aggregates all signals → safe / uncertain / dangerous
+        # ════════════════════════════════════════════════
+        risk_result = classify_risk(
+            violations=violations,
+            visibility_data=visibility_data,
+            confidence_float=confidence_float,
+            structured_json=structured_json,
+            voting_result=voting_result,
+        )
+        logger.info(
+            f"[ANALYZER] Risk job={job_id}: level={risk_result['level']}, "
+            f"score={risk_result['score']}, reasons={risk_result['reasons']}"
+        )
+
+        # ════════════════════════════════════════════════
+        # STEP 9c — Human Review Mode (Feature 5)
+        # Triggered by risk, low confidence, violations, disagreement.
+        # ════════════════════════════════════════════════
+        show_review_banner, review_banner = should_trigger_human_review(
+            risk_level=risk_result["level"],
+            confidence_float=confidence_float,
+            violations=violations,
+            visibility_data=visibility_data,
+            voting_result=voting_result,
+        )
 
         # ════════════════════════════════════════════════
         # STEP 10 — Category mismatch warning (existing keyword check)
@@ -3349,25 +3418,60 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
         if second_model_used:    models_used.append({"role": "Zweitmeinung", "model": second_model_used})
         if third_model_used:     models_used.append({"role": "Drittmeinung", "model": third_model_used})
 
-        # Violation notice (appended to primary report)
+        # Violation notice
         violation_note = ""
         if violations:
             violation_note = (
                 "\n\n---\n"
-                "⚠️ **Sicherheitsvalidierung:** Folgende modalitätsfremde Begriffe wurden erkannt: "
+                "⚠️ **Sicherheitsvalidierung:** Modalitätsfremde Begriffe erkannt: "
                 + "; ".join(violations)
             )
 
-        # Visibility summary (informational header)
+        # Voting disagreement notice
+        voting_note = ""
+        if voting_result.get("disagreement"):
+            dt = voting_result.get("disagreement_terms", [])
+            voting_note = (
+                "\n\n---\n"
+                "⚖️ **Modelldisagreement:** KI-Modelle nicht einig "
+                + (f"(strittige Begriffe: {', '.join(dt)})" if dt else "")
+                + ". Zweitmeinung beachten."
+            )
+
+        # Risk level notice (for uncertain/dangerous)
+        risk_note = ""
+        if risk_result["level"] != "safe":
+            risk_emoji = "🟠" if risk_result["level"] == "uncertain" else "🔴"
+            risk_note = (
+                f"\n\n---\n{risk_emoji} **Risikostufe: {risk_result['level'].upper()}** "
+                f"(Score: {risk_result['score']}/100)\n"
+                + "\n".join(f"- {r}" for r in risk_result["reasons"])
+            )
+
+        # Language normalization notice
+        lang_note = ""
+        if lang_changes:
+            lang_note = (
+                "\n\n---\n"
+                "🔤 **Sprachnormalisierung:** Folgende Ausdrücke wurden konservativ angepasst: "
+                + "; ".join(lang_changes)
+            )
+
+        # Visibility / image quality header
         vis_quality = visibility_data.get("image_quality", "unknown")
         vis_notice = ""
         if vis_quality in ("limited", "poor"):
             vis_notice = f"ℹ️ **Bildqualität:** {vis_quality.upper()} — Befundung eingeschränkt.\n\n"
 
+        # Assemble final report
         warning_prefix = (category_warning or "") + vis_notice
+        # Human review banner FIRST (most prominent)
+        review_prefix = review_banner if show_review_banner else ""
         full_analysis = (
-            f"{warning_prefix}## Erstanalyse — {primary_model_used}\n"
-            f"{primary_report}{violation_note}"
+            f"{review_prefix}{warning_prefix}"
+            f"## Erstanalyse — {primary_model_used}\n"
+            f"{primary_report}"
+            f"{violation_note}{voting_note}{risk_note}{lang_note}"
         )
         if second_report:
             full_analysis += f"\n\n---\n\n## Zweitmeinung — {second_model_used}\n{second_report}"
@@ -3393,10 +3497,14 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
             "image_count": len(all_images),
             "image_preview": all_images[0][:200] + "..." if all_images else "",
             # Pipeline audit fields
-            "visibility_data": visibility_data,
-            "structured_findings": structured_json,
+            "visibility_data":       visibility_data,
+            "structured_findings":   structured_json,
             "validation_violations": violations,
-            "safety_layer_applied": bool(safety_layer),
+            "safety_layer_applied":  bool(safety_layer),
+            "voting_result":         voting_result,
+            "risk_result":           risk_result,
+            "human_review_triggered":show_review_banner,
+            "lang_changes":          lang_changes,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.analyses.insert_one(analysis_doc)
@@ -3404,18 +3512,21 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
         await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
             "status": "done",
             "result": {
-                "id": analysis_id,
-                "analysis": full_analysis,
-                "report_type": report_type,
-                "detected_category": detected_category,
-                "has_second_opinion": bool(second_report),
-                "has_third_opinion": bool(third_report),
-                "ai_count": ai_count,
-                "confidence_score": confidence_score,
-                "models_used": models_used,
-                "visibility_data": visibility_data,
-                "structured_findings": structured_json,
-                "validation_violations": violations,
+                "id":                   analysis_id,
+                "analysis":             full_analysis,
+                "report_type":          report_type,
+                "detected_category":    detected_category,
+                "has_second_opinion":   bool(second_report),
+                "has_third_opinion":    bool(third_report),
+                "ai_count":             ai_count,
+                "confidence_score":     confidence_score,
+                "models_used":          models_used,
+                "visibility_data":      visibility_data,
+                "structured_findings":  structured_json,
+                "validation_violations":violations,
+                "voting_result":        voting_result,
+                "risk_result":          risk_result,
+                "human_review_triggered":show_review_banner,
             },
         }})
     except Exception as e:

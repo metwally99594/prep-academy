@@ -461,7 +461,6 @@ def validate_modality_output(text: str, category: str) -> tuple[str, list[str]]:
 def build_safety_layer_from_visibility(visibility_data: dict) -> dict | None:
     """
     Convert visibility detection output into a safety_layer dict for build_prompt.
-
     Returns None if nothing is hidden/partial (no restriction needed).
     """
     hidden = visibility_data.get("hidden", [])
@@ -474,3 +473,312 @@ def build_safety_layer_from_visibility(visibility_data: dict) -> dict | None:
         "partial_regions": partial,
         "forbidden_assessment": hidden,
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE 1 — Multi-model Voting
+# Compare findings across models; flag high disagreement.
+# ═══════════════════════════════════════════════════════════════
+
+_MEDICAL_VOTE_TERMS = {
+    # Positive findings
+    "Infiltrat", "Atelektase", "Pleuraerguss", "Pneumothorax", "Konsolidierung",
+    "Ödem", "Nodulus", "Masse", "Ileus", "Perforation", "Fraktur", "Frakturen",
+    "Blutung", "Ischämie", "Infarkt", "Thrombose", "Embolie", "Stenose",
+    "Dilatation", "Kardiomegalie", "Lymphadenopathie", "Abszess", "Zyste",
+    "Erguss", "Aszites", "Pneumonie", "Emphysem", "Fibrose", "Verkalkung",
+    # Normal findings
+    "unauffällig", "regelrecht", "kein Nachweis", "kein Hinweis",
+    # ECG-specific
+    "Vorhofflimmern", "Sinusrhythmus", "Tachykardie", "Bradykardie",
+    "Schenkelblock", "ST-Hebung", "ST-Senkung", "AV-Block",
+}
+
+
+def compute_model_agreement(analyses: list[str]) -> dict:
+    """
+    Term-overlap voting between model outputs.
+
+    Extracts known medical terms from each analysis and measures
+    how many appear in the majority of models.
+
+    Returns:
+        {
+          "agreement_score": float 0-1  (1 = perfect agreement),
+          "disagreement": bool,
+          "models_compared": int,
+          "disagreement_terms": list[str],
+        }
+    """
+    valid = [a for a in analyses if a and len((a or "").strip()) > 80]
+    if len(valid) < 2:
+        return {
+            "agreement_score": 1.0, "disagreement": False,
+            "models_compared": len(valid), "disagreement_terms": [],
+        }
+
+    term_sets: list[set[str]] = []
+    for text in valid:
+        tl = text.lower()
+        term_sets.append({t for t in _MEDICAL_VOTE_TERMS if t.lower() in tl})
+
+    all_terms = set().union(*term_sets)
+    if not all_terms:
+        return {
+            "agreement_score": 1.0, "disagreement": False,
+            "models_compared": len(valid), "disagreement_terms": [],
+        }
+
+    majority_threshold = len(valid) / 2
+    majority_count = sum(
+        1 for t in all_terms
+        if sum(1 for s in term_sets if t in s) >= majority_threshold
+    )
+    agreement_score = majority_count / len(all_terms)
+
+    disagreement_terms = [
+        t for t in all_terms
+        if sum(1 for s in term_sets if t in s) == 1
+    ][:6]
+
+    return {
+        "agreement_score": round(agreement_score, 2),
+        "disagreement": agreement_score < 0.40,
+        "models_compared": len(valid),
+        "disagreement_terms": disagreement_terms,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE 2 helper — Merge LLM visibility with OpenCV segmentation
+# ═══════════════════════════════════════════════════════════════
+
+def merge_visibility_with_segmentation(
+    llm_visibility: dict,
+    seg_result: dict,
+) -> dict:
+    """
+    Combine LLM visibility detection with OpenCV anatomical segmentation.
+
+    Strategy:
+    - visible:  LLM says visible (trusted source of truth)
+    - partial:  LLM says partial OR seg says partial but LLM didn't confirm visible
+    - hidden:   LLM says hidden AND seg didn't detect it confidently
+    - quality:  worst of both estimates
+    """
+    llm_visible = set(llm_visibility.get("visible", []))
+    llm_partial = set(llm_visibility.get("partial", []))
+    llm_hidden  = set(llm_visibility.get("hidden",  []))
+    seg_visible = set(seg_result.get("detected_regions", []))
+    seg_partial = set(seg_result.get("partial_regions",  []))
+
+    confirmed_visible = llm_visible
+    confirmed_partial = llm_partial | (seg_partial - llm_visible)
+    # Remove hidden if OpenCV confidently detected it (contradiction → downgrade to partial)
+    confirmed_hidden  = llm_hidden - seg_visible
+    contradicted      = llm_hidden & seg_visible
+    if contradicted:
+        confirmed_partial |= contradicted  # downgrade from hidden → partial
+
+    confirmed_partial -= confirmed_visible
+
+    _quality_order = {"poor": 0, "limited": 1, "good": 2, "unknown": 1}
+    llm_q = llm_visibility.get("image_quality", "unknown")
+    seg_q = seg_result.get("quality_estimate", "unknown")
+    merged_quality = min(llm_q, seg_q, key=lambda q: _quality_order.get(q, 1))
+
+    return {
+        "visible":       sorted(confirmed_visible),
+        "partial":       sorted(confirmed_partial),
+        "hidden":        sorted(confirmed_hidden),
+        "image_quality": merged_quality,
+        "segmentation":  seg_result.get("image_stats", {}),
+        "contradictions": sorted(contradicted),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE 3 — Risk Classifier
+# Aggregates all pipeline signals → safe / uncertain / dangerous
+# Controls report shortening and limitation text injection.
+# ═══════════════════════════════════════════════════════════════
+
+def classify_risk(
+    violations: list[str],
+    visibility_data: dict,
+    confidence_float: float,
+    structured_json: dict | None,
+    voting_result: dict | None,
+) -> dict:
+    """
+    Rule-based risk classifier.  No ML needed — deterministic.
+
+    Returns:
+        {
+          "level":   "safe" | "uncertain" | "dangerous",
+          "score":   int 0-100,
+          "reasons": list[str],
+        }
+    """
+    score = 0
+    reasons: list[str] = []
+
+    # — Modality violations
+    if violations:
+        score += len(violations) * 15
+        reasons.append(f"{len(violations)} Modalitätsverletzung(en) erkannt")
+
+    # — Confidence (model count proxy)
+    if confidence_float < 0.60:
+        score += 35
+        reasons.append("Niedrige Konfidenz — nur 1 Modell geantwortet")
+    elif confidence_float < 0.75:
+        score += 15
+        reasons.append("Moderate Konfidenz — 2 Modelle geantwortet")
+
+    # — Partial / hidden visibility
+    n_partial = len(visibility_data.get("partial", []))
+    n_hidden  = len(visibility_data.get("hidden",  []))
+    if n_partial >= 3:
+        score += 20
+        reasons.append(f"{n_partial} Regionen nur partiell sichtbar")
+    if n_hidden >= 2:
+        score += 10
+        reasons.append(f"{n_hidden} Regionen nicht sichtbar")
+
+    # — Image quality
+    iq = visibility_data.get("image_quality", "unknown")
+    if iq == "poor":
+        score += 25
+        reasons.append("Bildqualität: SCHLECHT")
+    elif iq == "limited":
+        score += 10
+        reasons.append("Bildqualität: EINGESCHRÄNKT")
+
+    # — JSON extraction failure
+    if structured_json is None:
+        score += 10
+        reasons.append("Strukturiertes JSON nicht extrahierbar")
+    else:
+        # High-risk terms in uncertain_findings → more dangerous
+        _risky = ["Metastase", "Karzinom", "Malignom", "Embolie", "Infarkt"]
+        uncertain_blob = " ".join(structured_json.get("uncertain_findings", []))
+        for term in _risky:
+            if term.lower() in uncertain_blob.lower():
+                score += 20
+                reasons.append(f"Hochrisikoterm in unsicheren Befunden: {term}")
+                break
+
+    # — Model disagreement (Feature 1 result)
+    if voting_result and voting_result.get("disagreement"):
+        score += 25
+        dt = voting_result.get("disagreement_terms", [])
+        reasons.append(
+            "Modelldisagreement erkannt"
+            + (f" (strittige Befunde: {', '.join(dt)})" if dt else "")
+        )
+
+    level = "dangerous" if score >= 60 else ("uncertain" if score >= 30 else "safe")
+    return {"level": level, "score": min(score, 100), "reasons": reasons}
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE 4 — Clinical Language Normalization
+# Whitelist-driven: replaces overconfident phrases
+# at low/medium confidence. Always removes absolutely forbidden terms.
+# ═══════════════════════════════════════════════════════════════
+
+# Phrases replaced only when confidence < their threshold
+_LANGUAGE_GATE: dict[str, tuple[str, float]] = {
+    "definitiv":               ("möglicherweise",              0.85),
+    "beweisend für":           ("vereinbar mit",               0.85),
+    "sicher nachweisbar":      ("fraglich nachweisbar",        0.85),
+    "zweifelsfrei":            ("hinweisend auf",              0.85),
+    "gesicherter":             ("möglicher",                   0.85),
+    "bewiesener":              ("möglicher",                   0.85),
+    "eindeutig diagnostisch":  ("vereinbar mit",               0.85),
+    "hochwahrscheinlich Karzinom": ("Malignität nicht ausgeschlossen", 1.01),  # always
+    "100% sicher":             ("nicht sicher beurteilbar",   1.01),           # always
+}
+
+# Phrases removed under any confidence (medico-legally unsafe)
+_FORBIDDEN_ALWAYS: list[str] = [
+    "ohne jeden Zweifel",
+    "absolut sicher",
+    "garantiert diagnostiziert",
+    "100%ige Wahrscheinlichkeit",
+]
+
+
+def normalize_clinical_language(text: str, confidence: float) -> tuple[str, list[str]]:
+    """
+    Replace overconfident clinical phrases with conservative alternatives.
+
+    Returns (modified_text, list_of_replacements_made).
+    """
+    changes: list[str] = []
+
+    # Always-forbidden phrases
+    for phrase in _FORBIDDEN_ALWAYS:
+        if phrase.lower() in text.lower():
+            text = _re.sub(_re.escape(phrase), "[nicht zulässige Aussage]", text, flags=_re.IGNORECASE)
+            changes.append(f"ENTFERNT (immer verboten): '{phrase}'")
+
+    # Confidence-gated replacements
+    for forbidden, (replacement, min_conf) in _LANGUAGE_GATE.items():
+        if confidence < min_conf and forbidden.lower() in text.lower():
+            text = _re.sub(_re.escape(forbidden), replacement, text, flags=_re.IGNORECASE)
+            changes.append(f"'{forbidden}' → '{replacement}'")
+
+    return text, changes
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE 5 — Human Review Mode
+# Triggered by any combination of: low confidence, many violations,
+# high partial visibility, risk level dangerous/uncertain, disagreement.
+# Outputs a prominent banner prepended to the report.
+# ═══════════════════════════════════════════════════════════════
+
+def should_trigger_human_review(
+    risk_level: str,
+    confidence_float: float,
+    violations: list[str],
+    visibility_data: dict,
+    voting_result: dict | None,
+) -> tuple[bool, str]:
+    """
+    Determine whether to show the human-review banner.
+
+    Returns (show_banner: bool, banner_text: str).
+    """
+    triggers: list[str] = []
+
+    if confidence_float < 0.60:
+        triggers.append("niedrige KI-Konfidenz (1 Modell)")
+    if len(violations) >= 2:
+        triggers.append(f"{len(violations)} Sicherheitsverletzungen")
+    if len(visibility_data.get("partial", [])) >= 3:
+        triggers.append("eingeschränkte Sichtbarkeit in ≥3 Regionen")
+    if risk_level in ("dangerous", "uncertain"):
+        triggers.append(f"Risikostufe: {risk_level.upper()}")
+    if voting_result and voting_result.get("disagreement"):
+        triggers.append("KI-Modelle nicht einig")
+    iq = visibility_data.get("image_quality", "unknown")
+    if iq in ("poor", "limited"):
+        triggers.append(f"Bildqualität: {iq.upper()}")
+
+    if not triggers:
+        return False, ""
+
+    banner = (
+        "\n> 🔴 **ÄRZTLICHE ÜBERPRÜFUNG EMPFOHLEN**\n"
+        "> \n"
+        "> **KI-Analyse mit eingeschränkter diagnostischer Sicherheit.**\n"
+        "> \n"
+        f"> Gründe: {', '.join(triggers)}.\n"
+        "> \n"
+        "> _Diese Analyse ersetzt KEINE ärztliche Beurteilung und darf nicht als "
+        "alleinige Entscheidungsgrundlage verwendet werden._\n\n"
+    )
+    return True, banner
