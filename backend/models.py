@@ -174,3 +174,167 @@ class BulkCityUpdate(BaseModel):
 
 class BulkDeleteRequest(BaseModel):
     question_ids: List[str]
+
+
+# ═══════════════════════════════════════════════════════════════
+# MESSAGING — User ↔ Admin Conversation System
+# ═══════════════════════════════════════════════════════════════
+
+class MessageAttachment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    filename: str
+    mime_type: str
+    size_bytes: int = 0
+    image_base64: Optional[str] = None
+    type: str = "other"
+
+
+class MessageSend(BaseModel):
+    conversation_id: Optional[str] = None
+    recipient_id: str
+    subject: Optional[str] = None
+    content: str = Field(..., min_length=1, max_length=5000)
+    attachments: List[MessageAttachment] = []
+
+
+class MessageResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    conversation_id: str
+    sender_id: str
+    sender_role: str
+    content: str
+    attachments: list = []
+    read_by: list = []
+    is_system_message: bool = False
+    created_at: str
+
+
+class ConversationResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    participants: list = []
+    subject: Optional[str] = None
+    last_message_at: Optional[str] = None
+    last_message_preview: Optional[str] = None
+    last_message_sender_id: Optional[str] = None
+    unread_count: int = 0
+    status: str = "active"
+    escalation_level: int = 0
+    tags: list = []
+    created_at: str
+    updated_at: str
+
+
+class ConversationListResponse(BaseModel):
+    conversations: List[ConversationResponse] = []
+    total: int = 0
+
+
+class EscalationUpdate(BaseModel):
+    escalation_level: int = Field(default=0, ge=0, le=3)
+    reason: Optional[str] = None
+
+
+class ConversationTagsUpdate(BaseModel):
+    tags: List[str] = []
+
+
+# ═══════════════════════════════════════════════════════════════
+# MEDICAL COMMUNITY — Posts, Comments, Moderation
+# ═══════════════════════════════════════════════════════════════
+
+class CommunityPostCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = Field(..., min_length=1, max_length=10000)
+    specialty_tags: List[str] = []
+    topic_tags: List[str] = []
+    type: str = "discussion"
+    image_ids: List[str] = []
+
+
+class CommunityPostUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    specialty_tags: Optional[List[str]] = None
+    topic_tags: Optional[List[str]] = None
+
+
+class CommunityPostResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    author_id: str
+    author_name: Optional[str] = None
+    title: str
+    content: str
+    content_html: Optional[str] = None
+    specialty_tags: list = []
+    topic_tags: list = []
+    type: str = "discussion"
+    status: str = "published"
+    stats: dict = {}
+    image_ids: list = []
+    is_duplicate: bool = False
+    duplicate_of: Optional[str] = None
+    ai_summary: Optional[str] = None
+    educational_safety_approved: bool = False
+    created_at: str
+    updated_at: str
+
+
+class CommunityPostListResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    posts: List[CommunityPostResponse] = []
+    total: int = 0
+    page: int = 1
+    page_size: int = 20
+
+
+class CommunityCommentCreate(BaseModel):
+    post_id: str
+    parent_id: Optional[str] = None
+    content: str = Field(..., min_length=1, max_length=5000)
+
+
+class CommunityCommentResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    post_id: str
+    parent_id: Optional[str] = None
+    author_id: str
+    author_name: Optional[str] = None
+    content: str
+    status: str = "published"
+    stats: dict = {}
+    created_at: str
+    updated_at: str
+
+
+class CommunityReaction(BaseModel):
+    target_type: str
+    target_id: str
+    reaction: str = "upvote"
+
+
+class CommunityReport(BaseModel):
+    target_type: str
+    target_id: str
+    reason: str
+    description: Optional[str] = None
+
+
+class CommunityFeedParams(BaseModel):
+    specialty: Optional[str] = None
+    topic: Optional[str] = None
+    type: Optional[str] = None
+    sort: str = "recent"
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=20, ge=1, le=100)
+    search: Optional[str] = None
+
+
+class ModerationAction(BaseModel):
+    target_type: str
+    target_id: str
+    action: str
+    reason: Optional[str] = None
