@@ -394,8 +394,14 @@ class TestApplyClinicalSafetyMode:
 # ═══════════════════════════════════════════════════════════════
 
 class TestComputeModelAgreement:
-    PNEUMONIA_TEXT = "Infiltrat im linken Unterlappen. Verdacht auf Pneumonie."
-    NORMAL_TEXT = "Kein Nachweis eines Infiltrats. Unauffälliger Thoraxbefund."
+    PNEUMONIA_TEXT = (
+        "Infiltrat im linken Unterlappen. Verdacht auf Pneumonie. "
+        "Pleuraerguss links nicht ausgeschlossen. Konsolidierung basal links erkennbar."
+    )
+    NORMAL_TEXT = (
+        "Kein Nachweis eines Infiltrats. Unauffälliger Thoraxbefund. "
+        "Lunge beidseits regelrecht belüftet. Kein Pleuraerguss, kein Pneumothorax sichtbar."
+    )
 
     def test_returns_dict(self):
         result = compute_model_agreement([self.PNEUMONIA_TEXT])

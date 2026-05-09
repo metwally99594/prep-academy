@@ -106,11 +106,21 @@ MEDICAL_VOTE_TERMS: set[str] = {
     "Blutung", "Ischämie", "Infarkt", "Thrombose", "Embolie", "Stenose",
     "Dilatation", "Kardiomegalie", "Lymphadenopathie", "Abszess", "Zyste",
     "Erguss", "Aszites", "Pneumonie", "Emphysem", "Fibrose", "Verkalkung",
+    # Tumors / critical findings
+    "Metastase", "Karzinom", "Malignom", "Neoplasie", "Tumor",
+    # Symptoms / clinical context
+    "Fieber", "Husten", "Dyspnoe", "Schmerz", "Tachypnoe", "Hypotonie",
+    "Hypertonie", "Ödem peripher", "Zyanose", "Hämoptyse",
     # Normal / negative findings
     "unauffällig", "regelrecht", "kein Nachweis", "kein Hinweis",
+    # Organ systems
+    "Leber", "Milz", "Niere", "Pankreas", "Galle", "Magen", "Darm",
+    "Schilddrüse", "Lymphknoten", "Haut", "Muskel", "Knochen",
     # ECG-specific
     "Vorhofflimmern", "Sinusrhythmus", "Tachykardie", "Bradykardie",
     "Schenkelblock", "ST-Hebung", "ST-Senkung", "AV-Block",
+    # Head / neuro
+    "Schlaganfall", "Hirnblutung", "Hirninfarkt", "Meningitis",
 }
 
 

@@ -891,7 +891,7 @@ def apply_confidence_gate(text: str, confidence: float) -> str:
 
     # LOW (< 0.72): Remove ALL probability percentages
     if confidence < 0.72:
-        text = _re.sub(r'\b\d+\s*%\b', '', text)
+        text = _re.sub(r'(?<!\w)\d+\s*%(?!\w)', '', text)
         # Soft warning on high-risk terms (bracket, don't remove)
         _SOFT_RISK = ["Karzinom", "Malignom", "Metastase", "Neoplasie"]
         for term in _SOFT_RISK:
@@ -1008,7 +1008,7 @@ def compute_model_agreement(analyses: list[str]) -> dict:
     majority_threshold = len(valid) / 2
     majority_count = sum(
         1 for t in all_terms
-        if sum(1 for s in term_sets if t in s) >= majority_threshold
+        if sum(1 for s in term_sets if t in s) > majority_threshold
     )
     agreement_score = majority_count / len(all_terms)
 
@@ -1333,8 +1333,8 @@ def apply_clinical_safety_mode(text: str) -> tuple[str, bool]:
     original = text
     for section_pattern in _CSM_SECTIONS_TO_STRIP:
         text = _re.sub(
-            rf'(##\s+{section_pattern})(.*?)(?=\n##|\Z)',
-            r'\1\n_Deaktiviert - Klinischer Sicherheitsmodus aktiv. Nur gesicherte Befunde werden angezeigt._\n',
+            rf'##\s+{section_pattern}(.*?)(?=\n##|\Z)',
+            '_Deaktiviert - Klinischer Sicherheitsmodus aktiv. Nur gesicherte Befunde werden angezeigt._\n',
             text,
             flags=_re.DOTALL | _re.IGNORECASE,
         )
@@ -1444,7 +1444,7 @@ def build_pipeline_explainability_log(
                 "step": "model_voting",
                 "reason": f"agreement_score={voting_result['agreement_score']} >= 0.40",
                 "action": "none",
-                "detail": f"{voting_result['models_compared']} models agreed",
+                "detail": f"{voting_result.get('models_compared', 0)} models agreed",
             })
 
     # - Visibility / image quality
