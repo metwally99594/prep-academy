@@ -3,7 +3,43 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API } from "@/App";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, ArrowRight, Loader2, GraduationCap, LogIn, UserPlus } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  Loader2,
+  GraduationCap,
+  LogIn,
+  UserPlus,
+  Scissors,
+  Heart,
+  Baby,
+  Ambulance,
+  Eye,
+  Fingerprint,
+  Ear,
+  HeartPulse,
+  Brain,
+  Star,
+  Activity,
+  Pill,
+  BookOpen,
+} from "lucide-react";
+
+const iconMap = {
+  Scissors,
+  Heart,
+  Baby,
+  Ambulance,
+  Eye,
+  Fingerprint,
+  Ear,
+  HeartPulse,
+  Brain,
+  Star,
+  Activity,
+  Pill,
+};
 
 export default function GuestQuizPage() {
   const navigate = useNavigate();
@@ -55,6 +91,7 @@ export default function GuestQuizPage() {
 
   const q = questions[currentIdx];
   const percentage = score.total > 0 ? Math.round(score.correct / score.total * 100) : 0;
+  const totalGuestQuestions = specialties.reduce((sum, s) => sum + (s.question_count || 0), 0);
 
   // Select specialty
   if (stage === "select") {
@@ -68,16 +105,19 @@ export default function GuestQuizPage() {
           <p className="text-muted-foreground mt-2">5 Fragen kostenlos - ohne Anmeldung</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {specialties.map(s => (
-            <button key={s.id} onClick={() => startQuiz(s.id)} disabled={loading}
-              className="p-4 rounded-xl border border-border/30 hover:border-[#c9a84c]/40 transition-all text-left group"
-              style={{ background: 'rgba(201,168,76,0.03)' }}
-              data-testid={`guest-spec-${s.id}`}>
-              <div className="text-lg mb-1">{s.icon}</div>
-              <div className="font-medium text-sm">{s.name_de}</div>
-              <div className="text-xs text-muted-foreground">{s.question_count} Fragen</div>
-            </button>
-          ))}
+          {specialties.map(s => {
+            const Icon = iconMap[s.icon] || BookOpen;
+            return (
+              <button key={s.id} onClick={() => startQuiz(s.id)} disabled={loading}
+                className="p-4 rounded-xl border border-border/30 hover:border-[#c9a84c]/40 transition-all text-left group"
+                style={{ background: 'rgba(201,168,76,0.03)' }}
+                data-testid={`guest-spec-${s.id}`}>
+                <Icon className="w-5 h-5 mb-3 transition-colors group-hover:text-[#c9a84c]" style={{ color: '#c9a84c' }} aria-hidden="true" />
+                <div className="font-medium text-sm">{s.name_de}</div>
+                <div className="text-xs text-muted-foreground">{s.question_count} Fragen</div>
+              </button>
+            );
+          })}
         </div>
         {loading && <div className="flex justify-center mt-8"><Loader2 className="animate-spin" style={{ color: '#c9a84c' }} /></div>}
       </div>
@@ -96,7 +136,7 @@ export default function GuestQuizPage() {
         <div className="p-6 rounded-xl border border-[#c9a84c]/20 mb-6" style={{ background: 'rgba(201,168,76,0.05)' }}>
           <h3 className="font-semibold mb-2">Registriere dich kostenlos für:</h3>
           <ul className="text-sm text-muted-foreground space-y-1 text-left max-w-xs mx-auto">
-            <li>+ 2.700+ Prüfungsfragen</li>
+            <li>+ {totalGuestQuestions > 0 ? totalGuestQuestions.toLocaleString('de-DE') : "alle verfügbaren"} Prüfungsfragen</li>
             <li>+ 250-Fragen Examsimulation</li>
             <li>+ KI-Tutor & PDF-Notebook</li>
             <li>+ Fortschritt & Statistiken</li>

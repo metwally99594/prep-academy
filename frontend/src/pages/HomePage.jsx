@@ -5,8 +5,8 @@ import { API, useAuth } from "@/App";
 import { Button } from "@/components/ui/button";
 import {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity,
-  ArrowRight, BookOpen, Trophy, Clock, Zap, CheckCircle, BarChart3,
-  Award, Target, Sparkles, Shield, FileText, Bot, TrendingUp, Layers, Pill, Crown,
+  ArrowRight, BookOpen, Clock, CheckCircle,
+  Target, Shield, FileText, Bot, Layers, Pill,
 } from "lucide-react";
 
 const iconMap = {
@@ -96,6 +96,12 @@ export default function HomePage() {
   });
 
   const totalQ = filteredSpecialties.reduce((sum, sp) => sum + (sp.question_count || 0), 0);
+  const totalAvailableQuestions = specialties.reduce((sum, sp) => sum + (sp.question_count || 0), 0);
+  const activeSpecialtyCount = specialties.filter(sp => (sp.question_count || 0) > 0).length;
+  const displayNumber = (value) => {
+    if (loading) return "...";
+    return value > 0 ? value.toLocaleString("de-DE") : "Live";
+  };
 
   return (
     <div style={{ background: '#06081a', color: '#e8e0d0' }}>
@@ -119,23 +125,31 @@ export default function HomePage() {
               <span className="text-white">Prep</span>
               <span className="ml-3" style={{ color: '#c9a84c' }}>Academy</span>
             </h1>
-            <p className="text-lg sm:text-xl text-white/30 tracking-[0.15em] uppercase font-light mb-10">Redefining Medical Education</p>
+            <p className="text-lg sm:text-xl text-white/30 tracking-[0.15em] uppercase font-light mb-8">Klar. Präzise. KI-gestützt.</p>
 
-            <p className="text-white/50 text-lg sm:text-xl leading-relaxed mb-12 max-w-xl">
-              Die fortschrittlichste Plattform für medizinische Prüfungsvorbereitung in Österreich
+            <p className="text-white/50 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl">
+              Medizinische Prüfungsvorbereitung für Österreich und Deutschland: echte Fragen, KI-Erklärungen, Analyzer, PDF-Notebook und 30 Tage Testphase.
             </p>
+
+            <div className="flex flex-wrap gap-2 mb-8 max-w-xl">
+              {["30 Tage kostenlos testen", "Medical Analyzer", "PDF Notebook"].map((item) => (
+                <span key={item} className="px-3 py-1.5 rounded-full border text-xs tracking-[0.12em] uppercase text-white/45" style={{ borderColor: 'rgba(201,168,76,0.14)', background: 'rgba(201,168,76,0.035)' }}>
+                  {item}
+                </span>
+              ))}
+            </div>
 
             {!user ? (
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/register">
-                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="hero-register-btn">
-                    Entdecken Sie Mehr
+                <Link to="/guest-quiz">
+                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="hero-guest-btn">
+                    Kostenlos testen
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
-                <Link to="/guest-quiz">
-                  <Button size="lg" variant="outline" className="gap-2 px-8 h-14 text-base font-semibold rounded-none tracking-wider uppercase border-[#c9a84c]/30 text-[#c9a84c] hover:bg-[#c9a84c]/10" data-testid="hero-guest-btn">
-                    Kostenlos testen
+                <Link to="/register">
+                  <Button size="lg" variant="outline" className="gap-2 px-8 h-14 text-base font-semibold rounded-none tracking-wider uppercase border-[#c9a84c]/30 text-[#c9a84c] hover:bg-[#c9a84c]/10" data-testid="hero-register-btn">
+                    Konto erstellen
                   </Button>
                 </Link>
               </div>
@@ -195,21 +209,21 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══════ SECTION 2: IDENTITÄT ═══════ */}
+      {/* ═══════ SECTION 2: LERNEN ═══════ */}
       <section className="py-24 sm:py-32 relative">
         <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #080c22 50%, #06081a 100%)' }} />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
-          <SectionLabel number="01" text="Identität" />
+          <SectionLabel number="01" text="Lernen" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Erstklassige Plattform für<br />
-            <span style={{ color: '#c9a84c' }}>ambitionierte Ärzte</span>
+            Fokus für deine nächste<br />
+            <span style={{ color: '#c9a84c' }}>medizinische Prüfung</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6 mt-16">
             {[
-              { num: "01", icon: "◆", title: "Transformation", desc: "Abkehr vom rein funktionalen Design hin zu einer prestigeträchtigen Lernumgebung, die den Status eines Arztes widerspiegelt." },
-              { num: "02", icon: "◈", title: "Ästhetik", desc: "Eine harmonische Kombination aus Präzision und Eleganz schafft ein Gefühl von Vertrauen und medizinischer Exzellenz." },
-              { num: "03", icon: "◉", title: "Zielgruppe", desc: "Speziell entwickelt für Mediziner, die höchste Ansprüche an ihre Lernumgebung stellen." },
+              { num: "01", icon: "◆", title: "Prüfungsfragen", desc: "Trainiere mit medizinischen Fragen nach Fachgebiet, Stadt und Prüfungskontext." },
+              { num: "02", icon: "◈", title: "KI-Erklärungen", desc: "Verstehe richtige und falsche Antworten mit klaren, medizinisch fokussierten Erklärungen." },
+              { num: "03", icon: "◉", title: "30 Tage Trial", desc: "Neue Nutzer testen die Lernfunktionen 30 Tage lang, bevor Zugänge gezielt freigeschaltet werden." },
             ].map((item) => (
               <div key={item.num} className="p-8 rounded-2xl border transition-all duration-300 hover:-translate-y-1 group" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.08)' }}>
                 <div className="flex items-center gap-3 mb-6">
@@ -230,15 +244,15 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="02" text="Dashboard" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Intelligentes Dashboard & UX:<br />
-            <span style={{ color: '#c9a84c' }}>Ästhetische Perfektion</span>
+            Ruhiges Dashboard für<br />
+            <span style={{ color: '#c9a84c' }}>lange Lernsessions</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6 mt-12">
             {[
-              { icon: Shield, title: "Premium Dark Mode", desc: "Reduziert die Augenbelastung bei intensiven, stundenlangen Lernsitzungen durch harmonische Farbwahl." },
-              { icon: Layers, title: "Glassmorphism-Design", desc: "Moderne, halbtransparente Widgets sorgen für eine klare und ästhetisch ansprechende Informationsarchitektur." },
-              { icon: Target, title: "Benutzererfahrung", desc: "Ein flüssiges Interface minimiert Ablenkungen und maximiert den Fokus auf medizinische Inhalte." },
+              { icon: Shield, title: "Premium Dark Mode", desc: "Eine ruhige Oberfläche für lange, konzentrierte Lernsessions." },
+              { icon: Layers, title: "Klare Lernstruktur", desc: "Fachgebiete, Prüfungsorte und Lernwerkzeuge bleiben schnell auffindbar." },
+              { icon: Target, title: "Fortschritt im Blick", desc: "Statistiken und Lernziele zeigen, wo du sicher bist und wo Wiederholung lohnt." },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
@@ -260,11 +274,11 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-3 gap-6">
               <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
-                <div className="text-4xl font-bold text-white">{totalQ > 0 ? `${totalQ}` : '2395'}</div>
+                <div className="text-4xl font-bold text-white">{displayNumber(totalAvailableQuestions || totalQ)}</div>
                 <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">Fragen Gesamt</div>
               </div>
               <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
-                <div className="text-4xl font-bold text-white">{filteredSpecialties.filter(s => s.question_count > 0).length || 0}</div>
+                <div className="text-4xl font-bold text-white">{displayNumber(activeSpecialtyCount || filteredSpecialties.filter(s => s.question_count > 0).length)}</div>
                 <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">Fachgebiete</div>
               </div>
               <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
@@ -282,15 +296,15 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="03" text="Künstliche Intelligenz" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-            KI-gestützte Analysen:<br />
-            <span style={{ color: '#c9a84c' }}>Präzise Erfolgsplanung</span>
+            KI-Werkzeuge für<br />
+            <span style={{ color: '#c9a84c' }}>Fragen, Bilder und PDFs</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-8 mt-16">
             {[
-              { num: "01", icon: Bot, title: "Personalisierter KI-Tutor", desc: "Maßgeschneiderte medizinische Erklärungen, die sich Ihrem Wissensstand anpassen." },
-              { num: "02", icon: BarChart3, title: "Echtzeit-Statistiken", desc: "Detaillierte Visualisierung von Stärken und Schwächen durch intelligente Datenanalyse." },
-              { num: "03", icon: Zap, title: "Effizienz", desc: "Automatisierte, dynamische Lernpläne, die den Lernweg optimieren und die Zeit bis zum Prüfungserfolg verkürzen." },
+              { num: "01", icon: Bot, title: "KI-Erklärungen", desc: "Direkte Erklärungen zu Prüfungsfragen, damit du nicht nur klickst, sondern verstehst." },
+              { num: "02", icon: Activity, title: "Medical Analyzer", desc: "Analyse medizinischer Bilder mit mehrstufigem KI-Fallback für sichere Einschätzungen." },
+              { num: "03", icon: FileText, title: "PDF Notebook", desc: "Aus Skripten und PDFs entstehen Lernkarten, Zusammenfassungen, Audio und MindMaps." },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -376,22 +390,22 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══════ SECTION 6: ROADMAP ═══════ */}
+      {/* ═══════ SECTION 6: MODULE ═══════ */}
       <section className="py-24 sm:py-32 relative">
         <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #080c22 50%, #06081a 100%)' }} />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
-          <SectionLabel number="05" text="Roadmap" />
+          <SectionLabel number="05" text="Module" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Roadmap zur Transformation:<br />
-            <span style={{ color: '#c9a84c' }}>Schritte zur Marktführerschaft</span>
+            Mehr als ein Quiz:<br />
+            <span style={{ color: '#c9a84c' }}>ein medizinischer Lernraum</span>
           </h2>
 
           <div className="grid md:grid-cols-4 gap-6">
             {[
-              { step: "01", title: "Rebranding", desc: "Einführung der neuen prestigeträchtigen visuellen Identität für PrepAcademy." },
-              { step: "02", title: "Premium Launch", desc: "Veröffentlichung des neuen Dashboards mit voller Unterstützung für alle Module." },
-              { step: "03", title: "Expansion", desc: "Etablierung als führende Plattform für medizinische Zertifizierungen in Europa." },
-              { step: "04", title: "Marktführerschaft", desc: "Position als unangefochtener Standard für medizinische Ausbildung in Österreich." },
+              { step: "01", title: "Quiz", desc: "Fachbezogene Prüfungsvorbereitung mit echten medizinischen Fragen." },
+              { step: "02", title: "Analyzer", desc: "Medizinische Bildanalyse als zusätzliches Werkzeug für klinisches Denken." },
+              { step: "03", title: "Notebook", desc: "PDFs in strukturierte Lernkarten, Zusammenfassungen und Audio verwandeln." },
+              { step: "04", title: "Podcast", desc: "Tägliche Wiederholung als kompakte medizinische Audio-Lerneinheit." },
             ].map((item) => (
               <div key={item.step} className="relative p-6 rounded-xl border transition-all duration-300 hover:-translate-y-1" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.06)' }}>
                 <div className="text-5xl font-bold mb-4" style={{ color: 'rgba(201,168,76,0.08)' }}>{item.step}</div>
@@ -412,7 +426,7 @@ export default function HomePage() {
             Medizinisches Lernen<br />
             <span style={{ color: '#c9a84c' }}>kostenlos für alle</span>
           </h2>
-          <p className="text-white/40 mb-16 max-w-xl">Registrieren Sie sich kostenlos und starten Sie sofort. Erweiterte KI-Funktionen werden auf Anfrage freigeschaltet.</p>
+          <p className="text-white/40 mb-16 max-w-xl">Registrieren Sie sich kostenlos und starten Sie sofort. Neue Nutzer erhalten 30 Tage Testphase für die erweiterten Lernfunktionen; danach werden Zugänge gezielt freigeschaltet.</p>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {/* Free for all */}
@@ -422,8 +436,8 @@ export default function HomePage() {
               <p className="text-sm text-white/30 mb-8">Nach Registrierung sofort verfügbar</p>
               <ul className="space-y-3 mb-8">
                 {[
-                  "Unbegrenzter Quiz-Zugang",
-                  "Alle Fachrichtungen & Jahrgänge",
+                  "Study Mode frei nutzbar",
+                  "30 Tage Testphase für Lernfunktionen",
                   "Fortschrittsstatistiken",
                   "Tägliche Lernziele",
                   "Dunkelmodus & mobile Ansicht",
@@ -459,7 +473,7 @@ export default function HomePage() {
               <p className="text-sm text-white/30 mb-8">Freischaltung durch Administrator</p>
               <ul className="space-y-3 mb-8">
                 {[
-                  "KI-Dokumentenanalyse (Analyzer)",
+                  "Medizinische Bildanalyse (Analyzer)",
                   "Notebook — PDF zu Lernkarten & Audio",
                   "Täglicher Medizin-Podcast",
                   "Hierarchische Wissensvernetzung",

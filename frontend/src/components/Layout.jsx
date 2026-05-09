@@ -56,6 +56,7 @@ import {
   ShieldCheck,
   FileScan,
   Lock,
+  GraduationCap,
 } from "lucide-react";
 import { useState } from "react";
 import axios from "axios";
@@ -465,7 +466,7 @@ export const Layout = () => {
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                className="w-9 h-9"
+                className="hidden md:inline-flex w-9 h-9"
                 data-testid="theme-toggle"
               >
                 {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -495,7 +496,7 @@ export const Layout = () => {
                 </DropdownMenu>
               ) : (
                 <div className="flex gap-2">
-                  <Link to="/login">
+                  <Link to="/login" className="hidden sm:block">
                     <Button variant="ghost" size="sm" data-testid="login-btn">
                       Anmelden
                     </Button>
@@ -523,8 +524,41 @@ export const Layout = () => {
         </div>
 
         {/* Mobile Menu */}
+        {mobileMenuOpen && !user && (
+          <div className="md:hidden border-t border-border/50 py-4 px-4 space-y-2">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2"
+              onClick={toggleTheme}
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              Darstellung wechseln
+            </Button>
+            <Link to="/guest-quiz" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start gap-2">
+                <GraduationCap className="w-4 h-4" />
+                Kostenlos testen
+              </Button>
+            </Link>
+            <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start gap-2">
+                <User className="w-4 h-4" />
+                Anmelden
+              </Button>
+            </Link>
+          </div>
+        )}
+
         {mobileMenuOpen && user && (
           <div className="md:hidden border-t border-border/50 py-4 px-4 space-y-2">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2"
+              onClick={toggleTheme}
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              Darstellung wechseln
+            </Button>
             <Button 
               variant="ghost" 
               className="w-full justify-start gap-2"
