@@ -41,6 +41,91 @@ def check_profanity(text: str) -> list[str]:
     return findings
 
 
+# ── Spam & Suspicious Content Heuristics ──
+
+_EMOJI_RE = re.compile(
+    r"[\U0001F600-\U0001F64F"      # Emoticons
+    r"\U0001F300-\U0001F5FF"        # Misc symbols
+    r"\U0001F680-\U0001F6FF"        # Transport
+    r"\U0001F1E0-\U0001F1FF"        # Flags
+    r"\U00002702-\U000027B0"        # Dingbats
+    r"\U000024C2-\U0001F251"        # Enclosed
+    r"\u2600-\u27BF"                # Misc symbols
+    r"\uFE00-\uFE0F"               # Variation selectors
+    r"]+"
+)
+
+EMOJI_SPAM_THRESHOLD = 10
+EMOJI_RATIO_THRESHOLD = 0.5
+
+_link_store: dict[str, list[str]] = {}  # user_id -> list of URLs
+LINK_SPAM_WINDOW = 300  # 5 minutes
+LINK_SPAM_THRESHOLD = 3  # 3 identical links within window
+
+
+def check_emoji_spam(text: str) -> list[str]:
+    """Check text for emoji spam. Returns findings if threshold exceeded."""
+    if not text:
+        return []
+    emojis = _EMOJI_RE.findall(text)
+    if not emojis:
+        return []
+    total_emoji_chars = sum(len(e) for e in emojis)
+    if total_emoji_chars >= EMOJI_SPAM_THRESHOLD:
+        ratio = total_emoji_chars / max(len(text), 1)
+        if ratio >= EMOJI_RATIO_THRESHOLD:
+            return [f"Emoji spam: {total_emoji_chars} emoji chars ({ratio:.0%} of text)"]
+    return []
+
+
+def check_repeated_links(text: str) -> list[str]:
+    """Check text for external links. Returns findings (per-call count check)."""
+    urls = re.findall(r"https?://(?:[^\s])+", text)
+    if len(urls) >= 3:
+        return [f"Multiple external links: {len(urls)} URLs found"]
+    return []
+
+
+def track_user_link(user_id: str, url: str) -> bool:
+    """Track a URL per user. Returns True if threshold exceeded (repeated link spam)."""
+    now = time.time()
+    cutoff = now - LINK_SPAM_WINDOW
+    user_links = _link_store.get(user_id, [])
+    user_links = [u for u in user_links if u[1] > cutoff]
+    user_links.append((url, now))
+    _link_store[user_id] = user_links
+    count = sum(1 for u, _ in user_links if u == url)
+    return count >= LINK_SPAM_THRESHOLD
+
+
+def check_suspicious_account(user_age_days: float, recent_bursts: int) -> Optional[str]:
+    """Heuristic: low account age + burst activity = suspicious."""
+    if user_age_days < 7 and recent_bursts >= 3:
+        return "Suspicious account: low age + burst activity"
+    if user_age_days < 1 and recent_bursts >= 1:
+        return "Suspicious account: first-day burst activity"
+    return None
+
+
+SHADOW_HIDE_THRESHOLD = 3
+"""Number of auto-moderation events before content is silently shadow-hidden."""
+
+
+MODERATOR_REASON_TEMPLATES = {
+    "spam": "Commercial spam or promotional content — not allowed in medical community",
+    "misinformation": "Medical misinformation or unsubstantiated claims — please provide sources",
+    "inappropriate": "Inappropriate, offensive, or harmful content — violates community guidelines",
+    "phi": "Patient health information detected — do not share personal medical data",
+    "dangerous_advice": "Potentially dangerous medical advice that could cause harm",
+    "low_quality": "Low quality content — please provide more detailed, substantive posts",
+    "duplicate": "Duplicate content — already posted by you or another user",
+    "off_topic": "Content not relevant to this community's medical focus",
+    "profanity": "Profanity or offensive language — keep discussions professional",
+    "link_spam": "Repeated external link posting — promotional content not allowed",
+    "emoji_spam": "Excessive emoji use — please use text for substantive contributions",
+}
+
+
 # ── Auto-moderation rules ──
 
 AUTO_QUEUE_REASONS = {
@@ -52,6 +137,9 @@ AUTO_QUEUE_REASONS = {
     "new_user_links": "New user posting external links",
     "all_caps_title": "Title is all caps",
     "profanity": "Contains profanity or offensive language",
+    "emoji_spam": "Excessive emoji use",
+    "link_spam": "Repeated external link posting",
+    "suspicious_account": "Suspicious account activity detected",
 }
 
 
