@@ -1,20 +1,501 @@
 """
-Analyzer prompts — Master + Subtype + Safety Pipeline.
+Analyzer prompts - Master + Subtype + Safety Pipeline.
 
 Architecture:
   Image → Modality Detect → Visibility Detect → Safety Layer Build
         → Analyzer (JSON-first) → Confidence Gate → Modality Validator → Report
+
+Vocabulary: rule-based data (blacklists, vote terms, language gate) lives in
+findings_vocabulary.py - this module imports and re-exports for backward compat.
 """
 
 import re as _re
 import json as _json
 from typing import Optional
 
+from services.findings_vocabulary import (
+    ANATOMY_TERMS        as _ANATOMY_TERMS,
+    MODALITY_CONSTRAINTS,
+    MEDICAL_VOTE_TERMS   as _MEDICAL_VOTE_TERMS,
+    LANGUAGE_GATE        as _LANGUAGE_GATE,
+    FORBIDDEN_PHRASES_ALWAYS as _FORBIDDEN_ALWAYS,
+)
+
 # ═══════════════════════════════════════════════════════════════
-# MASTER PROMPT — injected into every analysis regardless of modality
+# STRICT JSON SCHEMA VALIDATION
+# Validates the model's <<<JSON>>> block against a known schema.
+# Returns errors WITHOUT modifying the report text.
 # ═══════════════════════════════════════════════════════════════
 
-MASTER_PROMPT = """Du bist ein konservativer medizinischer KI-Assistent, spezialisiert auf strukturierte klinische Bild- und Befundanalyse.
+_VALID_IMAGE_QUALITY_VALUES = {"good", "limited", "poor", "unknown"}
+
+_REQUIRED_JSON_FIELDS = {
+    "visible_regions":          list,
+    "partial_regions":          list,
+    "visible_findings":         list,
+    "uncertain_findings":       list,
+    "limitations":              list,
+    "forbidden_sections_skipped": list,
+}
+
+
+def validate_json_schema(data: dict | None) -> dict:
+    """
+    Strict schema validation for the model's <<<JSON>>> block.
+
+    Returns:
+        {
+            "valid":       bool,
+            "errors":      list[str],   # human-readable error strings
+            "schema_ok":   bool,        # True if all required fields present and typed
+            "quality_ok":  bool,        # True if image_quality is a known value
+        }
+
+    Does NOT modify any report text.
+    """
+    result = {"valid": False, "errors": [], "schema_ok": False, "quality_ok": True}
+
+    if data is None:
+        result["errors"].append("JSON block not present or unparseable")
+        return result
+
+    if not isinstance(data, dict):
+        result["errors"].append(f"JSON root must be object, got {type(data).__name__}")
+        return result
+
+    for field, expected_type in _REQUIRED_JSON_FIELDS.items():
+        if field not in data:
+            result["errors"].append(f"Fehlendes Pflichtfeld: '{field}'")
+            continue
+        if not isinstance(data[field], list):
+            result["errors"].append(
+                f"Feld '{field}' muss Liste sein, got {type(data[field]).__name__}"
+            )
+            continue
+        # All list items must be strings (no nested dicts or numbers)
+        for idx, item in enumerate(data[field]):
+            if not isinstance(item, str):
+                result["errors"].append(
+                    f"'{field}[{idx}]' muss String sein, got {type(item).__name__}: {repr(item)[:50]}"
+                )
+
+    result["schema_ok"] = len(result["errors"]) == 0
+
+    # Quality field validation (if present)
+    if "image_quality" in data:
+        qv = data["image_quality"]
+        if not isinstance(qv, str) or qv.lower() not in _VALID_IMAGE_QUALITY_VALUES:
+            result["errors"].append(
+                f"Ungültiger image_quality-Wert: '{qv}' (erlaubt: {', '.join(sorted(_VALID_IMAGE_QUALITY_VALUES))})"
+            )
+            result["quality_ok"] = False
+
+    # Soft check: warn if all required fields are empty lists (model may have refused)
+    non_empty = any(
+        isinstance(data.get(f), list) and len(data.get(f, [])) > 0
+        for f in _REQUIRED_JSON_FIELDS
+    )
+    if result["schema_ok"] and not non_empty:
+        result["errors"].append(
+            "Warnung: Alle Felder sind leer - Modell hat möglicherweise keine Befunde extrahiert"
+        )
+
+    result["valid"] = result["schema_ok"]
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# CANONICAL ANATOMY VOCABULARY VALIDATION
+# All anatomical region names must come from a known set.
+# Prevents hallucinated anatomy terms like "Herzventrikel",
+# "Lungenlappen rechts unten anterior", etc.
+# ═══════════════════════════════════════════════════════════════
+
+_CANONICAL_ANATOMY: dict[str, set[str]] = {
+    "thorax":    {"thorax", "lungen", "lungenfeld", "lunge", "herz", "mediastinum",
+                  "pleura", "zwerchfell", "diaphragma", "rippen", "clavicula", "clavicles",
+                  "hilum", "hili", "肋骨", "胸部"},  # German + some Latin + Chinese fallback
+    "abdomen":   {"abdomen", "bauch", "leber", "magen", "milz", "pankreas", "darm",
+                  "niere", "niere links", "niere rechts", "nebenniere", "galle",
+                  "bladder", "bladder/biliary", "darm", "darmgas", "gas", "ascoites", "aszites"},
+    "pelvis":    {"becken", "pelvis", "harnblase", "uterus", "ovarium", "prostata",
+                  "rektum", "sigmoideum"},
+    "extremities": {"extremität", "extremitäten", "arm", "bein", "oberschenkel",
+                    "unterschenkel", "fuß", "hand", "knie", "schulter", "hüfte",
+                    "gelenk", "knochen", "weichteil", "soft_tissue"},
+    "spine":     {"wirbelsäule", "ws", "bws", "hws", "lws", "spine", "spinal",
+                  "bandscheibe", "myelon", "paravertebral"},
+    "head":      {"schädel", "skull", "gehirn", "hirn", "brain", "cerebral", "cortex",
+                  "ventrikel", "hals", "neck"},
+    "cardiac":   {"herz", "aorta", "lungenarterie", "pa", "vci", "pulmonary",
+                  "perikard", "myokard", "koronar", "lv", "rv", "la", "ra",
+                  "mitralklappe", "aortenklappe", "trikuspidalklappe", "pulmonalklappe",
+                  "valve", "valves"},
+    "vascular":  {"gefäß", "vaskulär", "arterie", "vene", "thrombose", "embolie",
+                  "aneurysma", "stenose", "okklusion"},
+    "soft_tissue": {"weichteil", "muskel", "haut", "subkutan", "lymphknoten",
+                    "lymphadenopathie", "lymph node"},
+    "generic":   {"unauffällig", "regelrecht", "normalbefund", "unauffälliger befund",
+                 "kein nachweis", "kein hinweis"},
+}
+
+# Flat set for O(1) lookup across all categories
+_ALL_CANONICAL_TERMS: set[str] = set()
+for terms in _CANONICAL_ANATOMY.values():
+    _ALL_CANONICAL_TERMS.update(t.lower() for t in terms)
+
+
+def _is_canonical(term: str, category: str) -> bool:
+    """Check if a term is canonical for a given category or generic."""
+    t = term.lower().strip()
+    if t in _ALL_CANONICAL_TERMS:
+        return True
+    if category in _CANONICAL_ANATOMY:
+        return t in {x.lower() for x in _CANONICAL_ANATOMY[category]}
+    return False
+
+
+def validate_canonical_vocabulary(
+    structured_json: dict | None,
+    category: str = "",
+) -> dict:
+    """
+    Validate that all region/finding strings come from known anatomical vocabulary.
+
+    Returns:
+        {
+            "valid":           bool,
+            "non_canonical":   list[dict],   # [{term, field, suggestion}]
+            "unknown_terms":   list[str],     # flat list of unknown terms
+            "canonical_ratio": float,         # known / total terms
+        }
+    """
+    result = {
+        "valid": True,
+        "non_canonical": [],
+        "unknown_terms": [],
+        "canonical_ratio": 1.0,
+    }
+
+    if structured_json is None:
+        return {**result, "valid": False}
+
+    fields_to_check = [
+        ("visible_regions",          "visible_regions"),
+        ("partial_regions",          "partial_regions"),
+        ("uncertain_findings",       "uncertain_findings"),
+        ("visible_findings",         "visible_findings"),
+    ]
+
+    total = 0
+    unknown = []
+
+    for field, label in fields_to_check:
+        items = structured_json.get(field, [])
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, str) or not item.strip():
+                continue
+            total += 1
+            if not _is_canonical(item, category):
+                unknown.append(item.strip())
+                result["non_canonical"].append({
+                    "term":       item.strip(),
+                    "field":      field,
+                    "suggestion": "Bitte medizinisch korrekten anatomischen Begriff verwenden",
+                })
+
+    if unknown:
+        result["valid"] = False
+    result["unknown_terms"] = unknown
+    result["canonical_ratio"] = 0.0 if total == 0 else 1.0 - len(unknown) / total
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# JSON vs NARRATIVE CONSISTENCY VALIDATION
+# Cross-references the <<<JSON>>> block against the stripped narrative.
+# Flags when findings appear in narrative but NOT in JSON's visible list,
+# or when hidden regions are mentioned in narrative.
+# ═══════════════════════════════════════════════════════════════
+
+_HIDDEN_REGION_EXTRAS: dict[str, list[str]] = {
+    "mediastinum":   ["mediastinale lymphadenopathie", "vergrößerte lymphknoten mediastinum"],
+    "brain":         ["intrazerebrale blutung", "hirnblutung", "ischämie", "infarkt"],
+    "liver":         ["lebermetastase", "hepatische läsion", "lebertumor"],
+    "kidneys":       ["nierentumor", "nierenkarzinom"],
+    "heart":         ["myokardinfarkt", "koronare herzkrankheit"],
+}
+
+
+def _extract_medical_terms(text: str) -> set[str]:
+    """Extract German medical terms from free text for comparison."""
+    if not text:
+        return set()
+    t = text.lower()
+    return {term.lower() for term in _MEDICAL_VOTE_TERMS if term.lower() in t}
+
+
+def _check_narrative_mentions_hidden_regions(
+    narrative: str,
+    hidden_regions: list[str],
+) -> list[str]:
+    """Check if narrative describes findings in regions classified as hidden."""
+    conflicts = []
+    if not hidden_regions:
+        return conflicts
+    narrative_lower = narrative.lower()
+    for region in hidden_regions:
+        for term in _HIDDEN_REGION_EXTRAS.get(region, []):
+            if term in narrative_lower:
+                conflicts.append(
+                    f"Region '{region}' als unsichtbar markiert, aber '{term}' im Befund erwähnt"
+                )
+    return conflicts
+
+
+def check_json_narrative_consistency(
+    structured_json: dict | None,
+    narrative: str,
+    visibility_data: dict | None = None,
+) -> dict:
+    """
+    Cross-validate JSON findings against the narrative text.
+
+    Returns:
+        {
+            "consistent":              bool,
+            "narrative_only_findings":  list[str],
+            "hidden_region_conflicts":  list[str],
+            "json_empty_narrative_full": bool,
+            "warnings":                 list[str],
+        }
+    """
+    result = {
+        "consistent":               True,
+        "narrative_only_findings":  [],
+        "hidden_region_conflicts":  [],
+        "json_empty_narrative_full": False,
+        "warnings":                 [],
+    }
+    if not narrative:
+        return result
+
+    narrative_terms = _extract_medical_terms(narrative)
+    if not narrative_terms:
+        return result
+
+    if structured_json is None:
+        danger_terms = {"embolie", "karzinom", "metastase", "infarkt", "blutung", "tumor"}
+        found = narrative_terms & danger_terms
+        if found:
+            result["consistent"] = False
+            result["warnings"].append(
+                f"Kein strukturiertes JSON vorhanden, aber kritische Begriffe im Text: {', '.join(found)}"
+            )
+        result["json_empty_narrative_full"] = True
+        return result
+
+    json_findings = set()
+    for field in ["visible_findings", "uncertain_findings"]:
+        for item in structured_json.get(field, []):
+            if isinstance(item, str) and item.strip():
+                json_findings.add(item.lower())
+
+    narrative_has_content = len(narrative_terms) >= 3
+    json_is_empty = all(
+        len(structured_json.get(f, [])) == 0
+        for f in ["visible_findings", "uncertain_findings", "visible_regions"]
+    )
+    if json_is_empty and narrative_has_content:
+        result["json_empty_narrative_full"] = True
+        result["warnings"].append(
+            "Modell hat JSON nicht ausgefüllt, aber Narrative enthält Befunde"
+        )
+
+    if json_findings:
+        uncovered = sorted(narrative_terms - json_findings)
+        if uncovered:
+            result["narrative_only_findings"] = uncovered
+            if len(uncovered) >= 2:
+                result["consistent"] = False
+                result["warnings"].append(
+                    f"Befunde im Text nicht in JSON: {', '.join(uncovered)}"
+                )
+
+    hidden = []
+    if visibility_data and isinstance(visibility_data, dict):
+        hidden = visibility_data.get("hidden", [])
+    if hidden:
+        conflicts = _check_narrative_mentions_hidden_regions(narrative, hidden)
+        if conflicts:
+            result["hidden_region_conflicts"] = conflicts
+            result["consistent"] = False
+            result["warnings"].extend(conflicts)
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# STRICT MINIMAL-FACTUAL CLINICAL SAFETY MODE
+# Activates when: high disagreement OR poor visibility OR high risk score
+#                OR multiple validator violations OR low confidence
+#
+# When triggered:
+# - disable differential diagnoses section
+# - disable speculative interpretation section
+# - output findings + limitations only
+# - inject strong human review notice
+# ═══════════════════════════════════════════════════════════════
+
+_STRICT_CSM_SECTIONS_TO_KEEP = {"befund", "technik", "befundbeschreibung", "observation"}
+_STRICT_CSM_SECTIONS_TO_STRIP = {
+    "differentialdiagnose", "differenzialdiagnose", "differential",
+    "interpretation", "einschätzung", "beurteilung", "prognose",
+    "empfehlung", "therapie", "follow-up", "follow up",
+}
+
+_STRICT_CSM_BANNER = (
+    "\n> **KLINISCHER SICHERHEITSMODUS - REDUZIERTER BEFUND**\n"
+    "> \n"
+    "> Aufgrund erhoehter Unsicherheitssignale werden nur direkt beobachtbare "
+    "Befunde angezeigt.\n"
+    "> Differentialdiagnosen, spekulative Interpretationen und Empfehlungen "
+    "wurden deaktiviert.\n"
+    "> \n"
+    "> _Dieser Bericht ersetzt KEINE aerztliche Beurteilung._\n"
+    "> _Aerztliche Ueberpruefung ist zwingend erforderlich._\n\n"
+)
+
+
+def should_trigger_strict_csm(
+    voting_result: dict | None,
+    visibility_data: dict | None,
+    risk_result: dict | None,
+    violations: list[str],
+    confidence_float: float,
+) -> tuple[bool, str]:
+    """
+    Determine whether to activate strict minimal-factual CSM.
+
+    Triggers when ANY of:
+    1. High disagreement (voting disagreement detected)
+    2. Poor visibility (image_quality == "poor") OR >=2 hidden regions
+    3. High risk score (level in {critical_review_required, dangerous})
+    4. Multiple validator violations (>= 2)
+    5. Low confidence (< 0.60)
+
+    Returns (activate: bool, reason: str).
+    """
+    reasons: list[str] = []
+
+    if voting_result and voting_result.get("disagreement"):
+        reasons.append(
+            f"Modelldisagreement (agreement={voting_result['agreement_score']:.2f})"
+        )
+
+    iq = (visibility_data or {}).get("image_quality", "unknown")
+    if iq == "poor":
+        reasons.append("Bildqualität: SCHLECHT")
+    n_hidden = len((visibility_data or {}).get("hidden", []))
+    if n_hidden >= 2:
+        reasons.append(f"{n_hidden} Regionen nicht sichtbar")
+
+    level = (risk_result or {}).get("level", "low_risk")
+    if level in ("critical_review_required", "dangerous"):
+        reasons.append(f"Risikostufe: {level.upper()}")
+
+    if len(violations or []) >= 2:
+        reasons.append(f"{len(violations)} Modalitätsverletzungen")
+
+    if confidence_float < 0.60:
+        reasons.append(f"Niedrige KI-Konfidenz (conf={confidence_float:.2f})")
+
+    if not reasons:
+        return False, ""
+    return True, f"CSM-Strict aktiviert: {', '.join(reasons)}"
+
+
+def apply_strict_clinical_safety_mode(
+    text: str,
+    additional_notice: str = "",
+) -> tuple[str, bool]:
+    """
+    Strict minimal-factual mode: keep only findings + limitations.
+    Strips: differentials, interpretation, prognosis, recommendations, etc.
+
+    Returns (stripped_text, was_modified: bool).
+    """
+    if not text:
+        return text, False
+    original = text
+    lines = text.split("\n")
+    output: list[str] = []
+    skip_until_next_h2 = False
+    skip_remaining = False
+    banner_prepended = False
+
+    for line in lines:
+        stripped = line.strip()
+        is_h2 = stripped.lower().startswith("## ")
+
+        if is_h2:
+            h_text = stripped.lower().lstrip("#").strip()
+            is_keep = any(s in h_text for s in _STRICT_CSM_SECTIONS_TO_KEEP)
+            is_strip = any(s in h_text for s in _STRICT_CSM_SECTIONS_TO_STRIP)
+            if is_strip:
+                skip_until_next_h2 = True
+                skip_remaining = False
+            elif is_keep:
+                skip_until_next_h2 = False
+                skip_remaining = False
+            else:
+                skip_remaining = True
+
+        if skip_until_next_h2:
+            continue
+        if skip_remaining:
+            continue
+
+        if output and not banner_prepended:
+            output.insert(0, _STRICT_CSM_BANNER)
+            banner_prepended = True
+        output.append(line)
+
+    if output and not banner_prepended:
+        output.insert(0, _STRICT_CSM_BANNER)
+        banner_prepended = True
+
+    result = "\n".join(output).strip()
+    if additional_notice and additional_notice not in result:
+        result += f"\n\n---\n{additional_notice}"
+
+    return result, result != original
+
+
+def build_strict_csm_log_entry(
+    activated: bool,
+    reason: str,
+    was_modified: bool,
+    original_length: int,
+    final_length: int,
+) -> dict:
+    """Build a structured log entry for strict CSM activation."""
+    return {
+        "step":          "strict_clinical_safety_mode",
+        "activated":     activated,
+        "reason":        reason,
+        "was_modified":  was_modified,
+        "chars_before":  original_length,
+        "chars_after":   final_length,
+        "chars_removed": original_length - final_length,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# MASTER PROMPT
 
 PRIMÄRES ZIEL:
 Sichere, begrenzte, evidenzbasierte Beobachtungen aus den bereitgestellten medizinischen Daten liefern.
@@ -49,7 +530,7 @@ Wenn die Sichtbarkeit unzureichend ist: "Nicht sicher beurteilbar." statt Spekul
 """
 
 # ═══════════════════════════════════════════════════════════════
-# SUBTYPE PROMPTS — modality-specific rules appended to MASTER
+# SUBTYPE PROMPTS - modality-specific rules appended to MASTER
 # ═══════════════════════════════════════════════════════════════
 
 SUBTYPE_PROMPTS = {
@@ -159,7 +640,7 @@ Verboten:
 Analysiere Laborwerte konservativ.
 
 Regeln:
-- Pathologische Werte markieren (↑ / ↓ mit Referenzbereich).
+- Pathologische Werte markieren (erhoeht / vermindert mit Referenzbereich).
 - Klinisch korrelieren.
 - Keine definitive Diagnose allein aus Laborwerten.
 
@@ -172,7 +653,7 @@ Ausgabe:
 }
 
 # ═══════════════════════════════════════════════════════════════
-# VISIBILITY DETECTION — Step 2 of the pipeline
+# VISIBILITY DETECTION - Step 2 of the pipeline
 # Quick pre-analysis call to determine what the image actually shows.
 # ═══════════════════════════════════════════════════════════════
 
@@ -181,28 +662,27 @@ VISIBILITY_SYSTEM = (
     "You output ONLY valid JSON with no markdown, no explanation."
 )
 
-VISIBILITY_USER = """Examine this medical image carefully.
-Identify which anatomical regions are clearly visible, partially visible, or not visible at all.
-
-Output ONLY JSON in this exact format (no other text):
-{"visible": ["region1", "region2"], "partial": ["region3"], "hidden": ["region4"], "image_quality": "good|limited|poor"}
-
-Use these anatomical terms:
-thorax, lungs, heart, mediastinum, abdomen, liver, spleen, kidneys, bowel, pelvis,
-spine, bones, skull, brain, extremities, pleura, diaphragm, aorta, ribs, clavicles, soft_tissue
-
-If image quality is too poor to assess:
-{"visible": [], "partial": [], "hidden": [], "image_quality": "poor"}"""
+VISIBILITY_USER = (
+    "Examine this medical image carefully.\n"
+    "Identify which anatomical regions are clearly visible, partially visible, or not visible at all.\n\n"
+    "Output ONLY JSON in this exact format (no other text):\n"
+    "{\"visible\": [\"region1\", \"region2\"], \"partial\": [\"region3\"], \"hidden\": [\"region4\"], "
+    "\"image_quality\": \"good|limited|poor\"}\n\n"
+    "Use these anatomical terms:\n"
+    + ", ".join(_ANATOMY_TERMS) + "\n\n"
+    "If image quality is too poor to assess:\n"
+    "{\"visible\": [], \"partial\": [], \"hidden\": [], \"image_quality\": \"poor\"}"
+)
 
 # ═══════════════════════════════════════════════════════════════
-# STRUCTURED JSON FORMAT — appended to system prompt
+# STRUCTURED JSON FORMAT - appended to system prompt
 # Forces model to commit to what it saw before writing narrative.
 # This is the core anti-hallucination mechanism for Step 4.
 # ═══════════════════════════════════════════════════════════════
 
 STRUCTURED_JSON_SUFFIX = """
 
-=== PFLICHTFORMAT — STRIKTE REIHENFOLGE ===
+=== PFLICHTFORMAT - STRIKTE REIHENFOLGE ===
 
 SCHRITT 1: Gib zuerst einen JSON-Block zwischen <<<JSON>>> und <<<END_JSON>>> aus:
 <<<JSON>>>
@@ -210,7 +690,7 @@ SCHRITT 1: Gib zuerst einen JSON-Block zwischen <<<JSON>>> und <<<END_JSON>>> au
   "visible_regions": ["sichtbare anatomische Region 1"],
   "partial_regions": ["nur teilweise sichtbare Region"],
   "visible_findings": ["Befund 1 in konservativem Stil", "Befund 2"],
-  "uncertain_findings": ["Möglicher Befund — Bestätigung erforderlich"],
+  "uncertain_findings": ["Möglicher Befund - Bestätigung erforderlich"],
   "limitations": ["Limitation 1", "Limitation 2"],
   "forbidden_sections_skipped": ["Was übersprungen wurde und warum"]
 }
@@ -222,46 +702,27 @@ SCHRITT 2: Danach der deutsche Radiologiebericht in Abschnitten:
 ## 3. Beurteilung
 ## 4. Limitationen
 
-PFLICHTREGELN FÜR BEFUNDSPRACHE — KEINE AUSNAHMEN:
+PFLICHTREGELN FÜR BEFUNDSPRACHE - KEINE AUSNAHMEN:
 - VERBOTEN:  "Pneumonie mit 85% Wahrscheinlichkeit"
-  PFLICHT:   "Unspezifische Verschattung im rechten Unterfeld — Pneumonie nicht ausgeschlossen"
+  PFLICHT:   "Unspezifische Verschattung im rechten Unterfeld - Pneumonie nicht ausgeschlossen"
 - VERBOTEN:  "Metastase erkennbar" / "Malignom bestätigt"
-  PFLICHT:   "Rundliche Dichtezunahme — Dignität nicht sicher beurteilbar"
+  PFLICHT:   "Rundliche Dichtezunahme - Dignität nicht sicher beurteilbar"
 - VERBOTEN:  "Lungenembolie" (auf konventionellem Röntgen)
-  PFLICHT:   "Emboliediagnostik erfordert CT-Angiographie — röntgenologisch nicht beurteilbar"
+  PFLICHT:   "Emboliediagnostik erfordert CT-Angiographie - röntgenologisch nicht beurteilbar"
 - VERBOTEN:  "Kardiomegalie" (auf Abdominalröntgen)
   PFLICHT:   "Herzschatten nicht vollständig beurteilbar"
 - PFLICHT:   "vereinbar mit", "nicht ausgeschlossen", "fraglich", "möglicherweise" bei Interpretationen
 """
 
 # ═══════════════════════════════════════════════════════════════
-# MODALITY TERM BLACKLIST — Step 5 hard validation
-# Terms that physically cannot appear in a valid report for that modality.
+# MODALITY TERM BLACKLIST - Step 5 hard validation
+# Derived from findings_vocabulary.MODALITY_CONSTRAINTS so there is
+# exactly one place to add/remove forbidden terms.
+# Kept as a public name for backward compatibility with tests and imports.
 # ═══════════════════════════════════════════════════════════════
 
 MODALITY_TERM_BLACKLIST: dict[str, list[str]] = {
-    "xray": [
-        "Hounsfield", " HU ", "HU-Wert",
-        "axiale Schicht", "axiales Bild", "axial geschnitten",
-        "enhancement", "Kontrastmittelverhalten", "Kontrastmittelanreicherung",
-        "Attenuationskoeffizient", "Attenuierung",
-        "Lungenembolie",                   # requires CT-angio
-        "mediastinale Lymphadenopathie",   # requires CT
-    ],
-    "mri": [
-        "Hounsfield", " HU ", "HU-Wert",
-        "Attenuationskoeffizient",
-    ],
-    "ekg": [
-        "Röntgenbefund", "CT-Befund", "Sonographie-Befund",
-        "Schichtaufnahme", "axiale Schicht",
-    ],
-    "labs": [
-        "Röntgenbefund", "CT-Befund", "Sonographiebefund",
-    ],
-    "ct": [],
-    "ultrasound": [],
-    "echo": [],
+    k: v.get("forbidden_terms", []) for k, v in MODALITY_CONSTRAINTS.items()
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -320,7 +781,7 @@ def build_prompt(
             "DYNAMISCHER SICHERHEITSKONTEXT (aus automatischer Sichtbarkeitserkennung):\n"
             + _json.dumps(safety_layer, ensure_ascii=False, indent=2)
             + "\n\nAnweisungen:"
-            "\n- Kommentiere NICHTS unter 'forbidden_assessment' — diese Regionen sind nicht sichtbar."
+            "\n- Kommentiere NICHTS unter 'forbidden_assessment' - diese Regionen sind nicht sichtbar."
             "\n- Behandle 'partial_regions' als nur eingeschränkt beurteilbar."
             "\n- Analysiere AUSSCHLIESSLICH die 'visible_regions'.\n"
         )
@@ -391,10 +852,10 @@ def apply_confidence_gate(text: str, confidence: float) -> str:
 
     Thresholds (from model-count proxy: 1→0.55, 2→0.72, 3→0.85):
 
-      >= 0.85  FULL    — no modifications (3 models, high agreement)
-      0.72-0.84 MEDIUM  — strip explicit probability percentages only
-      0.60-0.71 LOW     — strip all percentages + soft malignancy warnings
-      < 0.60   MINIMAL — disable differentials + hard-flag malignancy + notice
+      >= 0.85  FULL    - no modifications (3 models, high agreement)
+      0.72-0.84 MEDIUM  - strip explicit probability percentages only
+      0.60-0.71 LOW     - strip all percentages + soft malignancy warnings
+      < 0.60   MINIMAL - disable differentials + hard-flag malignancy + notice
     """
     if confidence >= 0.85:
         return text
@@ -412,7 +873,7 @@ def apply_confidence_gate(text: str, confidence: float) -> str:
         for term in _SOFT_RISK:
             text = _re.sub(
                 rf'\b({_re.escape(term)}\w*)\b',
-                r'[\1 — eingeschränkte Konfidenz]',
+                r'[\1 - eingeschränkte Konfidenz]',
                 text, flags=_re.IGNORECASE,
             )
 
@@ -421,7 +882,7 @@ def apply_confidence_gate(text: str, confidence: float) -> str:
         text = _re.sub(
             r'(##\s*(?:Differential(?:diagnos\w*)|Differenzialdiagnos\w*))(.*?)(?=\n##|\Z)',
             (
-                r'\1\n_Deaktiviert — Konfidenz zu niedrig für Differentialdiagnosen. '
+                r'\1\n_Deaktiviert - Konfidenz zu niedrig für Differentialdiagnosen. '
                 r'Klinische Korrelation zwingend erforderlich._\n'
             ),
             text, flags=_re.DOTALL | _re.IGNORECASE,
@@ -431,7 +892,7 @@ def apply_confidence_gate(text: str, confidence: float) -> str:
         for term in _HARD_RISK:
             text = _re.sub(
                 rf'\b{_re.escape(term)}\b',
-                f'[{term} — Konfidenz unzureichend]',
+                f'[{term} - Konfidenz unzureichend]',
                 text, flags=_re.IGNORECASE,
             )
         text += (
@@ -446,10 +907,10 @@ def apply_confidence_gate(text: str, confidence: float) -> str:
 
 def validate_modality_output(text: str, category: str) -> tuple[str, list[str]]:
     """
-    Hard validation — detect forbidden modality-specific terms in the output.
+    Hard validation - detect forbidden modality-specific terms in the output.
 
     Returns (original_text, list_of_violations).
-    Does NOT modify the text — violations are reported as warnings to the caller.
+    Does NOT modify the text - violations are reported as warnings to the caller.
     The caller decides whether to show/suppress.
     """
     violations: list[str] = []
@@ -479,23 +940,11 @@ def build_safety_layer_from_visibility(visibility_data: dict) -> dict | None:
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE 1 — Multi-model Voting
+# FEATURE 1 - Multi-model Voting
 # Compare findings across models; flag high disagreement.
 # ═══════════════════════════════════════════════════════════════
 
-_MEDICAL_VOTE_TERMS = {
-    # Positive findings
-    "Infiltrat", "Atelektase", "Pleuraerguss", "Pneumothorax", "Konsolidierung",
-    "Ödem", "Nodulus", "Masse", "Ileus", "Perforation", "Fraktur", "Frakturen",
-    "Blutung", "Ischämie", "Infarkt", "Thrombose", "Embolie", "Stenose",
-    "Dilatation", "Kardiomegalie", "Lymphadenopathie", "Abszess", "Zyste",
-    "Erguss", "Aszites", "Pneumonie", "Emphysem", "Fibrose", "Verkalkung",
-    # Normal findings
-    "unauffällig", "regelrecht", "kein Nachweis", "kein Hinweis",
-    # ECG-specific
-    "Vorhofflimmern", "Sinusrhythmus", "Tachykardie", "Bradykardie",
-    "Schenkelblock", "ST-Hebung", "ST-Senkung", "AV-Block",
-}
+# _MEDICAL_VOTE_TERMS imported from findings_vocabulary as _MEDICAL_VOTE_TERMS
 
 
 def compute_model_agreement(analyses: list[str]) -> dict:
@@ -553,7 +1002,7 @@ def compute_model_agreement(analyses: list[str]) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE 2 helper — Merge LLM visibility with OpenCV segmentation
+# FEATURE 2 helper - Merge LLM visibility with OpenCV segmentation
 # ═══════════════════════════════════════════════════════════════
 
 def merge_visibility_with_segmentation(
@@ -601,7 +1050,7 @@ def merge_visibility_with_segmentation(
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE 3 — Risk Classifier
+# FEATURE 3 - Risk Classifier
 # Aggregates all pipeline signals → safe / uncertain / dangerous
 # Controls report shortening and limitation text injection.
 # ═══════════════════════════════════════════════════════════════
@@ -614,7 +1063,7 @@ def classify_risk(
     voting_result: dict | None,
 ) -> dict:
     """
-    Rule-based risk classifier.  No ML needed — deterministic.
+    Rule-based risk classifier.  No ML needed - deterministic.
 
     Returns:
         {
@@ -626,20 +1075,20 @@ def classify_risk(
     score = 0
     reasons: list[str] = []
 
-    # — Modality violations
+    # - Modality violations
     if violations:
         score += len(violations) * 15
         reasons.append(f"{len(violations)} Modalitätsverletzung(en) erkannt")
 
-    # — Confidence (model count proxy)
+    # - Confidence (model count proxy)
     if confidence_float < 0.60:
         score += 35
-        reasons.append("Niedrige Konfidenz — nur 1 Modell geantwortet")
+        reasons.append("Niedrige Konfidenz - nur 1 Modell geantwortet")
     elif confidence_float < 0.75:
         score += 15
-        reasons.append("Moderate Konfidenz — 2 Modelle geantwortet")
+        reasons.append("Moderate Konfidenz - 2 Modelle geantwortet")
 
-    # — Partial / hidden visibility
+    # - Partial / hidden visibility
     n_partial = len(visibility_data.get("partial", []))
     n_hidden  = len(visibility_data.get("hidden",  []))
     if n_partial >= 3:
@@ -649,7 +1098,7 @@ def classify_risk(
         score += 10
         reasons.append(f"{n_hidden} Regionen nicht sichtbar")
 
-    # — Image quality
+    # - Image quality
     iq = visibility_data.get("image_quality", "unknown")
     if iq == "poor":
         score += 25
@@ -658,7 +1107,7 @@ def classify_risk(
         score += 10
         reasons.append("Bildqualität: EINGESCHRÄNKT")
 
-    # — JSON extraction failure
+    # - JSON extraction failure
     if structured_json is None:
         score += 10
         reasons.append("Strukturiertes JSON nicht extrahierbar")
@@ -672,7 +1121,7 @@ def classify_risk(
                 reasons.append(f"Hochrisikoterm in unsicheren Befunden: {term}")
                 break
 
-    # — Model disagreement (Feature 1 result)
+    # - Model disagreement (Feature 1 result)
     if voting_result and voting_result.get("disagreement"):
         score += 25
         dt = voting_result.get("disagreement_terms", [])
@@ -695,31 +1144,12 @@ def classify_risk(
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE 4 — Clinical Language Normalization
+# FEATURE 4 - Clinical Language Normalization
 # Whitelist-driven: replaces overconfident phrases
 # at low/medium confidence. Always removes absolutely forbidden terms.
 # ═══════════════════════════════════════════════════════════════
 
-# Phrases replaced only when confidence < their threshold
-_LANGUAGE_GATE: dict[str, tuple[str, float]] = {
-    "definitiv":               ("möglicherweise",              0.85),
-    "beweisend für":           ("vereinbar mit",               0.85),
-    "sicher nachweisbar":      ("fraglich nachweisbar",        0.85),
-    "zweifelsfrei":            ("hinweisend auf",              0.85),
-    "gesicherter":             ("möglicher",                   0.85),
-    "bewiesener":              ("möglicher",                   0.85),
-    "eindeutig diagnostisch":  ("vereinbar mit",               0.85),
-    "hochwahrscheinlich Karzinom": ("Malignität nicht ausgeschlossen", 1.01),  # always
-    "100% sicher":             ("nicht sicher beurteilbar",   1.01),           # always
-}
-
-# Phrases removed under any confidence (medico-legally unsafe)
-_FORBIDDEN_ALWAYS: list[str] = [
-    "ohne jeden Zweifel",
-    "absolut sicher",
-    "garantiert diagnostiziert",
-    "100%ige Wahrscheinlichkeit",
-]
+# _LANGUAGE_GATE and _FORBIDDEN_ALWAYS imported from findings_vocabulary
 
 
 def normalize_clinical_language(text: str, confidence: float) -> tuple[str, list[str]]:
@@ -746,7 +1176,7 @@ def normalize_clinical_language(text: str, confidence: float) -> tuple[str, list
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE 5 — Human Review Mode
+# FEATURE 5 - Human Review Mode
 # Triggered by any combination of: low confidence, many violations,
 # high partial visibility, risk level dangerous/uncertain, disagreement.
 # Outputs a prominent banner prepended to the report.
@@ -797,7 +1227,7 @@ def should_trigger_human_review(
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE 6 — Clinical Safety Mode
+# FEATURE 6 - Clinical Safety Mode
 # Automatically activates minimal factual mode when multiple
 # safety signals converge. Strips interpretation / differentials
 # from the already-generated report so the model outputs
@@ -837,7 +1267,7 @@ def should_use_clinical_safety_mode(
     """
     signals: list[str] = []
 
-    # Signal 1+2: high risk level (worth 2 points — structural issues)
+    # Signal 1+2: high risk level (worth 2 points - structural issues)
     if risk_result.get("level") in ("critical_review_required", "dangerous"):
         signals.append("Risikostufe CRITICAL/DANGEROUS")
         signals.append("Risikostufe CRITICAL/DANGEROUS (2)")  # weight 2
@@ -880,7 +1310,7 @@ def apply_clinical_safety_mode(text: str) -> tuple[str, bool]:
     for section_pattern in _CSM_SECTIONS_TO_STRIP:
         text = _re.sub(
             rf'(##\s+{section_pattern})(.*?)(?=\n##|\Z)',
-            r'\1\n_Deaktiviert — Klinischer Sicherheitsmodus aktiv. Nur gesicherte Befunde werden angezeigt._\n',
+            r'\1\n_Deaktiviert - Klinischer Sicherheitsmodus aktiv. Nur gesicherte Befunde werden angezeigt._\n',
             text,
             flags=_re.DOTALL | _re.IGNORECASE,
         )
@@ -889,7 +1319,7 @@ def apply_clinical_safety_mode(text: str) -> tuple[str, bool]:
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE 7 — Pipeline Explainability Log
+# FEATURE 7 - Pipeline Explainability Log
 # Structured audit trail: WHY each safety action was taken.
 # Stored per-analysis for debugging and metrics.
 # ═══════════════════════════════════════════════════════════════
@@ -910,13 +1340,13 @@ def build_pipeline_explainability_log(
     """
     log: list[dict] = []
 
-    # — Confidence gate actions
+    # - Confidence gate actions
     if confidence >= 0.85:
         log.append({
             "step": "confidence_gate",
             "reason": f"confidence={confidence:.2f} >= 0.85",
             "action": "none",
-            "detail": "High confidence — no modifications",
+            "detail": "High confidence - no modifications",
         })
     elif confidence >= 0.72:
         log.append({
@@ -937,10 +1367,10 @@ def build_pipeline_explainability_log(
             "step": "confidence_gate",
             "reason": f"confidence={confidence:.2f} < 0.60",
             "action": "disabled_differentials + hard_flagged_malignancy + added_notice",
-            "detail": "Only 1 model responded — differentials blocked, strong warning appended",
+            "detail": "Only 1 model responded - differentials blocked, strong warning appended",
         })
 
-    # — Modality violations
+    # - Modality violations
     if violations:
         for v in violations:
             log.append({
@@ -957,7 +1387,7 @@ def build_pipeline_explainability_log(
             "detail": "Output clean for modality",
         })
 
-    # — Language normalization
+    # - Language normalization
     if lang_changes:
         for change in lang_changes:
             log.append({
@@ -967,7 +1397,7 @@ def build_pipeline_explainability_log(
                 "detail": change,
             })
 
-    # — Risk classification
+    # - Risk classification
     log.append({
         "step": "risk_classifier",
         "reason": " | ".join(risk_result.get("reasons", [])) or "No risk factors",
@@ -975,7 +1405,7 @@ def build_pipeline_explainability_log(
         "detail": f"Score breakdown: {risk_result['score']}/100 → {risk_result['level']}",
     })
 
-    # — Model voting
+    # - Model voting
     if voting_result:
         if voting_result.get("disagreement"):
             dt = voting_result.get("disagreement_terms", [])
@@ -993,7 +1423,7 @@ def build_pipeline_explainability_log(
                 "detail": f"{voting_result['models_compared']} models agreed",
             })
 
-    # — Visibility / image quality
+    # - Visibility / image quality
     iq = visibility_data.get("image_quality", "unknown")
     if iq in ("poor", "limited"):
         log.append({
@@ -1006,7 +1436,7 @@ def build_pipeline_explainability_log(
             ),
         })
 
-    # — Clinical safety mode
+    # - Clinical safety mode
     if clinical_safety_mode:
         log.append({
             "step": "clinical_safety_mode",

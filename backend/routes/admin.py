@@ -59,10 +59,12 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
                 "id": q.get("id", str(uuid.uuid4())),
                 "specialty_id": q.get("specialty_id", q.get("fach", q.get("specialty", ""))).lower().strip(),
                 "question_text": question_text_de, "question_text_de": question_text_de,
+                "question_type": q.get("question_type", "mcq"),
                 "choices": unified_choices, "explanation": explanation_de, "explanation_de": explanation_de,
                 "year": q.get("year", q.get("jahr", 2024)),
                 "exam_location": q.get("exam_location", q.get("ort", "vienna")),
                 "image_base64": q.get("image_base64", q.get("image", None)),
+                "interactive_data": q.get("interactive_data", None),
                 "tags": q.get("tags", []),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -76,6 +78,8 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
             existing_ids.add(normalized["id"])
             if not normalized["image_base64"]:
                 del normalized["image_base64"]
+            if not normalized["interactive_data"]:
+                del normalized["interactive_data"]
             batch.append(normalized)
             if len(batch) >= 100:
                 await db.questions.insert_many(batch)

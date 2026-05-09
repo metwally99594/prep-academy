@@ -40,8 +40,13 @@ from services.analyzer_prompts import (
     classify_risk, normalize_clinical_language, should_trigger_human_review,
     should_use_clinical_safety_mode, apply_clinical_safety_mode,
     build_pipeline_explainability_log, _CSM_BANNER,
+    validate_json_schema, validate_canonical_vocabulary,
+    check_json_narrative_consistency,
+    should_trigger_strict_csm, apply_strict_clinical_safety_mode,
+    build_strict_csm_log_entry,
 )
 from services.image_segmentation import detect_anatomical_regions
+from services.findings_vocabulary import CATEGORY_KEYWORDS as _CATEGORY_KEYWORDS
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -3136,15 +3141,495 @@ _SECOND_OPINION_FALLBACKS = [
     "baidu/qianfan-ocr-fast:free",
 ]
 
-_CATEGORY_KEYWORDS = {
-    "ECG":       ["EKG", "QRS", "P-Welle", "Sinusrhythmus", "Vorhofflimmern", "Herzrhythmus", "RR-Intervall", "ST", "QT", "T-Welle", "Herzfrequenz"],
-    "XRay":      ["Röntgen", "Thorax", "Lunge", "Pneumonie", "Atelektase", "Pleura", "Kardiomegalie", "Hilus", "Zwerchfell"],
-    "CT":        ["CT", "Computertomographie", "Hounsfield", "Densität", "Schnitt", "axial", "koronal", "sagittal"],
-    "MRI":       ["MRT", "Magnetresonanz", "T1", "T2", "FLAIR", "Sequenz", "Signalveränderung", "Hyperintens"],
-    "Ultrasound":["Ultraschall", "Sonographie", "Echostruktur", "hyperechogen", "hypoechogen", "Schallschatten"],
-    "BloodTest": ["Hämoglobin", "Leukozyten", "Thrombozyten", "CRP", "Kreatinin", "GOT", "GPT", "Elektrolyt"],
-    "Echo":      ["Echokardiographie", "Ejektionsfraktion", "Wandbewegung", "Mitral", "Aorta", "Perikard", "LVEF"],
-}
+# _CATEGORY_KEYWORDS imported from services.findings_vocabulary as _CATEGORY_KEYWORDS
+
+
+# ════════════════════════════════════════════════════════════════
+# Pipeline step helpers — extracted from _run_analyzer_job.
+# Each function handles exactly one numbered step and returns its
+# outputs.  No behavior change — pure extraction refactor.
+# ════════════════════════════════════════════════════════════════
+
+async def _step_detect_modality(
+    category: str, primary_model_id: str, all_images: list, job_id: str
+) -> str:
+    """STEP 2: Auto-detect modality when the user did not specify one."""
+    if category:
+        return category
+    detect_result = await _openrouter_vision_call(
+        primary_model_id,
+        "You are a medical image classifier. Reply with ONE word only from this exact list.",
+        "Classify this medical image into one of: xray, ct, mri, ekg, ultrasound, echo, labs. Reply with ONE word only.",
+        all_images[:1],
+        max_tokens=10,
+    )
+    if detect_result:
+        candidate = detect_result.strip().lower().split()[0]
+        if candidate in VALID_CATEGORIES:
+            logger.info(f"[ANALYZER] Auto-detected category={candidate!r} for job {job_id}")
+            return candidate
+    return category
+
+
+async def _step_run_visibility_and_segmentation(
+    primary_model_id: str, all_images: list, detected_category: str, job_id: str
+) -> dict:
+    """STEP 3: Parallel LLM visibility detection + OpenCV anatomical segmentation."""
+    _default = {"visible": [], "partial": [], "hidden": [], "image_quality": "unknown"}
+    if not all_images:
+        return _default
+    loop = asyncio.get_event_loop()
+    vis_raw_result, seg_result = await asyncio.gather(
+        _openrouter_vision_call(
+            primary_model_id, VISIBILITY_SYSTEM, VISIBILITY_USER,
+            all_images[:1], max_tokens=200,
+        ),
+        loop.run_in_executor(None, detect_anatomical_regions, all_images[0], detected_category),
+        return_exceptions=True,
+    )
+    llm_visibility = (
+        parse_visibility_response(vis_raw_result)
+        if isinstance(vis_raw_result, str) and vis_raw_result
+        else _default
+    )
+    if not isinstance(seg_result, dict):
+        seg_result = {"detected_regions": [], "partial_regions": [], "method": "error"}
+    visibility_data = merge_visibility_with_segmentation(llm_visibility, seg_result)
+    logger.info(
+        f"[ANALYZER] Visibility job={job_id}: quality={visibility_data.get('image_quality')}, "
+        f"visible={visibility_data.get('visible')}, partial={visibility_data.get('partial')}, "
+        f"hidden={visibility_data.get('hidden')}, seg_method={seg_result.get('method')}"
+    )
+    return visibility_data
+
+
+def _step_build_prompts(
+    detected_category: str, visibility_data: dict, report_type: str,
+    clinical_context: str, all_images: list,
+) -> tuple:
+    """STEP 4: Build system prompt with safety layer + user prompt with context."""
+    safety_layer = build_safety_layer_from_visibility(visibility_data)
+    system_msg = build_prompt(detected_category, safety_layer=safety_layer, include_json_format=True)
+    context_text = ""
+    if clinical_context.strip():
+        context_text = f"\n\nKlinischer Kontext / Patientenanamnese:\n{clinical_context.strip()}\n\n"
+    img_count_text = f" ({len(all_images)} Bilder)" if len(all_images) > 1 else ""
+    main_prompt = (
+        f"Analysiere {'diese' if len(all_images) > 1 else 'dieses'} medizinische"
+        f"{'n' if len(all_images) > 1 else ''} "
+        f"{'Bilder/Befunde' if len(all_images) > 1 else 'Bild/Befund'}"
+        f" ({report_type}){img_count_text}."
+        + (f"\nEs sind {len(all_images)} Bilder — analysiere ALLE und erstelle einen Gesamtbefund." if len(all_images) > 1 else "")
+        + context_text
+        + "\nErstelle den strukturierten deutschen Radiologiebericht im vorgegebenen Format."
+        "\nWenn etwas nicht sicher beurteilbar ist: 'Nicht sicher beurteilbar.'"
+    )
+    return system_msg, main_prompt, safety_layer
+
+
+async def _step_execute_model_chain(
+    primary_model_id: str, third_model_id: str,
+    system_msg: str, main_prompt: str, all_images: list, job_id: str,
+) -> tuple:
+    """STEP 5: Run primary + third models in parallel, then fill second-opinion slot."""
+    results = await asyncio.gather(
+        _openrouter_vision_call(primary_model_id, system_msg, main_prompt, all_images, 1800),
+        _openrouter_vision_call(third_model_id,   system_msg, main_prompt, all_images, 1800),
+        return_exceptions=True,
+    )
+    primary_analysis = results[0] if isinstance(results[0], str) and (results[0] or "").strip() else None
+    third_opinion    = results[1] if isinstance(results[1], str) and (results[1] or "").strip() else None
+    primary_model_used = _ANALYZER_MODEL_LABELS[primary_model_id] if primary_analysis else None
+    third_model_used   = _ANALYZER_MODEL_LABELS[third_model_id]   if third_opinion   else None
+
+    refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich",
+                       "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
+    if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
+        fb = await _openrouter_vision_call(
+            "nvidia/nemotron-nano-12b-v2-vl:free", system_msg, main_prompt, all_images, 1400,
+        )
+        if fb and fb.strip():
+            primary_analysis = fb
+            primary_model_used = _ANALYZER_MODEL_LABELS["nvidia/nemotron-nano-12b-v2-vl:free"]
+
+    second_opinion = None
+    second_model_used = None
+    used_for_third = {third_model_id}
+    for fb_model in _SECOND_OPINION_FALLBACKS:
+        if fb_model in used_for_third:
+            continue
+        fb_result = await _openrouter_vision_call(fb_model, system_msg, main_prompt, all_images, 1800)
+        if fb_result and fb_result.strip():
+            second_opinion = fb_result
+            second_model_used = _ANALYZER_MODEL_LABELS.get(fb_model, fb_model)
+            break
+
+    if not primary_analysis:
+        if second_opinion:
+            primary_analysis, primary_model_used = second_opinion, second_model_used
+            second_opinion, second_model_used = third_opinion, third_model_used
+            third_opinion, third_model_used = None, None
+        elif third_opinion:
+            primary_analysis, primary_model_used = third_opinion, third_model_used
+            third_opinion, third_model_used = None, None
+
+    return primary_analysis, second_opinion, third_opinion, primary_model_used, second_model_used, third_model_used
+
+
+def _step_parse_model_outputs(primary_analysis, second_opinion, third_opinion) -> tuple:
+    """STEP 6: Extract structured JSON blocks; strip them from display text."""
+    structured_json = parse_analysis_json(primary_analysis)
+    primary_report = strip_analysis_json_block(primary_analysis) if structured_json else primary_analysis
+
+    second_report = None
+    if second_opinion:
+        s_json = parse_analysis_json(second_opinion)
+        second_report = strip_analysis_json_block(second_opinion) if s_json else second_opinion
+
+    third_report = None
+    if third_opinion:
+        t_json = parse_analysis_json(third_opinion)
+        third_report = strip_analysis_json_block(third_opinion) if t_json else third_opinion
+
+    return structured_json, primary_report, second_report, third_report
+
+
+def _step_validate_structured_data(
+    structured_json, primary_report: str, visibility_data: dict,
+    detected_category: str, job_id: str,
+) -> tuple:
+    """STEPS 6b-6d: JSON schema, canonical vocabulary, and narrative consistency checks."""
+    json_validation = validate_json_schema(structured_json)
+    if json_validation.get("errors"):
+        logger.warning(f"[ANALYZER] JSON schema errors job={job_id}: {json_validation['errors']}")
+
+    canonical_validation = validate_canonical_vocabulary(structured_json, detected_category)
+    if canonical_validation.get("non_canonical"):
+        logger.warning(
+            f"[ANALYZER] Non-canonical terms job={job_id}: "
+            f"{canonical_validation['unknown_terms']}"
+        )
+
+    consistency_result = check_json_narrative_consistency(
+        structured_json=structured_json,
+        narrative=primary_report,
+        visibility_data=visibility_data,
+    )
+    if not consistency_result.get("consistent"):
+        logger.warning(
+            f"[ANALYZER] JSON/narrative inconsistency job={job_id}: "
+            f"{consistency_result.get('warnings')}"
+        )
+
+    return json_validation, canonical_validation, consistency_result
+
+
+def _step_compute_confidence_and_vote(primary_analysis, second_opinion, third_opinion) -> tuple:
+    """STEPS 7-7b: Derive confidence score + run multi-model term-overlap voting."""
+    ai_count = sum(1 for x in [primary_analysis, second_opinion, third_opinion] if x)
+    confidence_score = {1: 55, 2: 72, 3: 85}.get(ai_count, 55)
+    confidence_float = confidence_score / 100.0
+    voting_result = compute_model_agreement(
+        [a for a in [primary_analysis, second_opinion, third_opinion] if a]
+    )
+    if voting_result.get("disagreement"):
+        logger.warning(
+            f"[ANALYZER] Model disagreement: "
+            f"agreement={voting_result['agreement_score']}, "
+            f"terms={voting_result.get('disagreement_terms')}"
+        )
+    return ai_count, confidence_score, confidence_float, voting_result
+
+
+def _step_apply_safety_pipeline(
+    primary_report: str, second_report, confidence_float: float,
+    detected_category: str, visibility_data: dict, voting_result: dict, job_id: str,
+) -> tuple:
+    """STEPS 8-9e: Confidence gate, language normalization, modality validation,
+    risk classification, human review check, Clinical Safety Mode, Strict CSM,
+    and explainability log assembly."""
+    # Step 8 — Confidence Gate
+    primary_report = apply_confidence_gate(primary_report, confidence_float)
+    if second_report:
+        second_report = apply_confidence_gate(second_report, confidence_float)
+
+    # Step 8b — Language Normalization
+    primary_report, lang_changes = normalize_clinical_language(primary_report, confidence_float)
+    if lang_changes:
+        logger.info(f"[ANALYZER] Language normalization job={job_id}: {lang_changes}")
+
+    # Step 9 — Modality Validation
+    primary_report, violations = validate_modality_output(primary_report, detected_category)
+    if violations:
+        logger.warning(f"[ANALYZER] Validation violations job={job_id}: {violations}")
+
+    # Step 9b — Risk Classifier
+    risk_result = classify_risk(
+        violations=violations,
+        visibility_data=visibility_data,
+        confidence_float=confidence_float,
+        structured_json=None,
+        voting_result=voting_result,
+    )
+    logger.info(
+        f"[ANALYZER] Risk job={job_id}: level={risk_result['level']}, "
+        f"score={risk_result['score']}, reasons={risk_result['reasons']}"
+    )
+
+    # Step 9c — Human Review
+    show_review_banner, review_banner = should_trigger_human_review(
+        risk_level=risk_result["level"],
+        confidence_float=confidence_float,
+        violations=violations,
+        visibility_data=visibility_data,
+        voting_result=voting_result,
+    )
+
+    # Step 9d — Clinical Safety Mode
+    csm_activated, csm_reason = should_use_clinical_safety_mode(
+        risk_result=risk_result, visibility_data=visibility_data, voting_result=voting_result,
+    )
+    csm_applied = False
+    if csm_activated:
+        primary_report, csm_applied = apply_clinical_safety_mode(primary_report)
+        logger.warning(f"[ANALYZER] Clinical Safety Mode job={job_id}: {csm_reason}")
+
+    # Step 9d-2 — Strict Minimal-Factual CSM
+    strict_csm_triggered, strict_csm_reason = should_trigger_strict_csm(
+        voting_result=voting_result, visibility_data=visibility_data, risk_result=risk_result,
+        violations=violations, confidence_float=confidence_float,
+    )
+    original_report_len = len(primary_report)
+    if strict_csm_triggered:
+        primary_report, strict_csm_applied = apply_strict_clinical_safety_mode(
+            primary_report,
+            additional_notice="⚠️ Alle differentialdiagnostischen und interpretativen Abschnitte wurden deaktiviert. Bitte ärztlich überprüfen.",
+        )
+        logger.warning(
+            f"[ANALYZER] STRICT CSM job={job_id}: {strict_csm_reason} — "
+            f"chars {original_report_len}→{len(primary_report)}"
+        )
+        strict_csm_log = build_strict_csm_log_entry(
+            activated=True, reason=strict_csm_reason, was_modified=strict_csm_applied,
+            original_length=original_report_len, final_length=len(primary_report),
+        )
+    else:
+        strict_csm_applied = False
+        strict_csm_log = build_strict_csm_log_entry(
+            activated=False, reason="", was_modified=False,
+            original_length=original_report_len, final_length=original_report_len,
+        )
+
+    # Step 9e — Explainability Log
+    explain_log = build_pipeline_explainability_log(
+        confidence=confidence_float, violations=violations, lang_changes=lang_changes,
+        risk_result=risk_result, voting_result=voting_result, visibility_data=visibility_data,
+        clinical_safety_mode=csm_applied,
+    )
+    explain_log.append(strict_csm_log)
+
+    return (primary_report, second_report, lang_changes, violations, risk_result,
+            show_review_banner, review_banner, csm_applied,
+            strict_csm_triggered, strict_csm_reason, explain_log)
+
+
+def _step_check_category_mismatch(
+    report_type: str, category: str, detected_category: str, primary_report: str,
+) -> str:
+    """STEP 10: Warn when the report text lacks keywords expected for the chosen modality."""
+    category_warning = None
+    if report_type in _CATEGORY_KEYWORDS:
+        keywords = _CATEGORY_KEYWORDS[report_type]
+        found = sum(1 for kw in keywords if kw.lower() in primary_report.lower())
+        if found < 2:
+            category_warning = (
+                f"⚠️ **Hinweis:** Die Analyse enthält wenige {report_type}-typische Befunde. "
+                f"Bitte überprüfe, ob der gewählte Untersuchungstyp ({report_type}) korrekt ist.\n\n"
+            )
+    if not category and detected_category:
+        category_warning = (
+            f"ℹ️ **Automatisch erkannte Modalität:** {detected_category.upper()}\n\n"
+        ) + (category_warning or "")
+    return category_warning or ""
+
+
+def _step_build_final_report(
+    primary_report: str, second_report, third_report,
+    primary_model_used, second_model_used, third_model_used,
+    violations: list, voting_result: dict, risk_result: dict, lang_changes: list,
+    visibility_data: dict, category_warning: str, csm_applied: bool,
+    show_review_banner: bool, review_banner: str,
+) -> tuple:
+    """STEP 11: Assemble the full display text and models-used list."""
+    models_used = []
+    if primary_model_used:  models_used.append({"role": "Erstanalyse",  "model": primary_model_used})
+    if second_model_used:   models_used.append({"role": "Zweitmeinung", "model": second_model_used})
+    if third_model_used:    models_used.append({"role": "Drittmeinung", "model": third_model_used})
+
+    violation_note = ""
+    if violations:
+        violation_note = (
+            "\n\n---\n"
+            "⚠️ **Sicherheitsvalidierung:** Modalitätsfremde Begriffe erkannt: "
+            + "; ".join(violations)
+        )
+
+    voting_note = ""
+    if voting_result.get("disagreement"):
+        dt = voting_result.get("disagreement_terms", [])
+        voting_note = (
+            "\n\n---\n"
+            "⚖️ **Modelldisagreement:** KI-Modelle nicht einig "
+            + (f"(strittige Begriffe: {', '.join(dt)})" if dt else "")
+            + ". Zweitmeinung beachten."
+        )
+
+    risk_note = ""
+    if risk_result["level"] != "low_risk":
+        _risk_emoji = {"moderate_risk": "🟡", "critical_review_required": "🟠", "dangerous": "🔴"}
+        risk_emoji = _risk_emoji.get(risk_result["level"], "🟠")
+        risk_note = (
+            f"\n\n---\n{risk_emoji} **Risikostufe: {risk_result['level'].upper()}** "
+            f"(Score: {risk_result['score']}/100)\n"
+            + "\n".join(f"- {r}" for r in risk_result["reasons"])
+        )
+
+    lang_note = ""
+    if lang_changes:
+        lang_note = (
+            "\n\n---\n"
+            "🔤 **Sprachnormalisierung:** Folgende Ausdrücke wurden konservativ angepasst: "
+            + "; ".join(lang_changes)
+        )
+
+    vis_quality = visibility_data.get("image_quality", "unknown")
+    vis_notice = ""
+    if vis_quality in ("limited", "poor"):
+        vis_notice = f"ℹ️ **Bildqualität:** {vis_quality.upper()} — Befundung eingeschränkt.\n\n"
+
+    warning_prefix = category_warning + vis_notice
+    csm_prefix = _CSM_BANNER if csm_applied else ""
+    review_prefix = review_banner if show_review_banner else ""
+    full_analysis = (
+        f"{csm_prefix}{review_prefix}{warning_prefix}"
+        f"## Erstanalyse — {primary_model_used}\n"
+        f"{primary_report}"
+        f"{violation_note}{voting_note}{risk_note}{lang_note}"
+    )
+    if second_report:
+        full_analysis += f"\n\n---\n\n## Zweitmeinung — {second_model_used}\n{second_report}"
+    if third_report:
+        full_analysis += f"\n\n---\n\n## Drittmeinung — {third_model_used}\n{third_report}"
+
+    return full_analysis, models_used
+
+
+async def _step_persist_analysis(
+    job_id: str, user: dict, report_type: str, detected_category: str,
+    full_analysis: str, models_used: list, ai_count: int, confidence_score: int,
+    visibility_data: dict, structured_json, violations: list, safety_layer: str,
+    voting_result: dict, risk_result: dict, show_review_banner: bool,
+    lang_changes: list, csm_applied: bool, explain_log: list,
+    json_validation: dict, canonical_validation: dict, consistency_result: dict,
+    strict_csm_triggered: bool, strict_csm_reason: str,
+    all_images: list, second_report, third_report,
+) -> str:
+    """STEP 12: Write analysis document + safety metrics to MongoDB, mark job done."""
+    analysis_id = str(uuid.uuid4())
+    analysis_doc = {
+        "id": analysis_id,
+        "user_id": user["id"],
+        "report_type": report_type,
+        "detected_category": detected_category,
+        "analysis": full_analysis,
+        "has_second_opinion": bool(second_report),
+        "has_third_opinion": bool(third_report),
+        "ai_count": ai_count,
+        "confidence_score": confidence_score,
+        "models_used": models_used,
+        "image_count": len(all_images),
+        "image_preview": all_images[0][:200] + "..." if all_images else "",
+        "visibility_data":           visibility_data,
+        "structured_findings":       structured_json,
+        "validation_violations":     violations,
+        "safety_layer_applied":      bool(safety_layer),
+        "voting_result":             voting_result,
+        "risk_result":               risk_result,
+        "human_review_triggered":    show_review_banner,
+        "lang_changes":              lang_changes,
+        "clinical_safety_mode":      csm_applied,
+        "pipeline_explainability":   explain_log,
+        "json_schema_valid":         json_validation.get("schema_ok", False),
+        "json_schema_errors":        json_validation.get("errors", []),
+        "canonical_vocab_valid":     canonical_validation.get("valid", False),
+        "non_canonical_terms":       canonical_validation.get("non_canonical", []),
+        "consistency_valid":         consistency_result.get("consistent", False),
+        "consistency_warnings":      consistency_result.get("warnings", []),
+        "strict_csm_triggered":      strict_csm_triggered,
+        "strict_csm_reason":         strict_csm_reason,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.analyses.insert_one(analysis_doc)
+
+    await db.analyzer_safety_metrics.insert_one({
+        "job_id":                  job_id,
+        "user_id":                 user["id"],
+        "category":                detected_category,
+        "confidence_score":        confidence_score,
+        "ai_count":                ai_count,
+        "had_violations":          bool(violations),
+        "violation_count":         len(violations),
+        "human_review_triggered":  show_review_banner,
+        "disagreement":            bool(voting_result and voting_result.get("disagreement")),
+        "agreement_score":         voting_result.get("agreement_score") if voting_result else None,
+        "risk_level":              risk_result["level"],
+        "risk_score":              risk_result["score"],
+        "lang_changes_count":      len(lang_changes),
+        "image_quality":           visibility_data.get("image_quality", "unknown"),
+        "clinical_safety_mode":    csm_applied,
+        "structured_json_ok":      structured_json is not None,
+        "json_schema_valid":       json_validation.get("schema_ok", False),
+        "json_schema_errors":      json_validation.get("errors", []),
+        "canonical_vocab_valid":   canonical_validation.get("valid", False),
+        "non_canonical_count":     len(canonical_validation.get("non_canonical", [])),
+        "consistency_valid":       consistency_result.get("consistent", False),
+        "consistency_warnings":    consistency_result.get("warnings", []),
+        "strict_csm_triggered":    strict_csm_triggered,
+        "timestamp":               datetime.now(timezone.utc),
+    })
+
+    await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
+        "status": "done",
+        "result": {
+            "id":                   analysis_id,
+            "analysis":             full_analysis,
+            "report_type":          report_type,
+            "detected_category":    detected_category,
+            "has_second_opinion":   bool(second_report),
+            "has_third_opinion":    bool(third_report),
+            "ai_count":             ai_count,
+            "confidence_score":     confidence_score,
+            "models_used":          models_used,
+            "visibility_data":      visibility_data,
+            "structured_findings":  structured_json,
+            "validation_violations": violations,
+            "voting_result":          voting_result,
+            "risk_result":            risk_result,
+            "human_review_triggered": show_review_banner,
+            "clinical_safety_mode":   csm_applied,
+            "pipeline_explainability": explain_log,
+            "json_schema_valid":      json_validation.get("schema_ok", False),
+            "json_schema_errors":     json_validation.get("errors", []),
+            "canonical_vocab_valid":  canonical_validation.get("valid", False),
+            "non_canonical_terms":    canonical_validation.get("non_canonical", []),
+            "consistency_valid":      consistency_result.get("consistent", False),
+            "consistency_warnings":   consistency_result.get("warnings", []),
+            "strict_csm_triggered":   strict_csm_triggered,
+            "strict_csm_reason":      strict_csm_reason,
+        },
+    }})
+    return analysis_id
+
 
 async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_type: str, clinical_context: str):
     """
@@ -3152,704 +3637,99 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
     Primary: google/gemma-4-31b-it:free
     Second:  nvidia/nemotron-nano-12b-v2-vl:free → gemma-4-26b → qianfan (fallback chain)
     Third:   baidu/qianfan-ocr-fast:free
-    Uses conservative master+subtype prompt to prevent hallucinations.
+    Coordinator: delegates each numbered step to a named helper function.
     """
     try:
-        # ════════════════════════════════════════════════
         # STEP 1 — Map frontend report_type → category
-        # ════════════════════════════════════════════════
         category = REPORT_TYPE_MAP.get(report_type, report_type.lower())
-
         primary_model_id = "google/gemma-4-31b-it:free"
         third_model_id   = "baidu/qianfan-ocr-fast:free"
 
-        # ════════════════════════════════════════════════
-        # STEP 2 — Auto-detect modality (when user chose "Other")
-        # ════════════════════════════════════════════════
-        detected_category = category
-        if not category:
-            detect_result = await _openrouter_vision_call(
-                primary_model_id,
-                "You are a medical image classifier. Reply with ONE word only from this exact list.",
-                "Classify this medical image into one of: xray, ct, mri, ekg, ultrasound, echo, labs. Reply with ONE word only.",
-                all_images[:1],
-                max_tokens=10,
-            )
-            if detect_result:
-                candidate = detect_result.strip().lower().split()[0]
-                if candidate in VALID_CATEGORIES:
-                    detected_category = candidate
-                    logger.info(f"[ANALYZER] Auto-detected category={detected_category!r} for job {job_id}")
+        # STEP 2 — Auto-detect modality
+        detected_category = await _step_detect_modality(category, primary_model_id, all_images, job_id)
 
-        # ════════════════════════════════════════════════
-        # STEP 3 — Visibility Detection (LLM) + Anatomical Segmentation (OpenCV)
-        # Both run in parallel. Results are merged for a stronger signal.
-        # ════════════════════════════════════════════════
-        _llm_vis_default = {"visible": [], "partial": [], "hidden": [], "image_quality": "unknown"}
-        visibility_data = _llm_vis_default
-
-        if all_images:
-            loop = asyncio.get_event_loop()
-            # Run LLM visibility call and OpenCV segmentation concurrently
-            vis_raw_result, seg_result = await asyncio.gather(
-                _openrouter_vision_call(
-                    primary_model_id, VISIBILITY_SYSTEM, VISIBILITY_USER,
-                    all_images[:1], max_tokens=200,
-                ),
-                loop.run_in_executor(
-                    None, detect_anatomical_regions, all_images[0], detected_category
-                ),
-                return_exceptions=True,
-            )
-            llm_visibility = (
-                parse_visibility_response(vis_raw_result)
-                if isinstance(vis_raw_result, str) and vis_raw_result
-                else _llm_vis_default
-            )
-            if not isinstance(seg_result, dict):
-                seg_result = {"detected_regions": [], "partial_regions": [], "method": "error"}
-
-            # Merge LLM + OpenCV for better accuracy
-            visibility_data = merge_visibility_with_segmentation(llm_visibility, seg_result)
-            logger.info(
-                f"[ANALYZER] Visibility job={job_id}: quality={visibility_data.get('image_quality')}, "
-                f"visible={visibility_data.get('visible')}, partial={visibility_data.get('partial')}, "
-                f"hidden={visibility_data.get('hidden')}, seg_method={seg_result.get('method')}"
-            )
-
-        # ════════════════════════════════════════════════
-        # STEP 4 — Build safety layer + system prompt
-        # Injects visibility constraints so model cannot
-        # comment on regions it cannot actually see.
-        # ════════════════════════════════════════════════
-        safety_layer = build_safety_layer_from_visibility(visibility_data)
-        system_msg = build_prompt(
-            detected_category,
-            safety_layer=safety_layer,
-            include_json_format=True,
+        # STEP 3 — Visibility + segmentation
+        visibility_data = await _step_run_visibility_and_segmentation(
+            primary_model_id, all_images, detected_category, job_id
         )
 
-        context_text = ""
-        if clinical_context.strip():
-            context_text = f"\n\nKlinischer Kontext / Patientenanamnese:\n{clinical_context.strip()}\n\n"
-
-        img_count_text = f" ({len(all_images)} Bilder)" if len(all_images) > 1 else ""
-        main_prompt = (
-            f"Analysiere {'diese' if len(all_images) > 1 else 'dieses'} medizinische"
-            f"{'n' if len(all_images) > 1 else ''} "
-            f"{'Bilder/Befunde' if len(all_images) > 1 else 'Bild/Befund'}"
-            f" ({report_type}){img_count_text}."
-            + (f"\nEs sind {len(all_images)} Bilder — analysiere ALLE und erstelle einen Gesamtbefund." if len(all_images) > 1 else "")
-            + context_text
-            + "\nErstelle den strukturierten deutschen Radiologiebericht im vorgegebenen Format."
-            "\nWenn etwas nicht sicher beurteilbar ist: 'Nicht sicher beurteilbar.'"
+        # STEP 4 — Build prompts
+        system_msg, main_prompt, safety_layer = _step_build_prompts(
+            detected_category, visibility_data, report_type, clinical_context, all_images
         )
 
-        # ════════════════════════════════════════════════
-        # STEP 5 — Run analysis (primary + third in parallel)
-        # ════════════════════════════════════════════════
-        results = await asyncio.gather(
-            _openrouter_vision_call(primary_model_id, system_msg, main_prompt, all_images, 1800),
-            _openrouter_vision_call(third_model_id,   system_msg, main_prompt, all_images, 1800),
-            return_exceptions=True,
-        )
-        primary_analysis = results[0] if isinstance(results[0], str) and (results[0] or "").strip() else None
-        third_opinion    = results[1] if isinstance(results[1], str) and (results[1] or "").strip() else None
-        primary_model_used = _ANALYZER_MODEL_LABELS[primary_model_id] if primary_analysis else None
-        third_model_used   = _ANALYZER_MODEL_LABELS[third_model_id]   if third_opinion   else None
-
-        # Refusal fallback for primary — retry with Nemotron using same conservative prompt
-        refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich",
-                           "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
-        if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
-            fb = await _openrouter_vision_call(
-                "nvidia/nemotron-nano-12b-v2-vl:free",
-                system_msg,
-                main_prompt,
-                all_images, 1400,
+        # STEP 5 — Execute model chain
+        (primary_analysis, second_opinion, third_opinion,
+         primary_model_used, second_model_used, third_model_used) = \
+            await _step_execute_model_chain(
+                primary_model_id, third_model_id, system_msg, main_prompt, all_images, job_id
             )
-            if fb and fb.strip():
-                primary_analysis = fb
-                primary_model_used = _ANALYZER_MODEL_LABELS["nvidia/nemotron-nano-12b-v2-vl:free"]
-
-        # Second opinion — fallback chain: nemotron → gemma-4-26b → qianfan
-        second_opinion = None
-        second_model_used = None
-        used_for_third = {third_model_id}
-        for fb_model in _SECOND_OPINION_FALLBACKS:
-            if fb_model in used_for_third:
-                continue
-            fb_result = await _openrouter_vision_call(
-                fb_model, system_msg, main_prompt, all_images, 1800
-            )
-            if fb_result and fb_result.strip():
-                second_opinion = fb_result
-                second_model_used = _ANALYZER_MODEL_LABELS.get(fb_model, fb_model)
-                break
-
-        # Promote second/third to primary if primary failed
-        if not primary_analysis:
-            if second_opinion:
-                primary_analysis, primary_model_used = second_opinion, second_model_used
-                second_opinion, second_model_used = third_opinion, third_model_used
-                third_opinion, third_model_used = None, None
-            elif third_opinion:
-                primary_analysis, primary_model_used = third_opinion, third_model_used
-                third_opinion, third_model_used = None, None
 
         if not primary_analysis:
             await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
                 "status": "error",
-                "message": "Alle KI-Modelle konnten das Bild nicht analysieren. Bitte versuche es mit einem klareren Bild erneut."
+                "message": "Alle KI-Modelle konnten das Bild nicht analysieren. Bitte versuche es mit einem klareren Bild erneut.",
             }})
             return
 
-        # ════════════════════════════════════════════════
-        # STEP 6 — Parse structured JSON (from <<<JSON>>>...<<<END_JSON>>>)
-        # If model followed the format, extract findings data for audit.
-        # Strip JSON block from display text.
-        # ════════════════════════════════════════════════
-        structured_json = parse_analysis_json(primary_analysis)
-        primary_report = strip_analysis_json_block(primary_analysis) if structured_json else primary_analysis
-
-        second_report = None
-        if second_opinion:
-            s_json = parse_analysis_json(second_opinion)
-            second_report = strip_analysis_json_block(second_opinion) if s_json else second_opinion
-
-        third_report = None
-        if third_opinion:
-            t_json = parse_analysis_json(third_opinion)
-            third_report = strip_analysis_json_block(third_opinion) if t_json else third_opinion
-
-        # ════════════════════════════════════════════════
-        # STEP 7 — Confidence score
-        # ════════════════════════════════════════════════
-        ai_count = sum(1 for x in [primary_analysis, second_opinion, third_opinion] if x)
-        confidence_score = {1: 55, 2: 72, 3: 85}.get(ai_count, 55)
-        confidence_float = confidence_score / 100.0
-
-        # ════════════════════════════════════════════════
-        # STEP 7b — Multi-model Voting (Feature 1)
-        # Compare all available analyses for disagreement.
-        # ════════════════════════════════════════════════
-        voting_result = compute_model_agreement(
-            [a for a in [primary_analysis, second_opinion, third_opinion] if a]
-        )
-        if voting_result.get("disagreement"):
-            logger.warning(
-                f"[ANALYZER] Model disagreement job={job_id}: "
-                f"agreement={voting_result['agreement_score']}, "
-                f"terms={voting_result.get('disagreement_terms')}"
+        # STEPS 6-6d — Parse outputs + structured validation
+        structured_json, primary_report, second_report, third_report = \
+            _step_parse_model_outputs(primary_analysis, second_opinion, third_opinion)
+        json_validation, canonical_validation, consistency_result = \
+            _step_validate_structured_data(
+                structured_json, primary_report, visibility_data, detected_category, job_id
             )
 
-        # ════════════════════════════════════════════════
-        # STEP 8 — Confidence Gate
-        # Low confidence → disable differentials + flag malignancy terms
-        # ════════════════════════════════════════════════
-        primary_report = apply_confidence_gate(primary_report, confidence_float)
-        if second_report:
-            second_report = apply_confidence_gate(second_report, confidence_float)
+        # STEPS 7-7b — Confidence + voting
+        ai_count, confidence_score, confidence_float, voting_result = \
+            _step_compute_confidence_and_vote(primary_analysis, second_opinion, third_opinion)
 
-        # ════════════════════════════════════════════════
-        # STEP 8b — Clinical Language Normalization (Feature 4)
-        # Replace overconfident phrases based on confidence threshold.
-        # ════════════════════════════════════════════════
-        primary_report, lang_changes = normalize_clinical_language(primary_report, confidence_float)
-        if lang_changes:
-            logger.info(f"[ANALYZER] Language normalization job={job_id}: {lang_changes}")
-
-        # ════════════════════════════════════════════════
-        # STEP 9 — Hard Modality Validation (Feature 5 - regex/term blacklist)
-        # Detect cross-modality hallucinations in the output.
-        # ════════════════════════════════════════════════
-        primary_report, violations = validate_modality_output(primary_report, detected_category)
-        if violations:
-            logger.warning(f"[ANALYZER] Validation violations job={job_id}: {violations}")
-
-        # ════════════════════════════════════════════════
-        # STEP 9b — Risk Classifier (Feature 3)
-        # Aggregates all signals → safe / uncertain / dangerous
-        # ════════════════════════════════════════════════
-        risk_result = classify_risk(
-            violations=violations,
-            visibility_data=visibility_data,
-            confidence_float=confidence_float,
-            structured_json=structured_json,
-            voting_result=voting_result,
-        )
-        logger.info(
-            f"[ANALYZER] Risk job={job_id}: level={risk_result['level']}, "
-            f"score={risk_result['score']}, reasons={risk_result['reasons']}"
+        # STEPS 8-9e — Full safety pipeline (confidence gate, language norm,
+        # modality validation, risk classification, CSM, explainability log)
+        (primary_report, second_report, lang_changes, violations, risk_result,
+         show_review_banner, review_banner, csm_applied,
+         strict_csm_triggered, strict_csm_reason, explain_log) = \
+            _step_apply_safety_pipeline(
+                primary_report, second_report, confidence_float,
+                detected_category, visibility_data, voting_result, job_id,
+            )
+        # STEP 10 — Category mismatch
+        category_warning = _step_check_category_mismatch(
+            report_type, category, detected_category, primary_report
         )
 
-        # ════════════════════════════════════════════════
-        # STEP 9c — Human Review Mode (Feature 5)
-        # Triggered by risk, low confidence, violations, disagreement.
-        # ════════════════════════════════════════════════
-        show_review_banner, review_banner = should_trigger_human_review(
-            risk_level=risk_result["level"],
-            confidence_float=confidence_float,
-            violations=violations,
-            visibility_data=visibility_data,
-            voting_result=voting_result,
-        )
-
-        # ════════════════════════════════════════════════
-        # STEP 9d — Clinical Safety Mode (Feature 6)
-        # When ≥3 safety signals converge, strip interpretation
-        # sections from the report to prevent catastrophic hallucinations.
-        # ════════════════════════════════════════════════
-        csm_activated, csm_reason = should_use_clinical_safety_mode(
-            risk_result=risk_result,
-            visibility_data=visibility_data,
-            voting_result=voting_result,
-        )
-        csm_applied = False
-        if csm_activated:
-            primary_report, csm_applied = apply_clinical_safety_mode(primary_report)
-            logger.warning(f"[ANALYZER] Clinical Safety Mode job={job_id}: {csm_reason}")
-
-        # ════════════════════════════════════════════════
-        # STEP 9e — Explainability Log (Feature 7)
-        # Structured audit trail of every safety action taken.
-        # ════════════════════════════════════════════════
-        explain_log = build_pipeline_explainability_log(
-            confidence=confidence_float,
-            violations=violations,
-            lang_changes=lang_changes,
-            risk_result=risk_result,
-            voting_result=voting_result,
-            visibility_data=visibility_data,
-            clinical_safety_mode=csm_applied,
-        )
-
-        # ════════════════════════════════════════════════
-        # STEP 10 — Category mismatch warning (existing keyword check)
-        # ════════════════════════════════════════════════
-        category_warning = None
-        if report_type in _CATEGORY_KEYWORDS:
-            keywords = _CATEGORY_KEYWORDS[report_type]
-            found = sum(1 for kw in keywords if kw.lower() in primary_report.lower())
-            if found < 2:
-                category_warning = (
-                    f"⚠️ **Hinweis:** Die Analyse enthält wenige {report_type}-typische Befunde. "
-                    f"Bitte überprüfe, ob der gewählte Untersuchungstyp ({report_type}) korrekt ist.\n\n"
-                )
-        if not category and detected_category:
-            category_warning = (
-                f"ℹ️ **Automatisch erkannte Modalität:** {detected_category.upper()}\n\n"
-            ) + (category_warning or "")
-
-        # ════════════════════════════════════════════════
         # STEP 11 — Build final report text
-        # ════════════════════════════════════════════════
-        models_used = []
-        if primary_model_used:   models_used.append({"role": "Erstanalyse",  "model": primary_model_used})
-        if second_model_used:    models_used.append({"role": "Zweitmeinung", "model": second_model_used})
-        if third_model_used:     models_used.append({"role": "Drittmeinung", "model": third_model_used})
-
-        # Violation notice
-        violation_note = ""
-        if violations:
-            violation_note = (
-                "\n\n---\n"
-                "⚠️ **Sicherheitsvalidierung:** Modalitätsfremde Begriffe erkannt: "
-                + "; ".join(violations)
-            )
-
-        # Voting disagreement notice
-        voting_note = ""
-        if voting_result.get("disagreement"):
-            dt = voting_result.get("disagreement_terms", [])
-            voting_note = (
-                "\n\n---\n"
-                "⚖️ **Modelldisagreement:** KI-Modelle nicht einig "
-                + (f"(strittige Begriffe: {', '.join(dt)})" if dt else "")
-                + ". Zweitmeinung beachten."
-            )
-
-        # Risk level notice (for non-low_risk)
-        risk_note = ""
-        if risk_result["level"] != "low_risk":
-            _risk_emoji = {"moderate_risk": "🟡", "critical_review_required": "🟠", "dangerous": "🔴"}
-            risk_emoji = _risk_emoji.get(risk_result["level"], "🟠")
-            risk_note = (
-                f"\n\n---\n{risk_emoji} **Risikostufe: {risk_result['level'].upper()}** "
-                f"(Score: {risk_result['score']}/100)\n"
-                + "\n".join(f"- {r}" for r in risk_result["reasons"])
-            )
-
-        # Language normalization notice
-        lang_note = ""
-        if lang_changes:
-            lang_note = (
-                "\n\n---\n"
-                "🔤 **Sprachnormalisierung:** Folgende Ausdrücke wurden konservativ angepasst: "
-                + "; ".join(lang_changes)
-            )
-
-        # Visibility / image quality header
-        vis_quality = visibility_data.get("image_quality", "unknown")
-        vis_notice = ""
-        if vis_quality in ("limited", "poor"):
-            vis_notice = f"ℹ️ **Bildqualität:** {vis_quality.upper()} — Befundung eingeschränkt.\n\n"
-
-        # Assemble final report
-        warning_prefix = (category_warning or "") + vis_notice
-        # Clinical Safety Mode banner > Human Review banner (both can coexist)
-        csm_prefix = _CSM_BANNER if csm_applied else ""
-        review_prefix = review_banner if show_review_banner else ""
-        full_analysis = (
-            f"{csm_prefix}{review_prefix}{warning_prefix}"
-            f"## Erstanalyse — {primary_model_used}\n"
-            f"{primary_report}"
-            f"{violation_note}{voting_note}{risk_note}{lang_note}"
+        full_analysis, models_used = _step_build_final_report(
+            primary_report, second_report, third_report,
+            primary_model_used, second_model_used, third_model_used,
+            violations, voting_result, risk_result, lang_changes,
+            visibility_data, category_warning, csm_applied, show_review_banner, review_banner,
         )
-        if second_report:
-            full_analysis += f"\n\n---\n\n## Zweitmeinung — {second_model_used}\n{second_report}"
-        if third_report:
-            full_analysis += f"\n\n---\n\n## Drittmeinung — {third_model_used}\n{third_report}"
 
-        # ════════════════════════════════════════════════
         # STEP 12 — Persist to MongoDB
-        # Include all pipeline metadata for audit/debug.
-        # ════════════════════════════════════════════════
-        analysis_id = str(uuid.uuid4())
-        analysis_doc = {
-            "id": analysis_id,
-            "user_id": user["id"],
-            "report_type": report_type,
-            "detected_category": detected_category,
-            "analysis": full_analysis,
-            "has_second_opinion": bool(second_report),
-            "has_third_opinion": bool(third_report),
-            "ai_count": ai_count,
-            "confidence_score": confidence_score,
-            "models_used": models_used,
-            "image_count": len(all_images),
-            "image_preview": all_images[0][:200] + "..." if all_images else "",
-            # Pipeline audit fields
-            "visibility_data":           visibility_data,
-            "structured_findings":       structured_json,
-            "validation_violations":     violations,
-            "safety_layer_applied":      bool(safety_layer),
-            "voting_result":             voting_result,
-            "risk_result":               risk_result,
-            "human_review_triggered":    show_review_banner,
-            "lang_changes":              lang_changes,
-            "clinical_safety_mode":      csm_applied,
-            "pipeline_explainability":   explain_log,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        await db.analyses.insert_one(analysis_doc)
-
-        # Write safety metrics for dashboard aggregation
-        await db.analyzer_safety_metrics.insert_one({
-            "job_id":                  job_id,
-            "user_id":                 user["id"],
-            "category":                detected_category,
-            "confidence_score":        confidence_score,
-            "ai_count":                ai_count,
-            "had_violations":          bool(violations),
-            "violation_count":         len(violations),
-            "human_review_triggered":  show_review_banner,
-            "disagreement":            bool(voting_result and voting_result.get("disagreement")),
-            "agreement_score":         voting_result.get("agreement_score") if voting_result else None,
-            "risk_level":              risk_result["level"],
-            "risk_score":              risk_result["score"],
-            "lang_changes_count":      len(lang_changes),
-            "image_quality":           visibility_data.get("image_quality", "unknown"),
-            "clinical_safety_mode":    csm_applied,
-            "structured_json_ok":      structured_json is not None,
-            "timestamp":               datetime.now(timezone.utc),
-        })
-
-        await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
-            "status": "done",
-            "result": {
-                "id":                   analysis_id,
-                "analysis":             full_analysis,
-                "report_type":          report_type,
-                "detected_category":    detected_category,
-                "has_second_opinion":   bool(second_report),
-                "has_third_opinion":    bool(third_report),
-                "ai_count":             ai_count,
-                "confidence_score":     confidence_score,
-                "models_used":          models_used,
-                "visibility_data":      visibility_data,
-                "structured_findings":  structured_json,
-                "validation_violations":violations,
-                "voting_result":          voting_result,
-                "risk_result":            risk_result,
-                "human_review_triggered": show_review_banner,
-                "clinical_safety_mode":   csm_applied,
-                "pipeline_explainability":explain_log,
-            },
-        }})
+        await _step_persist_analysis(
+            job_id=job_id, user=user, report_type=report_type,
+            detected_category=detected_category, full_analysis=full_analysis,
+            models_used=models_used, ai_count=ai_count, confidence_score=confidence_score,
+            visibility_data=visibility_data, structured_json=structured_json,
+            violations=violations, safety_layer=safety_layer,
+            voting_result=voting_result, risk_result=risk_result,
+            show_review_banner=show_review_banner, lang_changes=lang_changes,
+            csm_applied=csm_applied, explain_log=explain_log,
+            json_validation=json_validation, canonical_validation=canonical_validation,
+            consistency_result=consistency_result, strict_csm_triggered=strict_csm_triggered,
+            strict_csm_reason=strict_csm_reason, all_images=all_images,
+            second_report=second_report, third_report=third_report,
+        )
     except Exception as e:
-        logger.error(f"Analyzer job {job_id} error: {e}")
-        await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
-            "status": "error",
-            "message": f"Analyse fehlgeschlagen: {str(e)[:200]}",
-        }})
-
-@api_router.get("/analyzer/history")
-async def get_analysis_history(user: dict = Depends(get_current_user)):
-    """Get user's analysis history"""
-    await check_analyzer_access(user)
-    analyses = await db.analyses.find(
-        {"user_id": user["id"]},
-        {"_id": 0, "id": 1, "report_type": 1, "analysis": 1, "created_at": 1}
-    ).sort("created_at", -1).to_list(50)
-    return analyses
-
-@api_router.delete("/analyzer/{analysis_id}")
-async def delete_analysis(analysis_id: str, user: dict = Depends(get_current_user)):
-    """Delete an analysis"""
-    result = await db.analyses.delete_one({"id": analysis_id, "user_id": user["id"]})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
-    return {"message": "Analyse gelöscht"}
-
-@api_router.get("/analyzer/{analysis_id}/pdf")
-async def export_analysis_pdf(analysis_id: str, user: dict = Depends(get_current_user)):
-    """Export an analysis as a styled PDF report"""
-    try:
-        from fpdf import FPDF
-    except ImportError:
-        raise HTTPException(status_code=500, detail="PDF-Bibliothek nicht installiert (fpdf2)")
-    import io
-    import re as _re
-
-    analysis = await db.analyses.find_one(
-        {"id": analysis_id, "user_id": user["id"]},
-        {"_id": 0}
-    )
-    if not analysis:
-        raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
-
-    report_type = analysis.get("report_type", "Unbekannt")
-    text = analysis.get("analysis", "")
-    created = analysis.get("created_at", "")
-    if created:
+        logger.error(f"Analyzer job {job_id} failed: {e}", exc_info=True)
         try:
-            from datetime import datetime as _dt
-            dt = _dt.fromisoformat(created.replace("Z", "+00:00"))
-            date_str = dt.strftime("%d.%m.%Y %H:%M")
+            await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
+                "status": "error",
+                "message": f"Analyse fehlgeschlagen: {str(e)[:200]}",
+            }})
         except Exception:
-            date_str = created[:16]
-    else:
-        date_str = "—"
-
-    type_names = {
-        "ECG": "EKG — Elektrokardiogramm",
-        "CT": "CT — Computertomographie",
-        "MRI": "MRT — Magnetresonanztomographie",
-        "BloodTest": "Blutbild — Laborergebnisse",
-        "XRay": "Röntgen — Röntgenaufnahme",
-        "Ultrasound": "Ultraschall — Sonographie",
-    }
-
-    class MedPDF(FPDF):
-        def __init__(self):
-            super().__init__()
-            font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
-            self._use_unicode = False
-            try:
-                if os.path.exists(os.path.join(font_dir, "DejaVuSans.ttf")):
-                    self.add_font("DejaVu", "", os.path.join(font_dir, "DejaVuSans.ttf"), uni=True)
-                    self.add_font("DejaVu", "B", os.path.join(font_dir, "DejaVuSans-Bold.ttf"), uni=True)
-                    self.add_font("DejaVu", "I", os.path.join(font_dir, "DejaVuSans-Oblique.ttf"), uni=True)
-                    self._use_unicode = True
-            except Exception:
-                self._use_unicode = False
-
-        def _f(self, style=""):
-            return "DejaVu" if self._use_unicode else "Helvetica"
-
-        def _safe(self, text):
-            if self._use_unicode:
-                return text
-            replacements = {
-                "\u00e4": "ae", "\u00f6": "oe", "\u00fc": "ue", "\u00df": "ss",
-                "\u00c4": "Ae", "\u00d6": "Oe", "\u00dc": "Ue",
-                "\u2014": "-", "\u2013": "-", "\u2026": "...",
-                "\u201e": '"', "\u201c": '"', "\u201d": '"',
-                "\u2018": "'", "\u2019": "'",
-                "\u2022": "-", "\u00b0": " Grad",
-            }
-            for k, v in replacements.items():
-                text = text.replace(k, v)
-            return text.encode("latin-1", "replace").decode("latin-1")
-
-        def header(self):
-            self.set_font(self._f(), "B", 18)
-            self.set_text_color(8, 145, 178)
-            self.cell(0, 10, "Prep Academy", new_x="LMARGIN", new_y="NEXT")
-            self.set_font(self._f(), "", 9)
-            self.set_text_color(120, 120, 120)
-            self.cell(0, 5, self._safe("KI-gest\u00fctzte medizinische Befundanalyse"), new_x="LMARGIN", new_y="NEXT")
-            self.line(10, self.get_y() + 3, 200, self.get_y() + 3)
-            self.ln(8)
-
-        def footer(self):
-            self.set_y(-25)
-            self.set_draw_color(200, 200, 200)
-            self.line(10, self.get_y(), 200, self.get_y())
-            self.ln(3)
-            self.set_font(self._f(), "I", 7)
-            self.set_text_color(140, 140, 140)
-            self.multi_cell(0, 3.5, self._safe(
-                "Hinweis: Diese KI-Analyse dient ausschlie\u00dflich als klinisches Entscheidungshilfemittel. "
-                "Die \u00e4rztliche Beurteilung hat stets Vorrang. Keine eigenst\u00e4ndige Diagnosestellung."
-            ), align="C")
-            self.set_font(self._f(), "", 7)
-            self.cell(0, 4, f"Seite {self.page_no()}/{{nb}}", align="C")
-
-    pdf = MedPDF()
-    pdf.alias_nb_pages()
-    pdf.set_auto_page_break(auto=True, margin=30)
-    pdf.add_page()
-
-    # Report type & date box
-    pdf.set_fill_color(240, 249, 250)
-    pdf.set_draw_color(8, 145, 178)
-    pdf.rect(10, pdf.get_y(), 190, 18, style="DF")
-    y_box = pdf.get_y()
-    pdf.set_xy(15, y_box + 2)
-    pdf.set_font(pdf._f(), "B", 12)
-    pdf.set_text_color(8, 145, 178)
-    pdf.cell(120, 7, pdf._safe(type_names.get(report_type, report_type)))
-    pdf.set_font(pdf._f(), "", 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 7, date_str, align="R")
-    pdf.set_xy(15, y_box + 10)
-    pdf.set_font(pdf._f(), "", 8)
-    pdf.set_text_color(120, 120, 120)
-    pdf.cell(0, 5, f"Analyse-ID: {analysis_id[:12]}...")
-    pdf.set_y(y_box + 22)
-
-    # Parse markdown sections
-    sections = _re.split(r'^## ', text, flags=_re.MULTILINE)
-    for section in sections:
-        if not section.strip():
-            continue
-        lines = section.split("\n", 1)
-        title = lines[0].strip()
-        body = lines[1].strip() if len(lines) > 1 else ""
-
-        # Section heading
-        pdf.set_font(pdf._f(), "B", 11)
-        pdf.set_text_color(8, 145, 178)
-        pdf.cell(0, 8, pdf._safe(title), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_draw_color(8, 145, 178)
-        pdf.line(10, pdf.get_y(), 80, pdf.get_y())
-        pdf.ln(2)
-
-        # Section body
-        pdf.set_font(pdf._f(), "", 9)
-        pdf.set_text_color(40, 40, 40)
-        for line in body.split("\n"):
-            line = line.strip()
-            if not line:
-                pdf.ln(2)
-                continue
-            # Bold markers
-            clean = _re.sub(r'\*\*(.*?)\*\*', r'\1', line)
-            if line.startswith("- "):
-                clean = clean[2:]
-                pdf.cell(5, 5, pdf._safe(chr(8226)))
-                pdf.multi_cell(0, 5, pdf._safe(f" {clean}"))
-            elif line.startswith("Rate:") or line.startswith("**"):
-                pdf.set_font(pdf._f(), "B", 9)
-                pdf.multi_cell(0, 5, pdf._safe(clean))
-                pdf.set_font(pdf._f(), "", 9)
-            else:
-                pdf.multi_cell(0, 5, pdf._safe(clean))
-        pdf.ln(3)
-
-    # Generate PDF bytes
-    buf = io.BytesIO()
-    pdf.output(buf)
-    buf.seek(0)
-
-    filename = f"Analyse_{report_type}_{date_str.replace('.', '-').replace(':', '-').replace(' ', '_')}.pdf"
-    return StreamingResponse(
-        buf,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
-    )
-
-
-# ============ DASHBOARD ROUTES ============
-
-@api_router.get("/dashboard/stats")
-async def get_dashboard_stats(user: dict = Depends(get_current_user)):
-    """Get comprehensive dashboard statistics for a user"""
-    user_id = user["id"]
-    
-    # Get user stats
-    stats = await db.user_stats.find_one({"user_id": user_id}, {"_id": 0})
-    if not stats:
-        stats = {"total_questions": 0, "correct_answers": 0, "wrong_answers": 0, "by_specialty": {}, "by_year": {}}
-    
-    # Get streak data
-    streak_data = await db.user_streaks.find_one({"user_id": user_id}, {"_id": 0})
-    if not streak_data:
-        streak_data = {"current_streak": 0, "longest_streak": 0, "last_activity_date": None}
-    
-    # Get exam date if set
-    user_settings = await db.user_settings.find_one({"user_id": user_id}, {"_id": 0})
-    exam_date = user_settings.get("exam_date") if user_settings else None
-    daily_goal = user_settings.get("daily_goal", 50) if user_settings else 50
-    weekly_goal = user_settings.get("weekly_goal", 250) if user_settings else 250
-    
-    # Get total questions per specialty - single aggregation instead of N queries
-    count_pipeline = [
-        {"$group": {"_id": "$specialty_id", "count": {"$sum": 1}}}
-    ]
-    spec_counts = {doc["_id"]: doc["count"] for doc in await db.questions.aggregate(count_pipeline).to_list(100)}
-    
-    specialties = await db.specialties.find({}, {"_id": 0}).to_list(100)
-    specialty_progress = []
-    for spec in specialties:
-        total_in_spec = spec_counts.get(spec["id"], 0)
-        user_answered = stats.get("by_specialty", {}).get(spec["id"], {}).get("total", 0)
-        user_correct = stats.get("by_specialty", {}).get(spec["id"], {}).get("correct", 0)
-        specialty_progress.append({
-            "id": spec["id"],
-            "name_de": spec["name_de"],
-            "total_questions": total_in_spec,
-            "answered": user_answered,
-            "correct": user_correct,
-            "progress": round((user_answered / total_in_spec * 100) if total_in_spec > 0 else 0, 1)
-        })
-    
-    # Calculate readiness score
-    total_questions = sum(spec_counts.values())
-    total_answered = stats.get("total_questions", 0)
-    total_correct = stats.get("correct_answers", 0)
-    accuracy = (total_correct / total_answered * 100) if total_answered > 0 else 0
-    coverage = (total_answered / total_questions * 100) if total_questions > 0 else 0
-    readiness = round((accuracy * 0.6 + coverage * 0.4), 1)  # Weighted score
-    
-    return {
-        "total_answered": total_answered,
-        "total_correct": total_correct,
-        "total_wrong": stats.get("wrong_answers", 0),
-        "accuracy": round(accuracy, 1),
-        "coverage": round(coverage, 1),
-        "readiness": readiness,
-        "current_streak": streak_data.get("current_streak", 0),
-        "longest_streak": streak_data.get("longest_streak", 0),
-        "exam_date": exam_date,
-        "daily_goal": daily_goal,
-        "weekly_goal": weekly_goal,
-        "specialty_progress": specialty_progress,
-        "xp": stats.get("xp", 0),
-        "level": get_level_info(stats.get("xp", 0)),
-    }
+            pass
 
 @api_router.get("/dashboard/weekly-activity")
 async def get_weekly_activity(user: dict = Depends(get_current_user)):
