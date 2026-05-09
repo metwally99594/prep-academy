@@ -3344,6 +3344,7 @@ def _step_compute_confidence_and_vote(primary_analysis, second_opinion, third_op
 def _step_apply_safety_pipeline(
     primary_report: str, second_report, confidence_float: float,
     detected_category: str, visibility_data: dict, voting_result: dict, job_id: str,
+    structured_json=None,
 ) -> tuple:
     """STEPS 8-9e: Confidence gate, language normalization, modality validation,
     risk classification, human review check, Clinical Safety Mode, Strict CSM,
@@ -3368,7 +3369,7 @@ def _step_apply_safety_pipeline(
         violations=violations,
         visibility_data=visibility_data,
         confidence_float=confidence_float,
-        structured_json=None,
+        structured_json=structured_json,
         voting_result=voting_result,
     )
     logger.info(
@@ -3692,6 +3693,7 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
             _step_apply_safety_pipeline(
                 primary_report, second_report, confidence_float,
                 detected_category, visibility_data, voting_result, job_id,
+                structured_json=structured_json,
             )
         # STEP 10 — Category mismatch
         category_warning = _step_check_category_mismatch(
