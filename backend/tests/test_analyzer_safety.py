@@ -27,6 +27,11 @@ from services.analyzer_prompts import (
     parse_analysis_json,
     strip_analysis_json_block,
     build_prompt,
+    validate_json_schema,
+    validate_canonical_vocabulary,
+    check_json_narrative_consistency,
+    should_trigger_strict_csm,
+    apply_strict_clinical_safety_mode,
     VALID_CATEGORIES,
 )
 
@@ -591,6 +596,312 @@ class TestUnsafeOutputBenchmarks:
         show, banner = should_trigger_human_review("critical_review_required", 0.55, [], vis, None)
         assert show
         assert "90%" not in text
+
+
+# ═══════════════════════════════════════════════════════════════
+# N) JSON SCHEMA VALIDATION TESTS — Step 6b
+# ═══════════════════════════════════════════════════════════════
+
+class TestValidateJsonSchema:
+
+    def test_valid_minimal_json(self):
+        """All required fields present and typed correctly => valid."""
+        data = {
+            "visible_regions": ["thorax"],
+            "partial_regions": [],
+            "visible_findings": ["Infiltrat rechts basal"],
+            "uncertain_findings": [],
+            "limitations": [],
+            "forbidden_sections_skipped": [],
+            "image_quality": "limited",
+        }
+        result = validate_json_schema(data)
+        assert result["valid"] is True
+        assert result["schema_ok"] is True
+        assert result["quality_ok"] is True
+        assert len(result["errors"]) == 0
+
+    def test_missing_required_field(self):
+        """Missing 'visible_regions' => schema error."""
+        data = {
+            "partial_regions": ["lungen"],
+            "visible_findings": [],
+            "uncertain_findings": [],
+            "limitations": [],
+            "forbidden_sections_skipped": [],
+        }
+        result = validate_json_schema(data)
+        assert result["valid"] is False
+        assert result["schema_ok"] is False
+        assert any("visible_regions" in e for e in result["errors"])
+
+    def test_field_wrong_type_list_expected(self):
+        """'visible_regions' as string instead of list => type error."""
+        data = {
+            "visible_regions": "thorax",
+            "partial_regions": [],
+            "visible_findings": [],
+            "uncertain_findings": [],
+            "limitations": [],
+            "forbidden_sections_skipped": [],
+        }
+        result = validate_json_schema(data)
+        assert result["valid"] is False
+        assert any("Liste" in e for e in result["errors"])
+
+    def test_field_item_not_string(self):
+        """List item is a number => type error."""
+        data = {
+            "visible_regions": ["thorax", 123],
+            "partial_regions": [],
+            "visible_findings": [],
+            "uncertain_findings": [],
+            "limitations": [],
+            "forbidden_sections_skipped": [],
+        }
+        result = validate_json_schema(data)
+        assert result["valid"] is False
+        assert any("String" in e for e in result["errors"])
+
+    def test_invalid_image_quality_value(self):
+        """image_quality = 'super' => quality error."""
+        data = {
+            "visible_regions": ["thorax"],
+            "partial_regions": [],
+            "visible_findings": [],
+            "uncertain_findings": [],
+            "limitations": [],
+            "forbidden_sections_skipped": [],
+            "image_quality": "super",
+        }
+        result = validate_json_schema(data)
+        assert result["valid"] is False
+        assert result["quality_ok"] is False
+        assert any("image_quality" in e.lower() for e in result["errors"])
+
+    def test_valid_image_quality_known_values(self):
+        """All four known quality values pass."""
+        for qval in ("good", "limited", "poor", "unknown"):
+            data = {
+                "visible_regions": [],
+                "partial_regions": [],
+                "visible_findings": [],
+                "uncertain_findings": [],
+                "limitations": [],
+                "forbidden_sections_skipped": [],
+                "image_quality": qval,
+            }
+            result = validate_json_schema(data)
+            assert result["quality_ok"] is True, f"quality={qval} should be valid"
+
+    def test_none_input_returns_invalid(self):
+        """None data => not valid."""
+        result = validate_json_schema(None)
+        assert result["valid"] is False
+        assert result["schema_ok"] is False
+
+    def test_non_dict_input_returns_invalid(self):
+        """Non-dict data => not valid."""
+        result = validate_json_schema(["not", "a", "dict"])
+        assert result["valid"] is False
+
+
+# ═══════════════════════════════════════════════════════════════
+# O) CANONICAL VOCABULARY TESTS — Step 6c
+# ═══════════════════════════════════════════════════════════════
+
+class TestValidateCanonicalVocabulary:
+
+    def test_canonical_anatomical_terms_valid(self):
+        """Known anatomical terms => valid."""
+        data = {
+            "visible_regions": ["thorax", "lungen"],
+            "partial_regions": ["herz"],
+            "visible_findings": ["Infiltrat rechts"],
+            "uncertain_findings": [],
+        }
+        result = validate_canonical_vocabulary(data)
+        assert result["valid"] is True
+        assert len(result["non_canonical"]) == 0
+
+    def test_non_canonical_hallucinated_term(self):
+        """Hallucinated term like 'Lungenventrikel' => invalid."""
+        data = {
+            "visible_regions": ["thorax"],
+            "partial_regions": [],
+            "visible_findings": ["Lungenventrikel rechts vergrößert"],
+            "uncertain_findings": [],
+        }
+        result = validate_canonical_vocabulary(data)
+        assert result["valid"] is False
+        assert len(result["non_canonical"]) > 0
+
+    def test_generic_terms_always_canonical(self):
+        """Generic safe terms like 'unauffällig', 'regelrecht' => always pass."""
+        for term in ("unauffällig", "regelrecht", "normalbefund", "kein nachweis"):
+            data = {
+                "visible_regions": [term],
+                "partial_regions": [],
+                "visible_findings": [],
+                "uncertain_findings": [],
+            }
+            result = validate_canonical_vocabulary(data)
+            assert result["valid"] is True, f"term '{term}' should be canonical"
+
+    def test_none_input_returns_invalid(self):
+        """None structured_json => invalid."""
+        result = validate_canonical_vocabulary(None)
+        assert result["valid"] is False
+
+    def test_empty_fields_all_canonical(self):
+        """All empty lists => canonical ratio 1.0, valid."""
+        data = {
+            "visible_regions": [],
+            "partial_regions": [],
+            "visible_findings": [],
+            "uncertain_findings": [],
+        }
+        result = validate_canonical_vocabulary(data)
+        assert result["valid"] is True
+        assert result["canonical_ratio"] == 1.0
+
+
+# ═══════════════════════════════════════════════════════════════
+# P) JSON-NARRATIVE CONSISTENCY TESTS — Step 6d
+# ═══════════════════════════════════════════════════════════════
+
+class TestCheckJsonNarrativeConsistency:
+
+    def test_hidden_region_mentioned_in_narrative_flags_warning(self):
+        """Narrative mentions finding in hidden region => consistency warning."""
+        json_data = {
+            "visible_regions": ["thorax"],
+            "partial_regions": [],
+            "visible_findings": [],
+            "uncertain_findings": [],
+        }
+        visibility_data = {"visible": ["thorax"], "partial": [], "hidden": ["brain"], "image_quality": "limited"}
+        narrative = "Intrazerebrale Blutung links temporal. Mediastinum unauffällig."
+        result = check_json_narrative_consistency(json_data, narrative, visibility_data)
+        assert result["warnings"] is not None
+        assert len(result["warnings"]) > 0
+
+    def test_visible_region_mentioned_in_narrative_is_consistent(self):
+        """Narrative findings match visible regions => no warnings."""
+        json_data = {
+            "visible_regions": ["thorax", "lungen"],
+            "partial_regions": [],
+            "visible_findings": [],
+            "uncertain_findings": [],
+        }
+        visibility_data = {"visible": ["thorax", "lungen"], "partial": [], "hidden": [], "image_quality": "good"}
+        narrative = "Infiltrat rechts basal. Zwerchfell glatt begrenzt. Lunge beidseits belüftet."
+        result = check_json_narrative_consistency(json_data, narrative, visibility_data)
+        assert result["warnings"] is None or len(result["warnings"]) == 0
+
+    def test_none_json_returns_consistent(self):
+        """None json_data => consistent (nothing to cross-check)."""
+        result = check_json_narrative_consistency(None, "Some narrative text")
+        assert result["consistent"] is True
+
+    def test_empty_narrative_returns_consistent(self):
+        """Empty narrative => consistent."""
+        json_data = {
+            "visible_regions": ["thorax"],
+            "partial_regions": [],
+            "visible_findings": [],
+            "uncertain_findings": [],
+        }
+        visibility_data = {"visible": ["thorax"], "partial": [], "hidden": [], "image_quality": "good"}
+        result = check_json_narrative_consistency(json_data, "", visibility_data)
+        assert result["consistent"] is True
+
+
+# ═══════════════════════════════════════════════════════════════
+# Q) STRICT CLINICAL SAFETY MODE TESTS — Step 9d-2
+# ═══════════════════════════════════════════════════════════════
+
+class TestStrictClinicalSafetyMode:
+
+    def test_high_uncertainty_triggers_strict_csm(self):
+        """Low confidence (0.40) + disagreement => triggers strict CSM."""
+        triggered, reason = should_trigger_strict_csm(
+            voting_result={"disagreement": True, "agreement_score": 0.1},
+            visibility_data={"visible": [], "partial": [], "hidden": ["brain"], "image_quality": "poor"},
+            risk_result={"level": "high_risk"},
+            violations=["forbidden_term"],
+            confidence_float=0.40,
+        )
+        assert triggered is True
+        assert len(reason) > 0
+
+    def test_high_image_quality_low_confidence_no_csm(self):
+        """Good image quality but very low confidence => not strict CSM."""
+        triggered, reason = should_trigger_strict_csm(
+            voting_result={"disagreement": False, "agreement_score": 0.3},
+            visibility_data={"visible": ["thorax"], "partial": [], "hidden": [], "image_quality": "good"},
+            risk_result={"level": "low"},
+            violations=[],
+            confidence_float=0.40,
+        )
+        assert triggered is False
+
+    def test_poor_image_quality_triggers_csm(self):
+        """Poor image quality alone => triggers strict CSM."""
+        triggered, reason = should_trigger_strict_csm(
+            voting_result=None,
+            visibility_data={"visible": [], "partial": [], "hidden": [], "image_quality": "poor"},
+            risk_result=None,
+            violations=[],
+            confidence_float=0.70,
+        )
+        assert triggered is True
+        assert "image_quality" in reason.lower() or "poor" in reason.lower()
+
+    def test_apply_strict_csm_strips_differential(self):
+        """Strict CSM removes differentialdiagnose section."""
+        text = """
+## 1. Technik
+Thorax p.a.
+
+## 2. Befund
+Infiltrat rechts basal.
+
+## 3. Differentialdiagnose
+1. Pneumonie (80%)
+2. Atelektase (20%)
+
+## 4. Beurteilung
+Klinische Korrelation erforderlich.
+"""
+        stripped, modified = apply_strict_clinical_safety_mode(text)
+        assert modified is True
+        assert "Differentialdiagnose" not in stripped or "Deaktiviert" in stripped
+
+    def test_apply_strict_csm_preserves_findings(self):
+        """Strict CSM keeps ## 2. Befund section."""
+        text = """
+## 2. Befund
+Infiltrat rechts basal. Pleurawinkel rechts verschattet.
+"""
+        stripped, modified = apply_strict_clinical_safety_mode(text)
+        assert "Infiltrat" in stripped
+        assert "Befund" in stripped
+
+    def test_apply_strict_csm_adds_banner(self):
+        """Strict CSM output starts with safety banner."""
+        text = "## 2. Befund\nNormale Lunge beidseits."
+        stripped, modified = apply_strict_clinical_safety_mode(text)
+        assert modified is True
+        assert "KLINISCHER SICHERHEITSMODUS" in stripped or "KLIN." in stripped
+
+    def test_build_strict_csm_log_entry(self):
+        """Log entry captures before/after lengths."""
+        from services.analyzer_prompts import build_strict_csm_log_entry
+        log = build_strict_csm_log_entry(True, "low_confidence", True, 200, 100)
+        assert log["step"] == "strict_clinical_safety_mode"
+        assert log["activated"] is True
+        assert log["chars_removed"] == 100
 
     def test_pipeline_catch_rate_on_ct_terms_xray(self):
         """Full unsafe XRAY report: expect ≥ 3 violations."""

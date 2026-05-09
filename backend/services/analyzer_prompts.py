@@ -496,7 +496,9 @@ def build_strict_csm_log_entry(
 
 # ═══════════════════════════════════════════════════════════════
 # MASTER PROMPT
+# ═══════════════════════════════════════════════════════════════
 
+MASTER_PROMPT = """
 PRIMÄRES ZIEL:
 Sichere, begrenzte, evidenzbasierte Beobachtungen aus den bereitgestellten medizinischen Daten liefern.
 
@@ -528,6 +530,28 @@ Sprache: Deutsches medizinisches Format.
 
 Wenn die Sichtbarkeit unzureichend ist: "Nicht sicher beurteilbar." statt Spekulation.
 """
+
+# ═══════════════════════════════════════════════════════════════
+# VISIBILITY DETECTION - Step 2 of the pipeline
+# Quick pre-analysis call to determine what the image actually shows.
+# ═══════════════════════════════════════════════════════════════
+
+VISIBILITY_SYSTEM = (
+    "You are a medical image visibility analyzer. "
+    "You output ONLY valid JSON with no markdown, no explanation."
+)
+
+VISIBILITY_USER = (
+    "Examine this medical image carefully.\n"
+    "Identify which anatomical regions are clearly visible, partially visible, or not visible at all.\n\n"
+    "Output ONLY JSON in this exact format (no other text):\n"
+    "{\"visible\": [\"region1\", \"region2\"], \"partial\": [\"region3\"], \"hidden\": [\"region4\"], "
+    "\"image_quality\": \"good|limited|poor\"}\n\n"
+    "Use these anatomical terms:\n"
+    + ", ".join(_ANATOMY_TERMS) + "\n\n"
+    "If image quality is too poor to assess:\n"
+    "{\"visible\": [], \"partial\": [], \"hidden\": [], \"image_quality\": \"poor\"}"
+)
 
 # ═══════════════════════════════════════════════════════════════
 # SUBTYPE PROMPTS - modality-specific rules appended to MASTER
@@ -653,7 +677,7 @@ Ausgabe:
 }
 
 # ═══════════════════════════════════════════════════════════════
-# VISIBILITY DETECTION - Step 2 of the pipeline
+# MASTER PROMPT
 # Quick pre-analysis call to determine what the image actually shows.
 # ═══════════════════════════════════════════════════════════════
 
