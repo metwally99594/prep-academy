@@ -237,6 +237,27 @@ def check_comment_rate(user_id: str) -> Optional[str]:
     return None
 
 
+# ── Anti-spam burst protection (rapid-fire detection) ──
+
+_burst_store: dict[str, list[float]] = {}
+BURST_LIMIT = 5
+BURST_WINDOW = 60  # 1 minute
+
+
+def check_burst_rate(user_id: str, kind: str = "post") -> Optional[str]:
+    """Detect rapid-fire spam: more than BURST_LIMIT actions within BURST_WINDOW seconds."""
+    now = time.time()
+    start = now - BURST_WINDOW
+    key = f"burst:{kind}:{user_id}"
+    timestamps = _burst_store.get(key, [])
+    timestamps = [t for t in timestamps if t > start]
+    if len(timestamps) >= BURST_LIMIT:
+        return "Burst rate limit exceeded — too many actions in a short period"
+    timestamps.append(now)
+    _burst_store[key] = timestamps
+    return None
+
+
 # ── @mention extraction ──
 
 _MENTION_RE = re.compile(r"@(\w[\w.-]+)")

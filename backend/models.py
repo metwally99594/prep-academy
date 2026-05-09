@@ -288,6 +288,7 @@ class CommunityPostListResponse(BaseModel):
     total: int = 0
     page: int = 1
     page_size: int = 20
+    next_cursor: Optional[str] = None
 
 
 class CommunityCommentCreate(BaseModel):

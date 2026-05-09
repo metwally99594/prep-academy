@@ -24,11 +24,13 @@ from services.community_service import (
     compute_hot_score, compute_trending_score,
     check_phi, check_dangerous_advice,
     check_post_rate, check_comment_rate, check_content_quality,
+    check_burst_rate,
     extract_mentions,
 )
 from services.moderation_service import (
     evaluate_auto_moderation, is_title_all_caps, has_external_links,
     build_moderation_entry, should_auto_hide, should_auto_queue,
+    check_profanity, increment_offense, build_audit_entry,
     AUTO_QUEUE_REASONS,
 )
 
@@ -133,6 +135,10 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
     if rate_err:
         raise HTTPException(status_code=429, detail=rate_err)
 
+    burst_err = check_burst_rate(user["id"], "post")
+    if burst_err:
+        raise HTTPException(status_code=429, detail=burst_err)
+
     quality_err = check_content_quality(body.content)
     if quality_err:
         raise HTTPException(status_code=400, detail=quality_err)
@@ -145,6 +151,7 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
     dangerous_advice = check_dangerous_advice(body.content)
     title_caps = is_title_all_caps(body.title)
     ext_links = has_external_links(body.content)
+    profanity_findings = check_profanity(f"{body.title} {body.content}")
 
     # Check for duplicates
     dup_of = None
@@ -170,6 +177,7 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
         dangerous_advice=dangerous_advice,
         has_external_links=ext_links,
         title_is_all_caps=title_caps,
+        profanity_findings=profanity_findings,
     )
 
     status = "moderation_queue" if should_queue else "published"
@@ -208,6 +216,9 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
         entry = build_moderation_entry("post", post_id, AUTO_QUEUE_REASONS.get(reason_key, reason_key), reason_key, severity)
         try:
             await db.community_moderation_queue.insert_one(entry)
+            # Track offense count for auto-lock
+            if increment_offense(user["id"]):
+                logger.info(f"Auto-lock threshold reached for user {user['id'][:8]}")
         except Exception as e:
             logger.warning(f"Failed to create moderation entry: {e}")
 
@@ -231,6 +242,7 @@ async def get_feed(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
+    cursor: Optional[str] = Query(None),
     user: dict = Depends(get_current_user),
 ):
     sort_err = validate_sort_option(sort)
@@ -250,22 +262,46 @@ async def get_feed(
     if search:
         query["$text"] = {"$search": search}
 
-    total = await db.community_posts.count_documents(query)
-
-    sort_options = {
-        "recent": ("created_at", -1),
-        "top": ("stats.score", -1),
-        "discussed": ("stats.comment_count", -1),
-        "trending": ("created_at", -1),  # trending computed client-side from stats
+    sort_config = {
+        "recent": {"field": "created_at", "coerce": str},
+        "trending": {"field": "created_at", "coerce": str},
+        "top": {"field": "stats.score", "coerce": float},
+        "discussed": {"field": "stats.comment_count", "coerce": int},
     }
-    sort_field, sort_dir = sort_options.get(sort, ("created_at", -1))
-    cursor = db.community_posts.find(query).sort(sort_field, sort_dir).skip((page - 1) * page_size).limit(page_size)
-    posts = await cursor.to_list(length=page_size)
+    cfg = sort_config.get(sort, sort_config["recent"])
+    sort_field = cfg["field"]
+    sort_dir = -1
 
-    # Enrich with author names
+    use_cursor_pagination = cursor is not None and cursor != ""
+
+    if use_cursor_pagination:
+        try:
+            cursor_value = cfg["coerce"](cursor)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid cursor value for this sort mode")
+        query[sort_field] = {"$lt": cursor_value}
+        db_cursor = db.community_posts.find(query).sort(sort_field, sort_dir).limit(page_size)
+        posts = await db_cursor.to_list(length=page_size)
+
+        total = len(posts)
+        next_cursor = str(posts[-1][sort_field]) if len(posts) == page_size else None
+    else:
+        total = await db.community_posts.count_documents(query)
+        db_cursor = db.community_posts.find(query).sort(sort_field, sort_dir).skip((page - 1) * page_size).limit(page_size)
+        posts = await db_cursor.to_list(length=page_size)
+        next_cursor = None
+
+    # Batch load author names (fixes N+1)
+    author_ids = list(set(p["author_id"] for p in posts if p.get("author_id")))
+    author_names: dict[str, str] = {}
+    if author_ids:
+        user_cursor = db.users.find({"id": {"$in": author_ids}}, {"name": 1, "id": 1})
+        async for user_doc in user_cursor:
+            author_names[user_doc["id"]] = user_doc.get("name", "Unknown")
+
     results = []
     for p in posts:
-        author_name = await _get_user_name(p["author_id"])
+        author_name = author_names.get(p["author_id"], "Unknown")
         results.append(CommunityPostResponse(
             id=p["id"],
             author_id=p["author_id"],
@@ -287,7 +323,7 @@ async def get_feed(
             updated_at=p.get("updated_at", ""),
         ))
 
-    return CommunityPostListResponse(posts=results, total=total, page=page, page_size=page_size)
+    return CommunityPostListResponse(posts=results, total=total, page=page, page_size=page_size, next_cursor=next_cursor)
 
 
 @router.get("/community/posts/{post_id}")
@@ -305,15 +341,22 @@ async def get_post(post_id: str, user: dict = Depends(get_current_user)):
     }).sort("created_at", 1)
     comments = await comments_cursor.to_list(length=200)
 
+    # Batch load comment author names (fixes N+1)
+    comment_author_ids = list(set(c["author_id"] for c in comments if c.get("author_id")))
+    comment_author_names: dict[str, str] = {}
+    if comment_author_ids:
+        user_cursor = db.users.find({"id": {"$in": comment_author_ids}}, {"name": 1, "id": 1})
+        async for user_doc in user_cursor:
+            comment_author_names[user_doc["id"]] = user_doc.get("name", "Unknown")
+
     enriched_comments = []
     for c in comments:
-        c_author = await _get_user_name(c["author_id"])
         enriched_comments.append(CommunityCommentResponse(
             id=c["id"],
             post_id=c["post_id"],
             parent_id=c.get("parent_id"),
             author_id=c["author_id"],
-            author_name=c_author,
+            author_name=comment_author_names.get(c["author_id"], "Unknown"),
             content=c["content"],
             status=c.get("status", "published"),
             stats=c.get("stats", {}),
@@ -411,6 +454,10 @@ async def create_comment(body: CommunityCommentCreate, user: dict = Depends(get_
     if rate_err:
         raise HTTPException(status_code=429, detail=rate_err)
 
+    burst_err = check_burst_rate(user["id"], "comment")
+    if burst_err:
+        raise HTTPException(status_code=429, detail=burst_err)
+
     # Validate parent if provided
     parent = None
     if body.parent_id:
@@ -421,10 +468,12 @@ async def create_comment(body: CommunityCommentCreate, user: dict = Depends(get_
     sanitized = sanitize_html(body.content)
     phi_findings = check_phi(body.content)
     dangerous_advice = check_dangerous_advice(body.content)
+    profanity_findings = check_profanity(body.content)
     should_queue, reason_key, severity = evaluate_auto_moderation(
         phi_findings=phi_findings,
         dangerous_advice=dangerous_advice,
         contains_html=contains_html(body.content),
+        profanity_findings=profanity_findings,
     )
 
     status = "moderation_queue" if should_queue else "published"
@@ -456,6 +505,9 @@ async def create_comment(body: CommunityCommentCreate, user: dict = Depends(get_
         entry = build_moderation_entry("comment", comment_id, AUTO_QUEUE_REASONS.get(reason_key, reason_key), reason_key, severity)
         try:
             await db.community_moderation_queue.insert_one(entry)
+            # Track offense count for auto-lock
+            if increment_offense(user["id"]):
+                logger.info(f"Auto-lock threshold reached for user {user['id'][:8]}")
         except Exception as e:
             logger.warning(f"Failed to create moderation entry: {e}")
 
@@ -719,6 +771,13 @@ async def take_moderation_action(body: ModerationAction, admin: dict = Depends(g
         }},
     )
 
+    # Audit log entry
+    try:
+        audit_entry = build_audit_entry(body.action, body.target_type, body.target_id, admin["id"], body.reason, {"previous_status": target.get("status")})
+        await db.community_moderation_audit.insert_one(audit_entry)
+    except Exception as e:
+        logger.warning(f"Failed to create audit entry: {e}")
+
     return {"status": "ok", "new_status": new_status}
 
 
@@ -797,13 +856,20 @@ async def get_trending(
         cursor = db.community_posts.find({"status": "published", "created_at": {"$gte": since}}).sort("stats.score", -1).limit(limit)
         posts = await cursor.to_list(length=limit)
 
+    # Batch load author names (fixes N+1)
+    author_ids = list(set(p["author_id"] for p in posts if p.get("author_id")))
+    author_names: dict[str, str] = {}
+    if author_ids:
+        user_cursor = db.users.find({"id": {"$in": author_ids}}, {"name": 1, "id": 1})
+        async for user_doc in user_cursor:
+            author_names[user_doc["id"]] = user_doc.get("name", "Unknown")
+
     results = []
     for p in posts:
-        author_name = await _get_user_name(p["author_id"])
         results.append(CommunityPostResponse(
             id=p["id"],
             author_id=p["author_id"],
-            author_name=author_name,
+            author_name=author_names.get(p["author_id"], "Unknown"),
             title=p["title"],
             content=p["content"],
             specialty_tags=p.get("specialty_tags", []),

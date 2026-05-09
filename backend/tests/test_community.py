@@ -18,11 +18,16 @@ from services.community_service import (
     compute_hot_score, compute_trending_score,
     check_phi, check_dangerous_advice,
     check_post_rate, check_comment_rate,
+    extract_mentions,
 )
 from services.moderation_service import (
     evaluate_auto_moderation, is_title_all_caps, has_external_links,
     build_moderation_entry, should_auto_hide, should_auto_queue,
     check_content_quality,
+    check_profanity, increment_offense, get_recent_offenses, build_audit_entry,
+)
+from services.community_service import (
+    check_burst_rate,
 )
 
 # ── Content Validation ──
@@ -313,6 +318,13 @@ class TestAutoModeration:
         assert queue is False
         assert severity == ""
 
+    def test_profanity_triggers_medium(self):
+        queue, reason, severity = evaluate_auto_moderation(profanity_findings=["Profanity (DE): 'Arsch'"])
+
+        assert queue is True
+        assert reason == "profanity"
+        assert severity == "medium"
+
 
 class TestIsTitleAllCaps:
 
@@ -354,6 +366,100 @@ class TestAutoHideQueue:
     def test_auto_queue_threshold(self):
         assert should_auto_queue(3) is True
         assert should_auto_queue(1) is False
+
+
+# ── Profanity Filter ──
+
+
+class TestCheckProfanity:
+
+    def test_detects_german(self):
+        findings = check_profanity("Du Arschloch!")
+        assert any("DE" in f for f in findings)
+
+    def test_detects_english(self):
+        findings = check_profanity("What the fuck")
+        assert any("EN" in f for f in findings)
+
+    def test_detects_arabic(self):
+        findings = check_profanity("كسم")
+        assert any("AR" in f for f in findings)
+
+    def test_clean_text_passes(self):
+        assert check_profanity("This is a clean medical discussion") == []
+
+    def test_mixed_language_profanity(self):
+        findings = check_profanity("Fick dich and كسمك")
+        assert len(findings) >= 2
+
+    def test_non_profane_word_not_flagged(self):
+        assert check_profanity("Diese Aussage ist scheiße") == []  # no exact match
+
+
+# ── Auto-Lock ──
+
+
+class TestAutoLock:
+
+    def test_first_offense_does_not_lock(self):
+        uid = f"lock-test-{uuid.uuid4().hex}"
+        assert increment_offense(uid) is False
+
+    def test_third_offense_triggers_lock(self):
+        uid = f"lock-trigger-{uuid.uuid4().hex}"
+        increment_offense(uid)
+        increment_offense(uid)
+        assert increment_offense(uid) is True
+
+    def test_get_recent_offenses(self):
+        uid = f"offense-count-{uuid.uuid4().hex}"
+        assert get_recent_offenses(uid) == 0
+        increment_offense(uid)
+        assert get_recent_offenses(uid) == 1
+        increment_offense(uid)
+        assert get_recent_offenses(uid) == 2
+
+
+# ── Burst Rate Protection ──
+
+
+class TestBurstRate:
+
+    def test_first_actions_ok(self):
+        uid = f"burst-{uuid.uuid4().hex}"
+        assert check_burst_rate(uid, "post") is None
+        assert check_burst_rate(uid, "post") is None
+
+    def test_exceeds_limit(self):
+        uid = f"burst-limit-{uuid.uuid4().hex}"
+        for _ in range(5):
+            check_burst_rate(uid, "post")
+        assert check_burst_rate(uid, "post") is not None
+
+    def test_independent_per_kind(self):
+        uid = f"burst-kind-{uuid.uuid4().hex}"
+        for _ in range(5):
+            check_burst_rate(uid, "post")
+        # Comments should still be allowed
+        assert check_burst_rate(uid, "comment") is None
+
+
+# ── Audit Log ──
+
+
+class TestBuildAuditEntry:
+
+    def test_has_required_keys(self):
+        entry = build_audit_entry("approve", "post", "abc123", "admin1", "Approved after review")
+        for key in ("id", "action", "target_type", "target_id", "admin_id", "reason", "details", "created_at"):
+            assert key in entry
+        assert entry["action"] == "approve"
+        assert entry["admin_id"] == "admin1"
+        assert entry["details"] == {}
+
+    def test_custom_details(self):
+        entry = build_audit_entry("hide", "comment", "c456", "admin2", details={"previous_status": "published"})
+        assert entry["details"]["previous_status"] == "published"
 
 
 # ── Integration tests (need running server) ──
@@ -401,6 +507,36 @@ class TestCommunityAPI:
         if resp.status_code == 200:
             data = resp.json()
             assert "posts" in data
+
+
+# ── Mention Extraction ──
+
+
+class TestExtractMentions:
+
+    def test_extracts_multiple_mentions(self):
+        result = extract_mentions("Hey @Alice check @Bob's comment")
+        assert result == ["Alice", "Bob"]
+
+    def test_dot_in_username(self):
+        result = extract_mentions("Contact @dr.smith for details")
+        assert "dr.smith" in result
+
+    def test_dash_in_username(self):
+        result = extract_mentions("Thanks @max-muster!")
+        assert "max-muster" in result
+
+    def test_no_mentions(self):
+        assert extract_mentions("Plain text with no mentions") == []
+
+    def test_empty_string(self):
+        assert extract_mentions("") == []
+
+    def test_at_symbol_without_word(self):
+        assert extract_mentions("Just @ at the end") == []
+
+    def test_mention_at_start(self):
+        assert extract_mentions("@firstuser hello") == ["firstuser"]
 
 
 # ── Notification Helpers ──

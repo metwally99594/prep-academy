@@ -3,8 +3,42 @@ Moderation Pipeline — auto-moderation rules, medical content review, queue man
 
 Pure functions + rule-based decisions. AI moderation interface prepared for future.
 """
+import re
 import time
 from typing import Optional
+
+
+# ── Profanity filter (DE / EN / AR) ──
+
+_DE_PROFANITY = re.compile(
+    r"\b(?:arsch(?:loch)?|fick(?:en|st|t|e)?|scheiß(?:e|t|en)?|"
+    r"mist(?:er)?|verdammt|wichser|hure|bastard|"
+    r"schlampe|trottel|idiot|mongo|behinderte)\b",
+    re.IGNORECASE,
+)
+
+_EN_PROFANITY = re.compile(
+    r"\b(?:fuck(?:ing|er|ed|s)?|shit|bitch(?:es)?|ass(?:hole)?|"
+    r"damn|cocksucker|dickhead|bastard|motherfucker)\b",
+    re.IGNORECASE,
+)
+
+_AR_PROFANITY = re.compile(
+    r"(?:كسم|شرموط|قحبة|ابن(?: ال)?كلب|خرة|كس|زبر|عير|نيّك|متناك|"
+    r"منيوك|خنيث|لوطي|عرص|قواد|خول)",
+)
+
+
+def check_profanity(text: str) -> list[str]:
+    """Check text for profanity in DE, EN, AR. Returns list of matched terms."""
+    findings: list[str] = []
+    for m in _DE_PROFANITY.finditer(text):
+        findings.append(f"Profanity (DE): '{m.group()}'")
+    for m in _EN_PROFANITY.finditer(text):
+        findings.append(f"Profanity (EN): '{m.group()}'")
+    for m in _AR_PROFANITY.finditer(text):
+        findings.append(f"Profanity (AR): '{m.group()}'")
+    return findings
 
 
 # ── Auto-moderation rules ──
@@ -17,6 +51,7 @@ AUTO_QUEUE_REASONS = {
     "high_report_rate": "Reported multiple times in short period",
     "new_user_links": "New user posting external links",
     "all_caps_title": "Title is all caps",
+    "profanity": "Contains profanity or offensive language",
 }
 
 
@@ -29,6 +64,7 @@ def evaluate_auto_moderation(
     recent_reports: int = 0,
     has_external_links: bool = False,
     title_is_all_caps: bool = False,
+    profanity_findings: Optional[list[str]] = None,
 ) -> tuple[bool, str, str]:
     """
     Evaluate rules and decide: pass, queue, or hide.
@@ -40,6 +76,8 @@ def evaluate_auto_moderation(
         return True, "phi_detected", "high"
     if dangerous_advice and len(dangerous_advice) > 0:
         return True, "dangerous_advice", "critical"
+    if profanity_findings and len(profanity_findings) > 0:
+        return True, "profanity", "medium"
     if contains_html:
         return True, "contains_html", "medium"
     if recent_reports >= 3:
@@ -137,6 +175,54 @@ def should_auto_hide(report_count: int) -> bool:
 
 def should_auto_queue(report_count: int) -> bool:
     return report_count >= REPORT_QUEUE_THRESHOLD
+
+
+# ── Auto-lock (in-memory offense tracking) ──
+
+_user_offense_store: dict[str, list[float]] = {}
+AUTO_LOCK_THRESHOLD = 3
+AUTO_LOCK_WINDOW = 86400 * 7  # 7 days
+
+
+def increment_offense(author_id: str) -> bool:
+    """Increment offense count for a user. Returns True if threshold reached (should auto-lock)."""
+    now = time.time()
+    cutoff = now - AUTO_LOCK_WINDOW
+    offenses = _user_offense_store.get(author_id, [])
+    offenses = [t for t in offenses if t > cutoff]
+    offenses.append(now)
+    _user_offense_store[author_id] = offenses
+    return len(offenses) >= AUTO_LOCK_THRESHOLD
+
+
+def get_recent_offenses(author_id: str) -> int:
+    """Return the number of recent offenses for a user within the lock window."""
+    cutoff = time.time() - AUTO_LOCK_WINDOW
+    offenses = _user_offense_store.get(author_id, [])
+    return len([t for t in offenses if t > cutoff])
+
+
+# ── Audit log entry builder ──
+
+
+def build_audit_entry(
+    action: str,
+    target_type: str,
+    target_id: str,
+    admin_id: str,
+    reason: Optional[str] = None,
+    details: Optional[dict] = None,
+) -> dict:
+    return {
+        "id": __import__("uuid").uuid4().hex,
+        "action": action,
+        "target_type": target_type,
+        "target_id": target_id,
+        "admin_id": admin_id,
+        "reason": reason,
+        "details": details or {},
+        "created_at": time.time(),
+    }
 
 
 # ── Content quality check ──
