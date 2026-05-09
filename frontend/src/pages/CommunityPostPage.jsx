@@ -6,6 +6,7 @@ import { usePost } from "@/hooks/usePost";
 import { PostHeader } from "@/components/community/PostHeader";
 import { PostActions } from "@/components/community/PostActions";
 import { CommentSection } from "@/components/community/CommentSection";
+import { AIInsightBlock } from "@/components/community/AIInsightBlock";
 
 function PostSkeleton() {
   return (
@@ -103,6 +104,9 @@ export default function CommunityPostPage() {
           />
         </div>
       )}
+
+      {/* AI Insight Block — only when post is loaded */}
+      {!loading && post && <AIInsightBlock post={post} />}
 
       {/* Comments */}
       {loading ? (
