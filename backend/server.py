@@ -38,6 +38,8 @@ from services.analyzer_prompts import (
     apply_confidence_gate, validate_modality_output, build_safety_layer_from_visibility,
     compute_model_agreement, merge_visibility_with_segmentation,
     classify_risk, normalize_clinical_language, should_trigger_human_review,
+    should_use_clinical_safety_mode, apply_clinical_safety_mode,
+    build_pipeline_explainability_log, _CSM_BANNER,
 )
 from services.image_segmentation import detect_anatomical_regions
 
@@ -3394,6 +3396,35 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
         )
 
         # ════════════════════════════════════════════════
+        # STEP 9d — Clinical Safety Mode (Feature 6)
+        # When ≥3 safety signals converge, strip interpretation
+        # sections from the report to prevent catastrophic hallucinations.
+        # ════════════════════════════════════════════════
+        csm_activated, csm_reason = should_use_clinical_safety_mode(
+            risk_result=risk_result,
+            visibility_data=visibility_data,
+            voting_result=voting_result,
+        )
+        csm_applied = False
+        if csm_activated:
+            primary_report, csm_applied = apply_clinical_safety_mode(primary_report)
+            logger.warning(f"[ANALYZER] Clinical Safety Mode job={job_id}: {csm_reason}")
+
+        # ════════════════════════════════════════════════
+        # STEP 9e — Explainability Log (Feature 7)
+        # Structured audit trail of every safety action taken.
+        # ════════════════════════════════════════════════
+        explain_log = build_pipeline_explainability_log(
+            confidence=confidence_float,
+            violations=violations,
+            lang_changes=lang_changes,
+            risk_result=risk_result,
+            voting_result=voting_result,
+            visibility_data=visibility_data,
+            clinical_safety_mode=csm_applied,
+        )
+
+        # ════════════════════════════════════════════════
         # STEP 10 — Category mismatch warning (existing keyword check)
         # ════════════════════════════════════════════════
         category_warning = None
@@ -3466,10 +3497,11 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
 
         # Assemble final report
         warning_prefix = (category_warning or "") + vis_notice
-        # Human review banner FIRST (most prominent)
+        # Clinical Safety Mode banner > Human Review banner (both can coexist)
+        csm_prefix = _CSM_BANNER if csm_applied else ""
         review_prefix = review_banner if show_review_banner else ""
         full_analysis = (
-            f"{review_prefix}{warning_prefix}"
+            f"{csm_prefix}{review_prefix}{warning_prefix}"
             f"## Erstanalyse — {primary_model_used}\n"
             f"{primary_report}"
             f"{violation_note}{voting_note}{risk_note}{lang_note}"
@@ -3498,17 +3530,40 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
             "image_count": len(all_images),
             "image_preview": all_images[0][:200] + "..." if all_images else "",
             # Pipeline audit fields
-            "visibility_data":       visibility_data,
-            "structured_findings":   structured_json,
-            "validation_violations": violations,
-            "safety_layer_applied":  bool(safety_layer),
-            "voting_result":         voting_result,
-            "risk_result":           risk_result,
-            "human_review_triggered":show_review_banner,
-            "lang_changes":          lang_changes,
+            "visibility_data":           visibility_data,
+            "structured_findings":       structured_json,
+            "validation_violations":     violations,
+            "safety_layer_applied":      bool(safety_layer),
+            "voting_result":             voting_result,
+            "risk_result":               risk_result,
+            "human_review_triggered":    show_review_banner,
+            "lang_changes":              lang_changes,
+            "clinical_safety_mode":      csm_applied,
+            "pipeline_explainability":   explain_log,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.analyses.insert_one(analysis_doc)
+
+        # Write safety metrics for dashboard aggregation
+        await db.analyzer_safety_metrics.insert_one({
+            "job_id":                  job_id,
+            "user_id":                 user["id"],
+            "category":                detected_category,
+            "confidence_score":        confidence_score,
+            "ai_count":                ai_count,
+            "had_violations":          bool(violations),
+            "violation_count":         len(violations),
+            "human_review_triggered":  show_review_banner,
+            "disagreement":            bool(voting_result and voting_result.get("disagreement")),
+            "agreement_score":         voting_result.get("agreement_score") if voting_result else None,
+            "risk_level":              risk_result["level"],
+            "risk_score":              risk_result["score"],
+            "lang_changes_count":      len(lang_changes),
+            "image_quality":           visibility_data.get("image_quality", "unknown"),
+            "clinical_safety_mode":    csm_applied,
+            "structured_json_ok":      structured_json is not None,
+            "timestamp":               datetime.now(timezone.utc),
+        })
 
         await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
             "status": "done",
@@ -3525,9 +3580,11 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
                 "visibility_data":      visibility_data,
                 "structured_findings":  structured_json,
                 "validation_violations":violations,
-                "voting_result":        voting_result,
-                "risk_result":          risk_result,
-                "human_review_triggered":show_review_banner,
+                "voting_result":          voting_result,
+                "risk_result":            risk_result,
+                "human_review_triggered": show_review_banner,
+                "clinical_safety_mode":   csm_applied,
+                "pipeline_explainability":explain_log,
             },
         }})
     except Exception as e:
@@ -4358,6 +4415,67 @@ async def get_all_reports(admin: dict = Depends(get_admin_user)):
 # ============ ADMIN ROUTES (extracted to routes/admin.py) ============
 
 # ============ TELEGRAM BOT STATUS ============
+
+@api_router.get("/admin/analyzer/safety-metrics")
+async def get_analyzer_safety_metrics(
+    days: int = 30,
+    admin: dict = Depends(get_admin_user),
+):
+    """
+    Safety metrics dashboard for the analyzer pipeline.
+    Aggregates per-analysis safety events over the last `days` days.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    cursor = db.analyzer_safety_metrics.find(
+        {"timestamp": {"$gte": since}},
+        {"_id": 0},
+    )
+    docs = await cursor.to_list(5000)
+    total = len(docs)
+    if total == 0:
+        return {
+            "period_days": days, "total_analyses": 0,
+            "hallucination_rate": 0.0, "forbidden_term_rate": 0.0,
+            "human_review_rate": 0.0, "disagreement_rate": 0.0,
+            "unsafe_certainty_rate": 0.0, "clinical_safety_mode_rate": 0.0,
+            "risk_level_distribution": {}, "quality_distribution": {},
+            "category_distribution": {},
+        }
+
+    def _rate(pred) -> float:
+        return round(sum(1 for d in docs if pred(d)) / total, 4)
+
+    risk_dist: dict[str, int] = {}
+    quality_dist: dict[str, int] = {}
+    cat_dist: dict[str, int] = {}
+    for d in docs:
+        rl = d.get("risk_level", "unknown")
+        risk_dist[rl] = risk_dist.get(rl, 0) + 1
+        q = d.get("image_quality", "unknown")
+        quality_dist[q] = quality_dist.get(q, 0) + 1
+        c = d.get("category") or "other"
+        cat_dist[c] = cat_dist.get(c, 0) + 1
+
+    return {
+        "period_days":             days,
+        "total_analyses":          total,
+        # Core safety rates
+        "hallucination_rate":      _rate(lambda d: d.get("had_violations")),
+        "forbidden_term_rate":     round(sum(d.get("violation_count", 0) for d in docs) / total, 4),
+        "human_review_rate":       _rate(lambda d: d.get("human_review_triggered")),
+        "disagreement_rate":       _rate(lambda d: d.get("disagreement")),
+        "unsafe_certainty_rate":   _rate(lambda d: d.get("lang_changes_count", 0) > 0),
+        "clinical_safety_mode_rate": _rate(lambda d: d.get("clinical_safety_mode")),
+        # Distributions
+        "risk_level_distribution": risk_dist,
+        "quality_distribution":    quality_dist,
+        "category_distribution":   cat_dist,
+        # Confidence breakdown
+        "avg_confidence_score":    round(sum(d.get("confidence_score", 0) for d in docs) / total, 1),
+        "low_confidence_rate":     _rate(lambda d: d.get("confidence_score", 100) < 60),
+        "single_model_rate":       _rate(lambda d: d.get("ai_count", 3) == 1),
+    }
+
 
 @api_router.get("/admin/model-health")
 async def get_model_health(admin: dict = Depends(get_admin_user)):

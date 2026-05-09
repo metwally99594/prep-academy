@@ -794,3 +794,225 @@ def should_trigger_human_review(
         "alleinige Entscheidungsgrundlage verwendet werden._\n\n"
     )
     return True, banner
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE 6 — Clinical Safety Mode
+# Automatically activates minimal factual mode when multiple
+# safety signals converge. Strips interpretation / differentials
+# from the already-generated report so the model outputs
+# only verifiable observations.
+# ═══════════════════════════════════════════════════════════════
+
+# Sections that are removed in clinical safety mode
+_CSM_SECTIONS_TO_STRIP = [
+    r"Differential(?:diagnos\w*)",
+    r"Differenzialdiagnos\w*",
+    r"Interpretation",
+    r"Prognose",
+    r"Einschätzung",
+]
+
+_CSM_BANNER = (
+    "\n> 🛡️ **KLINISCHER SICHERHEITSMODUS AKTIV**\n"
+    "> \n"
+    "> Zu viele Unsicherheitssignale erkannt. "
+    "Nur direkt beobachtbare Befunde werden angezeigt.\n"
+    "> Differentialdiagnosen und Interpretationen wurden automatisch deaktiviert.\n"
+    "> \n"
+    "> _Ärztliche Beurteilung zwingend erforderlich._\n\n"
+)
+
+
+def should_use_clinical_safety_mode(
+    risk_result: dict,
+    visibility_data: dict,
+    voting_result: dict | None,
+) -> tuple[bool, str]:
+    """
+    Decide whether to activate Clinical Safety Mode.
+
+    Triggers when ≥ 3 independent safety signals are active.
+    Returns (activate: bool, reason: str).
+    """
+    signals: list[str] = []
+
+    # Signal 1+2: high risk level (worth 2 points — structural issues)
+    if risk_result.get("level") in ("critical_review_required", "dangerous"):
+        signals.append("Risikostufe CRITICAL/DANGEROUS")
+        signals.append("Risikostufe CRITICAL/DANGEROUS (2)")  # weight 2
+
+    # Signal 3: poor image quality
+    iq = visibility_data.get("image_quality", "unknown")
+    if iq == "poor":
+        signals.append("Bildqualität SCHLECHT")
+
+    # Signal 4: model disagreement
+    if voting_result and voting_result.get("disagreement"):
+        signals.append("Modelldisagreement erkannt")
+
+    # Signal 5: many hidden regions
+    n_hidden = len(visibility_data.get("hidden", []))
+    if n_hidden >= 2:
+        signals.append(f"{n_hidden} Regionen nicht sichtbar")
+
+    # Signal 6: segmentation produced no stats (image decode problem)
+    if not visibility_data.get("segmentation"):
+        signals.append("Segmentierung fehlgeschlagen")
+
+    # Signal 7: many partial regions
+    n_partial = len(visibility_data.get("partial", []))
+    if n_partial >= 4:
+        signals.append(f"{n_partial} Regionen nur partiell sichtbar")
+
+    activated = len(signals) >= 3
+    reason = f"Clinical Safety Mode: {len(signals)} Signale aktiv ({'; '.join(signals[:4])})"
+    return activated, reason
+
+
+def apply_clinical_safety_mode(text: str) -> tuple[str, bool]:
+    """
+    Strip interpretive sections from the report, leaving only direct findings.
+
+    Returns (stripped_text, was_modified: bool).
+    """
+    original = text
+    for section_pattern in _CSM_SECTIONS_TO_STRIP:
+        text = _re.sub(
+            rf'(##\s+{section_pattern})(.*?)(?=\n##|\Z)',
+            r'\1\n_Deaktiviert — Klinischer Sicherheitsmodus aktiv. Nur gesicherte Befunde werden angezeigt._\n',
+            text,
+            flags=_re.DOTALL | _re.IGNORECASE,
+        )
+    was_modified = text != original
+    return text, was_modified
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE 7 — Pipeline Explainability Log
+# Structured audit trail: WHY each safety action was taken.
+# Stored per-analysis for debugging and metrics.
+# ═══════════════════════════════════════════════════════════════
+
+def build_pipeline_explainability_log(
+    confidence: float,
+    violations: list[str],
+    lang_changes: list[str],
+    risk_result: dict,
+    voting_result: dict | None,
+    visibility_data: dict,
+    clinical_safety_mode: bool = False,
+) -> list[dict]:
+    """
+    Build a structured log of every safety action taken in the pipeline.
+
+    Each entry has: step, reason, action, detail.
+    """
+    log: list[dict] = []
+
+    # — Confidence gate actions
+    if confidence >= 0.85:
+        log.append({
+            "step": "confidence_gate",
+            "reason": f"confidence={confidence:.2f} >= 0.85",
+            "action": "none",
+            "detail": "High confidence — no modifications",
+        })
+    elif confidence >= 0.72:
+        log.append({
+            "step": "confidence_gate",
+            "reason": f"confidence={confidence:.2f} in [0.72, 0.85)",
+            "action": "removed_parenthesized_percentages",
+            "detail": "Stripped (85%) style inline probability estimates",
+        })
+    elif confidence >= 0.60:
+        log.append({
+            "step": "confidence_gate",
+            "reason": f"confidence={confidence:.2f} in [0.60, 0.72)",
+            "action": "removed_all_percentages + softened_malignancy_terms",
+            "detail": "All % removed; high-risk terms bracketed with confidence warning",
+        })
+    else:
+        log.append({
+            "step": "confidence_gate",
+            "reason": f"confidence={confidence:.2f} < 0.60",
+            "action": "disabled_differentials + hard_flagged_malignancy + added_notice",
+            "detail": "Only 1 model responded — differentials blocked, strong warning appended",
+        })
+
+    # — Modality violations
+    if violations:
+        for v in violations:
+            log.append({
+                "step": "modality_validator",
+                "reason": "Forbidden term detected for this modality",
+                "action": "flagged_violation",
+                "detail": v,
+            })
+    else:
+        log.append({
+            "step": "modality_validator",
+            "reason": "No forbidden terms found",
+            "action": "none",
+            "detail": "Output clean for modality",
+        })
+
+    # — Language normalization
+    if lang_changes:
+        for change in lang_changes:
+            log.append({
+                "step": "language_normalization",
+                "reason": f"confidence={confidence:.2f} below phrase threshold",
+                "action": "replaced_overconfident_phrase",
+                "detail": change,
+            })
+
+    # — Risk classification
+    log.append({
+        "step": "risk_classifier",
+        "reason": " | ".join(risk_result.get("reasons", [])) or "No risk factors",
+        "action": f"level={risk_result['level']} score={risk_result['score']}",
+        "detail": f"Score breakdown: {risk_result['score']}/100 → {risk_result['level']}",
+    })
+
+    # — Model voting
+    if voting_result:
+        if voting_result.get("disagreement"):
+            dt = voting_result.get("disagreement_terms", [])
+            log.append({
+                "step": "model_voting",
+                "reason": f"agreement_score={voting_result['agreement_score']} < 0.40",
+                "action": "flagged_disagreement",
+                "detail": f"Disputed terms: {', '.join(dt)}" if dt else "High term divergence",
+            })
+        else:
+            log.append({
+                "step": "model_voting",
+                "reason": f"agreement_score={voting_result['agreement_score']} >= 0.40",
+                "action": "none",
+                "detail": f"{voting_result['models_compared']} models agreed",
+            })
+
+    # — Visibility / image quality
+    iq = visibility_data.get("image_quality", "unknown")
+    if iq in ("poor", "limited"):
+        log.append({
+            "step": "visibility_check",
+            "reason": f"image_quality={iq}",
+            "action": "added_quality_notice",
+            "detail": (
+                f"hidden={visibility_data.get('hidden', [])}, "
+                f"partial={visibility_data.get('partial', [])}"
+            ),
+        })
+
+    # — Clinical safety mode
+    if clinical_safety_mode:
+        log.append({
+            "step": "clinical_safety_mode",
+            "reason": "≥3 safety signals converged",
+            "action": "stripped_interpretation_and_differentials",
+            "detail": "Report limited to direct findings only",
+        })
+
+    return log
