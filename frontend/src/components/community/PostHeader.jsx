@@ -4,17 +4,15 @@ import { User } from "lucide-react";
 const TYPE_LABELS = {
   discussion: "Diskussion",
   question: "Frage",
-  case: "Fallbericht",
+  case_study: "Fallstudie",
   resource: "Ressource",
-  announcement: "Ankündigung",
 };
 
 const TYPE_COLORS = {
   discussion: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   question: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-  case: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  case_study: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   resource: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  announcement: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
 };
 
 function formatRelative(isoStr) {
