@@ -302,7 +302,7 @@ export default function NotebookPage() {
     try {
       const res = await axios.post(
         `${API}/notebook/lernleitfaden/${activeNotebook.id}?language=${language}`,
-        {}, { headers, timeout: 15000 }
+        {}, { headers, timeout: 60000 }
       );
       // Cached result returned immediately
       if (res.data.status === "done" && res.data.content) {
@@ -605,7 +605,7 @@ export default function NotebookPage() {
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
                   <span className="text-sm text-muted-foreground">Lernleitfaden wird erstellt...</span>
-                  <span className="text-xs text-muted-foreground/60">KI analysiert Ihre medizinischen Inhalte</span>
+                  <span className="text-xs text-muted-foreground/60">Bitte warten — dies kann bei großen Dokumenten 1–2 Minuten dauern</span>
                 </div>
               )}
               {guideContent && <div className="p-6 rounded-xl border border-border/30 bg-muted/10 text-sm leading-relaxed whitespace-pre-wrap" data-testid="guide-output">{guideContent}</div>}

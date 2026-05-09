@@ -2646,7 +2646,12 @@ Regeln:
 async def generate_lernleitfaden(notebook_id: str, language: str = "de",
                                   user: dict = Depends(get_current_user)):
     """Start async Lernleitfaden generation — returns job_id immediately."""
+    import time as _time
+    _t0 = _time.monotonic()
+    logger.info(f"[Lernleitfaden] POST start nb={notebook_id[:8]} user={user['id'][:8]}")
+
     await check_notebook_access(user)
+    logger.info(f"[Lernleitfaden] access_ok t={_time.monotonic()-_t0:.2f}s")
 
     # Return cached done result instantly
     cached = await db.nb_leitfaden_jobs.find_one(
@@ -2654,6 +2659,7 @@ async def generate_lernleitfaden(notebook_id: str, language: str = "de",
         {"_id": 0},
     )
     if cached:
+        logger.info(f"[Lernleitfaden] cache_hit t={_time.monotonic()-_t0:.2f}s")
         return {"job_id": cached["id"], "status": "done", "content": cached.get("content")}
 
     # Avoid duplicate in-flight jobs
@@ -2662,6 +2668,7 @@ async def generate_lernleitfaden(notebook_id: str, language: str = "de",
         {"_id": 0, "id": 1},
     )
     if existing:
+        logger.info(f"[Lernleitfaden] dedup job={existing['id'][:8]} t={_time.monotonic()-_t0:.2f}s")
         return {"job_id": existing["id"], "status": "processing"}
 
     job_id = str(uuid.uuid4())
@@ -2670,10 +2677,14 @@ async def generate_lernleitfaden(notebook_id: str, language: str = "de",
         "language": language, "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
+    logger.info(f"[Lernleitfaden] job_created job={job_id[:8]} t={_time.monotonic()-_t0:.2f}s")
 
     async def _bg():
+        _bg_t0 = _time.monotonic()
+        logger.info(f"[Lernleitfaden] bg_start job={job_id[:8]}")
         try:
             synthesis = await _ensure_analysis(notebook_id, user["id"])
+            logger.info(f"[Lernleitfaden] bg_analysis_done job={job_id[:8]} t={_time.monotonic()-_bg_t0:.2f}s")
             global_doc = await db.notebook_global_analysis.find_one(
                 {"notebook_id": notebook_id, "user_id": user["id"]}, {"_id": 0}
             )
@@ -2720,14 +2731,16 @@ Erstelle einen strukturierten Lernleitfaden mit:
                 {"$set": {"status": "done", "content": result,
                           "completed_at": datetime.now(timezone.utc).isoformat()}},
             )
+            logger.info(f"[Lernleitfaden] bg_done job={job_id[:8]} t={_time.monotonic()-_bg_t0:.2f}s")
         except Exception as e:
-            logger.error(f"Lernleitfaden job {job_id} error: {e}")
+            logger.error(f"[Lernleitfaden] bg_error job={job_id[:8]} err={str(e)[:150]} t={_time.monotonic()-_bg_t0:.2f}s")
             await db.nb_leitfaden_jobs.update_one(
                 {"id": job_id},
                 {"$set": {"status": "error", "message": str(e)[:300]}},
             )
 
     asyncio.create_task(_bg())
+    logger.info(f"[Lernleitfaden] POST returning job={job_id[:8]} t={_time.monotonic()-_t0:.2f}s")
     return {"job_id": job_id, "status": "processing"}
 
 
@@ -2737,6 +2750,7 @@ async def get_lernleitfaden_job(job_id: str, user: dict = Depends(get_current_us
     job = await db.nb_leitfaden_jobs.find_one({"id": job_id, "user_id": user["id"]}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Job nicht gefunden")
+    logger.info(f"[Lernleitfaden] poll job={job_id[:8]} status={job.get('status')}")
     return job
 
 
@@ -4541,9 +4555,13 @@ TAGS: [tag1, tag2, tag3]
 
 # ============ ROOT ============
 
-# Health check at root level (NOT under /api) - required for deployment
+# Health check — both paths needed: render.yaml uses /api/health, some proxies use /health
 @app.get("/health")
 async def health_check():
+    return {"status": "healthy"}
+
+@api_router.get("/health")
+async def api_health_check():
     return {"status": "healthy"}
 
 @app.get("/")
@@ -4618,7 +4636,7 @@ async def _start_daily_podcast():
 @app.on_event("startup")
 async def _start_trial_system():
     from routes.trial import migrate_existing_users, trial_loop
-    await migrate_existing_users(db)
+    asyncio.create_task(migrate_existing_users(db))
     asyncio.create_task(trial_loop(db))
     logger.info("Trial system started")
 
