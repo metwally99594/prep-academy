@@ -57,8 +57,9 @@ import {
   FileScan,
   Lock,
   GraduationCap,
+  MessageSquare,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import NotificationBell from "@/components/NotificationBell";
 import TrialBanner from "@/components/TrialBanner";
@@ -195,6 +196,20 @@ export const Layout = () => {
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editFormData, setEditFormData] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    if (!token) return;
+    const fetch = async () => {
+      try {
+        const res = await axios.get(`${API}/messaging/unread-count`, { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 });
+        setUnreadMessages(res.data.total_unread || 0);
+      } catch { /* silent */ }
+    };
+    fetch();
+    const id = setInterval(() => { if (!document.hidden) fetch(); }, 60000);
+    return () => clearInterval(id);
+  }, [token]);
 
   const handleLogout = () => {
     logout();
@@ -447,6 +462,17 @@ export const Layout = () => {
                       <span className="hidden lg:inline">Lerntools</span>
                     </Button>
                   </Link>
+                  <Link to="/messages" className="relative">
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0 relative" data-testid="messages-nav-btn">
+                      <MessageSquare className="w-4 h-4" />
+                      <span className="hidden lg:inline">Nachrichten</span>
+                      {unreadMessages > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full text-[9px] font-bold text-primary-foreground flex items-center justify-center">
+                          {unreadMessages > 9 ? "9+" : unreadMessages}
+                        </span>
+                      )}
+                    </Button>
+                  </Link>
                   {user.is_admin && (
                     <Link to="/admin">
                       <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="admin-nav-btn">
@@ -653,6 +679,17 @@ export const Layout = () => {
               <Button variant="ghost" className="w-full justify-start gap-2">
                 <BookOpen className="w-4 h-4" />
                 Blog
+              </Button>
+            </Link>
+            <Link to="/messages" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start gap-2 relative">
+                <MessageSquare className="w-4 h-4" />
+                Nachrichten
+                {unreadMessages > 0 && (
+                  <span className="ml-auto w-5 h-5 bg-primary rounded-full text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                  </span>
+                )}
               </Button>
             </Link>
             {user.is_admin && (

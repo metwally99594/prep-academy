@@ -1,8 +1,9 @@
 """Messaging Routes: User ↔ Admin conversation system."""
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Body
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
+from pydantic import BaseModel, Field
 
 from database import db, logger
 from models import (
@@ -24,6 +25,11 @@ from services.messaging_service import (
 router = APIRouter(prefix="/api", tags=["messaging"])
 
 
+class ContactAdminRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=5000)
+    subject: Optional[str] = None
+
+
 async def _get_user_name(user_id: str) -> str:
     user = await db.users.find_one({"id": user_id}, {"name": 1})
     return user.get("name", "Unknown") if user else "Unknown"
@@ -40,6 +46,24 @@ async def _get_conversation_or_404(conversation_id: str, user_id: str, require_a
     return conversation
 
 
+async def _enrich_conversation(conv: dict, my_id: str) -> dict:
+    """Return conversation dict with participants_info and resolved unread_count for the caller."""
+    d = {k: v for k, v in conv.items() if k != "_id"}
+    participants_info: dict = {}
+    for pid in d.get("participants", []):
+        u = await db.users.find_one(
+            {"id": pid},
+            {"_id": 0, "id": 1, "name": 1, "email": 1, "is_admin": 1},
+        )
+        if u:
+            participants_info[pid] = u
+    d["participants_info"] = participants_info
+    raw_unread = d.get("unread_count", {})
+    if isinstance(raw_unread, dict):
+        d["unread_count"] = raw_unread.get(my_id, 0)
+    return d
+
+
 async def _notify_participants(conversation: dict, exclude_user_id: str, preview: str, sender_name: str):
     for pid in conversation.get("participants", []):
         if pid == exclude_user_id:
@@ -49,9 +73,9 @@ async def _notify_participants(conversation: dict, exclude_user_id: str, preview
                 "id": uuid.uuid4().hex,
                 "user_id": pid,
                 "type": "new_message",
-                "title": f"New message from {sender_name}",
+                "title": f"Neue Nachricht von {sender_name}",
                 "message": preview[:200],
-                "icon": "message-circle",
+                "icon": "message-square",
                 "read": False,
                 "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -69,28 +93,9 @@ async def list_conversations(
     query: dict = {"participants": user["id"]}
     if status:
         query["status"] = status
-    cursor = db.conversations.find(query).sort("last_message_at", -1).limit(100)
-    conversations = await cursor.to_list(length=100)
-    return ConversationListResponse(
-        conversations=[
-            ConversationResponse(
-                id=c["id"],
-                participants=c.get("participants", []),
-                subject=c.get("subject"),
-                last_message_at=c.get("last_message_at"),
-                last_message_preview=c.get("last_message_preview"),
-                last_message_sender_id=c.get("last_message_sender_id"),
-                unread_count=c.get("unread_count", {}).get(user["id"], 0),
-                status=c.get("status", "active"),
-                escalation_level=c.get("escalation_level", 0),
-                tags=c.get("tags", []),
-                created_at=c.get("created_at", ""),
-                updated_at=c.get("updated_at", ""),
-            )
-            for c in conversations
-        ],
-        total=len(conversations),
-    )
+    convs = await db.conversations.find(query).sort("last_message_at", -1).limit(100).to_list(100)
+    enriched = [await _enrich_conversation(c, user["id"]) for c in convs]
+    return {"conversations": enriched, "total": len(enriched)}
 
 
 @router.get("/messaging/conversations/{conversation_id}")
@@ -102,47 +107,117 @@ async def get_conversation(
     messages = await db.messages.find(
         {"conversation_id": conversation_id}
     ).sort("created_at", 1).to_list(length=500)
-
-    return {
-        "conversation": ConversationResponse(
-            id=conversation["id"],
-            participants=conversation.get("participants", []),
-            subject=conversation.get("subject"),
-            last_message_at=conversation.get("last_message_at"),
-            last_message_preview=conversation.get("last_message_preview"),
-            last_message_sender_id=conversation.get("last_message_sender_id"),
-            unread_count=conversation.get("unread_count", {}).get(user["id"], 0),
-            status=conversation.get("status", "active"),
-            escalation_level=conversation.get("escalation_level", 0),
-            tags=conversation.get("tags", []),
-            created_at=conversation.get("created_at", ""),
-            updated_at=conversation.get("updated_at", ""),
-        ),
-        "messages": messages,
-    }
+    for m in messages:
+        m.pop("_id", None)
+    enriched = await _enrich_conversation(conversation, user["id"])
+    return {"conversation": enriched, "messages": messages}
 
 
-@router.post("/messaging/send")
-async def send_message(body: MessageSend, user: dict = Depends(get_current_user)):
-    # Validate content
+@router.post("/messaging/contact-admin")
+async def contact_admin(body: ContactAdminRequest, user: dict = Depends(get_current_user)):
+    """Start or continue a conversation with the default admin."""
+    admin = await db.users.find_one({"is_admin": True}, {"id": 1, "_id": 0})
+    if not admin:
+        raise HTTPException(status_code=503, detail="Kein Administrator verfügbar")
+
+    admin_id = admin["id"]
+    if admin_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Sie sind der Administrator")
+
     content_err = validate_message_content(body.content)
     if content_err:
         raise HTTPException(status_code=400, detail=content_err)
-
-    # Rate limit
     rate_err = check_rate_limit(user["id"])
     if rate_err:
         raise HTTPException(status_code=429, detail=rate_err)
-
     spam_err = check_spam_rate(user["id"])
     if spam_err:
         raise HTTPException(status_code=429, detail=spam_err)
-
     dup_err = check_duplicate_content(user["id"], body.content)
     if dup_err:
         raise HTTPException(status_code=429, detail=dup_err)
 
-    # Validate attachments
+    sanitized = sanitize_message_content(body.content)
+    sender_name = await _get_user_name(user["id"])
+    now = datetime.now(timezone.utc).isoformat()
+    participants = sorted([user["id"], admin_id])
+
+    existing = await db.conversations.find_one({
+        "participants": participants,
+        "status": {"$ne": "closed"},
+    })
+    if existing:
+        conv_id = existing["id"]
+        conversation = existing
+    else:
+        conv_id = uuid.uuid4().hex
+        conversation = {
+            "id": conv_id,
+            "participants": participants,
+            "subject": body.subject,
+            "last_message_at": now,
+            "last_message_preview": sanitized[:100],
+            "last_message_sender_id": user["id"],
+            "unread_count": {user["id"]: 0, admin_id: 1},
+            "status": "active",
+            "escalation_level": 0,
+            "tags": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.conversations.insert_one(conversation)
+
+    message = {
+        "id": uuid.uuid4().hex,
+        "conversation_id": conv_id,
+        "sender_id": user["id"],
+        "sender_role": "user",
+        "content": sanitized,
+        "attachments": [],
+        "read_by": [user["id"]],
+        "is_system_message": False,
+        "created_at": now,
+    }
+    await db.messages.insert_one(message)
+
+    unread = conversation.get("unread_count", {})
+    if isinstance(unread, dict):
+        unread[admin_id] = unread.get(admin_id, 0) + 1
+    else:
+        unread = {user["id"]: 0, admin_id: 1}
+
+    await db.conversations.update_one(
+        {"id": conv_id},
+        {"$set": {
+            "last_message_at": now,
+            "last_message_preview": sanitized[:100],
+            "last_message_sender_id": user["id"],
+            "unread_count": unread,
+            "updated_at": now,
+        }},
+    )
+
+    import asyncio
+    asyncio.create_task(_notify_participants(conversation, user["id"], sanitized[:200], sender_name))
+    logger.info(f"[Messaging] contact-admin from {user['id'][:8]} conv={conv_id[:8]}")
+    return {"conversation_id": conv_id, "message_id": message["id"]}
+
+
+@router.post("/messaging/send")
+async def send_message(body: MessageSend, user: dict = Depends(get_current_user)):
+    content_err = validate_message_content(body.content)
+    if content_err:
+        raise HTTPException(status_code=400, detail=content_err)
+    rate_err = check_rate_limit(user["id"])
+    if rate_err:
+        raise HTTPException(status_code=429, detail=rate_err)
+    spam_err = check_spam_rate(user["id"])
+    if spam_err:
+        raise HTTPException(status_code=429, detail=spam_err)
+    dup_err = check_duplicate_content(user["id"], body.content)
+    if dup_err:
+        raise HTTPException(status_code=429, detail=dup_err)
+
     att_dicts = [a.model_dump() for a in body.attachments]
     att_errs = validate_attachments(att_dicts)
     if att_errs:
@@ -151,14 +226,11 @@ async def send_message(body: MessageSend, user: dict = Depends(get_current_user)
     sanitized = sanitize_message_content(body.content)
     sender_name = await _get_user_name(user["id"])
     now = datetime.now(timezone.utc).isoformat()
-    now_ts = datetime.now(timezone.utc).timestamp()
 
-    # Resolve recipient
     recipient = await db.users.find_one({"id": body.recipient_id})
     if not recipient:
         raise HTTPException(status_code=404, detail="Recipient not found")
 
-    # Find or create conversation
     conv_id = body.conversation_id
     if conv_id:
         conversation = await _get_conversation_or_404(conv_id, user["id"])
@@ -189,10 +261,7 @@ async def send_message(body: MessageSend, user: dict = Depends(get_current_user)
             }
             await db.conversations.insert_one(conversation)
 
-    # Determine sender role
     sender_role = "admin" if user.get("is_admin") else "user"
-
-    # Create message
     message = {
         "id": uuid.uuid4().hex,
         "conversation_id": conv_id,
@@ -206,8 +275,9 @@ async def send_message(body: MessageSend, user: dict = Depends(get_current_user)
     }
     await db.messages.insert_one(message)
 
-    # Update conversation
     unread = conversation.get("unread_count", {})
+    if not isinstance(unread, dict):
+        unread = {}
     for pid in conversation.get("participants", []):
         if pid != user["id"]:
             unread[pid] = unread.get(pid, 0) + 1
@@ -219,10 +289,9 @@ async def send_message(body: MessageSend, user: dict = Depends(get_current_user)
             "last_message_sender_id": user["id"],
             "unread_count": unread,
             "updated_at": now,
-        }}
+        }},
     )
 
-    # Audit log
     try:
         await db.audit_logs.insert_one({
             "id": uuid.uuid4().hex,
@@ -237,17 +306,9 @@ async def send_message(body: MessageSend, user: dict = Depends(get_current_user)
     except Exception as e:
         logger.warning(f"Audit log failed: {e}")
 
-    # Notify recipient asynchronously
     import asyncio
-    asyncio.create_task(_notify_participants(
-        conversation, user["id"], sanitized[:200], sender_name
-    ))
-
-    return {
-        "message_id": message["id"],
-        "conversation_id": conv_id,
-        "created_at": now,
-    }
+    asyncio.create_task(_notify_participants(conversation, user["id"], sanitized[:200], sender_name))
+    return {"message_id": message["id"], "conversation_id": conv_id, "created_at": now}
 
 
 @router.post("/messaging/conversations/{conversation_id}/read")
@@ -256,40 +317,56 @@ async def mark_conversation_read(
     user: dict = Depends(get_current_user),
 ):
     conversation = await _get_conversation_or_404(conversation_id, user["id"])
-
-    # Mark all unread messages as read by this user
     await db.messages.update_many(
         {"conversation_id": conversation_id, "read_by": {"$ne": user["id"]}},
         {"$push": {"read_by": user["id"]}},
     )
-
-    # Reset unread count
     unread = conversation.get("unread_count", {})
-    unread[user["id"]] = 0
+    if isinstance(unread, dict):
+        unread[user["id"]] = 0
+    else:
+        unread = {user["id"]: 0}
     await db.conversations.update_one(
         {"id": conversation_id},
         {"$set": {"unread_count": unread, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
-
     return {"status": "ok"}
 
 
 @router.get("/messaging/unread-count")
 async def get_unread_count(user: dict = Depends(get_current_user)):
-    pipeline = [
-        {"$match": {"participants": user["id"], "status": "active"}},
-        {"$project": {
-            "unread": {"$ifNull": [{"$getField": {"field": user["id"], "input": "$unread_count"}}, 0]}
-        }},
-        {"$group": {"_id": None, "total": {"$sum": "$unread"}}},
-    ]
-    cursor = db.conversations.aggregate(pipeline)
-    result = await cursor.to_list(length=1)
-    total = result[0]["total"] if result else 0
+    convs = await db.conversations.find(
+        {"participants": user["id"], "status": "active"},
+        {"unread_count": 1},
+    ).to_list(200)
+    total = 0
+    for c in convs:
+        uc = c.get("unread_count", {})
+        if isinstance(uc, dict):
+            total += uc.get(user["id"], 0)
+        elif isinstance(uc, int):
+            total += uc
     return {"total_unread": total}
 
 
 # ── Admin-only endpoints ──
+
+
+@router.get("/messaging/admin/users")
+async def admin_search_users(
+    q: Optional[str] = None,
+    admin: dict = Depends(get_admin_user),
+):
+    """Search users to start a new conversation with."""
+    import re as _re
+    query: dict = {}
+    if q and len(q) >= 1:
+        pattern = _re.compile(_re.escape(q), _re.IGNORECASE)
+        query = {"$or": [{"name": pattern}, {"email": pattern}]}
+    users = await db.users.find(
+        query, {"_id": 0, "id": 1, "name": 1, "email": 1, "is_admin": 1}
+    ).sort("created_at", -1).limit(20).to_list(20)
+    return {"users": users}
 
 
 @router.put("/messaging/conversations/{conversation_id}/escalation")
@@ -305,13 +382,11 @@ async def update_escalation(
 
     old_level = conversation.get("escalation_level", 0)
     now = datetime.now(timezone.utc).isoformat()
-
     await db.conversations.update_one(
         {"id": conversation_id},
         {"$set": {"escalation_level": body.escalation_level, "updated_at": now}},
     )
 
-    # System message on escalation change
     if body.escalation_level != old_level and body.reason:
         levels = ["none", "attention", "urgent", "critical"]
         await db.messages.insert_one({
@@ -326,7 +401,6 @@ async def update_escalation(
             "created_at": now,
         })
 
-    # Audit
     try:
         await db.audit_logs.insert_one({
             "id": uuid.uuid4().hex,
@@ -340,7 +414,6 @@ async def update_escalation(
         })
     except Exception as e:
         logger.warning(f"Audit log failed: {e}")
-
     return {"status": "ok", "escalation_level": body.escalation_level}
 
 
@@ -352,14 +425,11 @@ async def update_conversation_tags(
 ):
     conversation = await _get_conversation_or_404(conversation_id, admin["id"])
     now = datetime.now(timezone.utc).isoformat()
-
     old_tags = conversation.get("tags", [])
     await db.conversations.update_one(
         {"id": conversation_id},
         {"$set": {"tags": body.tags, "updated_at": now}},
     )
-
-    # Audit
     try:
         await db.audit_logs.insert_one({
             "id": uuid.uuid4().hex,
@@ -373,7 +443,6 @@ async def update_conversation_tags(
         })
     except Exception as e:
         logger.warning(f"Audit log failed: {e}")
-
     return {"status": "ok", "tags": body.tags}
 
 
@@ -384,13 +453,10 @@ async def close_conversation(
 ):
     await _get_conversation_or_404(conversation_id, admin["id"])
     now = datetime.now(timezone.utc).isoformat()
-
     await db.conversations.update_one(
         {"id": conversation_id},
         {"$set": {"status": "closed", "updated_at": now}},
     )
-
-    # Audit
     try:
         await db.audit_logs.insert_one({
             "id": uuid.uuid4().hex,
@@ -404,7 +470,6 @@ async def close_conversation(
         })
     except Exception as e:
         logger.warning(f"Audit log failed: {e}")
-
     return {"status": "ok"}
 
 
@@ -423,26 +488,12 @@ async def admin_inbox(
     if tag:
         query["tags"] = tag
 
-    cursor = db.conversations.find(query).sort("last_message_at", -1).limit(100)
-    conversations = await cursor.to_list(length=100)
-
+    convs = await db.conversations.find(query).sort("last_message_at", -1).limit(100).to_list(100)
     results = []
-    for c in conversations:
-        messages_count = await db.messages.count_documents({"conversation_id": c["id"]})
-        results.append({
-            "id": c["id"],
-            "participants": c.get("participants", []),
-            "subject": c.get("subject"),
-            "last_message_at": c.get("last_message_at"),
-            "last_message_preview": c.get("last_message_preview"),
-            "status": c.get("status", "active"),
-            "escalation_level": c.get("escalation_level", 0),
-            "tags": c.get("tags", []),
-            "message_count": messages_count,
-            "created_at": c.get("created_at", ""),
-            "updated_at": c.get("updated_at", ""),
-        })
-
+    for c in convs:
+        enriched = await _enrich_conversation(c, admin["id"])
+        enriched["message_count"] = await db.messages.count_documents({"conversation_id": c["id"]})
+        results.append(enriched)
     return {"conversations": results, "total": len(results)}
 
 
@@ -451,6 +502,7 @@ async def get_audit_log(
     limit: int = 50,
     admin: dict = Depends(get_admin_user),
 ):
-    cursor = db.audit_logs.find().sort("created_at", -1).limit(min(limit, 200))
-    logs = await cursor.to_list(length=min(limit, 200))
+    logs = await db.audit_logs.find().sort("created_at", -1).limit(min(limit, 200)).to_list(min(limit, 200))
+    for l in logs:
+        l.pop("_id", None)
     return {"logs": logs, "total": len(logs)}
