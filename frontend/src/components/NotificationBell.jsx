@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API, useAuth } from "@/App";
+import { useNavigate } from "react-router-dom";
 import {
   Bell, Trophy, Flame, Zap, Check, Send, Loader2, Flag, MessageSquare,
   Lock, Unlock, XCircle,
@@ -20,6 +21,7 @@ const NOTIF_ICONS = {
 
 export default function NotificationBell() {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -125,7 +127,12 @@ export default function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="p-3 border-b border-border flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Benachrichtigungen</h3>
+          <button
+            className="font-semibold text-sm hover:text-primary transition-colors"
+            onClick={() => { setOpen(false); navigate("/notifications"); }}
+          >
+            Benachrichtigungen
+          </button>
           {unreadCount > 0 && (
             <button onClick={markAllRead} className="text-xs text-primary hover:underline flex items-center gap-1">
               <Check className="w-3 h-3" /> Alle gelesen

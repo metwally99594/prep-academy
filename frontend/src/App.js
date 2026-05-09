@@ -52,6 +52,7 @@ const MessagingPage = lazy(() => import("@/pages/MessagingPage"));
 const CommunityPage = lazy(() => import("@/pages/CommunityPage"));
 const CommunityPostPage = lazy(() => import("@/pages/CommunityPostPage"));
 const ModerationQueuePage = lazy(() => import("@/pages/ModerationQueuePage"));
+const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"));
 
 // API Configuration - Use relative URL for production, full URL for development
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -323,6 +324,9 @@ function AppRouter() {
           } />
           <Route path="/messages" element={
             <ProtectedRoute><MessagingPage /></ProtectedRoute>
+          } />
+          <Route path="/notifications" element={
+            <ProtectedRoute><NotificationsPage /></ProtectedRoute>
           } />
           <Route path="/community" element={
             <ProtectedRoute><CommunityPage /></ProtectedRoute>
