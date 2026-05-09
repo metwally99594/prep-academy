@@ -1,12 +1,16 @@
 """
-Community Service — validators, ranking, trending, duplicate detection.
+Community Service — validators, ranking, trending, duplicate detection,
+reaction toggle, DB helpers.
 
-Pure functions with no DB calls.
+Pure functions with no DB calls except where explicitly noted.
 """
 import html
 import re
 import time
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
+from pymongo.errors import DuplicateKeyError
 
 
 # ── Content validation ──
@@ -148,6 +152,17 @@ def is_duplicate(new_title: str, new_content: str, existing_title: str, existing
     return title_sim > 0.8 or content_sim > 0.6
 
 
+async def find_duplicate_post(db, title: str, content: str) -> Optional[str]:
+    """Check if content is a duplicate of a recent published post. Returns duplicate ID or None."""
+    similar = await db.community_posts.find(
+        {"status": "published"}
+    ).sort("created_at", -1).limit(20).to_list(length=20)
+    for existing in similar:
+        if is_duplicate(title, content, existing.get("title", ""), existing.get("content", "")):
+            return existing["id"]
+    return None
+
+
 # ── Ranking / trending logic ──
 
 def compute_hot_score(upvotes: int, downvotes: int, created_at_epoch: float) -> float:
@@ -266,3 +281,249 @@ _MENTION_RE = re.compile(r"@(\w[\w.-]+)")
 def extract_mentions(text: str) -> list[str]:
     """Extract @username mentions from text (without the @)."""
     return _MENTION_RE.findall(text)
+
+
+# ── Cursor pagination helpers ──
+
+SORT_CONFIG = {
+    "recent": {"field": "created_at", "coerce": str},
+    "trending": {"field": "created_at", "coerce": str},
+    "top": {"field": "stats.score", "coerce": float},
+    "discussed": {"field": "stats.comment_count", "coerce": int},
+}
+
+
+def get_sort_config(sort: str) -> dict:
+    return SORT_CONFIG.get(sort, SORT_CONFIG["recent"])
+
+
+def get_sort_spec(sort_field: str) -> list:
+    return [(sort_field, -1), ("_id", 1)]
+
+
+def parse_cursor(cursor: Optional[str], coerce_func) -> Optional[any]:
+    if cursor is None or cursor == "":
+        return None
+    try:
+        return coerce_func(cursor)
+    except (ValueError, TypeError):
+        return None
+
+
+# ── Feed enrichment helpers ──
+
+FEED_PROJECTION = {
+    "_id": 1, "id": 1, "author_id": 1, "title": 1, "content": 1,
+    "specialty_tags": 1, "topic_tags": 1, "type": 1, "status": 1,
+    "stats": 1, "image_ids": 1, "is_duplicate": 1, "duplicate_of": 1,
+    "created_at": 1, "updated_at": 1,
+}
+
+
+async def batch_load_author_names(author_ids: list[str]) -> dict[str, str]:
+    """Load author names in batch, returns dict of author_id -> name."""
+    from database import db
+    author_names: dict[str, str] = {}
+    if not author_ids:
+        return author_names
+    user_cursor = db.users.find({"id": {"$in": author_ids}}, {"name": 1, "id": 1})
+    async for user_doc in user_cursor:
+        author_names[user_doc["id"]] = user_doc.get("name", "Unknown")
+    return author_names
+
+
+def enrich_post_response(p: dict, author_name: str) -> dict:
+    """Build a CommunityPostResponse-compatible dict from a post document."""
+    from models import CommunityPostResponse
+    return CommunityPostResponse(
+        id=p.get("id", ""),
+        author_id=p.get("author_id", ""),
+        author_name=author_name,
+        title=p.get("title", ""),
+        content=p.get("content", ""),
+        content_html=p.get("content_html"),
+        specialty_tags=p.get("specialty_tags", []),
+        topic_tags=p.get("topic_tags", []),
+        type=p.get("type", "discussion"),
+        status=p.get("status", "published"),
+        stats=p.get("stats", {}),
+        image_ids=p.get("image_ids", []),
+        is_duplicate=p.get("is_duplicate", False),
+        duplicate_of=p.get("duplicate_of"),
+        ai_summary=p.get("ai_summary"),
+        educational_safety_approved=p.get("educational_safety_approved", False),
+        created_at=p.get("created_at", ""),
+        updated_at=p.get("updated_at", ""),
+    )
+
+
+def enrich_comment_response(c: dict, author_name: str) -> dict:
+    """Build a CommunityCommentResponse-compatible dict from a comment document."""
+    from models import CommunityCommentResponse
+    return CommunityCommentResponse(
+        id=c.get("id", ""),
+        post_id=c.get("post_id", ""),
+        parent_id=c.get("parent_id"),
+        author_id=c.get("author_id", ""),
+        author_name=author_name,
+        content=c.get("content", ""),
+        status=c.get("status", "published"),
+        stats=c.get("stats", {}),
+        created_at=c.get("created_at", ""),
+        updated_at=c.get("updated_at", ""),
+    )
+
+
+# ── Reaction toggle (DB-backed, uses db) ──
+
+
+async def handle_reaction_toggle(
+    user_id: str,
+    target_type: str,
+    target_id: str,
+    reaction: str,
+) -> dict:
+    """
+    Toggle a reaction (upvote/downvote) on a post or comment.
+
+    Handles:
+      - Removing reaction if same reaction clicked again
+      - Switching between upvote/downvote
+      - DuplicateKeyError race condition on concurrent first-reaction inserts
+
+    Returns dict with:
+      delta, score_delta, inc_field, had_race, target_author_id
+    """
+    from database import db
+
+    reaction_value = 1 if reaction == "upvote" else -1
+    score_field = "upvote_count" if reaction == "upvote" else "downvote_count"
+
+    collection = db.community_posts if target_type == "post" else db.community_comments
+    target = await collection.find_one({"id": target_id}, {"author_id": 1})
+    if not target:
+        return {"delta": 0, "score_delta": 0, "inc_field": score_field, "had_race": False, "target_author_id": None, "found": False}
+    target_author_id = target["author_id"]
+
+    existing = await db.community_reactions.find_one({
+        "user_id": user_id, "target_type": target_type, "target_id": target_id,
+    })
+
+    delta = 0
+    score_delta = 0
+    inc_field = score_field
+    had_race = False
+
+    if existing:
+        if existing["reaction"] == reaction:
+            await db.community_reactions.delete_one({"id": existing["id"]})
+            delta = -reaction_value
+            score_delta = -reaction_value
+        else:
+            old_score_field = "upvote_count" if existing["reaction"] == "upvote" else "downvote_count"
+            await db.community_reactions.update_one(
+                {"id": existing["id"]},
+                {"$set": {"reaction": reaction}},
+            )
+            delta = reaction_value
+            score_delta = reaction_value * 2
+            inc_field = score_field
+            await collection.update_one(
+                {"id": target_id},
+                {"$inc": {f"stats.{old_score_field}": -1, "stats.score": -reaction_value if existing["reaction"] == "upvote" else 1}},
+            )
+    else:
+        try:
+            await db.community_reactions.insert_one({
+                "id": uuid.uuid4().hex,
+                "user_id": user_id,
+                "target_type": target_type,
+                "target_id": target_id,
+                "reaction": reaction,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            delta = reaction_value
+            score_delta = reaction_value
+        except DuplicateKeyError:
+            had_race = True
+            existing = await db.community_reactions.find_one({
+                "user_id": user_id, "target_type": target_type, "target_id": target_id,
+            })
+            if existing and existing["reaction"] == reaction:
+                await db.community_reactions.delete_one({"id": existing["id"]})
+                delta = -reaction_value
+                score_delta = -reaction_value
+            else:
+                delta = 0
+                score_delta = 0
+
+    await collection.update_one(
+        {"id": target_id},
+        {"$inc": {f"stats.{inc_field}": delta, "stats.score": score_delta}},
+    )
+
+    return {
+        "delta": delta,
+        "score_delta": score_delta,
+        "inc_field": inc_field,
+        "had_race": had_race,
+        "target_author_id": target_author_id,
+        "found": True,
+    }
+
+
+# ── DB helpers (extracted from routes) ──
+
+
+async def get_user_name(user_id: str) -> str:
+    """Fetch a user's display name by id."""
+    from database import db
+    user = await db.users.find_one({"id": user_id}, {"name": 1})
+    return user.get("name", "Unknown") if user else "Unknown"
+
+
+async def get_post_or_404(post_id: str) -> dict:
+    """Fetch a post by id or raise HTTPException 404."""
+    from fastapi import HTTPException
+    from database import db
+    post = await db.community_posts.find_one({"id": post_id})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return post
+
+
+async def get_comment_or_404(comment_id: str) -> dict:
+    """Fetch a comment by id or raise HTTPException 404."""
+    from fastapi import HTTPException
+    from database import db
+    comment = await db.community_comments.find_one({"id": comment_id})
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    return comment
+
+
+def visible_status_filter(user: dict) -> dict:
+    """Build status filter: admins see all, regular users see published only."""
+    if user.get("is_admin"):
+        return {}
+    return {"status": {"$in": ["published"]}}
+
+
+def build_feed_query(
+    specialty: Optional[str] = None,
+    topic: Optional[str] = None,
+    post_type: Optional[str] = None,
+    search: Optional[str] = None,
+) -> dict:
+    """Build a MongoDB query dict for the community feed."""
+    query = {"status": "published"}
+    if specialty:
+        query["specialty_tags"] = specialty
+    if topic:
+        query["topic_tags"] = topic
+    if post_type:
+        query["type"] = post_type
+    if search:
+        query["$text"] = {"$search": search}
+    return query
+
