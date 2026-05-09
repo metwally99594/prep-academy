@@ -5,6 +5,7 @@ import time
 import asyncio
 from datetime import datetime, timezone
 from typing import Optional
+from pymongo.errors import DuplicateKeyError
 
 from database import db, logger
 from models import (
@@ -71,7 +72,7 @@ async def _create_community_notification(
     icon: str = "message-circle",
     data: Optional[dict] = None,
 ):
-    """Create a notification for a community event. Does NOT notify the acting user."""
+    """Create a notification for a community event."""
     try:
         await db.notifications.insert_one({
             "id": uuid.uuid4().hex,
@@ -81,11 +82,62 @@ async def _create_community_notification(
             "title": title,
             "message": message[:300],
             "read": False,
+            "aggregate_count": 1,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "data": data or {},
         })
     except Exception as e:
         logger.warning(f"Failed to create notification for {user_id}: {e}")
+
+
+async def _aggregate_notification(
+    user_id: str,
+    notification_type: str,
+    title: str,
+    message: str,
+    aggregate_key: str,
+    icon: str = "message-circle",
+    data: Optional[dict] = None,
+):
+    """Create or aggregate a notification. Merges with existing unread notification of same type+key."""
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        existing = await db.notifications.find_one({
+            "user_id": user_id,
+            "type": notification_type,
+            "data.aggregate_key": aggregate_key,
+            "read": False,
+        })
+        if existing:
+            count = existing.get("aggregate_count", 1) + 1
+            await db.notifications.update_one(
+                {"id": existing["id"]},
+                {"$set": {
+                    "aggregate_count": count,
+                    "message": message[:300],
+                    "updated_at": now,
+                }},
+            )
+            return existing["id"]
+        notif_data = data or {}
+        notif_data["aggregate_key"] = aggregate_key
+        nid = uuid.uuid4().hex
+        await db.notifications.insert_one({
+            "id": nid,
+            "user_id": user_id,
+            "type": notification_type,
+            "icon": icon,
+            "title": title,
+            "message": message[:300],
+            "read": False,
+            "aggregate_count": 1,
+            "created_at": now,
+            "data": notif_data,
+        })
+        return nid
+    except Exception as e:
+        logger.warning(f"Failed to aggregate notification for {user_id}: {e}")
+        return None
 
 
 async def _notify_mentioned_users(content: str, actor_id: str, actor_name: str, target_type: str, target_id: str):
@@ -270,7 +322,7 @@ async def get_feed(
     }
     cfg = sort_config.get(sort, sort_config["recent"])
     sort_field = cfg["field"]
-    sort_dir = -1
+    sort_spec = [(sort_field, -1), ("_id", 1)]
 
     use_cursor_pagination = cursor is not None and cursor != ""
 
@@ -280,14 +332,14 @@ async def get_feed(
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Invalid cursor value for this sort mode")
         query[sort_field] = {"$lt": cursor_value}
-        db_cursor = db.community_posts.find(query).sort(sort_field, sort_dir).limit(page_size)
+        db_cursor = db.community_posts.find(query).sort(sort_spec).limit(page_size)
         posts = await db_cursor.to_list(length=page_size)
 
         total = len(posts)
         next_cursor = str(posts[-1][sort_field]) if len(posts) == page_size else None
     else:
         total = await db.community_posts.count_documents(query)
-        db_cursor = db.community_posts.find(query).sort(sort_field, sort_dir).skip((page - 1) * page_size).limit(page_size)
+        db_cursor = db.community_posts.find(query).sort(sort_spec).skip((page - 1) * page_size).limit(page_size)
         posts = await db_cursor.to_list(length=page_size)
         next_cursor = None
 
@@ -513,23 +565,25 @@ async def create_comment(body: CommunityCommentCreate, user: dict = Depends(get_
 
     # Notifications (only for published comments)
     if status == "published":
-        # Notify post author
+        # Notify post author (aggregated)
         if post["author_id"] != user["id"]:
-            asyncio.create_task(_create_community_notification(
+            asyncio.create_task(_aggregate_notification(
                 user_id=post["author_id"],
                 notification_type="community_comment",
                 title="New comment on your post",
                 message=sanitized[:200],
+                aggregate_key=f"post:{body.post_id}",
                 icon="message-circle",
                 data={"target_type": "post", "target_id": body.post_id},
             ))
-        # Notify parent comment author on reply
+        # Notify parent comment author on reply (aggregated)
         if parent and parent["author_id"] != user["id"]:
-            asyncio.create_task(_create_community_notification(
+            asyncio.create_task(_aggregate_notification(
                 user_id=parent["author_id"],
                 notification_type="community_reply",
                 title="Reply to your comment",
                 message=sanitized[:200],
+                aggregate_key=f"comment:{body.parent_id}",
                 icon="message-square",
                 data={"target_type": "comment", "target_id": comment_id, "post_id": body.post_id},
             ))
@@ -608,17 +662,37 @@ async def toggle_reaction(body: CommunityReaction, user: dict = Depends(get_curr
             )
     else:
         # New reaction
-        await db.community_reactions.insert_one({
-            "id": uuid.uuid4().hex,
-            "user_id": user["id"],
-            "target_type": body.target_type,
-            "target_id": body.target_id,
-            "reaction": body.reaction,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-        delta = reaction_value
-        score_delta = reaction_value
-        inc_field = score_field
+        try:
+            await db.community_reactions.insert_one({
+                "id": uuid.uuid4().hex,
+                "user_id": user["id"],
+                "target_type": body.target_type,
+                "target_id": body.target_id,
+                "reaction": body.reaction,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except DuplicateKeyError:
+            # Race: another request created this reaction first. Re-read to get its state.
+            existing = await db.community_reactions.find_one({
+                "user_id": user["id"],
+                "target_type": body.target_type,
+                "target_id": body.target_id,
+            })
+            if existing and existing["reaction"] == body.reaction:
+                # Already has this reaction — toggle off instead
+                await db.community_reactions.delete_one({"id": existing["id"]})
+                delta = -reaction_value
+                score_delta = -reaction_value
+                inc_field = score_field
+            else:
+                # The other request already toggled/removed — no-op for stats
+                delta = 0
+                score_delta = 0
+                inc_field = score_field
+        else:
+            delta = reaction_value
+            score_delta = reaction_value
+            inc_field = score_field
 
     await collection.update_one(
         {"id": body.target_id},
@@ -628,13 +702,14 @@ async def toggle_reaction(body: CommunityReaction, user: dict = Depends(get_curr
     # Get updated counts
     updated = await collection.find_one({"id": body.target_id}, {"stats": 1, "author_id": 1})
 
-    # Notify target author
+    # Notify target author (aggregated)
     if target_author_id != user["id"]:
-        asyncio.create_task(_create_community_notification(
+        asyncio.create_task(_aggregate_notification(
             user_id=target_author_id,
             notification_type="community_reaction",
             title=f"{user.get('name', 'Someone')} {body.reaction}d your {body.target_type}",
             message="",
+            aggregate_key=f"reaction:{body.target_type}:{body.target_id}",
             icon="thumbs-up" if body.reaction == "upvote" else "thumbs-down",
             data={"target_type": body.target_type, "target_id": body.target_id, "reaction": body.reaction},
         ))
@@ -706,6 +781,7 @@ async def get_moderation_queue(
     reviewed: Optional[bool] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    cursor: Optional[str] = Query(None),
     admin: dict = Depends(get_admin_user),
 ):
     query: dict = {}
@@ -714,11 +790,58 @@ async def get_moderation_queue(
     if reviewed is not None:
         query["reviewed"] = reviewed
 
-    total = await db.community_moderation_queue.count_documents(query)
-    cursor = db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size)
-    items = await cursor.to_list(length=page_size)
+    use_cursor = cursor is not None and cursor != ""
+    next_cursor: Optional[str] = None
 
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    if use_cursor:
+        try:
+            cursor_ts = float(cursor)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid cursor — must be a Unix timestamp")
+        query["created_at"] = {"$lt": cursor_ts}
+        db_cursor = db.community_moderation_queue.find(query).sort("created_at", -1).limit(page_size)
+        items = await db_cursor.to_list(length=page_size)
+        total = len(items)
+        if len(items) == page_size:
+            next_cursor = str(items[-1]["created_at"])
+    else:
+        total = await db.community_moderation_queue.count_documents(query)
+        db_cursor = db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size)
+        items = await db_cursor.to_list(length=page_size)
+
+    # Enrich items with target content preview + author name
+    enriched = []
+    for item in items:
+        target_preview = None
+        target_author_id = None
+        target_author_name = None
+        collection = db.community_posts if item.get("target_type") == "post" else db.community_comments
+        if item.get("target_id"):
+            target = await collection.find_one(
+                {"id": item["target_id"]},
+                {"content": 1, "title": 1, "author_id": 1},
+            )
+            if target:
+                preview_field = target.get("title") or target.get("content", "")
+                target_preview = preview_field[:200]
+                target_author_id = target.get("author_id")
+                if target_author_id:
+                    target_author_name = await _get_user_name(target_author_id)
+
+        enriched.append({
+            **item,
+            "target_preview": target_preview,
+            "target_author_id": target_author_id,
+            "target_author_name": target_author_name,
+        })
+
+    return {
+        "items": enriched if enriched else items,
+        "total": total,
+        "page": page if not use_cursor else 0,
+        "page_size": page_size,
+        "next_cursor": next_cursor,
+    }
 
 
 @router.post("/community/moderation/action")
@@ -887,6 +1010,41 @@ async def get_trending(
         ))
 
     return {"posts": results}
+
+
+# ── Community Stats ──
+
+
+@router.get("/community/stats")
+async def get_community_stats(user: dict = Depends(get_current_user)):
+    """Aggregate community activity counters."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    week_ago = datetime.fromtimestamp(now.timestamp() - 86400 * 7, tz=timezone.utc).isoformat()
+
+    total_posts = await db.community_posts.count_documents({"status": "published"})
+    total_comments = await db.community_comments.count_documents({"status": "published"})
+    posts_today = await db.community_posts.count_documents({"status": "published", "created_at": {"$gte": today_start}})
+    comments_today = await db.community_comments.count_documents({"status": "published", "created_at": {"$gte": today_start}})
+    posts_this_week = await db.community_posts.count_documents({"status": "published", "created_at": {"$gte": week_ago}})
+    comments_this_week = await db.community_comments.count_documents({"status": "published", "created_at": {"$gte": week_ago}})
+
+    queue_pending = await db.community_moderation_queue.count_documents({"reviewed": False})
+    queue_by_severity = {
+        s: await db.community_moderation_queue.count_documents({"reviewed": False, "severity": s})
+        for s in ("critical", "high", "medium", "low")
+    }
+
+    return {
+        "total_posts": total_posts,
+        "total_comments": total_comments,
+        "posts_today": posts_today,
+        "comments_today": comments_today,
+        "posts_this_week": posts_this_week,
+        "comments_this_week": comments_this_week,
+        "moderation_queue_pending": queue_pending,
+        "moderation_queue_by_severity": queue_by_severity,
+    }
 
 
 # ── Tags (known lists) ──
