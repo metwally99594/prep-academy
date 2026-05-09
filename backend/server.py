@@ -82,6 +82,36 @@ async def _background_db_sync():
         await db.daily_activity.create_index([("user_id", 1), ("date", 1)])
         await db.user_streaks.create_index("user_id", unique=True)
         await db.wrong_answers.create_index([("user_id", 1), ("question_id", 1)])
+
+        # Messaging indexes
+        await db.conversations.create_index([("participants", 1)])
+        await db.conversations.create_index([("last_message_at", -1)])
+        await db.conversations.create_index([("status", 1), ("last_message_at", -1)])
+        await db.conversations.create_index([("escalation_level", -1)])
+        await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
+        await db.messages.create_index([("sender_id", 1), ("created_at", -1)])
+        await db.audit_logs.create_index([("target_id", 1), ("created_at", -1)])
+        await db.audit_logs.create_index([("actor_id", 1), ("created_at", -1)])
+        await db.audit_logs.create_index([("action", 1), ("created_at", -1)])
+
+        # Community indexes
+        await db.community_posts.create_index([("author_id", 1), ("created_at", -1)])
+        await db.community_posts.create_index([("status", 1), ("created_at", -1)])
+        await db.community_posts.create_index([("specialty_tags", 1), ("status", 1), ("created_at", -1)])
+        await db.community_posts.create_index([("topic_tags", 1), ("status", 1), ("created_at", -1)])
+        await db.community_posts.create_index([("stats.score", -1)])
+        await db.community_posts.create_index([("type", 1), ("status", 1), ("created_at", -1)])
+        await db.community_posts.create_index([("status", 1), ("stats.view_count", -1)])
+        await db.community_posts.create_index([("title", "text"), ("content", "text")])
+        await db.community_comments.create_index([("post_id", 1), ("created_at", 1)])
+        await db.community_comments.create_index([("author_id", 1), ("created_at", -1)])
+        await db.community_comments.create_index([("status", 1)])
+        await db.community_reactions.create_index([("user_id", 1), ("target_type", 1), ("target_id", 1)], unique=True)
+        await db.community_reports.create_index([("target_type", 1), ("target_id", 1)])
+        await db.community_reports.create_index([("status", 1), ("created_at", -1)])
+        await db.community_moderation_queue.create_index([("reviewed", 1), ("severity", -1), ("created_at", -1)])
+        await db.community_moderation_queue.create_index([("target_type", 1), ("target_id", 1)], unique=True)
+
         logger.info("Background: Indexes created")
     except Exception as e:
         logger.error(f"Background index error: {e}")
@@ -4604,6 +4634,14 @@ app.include_router(trial_router)
 from routes.export import make_export_router
 export_router = make_export_router(db, get_current_user)
 app.include_router(export_router)
+
+# Include messaging router
+from routes.messaging import router as messaging_router
+app.include_router(messaging_router)
+
+# Include community router
+from routes.community import router as community_router
+app.include_router(community_router)
 
 # Include Medical RAG + DICOM routers (only if heavy ML packages are installed)
 # These are disabled in Emergent free deployment (which has 250m CPU + 1Gi memory limit)
