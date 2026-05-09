@@ -31,7 +31,12 @@ from auth import (
     hash_password, verify_password, create_token,
     get_current_user, get_admin_user, security
 )
-from services.analyzer_prompts import build_prompt, REPORT_TYPE_MAP, VALID_CATEGORIES
+from services.analyzer_prompts import (
+    build_prompt, REPORT_TYPE_MAP, VALID_CATEGORIES,
+    VISIBILITY_SYSTEM, VISIBILITY_USER,
+    parse_visibility_response, parse_analysis_json, strip_analysis_json_block,
+    apply_confidence_gate, validate_modality_output, build_safety_layer_from_visibility,
+)
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -3145,13 +3150,17 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
     Uses conservative master+subtype prompt to prevent hallucinations.
     """
     try:
-        # ── Map frontend report_type → internal category ──
+        # ════════════════════════════════════════════════
+        # STEP 1 — Map frontend report_type → category
+        # ════════════════════════════════════════════════
         category = REPORT_TYPE_MAP.get(report_type, report_type.lower())
 
         primary_model_id = "google/gemma-4-31b-it:free"
         third_model_id   = "baidu/qianfan-ocr-fast:free"
 
-        # ── Auto-detect modality when category is unknown ──
+        # ════════════════════════════════════════════════
+        # STEP 2 — Auto-detect modality (when user chose "Other")
+        # ════════════════════════════════════════════════
         detected_category = category
         if not category:
             detect_result = await _openrouter_vision_call(
@@ -3167,8 +3176,37 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
                     detected_category = candidate
                     logger.info(f"[ANALYZER] Auto-detected category={detected_category!r} for job {job_id}")
 
-        # ── Build conservative system prompt (Master + Subtype) ──
-        system_msg = build_prompt(detected_category)
+        # ════════════════════════════════════════════════
+        # STEP 3 — Visibility Detection
+        # Quick targeted call: what anatomy is actually visible?
+        # Result drives the safety layer in Step 4.
+        # ════════════════════════════════════════════════
+        visibility_data = {"visible": [], "partial": [], "hidden": [], "image_quality": "unknown"}
+        if all_images:
+            visibility_raw = await _openrouter_vision_call(
+                primary_model_id,
+                VISIBILITY_SYSTEM,
+                VISIBILITY_USER,
+                all_images[:1],
+                max_tokens=200,
+            )
+            if visibility_raw:
+                visibility_data = parse_visibility_response(visibility_raw)
+                logger.info(f"[ANALYZER] Visibility job={job_id}: quality={visibility_data.get('image_quality')}, "
+                            f"visible={visibility_data.get('visible')}, partial={visibility_data.get('partial')}, "
+                            f"hidden={visibility_data.get('hidden')}")
+
+        # ════════════════════════════════════════════════
+        # STEP 4 — Build safety layer + system prompt
+        # Injects visibility constraints so model cannot
+        # comment on regions it cannot actually see.
+        # ════════════════════════════════════════════════
+        safety_layer = build_safety_layer_from_visibility(visibility_data)
+        system_msg = build_prompt(
+            detected_category,
+            safety_layer=safety_layer,
+            include_json_format=True,
+        )
 
         context_text = ""
         if clinical_context.strip():
@@ -3182,15 +3220,16 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
             f" ({report_type}){img_count_text}."
             + (f"\nEs sind {len(all_images)} Bilder — analysiere ALLE und erstelle einen Gesamtbefund." if len(all_images) > 1 else "")
             + context_text
-            + "\nErstelle einen strukturierten deutschen Radiologiebericht:"
-            "\n1. Technik\n2. Befund\n3. Beurteilung\n4. Limitationen (falls anwendbar)"
-            "\n\nWenn etwas nicht sicher beurteilbar ist: 'Nicht sicher beurteilbar.'"
+            + "\nErstelle den strukturierten deutschen Radiologiebericht im vorgegebenen Format."
+            "\nWenn etwas nicht sicher beurteilbar ist: 'Nicht sicher beurteilbar.'"
         )
 
-        # Run primary + third in parallel; second uses fallback chain
+        # ════════════════════════════════════════════════
+        # STEP 5 — Run analysis (primary + third in parallel)
+        # ════════════════════════════════════════════════
         results = await asyncio.gather(
-            _openrouter_vision_call(primary_model_id, system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call(third_model_id,   system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call(primary_model_id, system_msg, main_prompt, all_images, 1800),
+            _openrouter_vision_call(third_model_id,   system_msg, main_prompt, all_images, 1800),
             return_exceptions=True,
         )
         primary_analysis = results[0] if isinstance(results[0], str) and (results[0] or "").strip() else None
@@ -3199,13 +3238,14 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
         third_model_used   = _ANALYZER_MODEL_LABELS[third_model_id]   if third_opinion   else None
 
         # Refusal fallback for primary — retry with Nemotron using same conservative prompt
-        refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich", "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
+        refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich",
+                           "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
         if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
             fb = await _openrouter_vision_call(
                 "nvidia/nemotron-nano-12b-v2-vl:free",
                 system_msg,
                 main_prompt,
-                all_images, 1200,
+                all_images, 1400,
             )
             if fb and fb.strip():
                 primary_analysis = fb
@@ -3214,19 +3254,19 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
         # Second opinion — fallback chain: nemotron → gemma-4-26b → qianfan
         second_opinion = None
         second_model_used = None
-        used_for_third = {third_model_id}  # don't reuse third model as second
+        used_for_third = {third_model_id}
         for fb_model in _SECOND_OPINION_FALLBACKS:
             if fb_model in used_for_third:
                 continue
             fb_result = await _openrouter_vision_call(
-                fb_model, system_msg, main_prompt, all_images, 1500
+                fb_model, system_msg, main_prompt, all_images, 1800
             )
             if fb_result and fb_result.strip():
                 second_opinion = fb_result
                 second_model_used = _ANALYZER_MODEL_LABELS.get(fb_model, fb_model)
                 break
 
-        # Promote second to primary if primary failed
+        # Promote second/third to primary if primary failed
         if not primary_analysis:
             if second_opinion:
                 primary_analysis, primary_model_used = second_opinion, second_model_used
@@ -3243,40 +3283,101 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
             }})
             return
 
-        # ── Category mismatch detection ──
+        # ════════════════════════════════════════════════
+        # STEP 6 — Parse structured JSON (from <<<JSON>>>...<<<END_JSON>>>)
+        # If model followed the format, extract findings data for audit.
+        # Strip JSON block from display text.
+        # ════════════════════════════════════════════════
+        structured_json = parse_analysis_json(primary_analysis)
+        primary_report = strip_analysis_json_block(primary_analysis) if structured_json else primary_analysis
+
+        second_report = None
+        if second_opinion:
+            s_json = parse_analysis_json(second_opinion)
+            second_report = strip_analysis_json_block(second_opinion) if s_json else second_opinion
+
+        third_report = None
+        if third_opinion:
+            t_json = parse_analysis_json(third_opinion)
+            third_report = strip_analysis_json_block(third_opinion) if t_json else third_opinion
+
+        # ════════════════════════════════════════════════
+        # STEP 7 — Confidence score
+        # ════════════════════════════════════════════════
+        ai_count = sum(1 for x in [primary_analysis, second_opinion, third_opinion] if x)
+        confidence_score = {1: 55, 2: 72, 3: 85}.get(ai_count, 55)
+        confidence_float = confidence_score / 100.0
+
+        # ════════════════════════════════════════════════
+        # STEP 8 — Confidence Gate
+        # Low confidence → disable differentials + flag malignancy terms
+        # ════════════════════════════════════════════════
+        primary_report = apply_confidence_gate(primary_report, confidence_float)
+        if second_report:
+            second_report = apply_confidence_gate(second_report, confidence_float)
+
+        # ════════════════════════════════════════════════
+        # STEP 9 — Hard Modality Validation (regex/term blacklist)
+        # Detect cross-modality hallucinations in the output.
+        # ════════════════════════════════════════════════
+        primary_report, violations = validate_modality_output(primary_report, detected_category)
+        if violations:
+            logger.warning(f"[ANALYZER] Validation violations job={job_id}: {violations}")
+
+        # ════════════════════════════════════════════════
+        # STEP 10 — Category mismatch warning (existing keyword check)
+        # ════════════════════════════════════════════════
         category_warning = None
         if report_type in _CATEGORY_KEYWORDS:
             keywords = _CATEGORY_KEYWORDS[report_type]
-            found = sum(1 for kw in keywords if kw.lower() in primary_analysis.lower())
-            if found < 2:  # fewer than 2 expected keywords → likely wrong type
+            found = sum(1 for kw in keywords if kw.lower() in primary_report.lower())
+            if found < 2:
                 category_warning = (
                     f"⚠️ **Hinweis:** Die Analyse enthält wenige {report_type}-typische Befunde. "
                     f"Bitte überprüfe, ob der gewählte Untersuchungstyp ({report_type}) korrekt ist.\n\n"
                 )
-        # Auto-detection notice
         if not category and detected_category:
             category_warning = (
                 f"ℹ️ **Automatisch erkannte Modalität:** {detected_category.upper()}\n\n"
             ) + (category_warning or "")
 
-        # ── Confidence score (based on # of AI models that responded) ──
-        ai_count = sum(1 for x in [primary_analysis, second_opinion, third_opinion] if x)
-        confidence_score = {1: 55, 2: 72, 3: 85}.get(ai_count, 55)
-
-        # Build models_used list for frontend display
+        # ════════════════════════════════════════════════
+        # STEP 11 — Build final report text
+        # ════════════════════════════════════════════════
         models_used = []
-        if primary_model_used:   models_used.append({"role": "Erstanalyse",   "model": primary_model_used})
-        if second_model_used:    models_used.append({"role": "Zweitmeinung",  "model": second_model_used})
+        if primary_model_used:   models_used.append({"role": "Erstanalyse",  "model": primary_model_used})
+        if second_model_used:    models_used.append({"role": "Zweitmeinung", "model": second_model_used})
         if third_model_used:     models_used.append({"role": "Drittmeinung", "model": third_model_used})
 
-        # Build analysis text
-        warning_prefix = category_warning or ""
-        full_analysis = f"{warning_prefix}## Erstanalyse — {primary_model_used}\n{primary_analysis}"
-        if second_opinion:
-            full_analysis += f"\n\n---\n\n## Zweitmeinung — {second_model_used}\n{second_opinion}"
-        if third_opinion:
-            full_analysis += f"\n\n---\n\n## Drittmeinung — {third_model_used}\n{third_opinion}"
+        # Violation notice (appended to primary report)
+        violation_note = ""
+        if violations:
+            violation_note = (
+                "\n\n---\n"
+                "⚠️ **Sicherheitsvalidierung:** Folgende modalitätsfremde Begriffe wurden erkannt: "
+                + "; ".join(violations)
+            )
 
+        # Visibility summary (informational header)
+        vis_quality = visibility_data.get("image_quality", "unknown")
+        vis_notice = ""
+        if vis_quality in ("limited", "poor"):
+            vis_notice = f"ℹ️ **Bildqualität:** {vis_quality.upper()} — Befundung eingeschränkt.\n\n"
+
+        warning_prefix = (category_warning or "") + vis_notice
+        full_analysis = (
+            f"{warning_prefix}## Erstanalyse — {primary_model_used}\n"
+            f"{primary_report}{violation_note}"
+        )
+        if second_report:
+            full_analysis += f"\n\n---\n\n## Zweitmeinung — {second_model_used}\n{second_report}"
+        if third_report:
+            full_analysis += f"\n\n---\n\n## Drittmeinung — {third_model_used}\n{third_report}"
+
+        # ════════════════════════════════════════════════
+        # STEP 12 — Persist to MongoDB
+        # Include all pipeline metadata for audit/debug.
+        # ════════════════════════════════════════════════
         analysis_id = str(uuid.uuid4())
         analysis_doc = {
             "id": analysis_id,
@@ -3284,14 +3385,19 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
             "report_type": report_type,
             "detected_category": detected_category,
             "analysis": full_analysis,
-            "has_second_opinion": bool(second_opinion),
-            "has_third_opinion": bool(third_opinion),
+            "has_second_opinion": bool(second_report),
+            "has_third_opinion": bool(third_report),
             "ai_count": ai_count,
             "confidence_score": confidence_score,
             "models_used": models_used,
             "image_count": len(all_images),
             "image_preview": all_images[0][:200] + "..." if all_images else "",
-            "created_at": datetime.now(timezone.utc).isoformat()
+            # Pipeline audit fields
+            "visibility_data": visibility_data,
+            "structured_findings": structured_json,
+            "validation_violations": violations,
+            "safety_layer_applied": bool(safety_layer),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.analyses.insert_one(analysis_doc)
 
@@ -3301,18 +3407,22 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
                 "id": analysis_id,
                 "analysis": full_analysis,
                 "report_type": report_type,
-                "has_second_opinion": bool(second_opinion),
-                "has_third_opinion": bool(third_opinion),
+                "detected_category": detected_category,
+                "has_second_opinion": bool(second_report),
+                "has_third_opinion": bool(third_report),
                 "ai_count": ai_count,
                 "confidence_score": confidence_score,
                 "models_used": models_used,
-            }
+                "visibility_data": visibility_data,
+                "structured_findings": structured_json,
+                "validation_violations": violations,
+            },
         }})
     except Exception as e:
         logger.error(f"Analyzer job {job_id} error: {e}")
         await db.analyzer_jobs.update_one({"id": job_id}, {"$set": {
             "status": "error",
-            "message": f"Analyse fehlgeschlagen: {str(e)[:200]}"
+            "message": f"Analyse fehlgeschlagen: {str(e)[:200]}",
         }})
 
 @api_router.get("/analyzer/history")
