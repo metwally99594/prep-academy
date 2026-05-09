@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Trash2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 export function ModerationActionModal({ open, onClose, onConfirm, action, preview }) {
+  const trapRef = useFocusTrap(open);
   const [note, setNote] = useState("");
 
   // ESC to close
@@ -29,6 +31,7 @@ export function ModerationActionModal({ open, onClose, onConfirm, action, previe
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
+        ref={trapRef}
         className="relative w-full max-w-sm rounded-2xl border bg-card shadow-2xl p-5 space-y-4"
         onClick={e => e.stopPropagation()}
         role="dialog"

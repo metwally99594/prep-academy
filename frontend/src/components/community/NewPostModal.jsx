@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TagPicker } from "./TagPicker";
 import { POST_TYPE_OPTIONS, SPECIALTY_OPTIONS, TOPIC_OPTIONS } from "./communityConstants";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 export function NewPostModal({ token, open, onClose, onCreated }) {
+  const trapRef = useFocusTrap(open);
   const [type, setType] = useState("discussion");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -79,9 +81,13 @@ export function NewPostModal({ token, open, onClose, onCreated }) {
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
+        ref={trapRef}
         className="relative w-full sm:max-w-xl rounded-t-2xl sm:rounded-2xl border bg-card shadow-2xl flex flex-col"
         style={{ maxHeight: "90dvh" }}
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Neuen Beitrag erstellen"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 shrink-0">

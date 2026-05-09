@@ -118,3 +118,39 @@
     opacity: 0.5;
     margin-bottom: 1.5rem;
 }
+
+/* ── Accessibility ─────────────────────────────────────────── */
+
+/* Reduced-motion: disable all animations and transitions */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Minimum tap target size for mobile (44×44 px WCAG 2.5.5) */
+@media (pointer: coarse) {
+    button:not([class*="h-"]),
+    [role="button"]:not([class*="h-"]) {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* Visible focus ring for keyboard navigation (suppressed on mouse) */
+:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Safe-area awareness for full-bleed layouts */
+.safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
