@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import { API } from "@/App";
 
@@ -14,7 +14,7 @@ export function useFeed(token, filters = {}) {
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
-  const headers = { Authorization: `Bearer ${token}` };
+  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const buildParams = useCallback((cursor = null) => {
     const f = filtersRef.current;
@@ -49,7 +49,7 @@ export function useFeed(token, filters = {}) {
     } finally {
       setLoading(false);
     }
-  }, [token, buildParams]);
+  }, [token, buildParams, headers]);
 
   const loadMore = useCallback(async () => {
     if (!token || loadingMore || !hasMore || !cursorRef.current) return;
@@ -68,9 +68,8 @@ export function useFeed(token, filters = {}) {
     } finally {
       setLoadingMore(false);
     }
-  }, [token, loadingMore, hasMore, buildParams]);
+  }, [token, loadingMore, hasMore, buildParams, headers]);
 
-  // Refresh a single post in the list (e.g. after optimistic reaction)
   const updatePost = useCallback((postId, updater) => {
     setPosts(prev => prev.map(p => p.id === postId ? updater(p) : p));
   }, []);

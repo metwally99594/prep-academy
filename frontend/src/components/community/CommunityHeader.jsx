@@ -1,7 +1,8 @@
+import { memo } from "react";
 import { Users, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function CommunityHeader({ onNewPost, user }) {
+export const CommunityHeader = memo(function CommunityHeader({ onNewPost, user }) {
   return (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-3">
@@ -22,4 +23,4 @@ export function CommunityHeader({ onNewPost, user }) {
       )}
     </div>
   );
-}
+});

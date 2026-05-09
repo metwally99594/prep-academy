@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Search, X } from "lucide-react";
 import {
   SPECIALTY_OPTIONS, SPECIALTY_LABELS,
@@ -5,7 +6,7 @@ import {
   SORT_OPTIONS,
 } from "./communityConstants";
 
-export function FeedFilterBar({
+export const FeedFilterBar = memo(function FeedFilterBar({
   filters,
   setFilter,
   searchInput,
@@ -129,4 +130,4 @@ export function FeedFilterBar({
       )}
     </div>
   );
-}
+});
