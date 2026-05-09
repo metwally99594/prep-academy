@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from "react";
 import { User, CornerDownRight, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
 function formatRelative(isoStr) {
   const diff = Date.now() - new Date(isoStr).getTime();
@@ -76,8 +77,8 @@ export const CommentItem = memo(function CommentItem({
               <Loader2 className="w-2.5 h-2.5 animate-spin text-muted-foreground" />
             )}
           </div>
-          <div className="rounded-xl rounded-tl-sm bg-muted/60 px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
-            {comment.content}
+          <div className="rounded-xl rounded-tl-sm bg-muted/60 px-3 py-2">
+            <MarkdownRenderer content={comment.content} />
           </div>
           {/* Reply button only on top-level comments, not on optimistic ones */}
           {depth === 0 && !isOptimistic && (

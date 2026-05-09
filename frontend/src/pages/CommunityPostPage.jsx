@@ -7,6 +7,7 @@ import { PostHeader } from "@/components/community/PostHeader";
 import { PostActions } from "@/components/community/PostActions";
 import { CommentSection } from "@/components/community/CommentSection";
 import { AIInsightBlock } from "@/components/community/AIInsightBlock";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
 function PostSkeleton() {
   return (
@@ -93,8 +94,8 @@ export default function CommunityPostPage() {
             tags={[...(post.specialty_tags || []), ...(post.topic_tags || [])]}
           />
           <div>
-            <h1 className="text-base font-bold leading-snug mb-2">{post.title}</h1>
-            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+            <h1 className="text-base font-bold leading-snug mb-3">{post.title}</h1>
+            <MarkdownRenderer content={post.content} />
           </div>
           <PostActions
             token={token}

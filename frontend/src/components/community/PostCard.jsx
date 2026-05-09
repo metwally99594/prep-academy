@@ -3,6 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { PostHeader } from "./PostHeader";
 import { PostActions } from "./PostActions";
 
+// Strip common markdown syntax for plain-text card previews
+function stripMarkdown(text = "") {
+  return text
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^>\s+/gm, "")
+    .replace(/[-*+]\s/g, "")
+    .replace(/\n+/g, " ")
+    .trim();
+}
+
 export const PostCard = memo(function PostCard({ post: initialPost, token, userId }) {
   const navigate = useNavigate();
   const [post, setPost] = useState(initialPost);
@@ -14,7 +28,8 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
   };
 
   const allTags = [...(post.specialty_tags || []), ...(post.topic_tags || [])];
-  const preview = post.content ? post.content.slice(0, 200) + (post.content.length > 200 ? "…" : "") : "";
+  const rawPreview = stripMarkdown(post.content || "");
+  const preview = rawPreview.slice(0, 200) + (rawPreview.length > 200 ? "…" : "");
 
   return (
     <article
