@@ -106,6 +106,15 @@ MEDICAL_VOTE_TERMS: set[str] = {
     "Blutung", "Ischämie", "Infarkt", "Thrombose", "Embolie", "Stenose",
     "Dilatation", "Kardiomegalie", "Lymphadenopathie", "Abszess", "Zyste",
     "Erguss", "Aszites", "Pneumonie", "Emphysem", "Fibrose", "Verkalkung",
+    # Additional lung/pulmonary pathology
+    "Bronchitis", "Bronchopneumonie", "Lungenödem", "Lungenembolie",
+    "Bronchiektase", "Lungenkarzinom", "Lungenkontusion",
+    # Pleural findings
+    "Pleuraschwiele", "Pleuraverkalkung",
+    # Cardiovascular
+    "Herzinsuffizienz", "Perikarderguss",
+    # General pathology
+    "Läsion", "Nekrose", "Hernie", "Rezidiv",
     # Tumors / critical findings
     "Metastase", "Karzinom", "Malignom", "Neoplasie", "Tumor",
     # Symptoms / clinical context
