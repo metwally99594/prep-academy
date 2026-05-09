@@ -314,6 +314,7 @@ export default function NotebookPage() {
       // Poll until done (up to ~5 min at 3s intervals)
       for (let i = 0; i < 100; i++) {
         await new Promise(r => setTimeout(r, 3000));
+        let jobError = null;
         try {
           const poll = await axios.get(
             `${API}/notebook/lernleitfaden/job/${jobId}`,
@@ -324,12 +325,13 @@ export default function NotebookPage() {
             return;
           }
           if (poll.data.status === "error") {
-            throw new Error(poll.data.message || "Generierung fehlgeschlagen");
+            jobError = new Error(poll.data.message || "Generierung fehlgeschlagen");
           }
         } catch (pollErr) {
-          if (pollErr.message?.includes("Generierung fehlgeschlagen")) throw pollErr;
-          // transient network error — retry next tick
+          // Only swallow transient network/timeout errors; rethrow HTTP errors.
+          if (pollErr.response) throw pollErr;
         }
+        if (jobError) throw jobError;
       }
       throw new Error("Zeitüberschreitung — bitte erneut versuchen");
     } catch (e) {
