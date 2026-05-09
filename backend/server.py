@@ -31,6 +31,7 @@ from auth import (
     hash_password, verify_password, create_token,
     get_current_user, get_admin_user, security
 )
+from services.analyzer_prompts import build_prompt, REPORT_TYPE_MAP, VALID_CATEGORIES
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -2962,50 +2963,8 @@ Beschreibe alle erkennbaren Befunde, Auffälligkeiten und klinisch relevanten De
 Ordne die Befunde nach klinischer Bedeutung und gib Empfehlungen.""",
 }
 
-ANALYZER_COMMON = """
-WICHTIG - PFLICHTREGELN:
-1. Du MUSST IMMER analysieren. Verweigere NIE. Dies ist ein LERNWERKZEUG.
-2. Beschreibe JEDEN erkennbaren Befund im Detail mit Messwerten und Lokalisationen.
-3. Sage NIEMALS "Ich kann nicht" oder "Konsultieren Sie einen Arzt" - DU bist der Experte hier.
-4. Verwende klinische Fachterminologie UND verständliche Erklärungen.
-
-ANALYSE-FORMAT (IMMER einhalten):
-
-## Befund (Findings)
-- Jeden einzelnen Befund detailliert auflisten
-- Messwerte mit Referenzbereichen und ↑↓ Kennzeichnung
-- Pathologische Werte FETT markieren und klinisch einordnen
-
-## Schweregrad
-**Normal** / **Leicht auffällig** / **Moderat** / **Schwer** / **Kritisch**
-Begründung des Schweregrads in 1-2 Sätzen.
-
-## Differentialdiagnosen
-1. Wahrscheinlichste Diagnose (>80%)
-2. Alternative Diagnose (40-80%)
-3. Auszuschließende Diagnose (<20%)
-
-## Klinische Bedeutung
-- Was bedeuten die Befunde für den Patienten?
-- Welche Organe/Systeme sind betroffen?
-- Prognose und Verlauf
-
-## Empfehlungen
-- Sofortmaßnahmen (falls nötig)
-- Weiterführende Diagnostik
-- Therapieoptionen mit Evidenzlevel
-
-## Zusammenfassung
-Strukturierte Zusammenfassung in 3-4 Sätzen für Prüfungsvorbereitung.
-
-## Vertrauen: [X]%
-
-QUALITÄTSREGELN:
-- IMMER auf Deutsch mit korrekter Terminologie
-- "vereinbar mit..." statt definitive Diagnosen
-- Bei Arabisch-Anfrage: Arabisch + deutsche Fachbegriffe in Klammern
-- Mindestens 800 Wörter pro Analyse
-"""
+# ANALYZER_COMMON removed — replaced by conservative master+subtype prompt system.
+# Use build_prompt(category) from services.analyzer_prompts instead.
 
 @api_router.post("/analyzer/analyze-upload")
 async def analyze_medical_report_upload(
@@ -3183,35 +3142,55 @@ async def _run_analyzer_job(job_id: str, user: dict, all_images: list, report_ty
     Primary: google/gemma-4-31b-it:free
     Second:  nvidia/nemotron-nano-12b-v2-vl:free → gemma-4-26b → qianfan (fallback chain)
     Third:   baidu/qianfan-ocr-fast:free
+    Uses conservative master+subtype prompt to prevent hallucinations.
     """
     try:
-        specialist_prompt = ANALYZER_SPECIALISTS.get(report_type, ANALYZER_SPECIALISTS["Other"])
-        system_msg = specialist_prompt + ANALYZER_COMMON
+        # ── Map frontend report_type → internal category ──
+        category = REPORT_TYPE_MAP.get(report_type, report_type.lower())
+
+        primary_model_id = "google/gemma-4-31b-it:free"
+        third_model_id   = "baidu/qianfan-ocr-fast:free"
+
+        # ── Auto-detect modality when category is unknown ──
+        detected_category = category
+        if not category:
+            detect_result = await _openrouter_vision_call(
+                primary_model_id,
+                "You are a medical image classifier. Reply with ONE word only from this exact list.",
+                "Classify this medical image into one of: xray, ct, mri, ekg, ultrasound, echo, labs. Reply with ONE word only.",
+                all_images[:1],
+                max_tokens=10,
+            )
+            if detect_result:
+                candidate = detect_result.strip().lower().split()[0]
+                if candidate in VALID_CATEGORIES:
+                    detected_category = candidate
+                    logger.info(f"[ANALYZER] Auto-detected category={detected_category!r} for job {job_id}")
+
+        # ── Build conservative system prompt (Master + Subtype) ──
+        system_msg = build_prompt(detected_category)
 
         context_text = ""
         if clinical_context.strip():
             context_text = f"\n\nKlinischer Kontext / Patientenanamnese:\n{clinical_context.strip()}\n\n"
 
         img_count_text = f" ({len(all_images)} Bilder)" if len(all_images) > 1 else ""
-        main_prompt = f"""Analysiere {"diese" if len(all_images) > 1 else "dieses"} medizinische{"n" if len(all_images) > 1 else ""} {"Bilder/Befunde" if len(all_images) > 1 else "Bild/Befund"} ({report_type}){img_count_text} vollständig und detailliert.
-{f"Es sind {len(all_images)} Bilder - analysiere ALLE zusammen und erstelle einen Gesamtbefund." if len(all_images) > 1 else ""}
-{context_text}
-WICHTIG: Du MUSST eine vollständige strukturierte Analyse liefern in DEUTSCHER Sprache.
-Beschreibe ALLES was du in {"allen Bildern" if len(all_images) > 1 else "dem Bild"} erkennst.
-Verweigere die Analyse NICHT. Dies ist ein Lernwerkzeug für Medizinstudenten.
-Gib deine beste fachliche Einschätzung als erfahrener Facharzt.
-Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empfehlungen, Zusammenfassung."""
-
-        primary_role = "Du bist ein erfahrener Facharzt (Prep Academy Medical AI) mit Spezialisierung auf Bildgebung und Befundinterpretation. Antworte IMMER auf Deutsch."
-        second_role  = "Du bist ein zweiter unabhängiger Facharzt (Prep Academy Medical AI). Arbeite besonders sorgfältig bei Differentialdiagnosen. Antworte IMMER auf Deutsch."
-        third_role   = "Du bist ein dritter Facharzt mit Zugang zu aktuellen Leitlinien (ESC, DGK, AWMF, WHO). Fokus auf evidenzbasierte Medizin. Antworte IMMER auf Deutsch."
+        main_prompt = (
+            f"Analysiere {'diese' if len(all_images) > 1 else 'dieses'} medizinische"
+            f"{'n' if len(all_images) > 1 else ''} "
+            f"{'Bilder/Befunde' if len(all_images) > 1 else 'Bild/Befund'}"
+            f" ({report_type}){img_count_text}."
+            + (f"\nEs sind {len(all_images)} Bilder — analysiere ALLE und erstelle einen Gesamtbefund." if len(all_images) > 1 else "")
+            + context_text
+            + "\nErstelle einen strukturierten deutschen Radiologiebericht:"
+            "\n1. Technik\n2. Befund\n3. Beurteilung\n4. Limitationen (falls anwendbar)"
+            "\n\nWenn etwas nicht sicher beurteilbar ist: 'Nicht sicher beurteilbar.'"
+        )
 
         # Run primary + third in parallel; second uses fallback chain
-        primary_model_id = "google/gemma-4-31b-it:free"
-        third_model_id   = "baidu/qianfan-ocr-fast:free"
         results = await asyncio.gather(
-            _openrouter_vision_call(primary_model_id, primary_role + "\n\n" + system_msg, main_prompt, all_images, 1500),
-            _openrouter_vision_call(third_model_id,   third_role   + "\n\n" + system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call(primary_model_id, system_msg, main_prompt, all_images, 1500),
+            _openrouter_vision_call(third_model_id,   system_msg, main_prompt, all_images, 1500),
             return_exceptions=True,
         )
         primary_analysis = results[0] if isinstance(results[0], str) and (results[0] or "").strip() else None
@@ -3219,13 +3198,13 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
         primary_model_used = _ANALYZER_MODEL_LABELS[primary_model_id] if primary_analysis else None
         third_model_used   = _ANALYZER_MODEL_LABELS[third_model_id]   if third_opinion   else None
 
-        # Refusal fallback for primary
+        # Refusal fallback for primary — retry with Nemotron using same conservative prompt
         refusal_markers = ["kann ich nicht", "kann das nicht", "Es tut mir leid", "nicht möglich", "nicht analysieren", "nicht in der Lage", "I cannot", "I can't"]
         if primary_analysis and any(m in primary_analysis[:200] for m in refusal_markers):
             fb = await _openrouter_vision_call(
                 "nvidia/nemotron-nano-12b-v2-vl:free",
-                "Du bist ein medizinischer Lernassistent. Beschreibe IMMER was sichtbar ist. Verweigere NIE.",
-                f"Analysiere {'diese medizinischen Bilder' if len(all_images) > 1 else 'dieses medizinische Bild'} ({report_type}) auf Deutsch.\n{context_text}\nStrukturierte Analyse: Befund, Interpretation, Differentialdiagnosen, Empfehlungen.",
+                system_msg,
+                main_prompt,
                 all_images, 1200,
             )
             if fb and fb.strip():
@@ -3240,7 +3219,7 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
             if fb_model in used_for_third:
                 continue
             fb_result = await _openrouter_vision_call(
-                fb_model, second_role + "\n\n" + system_msg, main_prompt, all_images, 1500
+                fb_model, system_msg, main_prompt, all_images, 1500
             )
             if fb_result and fb_result.strip():
                 second_opinion = fb_result
@@ -3274,6 +3253,11 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
                     f"⚠️ **Hinweis:** Die Analyse enthält wenige {report_type}-typische Befunde. "
                     f"Bitte überprüfe, ob der gewählte Untersuchungstyp ({report_type}) korrekt ist.\n\n"
                 )
+        # Auto-detection notice
+        if not category and detected_category:
+            category_warning = (
+                f"ℹ️ **Automatisch erkannte Modalität:** {detected_category.upper()}\n\n"
+            ) + (category_warning or "")
 
         # ── Confidence score (based on # of AI models that responded) ──
         ai_count = sum(1 for x in [primary_analysis, second_opinion, third_opinion] if x)
@@ -3298,6 +3282,7 @@ Strukturiere die Antwort in: Befund, Interpretation, Differentialdiagnosen, Empf
             "id": analysis_id,
             "user_id": user["id"],
             "report_type": report_type,
+            "detected_category": detected_category,
             "analysis": full_analysis,
             "has_second_opinion": bool(second_opinion),
             "has_third_opinion": bool(third_opinion),
