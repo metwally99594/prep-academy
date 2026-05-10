@@ -104,3 +104,35 @@ async def paginate_moderation_queue(
         "page_size": page_size,
         "next_cursor": next_cursor,
     }
+
+
+async def paginate_audit(
+    db,
+    page_size: int = 20,
+    cursor: Optional[str] = None,
+) -> dict:
+    """Paginate moderation audit log using cursor pagination on created_at.
+
+    Returns dict with: items, next_cursor.
+    """
+    query = {}
+    next_cursor = None
+    items = []
+
+    if cursor:
+        try:
+            cursor_ts = float(cursor)
+        except (ValueError, TypeError):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Invalid cursor — must be a Unix timestamp")
+        query["created_at"] = {"$lt": cursor_ts}
+
+    items = await db.community_moderation_audit.find(query).sort("created_at", -1).limit(page_size).to_list(length=page_size)
+
+    if len(items) == page_size:
+        next_cursor = str(items[-1]["created_at"])
+
+    return {
+        "items": items,
+        "next_cursor": next_cursor,
+    }

@@ -153,6 +153,9 @@ def evaluate_auto_moderation(
     has_external_links: bool = False,
     title_is_all_caps: bool = False,
     profanity_findings: Optional[list[str]] = None,
+    emoji_findings: Optional[list[str]] = None,
+    link_findings: Optional[list[str]] = None,
+    suspicious_account_reason: Optional[str] = None,
 ) -> tuple[bool, str, str]:
     """
     Evaluate rules and decide: pass, queue, or hide.
@@ -166,12 +169,18 @@ def evaluate_auto_moderation(
         return True, "dangerous_advice", "critical"
     if profanity_findings and len(profanity_findings) > 0:
         return True, "profanity", "medium"
+    if suspicious_account_reason:
+        return True, "suspicious_account", "medium"
     if contains_html:
         return True, "contains_html", "medium"
     if recent_reports >= 3:
         return True, "high_report_rate", "medium"
     if report_count >= 3:
         return True, "multiple_reports", "medium"
+    if emoji_findings and len(emoji_findings) > 0:
+        return True, "emoji_spam", "low"
+    if link_findings and len(link_findings) > 0:
+        return True, "link_spam", "low"
     if is_new_user and has_external_links:
         return True, "new_user_links", "low"
     if title_is_all_caps:

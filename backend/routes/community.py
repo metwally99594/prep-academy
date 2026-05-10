@@ -30,6 +30,13 @@ from services.community_service import (
     handle_reaction_toggle, find_duplicate_post,
     FEED_PROJECTION,
 )
+from services.moderation_service import (
+    evaluate_auto_moderation, is_title_all_caps, has_external_links,
+    build_moderation_entry, should_auto_hide, should_auto_queue,
+    check_profanity, increment_offense, build_audit_entry,
+    check_content_quality,
+    AUTO_QUEUE_REASONS,
+)
 from services.community_cache import cache_get, cache_set, cache_invalidate, build_cache_key
 from services.community_serializers import (
     build_post_document, build_comment_document,
@@ -40,17 +47,10 @@ from services.community_serializers import (
     enrich_moderation_queue_items,
 )
 from services.community_pagination import (
-    paginate_feed, paginate_moderation_queue,
+    paginate_feed, paginate_moderation_queue, paginate_audit,
 )
 from services.community_feed_query import (
     build_stats_queries, build_trending_query,
-)
-from services.moderation_service import (
-    evaluate_auto_moderation, is_title_all_caps, has_external_links,
-    build_moderation_entry, should_auto_hide, should_auto_queue,
-    check_profanity, increment_offense, build_audit_entry,
-    check_content_quality,
-    AUTO_QUEUE_REASONS,
 )
 from services.community_moderation_orchestrator import (
     orchestrate_post_moderation, orchestrate_comment_moderation,
@@ -558,6 +558,26 @@ async def take_moderation_action(body: ModerationAction, admin: dict = Depends(g
     log_moderation_action(logger, body.action, body.target_type, body.target_id,
                           admin_id=admin["id"], duration_ms=_timer.ms, correlation_id=cid)
     return {"status": "ok", "new_status": new_status}
+
+
+@router.get("/community/moderation/audit")
+async def get_moderation_audit(
+    page_size: int = Query(20, ge=1, le=100),
+    cursor: Optional[str] = Query(None),
+    admin: dict = Depends(get_admin_user),
+):
+    _timer = Timer()
+    cid = get_correlation_id() or "-"
+    with _timer:
+        result = await paginate_audit(db=db, page_size=page_size, cursor=cursor)
+        admin_ids = list(set(item.get("admin_id") for item in result["items"] if item.get("admin_id")))
+        admin_names = await batch_load_author_names(admin_ids) if admin_ids else {}
+        for item in result["items"]:
+            item["admin_name"] = admin_names.get(item.get("admin_id"), "Unknown")
+
+    logger.info("mod_audit=listed items=%d duration_ms=%.1f correlation_id=%s",
+                len(result["items"]), _timer.ms, cid)
+    return result
 
 
 # ── User's posts ──

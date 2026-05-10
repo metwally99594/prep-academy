@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API, useAuth } from "@/App";
 import { Bell, Check, Loader2, AlertCircle } from "lucide-react";
@@ -10,18 +10,23 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [markingRead, setMarkingRead] = useState(false);
+  const cursorRef = useRef(null);
+  const sentinelRef = useRef(null);
   const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError(null);
+    cursorRef.current = null;
     try {
-      const res = await axios.get(`${API}/notifications`, { headers, timeout: 10000 });
+      const res = await axios.get(`${API}/community/notifications?limit=20`, { headers, timeout: 10000 });
       setNotifications(res.data.notifications || []);
       setUnreadCount(res.data.unread_count || 0);
+      cursorRef.current = res.data.next_cursor || null;
     } catch (e) {
       setError(e.response?.data?.detail || "Fehler beim Laden");
     } finally {
@@ -31,11 +36,40 @@ export default function NotificationsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const loadMore = useCallback(async () => {
+    if (!cursorRef.current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await axios.get(
+        `${API}/community/notifications?limit=20&cursor=${encodeURIComponent(cursorRef.current)}`,
+        { headers, timeout: 10000 },
+      );
+      setNotifications(prev => [...prev, ...(res.data.notifications || [])]);
+      cursorRef.current = res.data.next_cursor || null;
+    } catch (e) {
+      console.error("Failed to load more notifications:", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [token, loadingMore]);
+
+  useEffect(() => {
+    if (!cursorRef.current || loading || loadingMore) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [cursorRef.current, loading, loadingMore, loadMore]);
+
   const markAllRead = useCallback(async () => {
     if (markingRead || unreadCount === 0) return;
     setMarkingRead(true);
     try {
-      await axios.post(`${API}/notifications/read`, null, { headers, timeout: 8000 });
+      await axios.post(`${API}/community/notifications/mark-all-read`, null, { headers, timeout: 8000 });
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } finally {
@@ -102,7 +136,18 @@ export default function NotificationsPage() {
           <p className="text-sm text-muted-foreground">Keine Benachrichtigungen</p>
         </div>
       ) : (
-        <NotificationGroup notifications={notifications} />
+        <>
+          <NotificationGroup notifications={notifications} />
+          {cursorRef.current && (
+            <div ref={sentinelRef} className="py-4">
+              {loadingMore && (
+                <div className="flex justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

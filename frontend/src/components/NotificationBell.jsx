@@ -33,7 +33,7 @@ export default function NotificationBell() {
     if (!token) return;
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`${API}/notifications`, { headers });
+      const res = await axios.get(`${API}/community/notifications?limit=20`, { headers });
       setNotifications(res.data.notifications || []);
       setUnreadCount(res.data.unread_count || 0);
     } catch (error) {
@@ -57,7 +57,7 @@ export default function NotificationBell() {
   const markAllRead = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      await axios.post(`${API}/notifications/read`, null, { headers });
+      await axios.post(`${API}/community/notifications/mark-all-read`, null, { headers });
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (error) {

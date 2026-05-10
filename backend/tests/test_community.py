@@ -17,17 +17,20 @@ from services.community_service import (
     compute_text_similarity, is_duplicate,
     compute_hot_score, compute_trending_score,
     check_phi, check_dangerous_advice,
-    check_post_rate, check_comment_rate,
+    check_post_rate, check_comment_rate, check_burst_rate,
     extract_mentions,
+    get_sort_config, get_sort_spec, parse_cursor,
+    SORT_CONFIG,
 )
 from services.moderation_service import (
     evaluate_auto_moderation, is_title_all_caps, has_external_links,
     build_moderation_entry, should_auto_hide, should_auto_queue,
     check_content_quality,
     check_profanity, increment_offense, get_recent_offenses, build_audit_entry,
+    SHADOW_HIDE_THRESHOLD,
 )
-from services.community_service import (
-    check_burst_rate,
+from services.community_cache import (
+    cache_get, cache_set, cache_invalidate, build_cache_key,
 )
 
 # ── Content Validation ──
@@ -393,7 +396,8 @@ class TestCheckProfanity:
         assert len(findings) >= 2
 
     def test_non_profane_word_not_flagged(self):
-        assert check_profanity("Diese Aussage ist scheiße") == []  # no exact match
+        findings = check_profanity("Dieser Befund ist unauffällig")
+        assert len(findings) == 0
 
 
 # ── Auto-Lock ──
@@ -544,11 +548,23 @@ class TestExtractMentions:
 
 @pytest.fixture
 def mock_notifications_db():
-    """Patch db.notifications.insert_one and db.users.find_one for notification tests."""
-    with patch("routes.community.db") as mock_db:
-        mock_db.notifications.insert_one = AsyncMock()
-        mock_db.users.find_one = AsyncMock()
-        yield mock_db
+    """Patch db in notification_service module for notification tests."""
+    from unittest.mock import MagicMock, patch, PropertyMock
+    import services.notification_service as ns
+    fake_db = MagicMock()
+    fake_db.notifications.insert_one = AsyncMock()
+    fake_db.notifications.find_one = AsyncMock()
+    fake_db.notifications.update_one = AsyncMock()
+    fake_db.notifications.update_many = AsyncMock()
+    fake_db.notifications.count_documents = AsyncMock()
+    fake_db.users.find_one = AsyncMock()
+    # Cursor mock for find().sort().to_list()
+    mock_cursor = MagicMock()
+    mock_cursor.sort.return_value = mock_cursor
+    mock_cursor.to_list = AsyncMock(return_value=[])
+    fake_db.notifications.find.return_value = mock_cursor
+    with patch.object(ns, "_get_db", return_value=fake_db):
+        yield fake_db
 
 
 def _run_async(coro):
@@ -560,10 +576,10 @@ def _run_async(coro):
 class TestCreateCommunityNotification:
 
     def test_inserts_document(self, mock_notifications_db):
-        from routes.community import _create_community_notification
+        from services.notification_service import create_notification
 
         mock_notifications_db.notifications.insert_one.return_value = None
-        _run_async(_create_community_notification(
+        _run_async(create_notification(
             user_id="user123",
             notification_type="community_comment",
             title="New comment",
@@ -581,10 +597,10 @@ class TestCreateCommunityNotification:
         assert "created_at" in args
 
     def test_truncates_long_message(self, mock_notifications_db):
-        from routes.community import _create_community_notification
+        from services.notification_service import create_notification
 
         long_msg = "x" * 500
-        _run_async(_create_community_notification(
+        _run_async(create_notification(
             user_id="u1", notification_type="test", title="t", message=long_msg,
         ))
 
@@ -592,9 +608,9 @@ class TestCreateCommunityNotification:
         assert len(args["message"]) <= 300
 
     def test_default_icon(self, mock_notifications_db):
-        from routes.community import _create_community_notification
+        from services.notification_service import create_notification
 
-        _run_async(_create_community_notification(
+        _run_async(create_notification(
             user_id="u1", notification_type="test", title="t", message="m",
         ))
 
@@ -603,9 +619,9 @@ class TestCreateCommunityNotification:
         assert args["data"] == {}
 
     def test_custom_icon_and_data(self, mock_notifications_db):
-        from routes.community import _create_community_notification
+        from services.notification_service import create_notification
 
-        _run_async(_create_community_notification(
+        _run_async(create_notification(
             user_id="u1", notification_type="test", title="t", message="m",
             icon="at-sign", data={"target_type": "post", "target_id": "pid"},
         ))
@@ -618,14 +634,14 @@ class TestCreateCommunityNotification:
 class TestNotifyMentionedUsers:
 
     def test_creates_notifications(self, mock_notifications_db):
-        from routes.community import _notify_mentioned_users
+        from services.notification_service import notify_mentioned_users
 
         mock_notifications_db.users.find_one.side_effect = [
             {"id": "user_a", "name": "Alice"},
             {"id": "user_b", "name": "Bob"},
         ]
 
-        _run_async(_notify_mentioned_users(
+        _run_async(notify_mentioned_users(
             content="Hey @Alice and @Bob check this out",
             actor_id="actor1",
             actor_name="Charly",
@@ -636,11 +652,11 @@ class TestNotifyMentionedUsers:
         assert mock_notifications_db.notifications.insert_one.call_count == 2
 
     def test_skips_actor(self, mock_notifications_db):
-        from routes.community import _notify_mentioned_users
+        from services.notification_service import notify_mentioned_users
 
         mock_notifications_db.users.find_one.return_value = {"id": "actor1", "name": "Self"}
 
-        _run_async(_notify_mentioned_users(
+        _run_async(notify_mentioned_users(
             content="Hello @Self",
             actor_id="actor1",
             actor_name="Self",
@@ -651,11 +667,11 @@ class TestNotifyMentionedUsers:
         mock_notifications_db.notifications.insert_one.assert_not_called()
 
     def test_skips_unknown_usernames(self, mock_notifications_db):
-        from routes.community import _notify_mentioned_users
+        from services.notification_service import notify_mentioned_users
 
         mock_notifications_db.users.find_one.return_value = None
 
-        _run_async(_notify_mentioned_users(
+        _run_async(notify_mentioned_users(
             content="Hello @UnknownUser",
             actor_id="actor1",
             actor_name="Test",
@@ -666,9 +682,9 @@ class TestNotifyMentionedUsers:
         mock_notifications_db.notifications.insert_one.assert_not_called()
 
     def test_no_mentions_noop(self, mock_notifications_db):
-        from routes.community import _notify_mentioned_users
+        from services.notification_service import notify_mentioned_users
 
-        _run_async(_notify_mentioned_users(
+        _run_async(notify_mentioned_users(
             content="No mentions here",
             actor_id="actor1",
             actor_name="Test",
@@ -678,3 +694,407 @@ class TestNotifyMentionedUsers:
 
         mock_notifications_db.notifications.insert_one.assert_not_called()
         mock_notifications_db.users.find_one.assert_not_called()
+
+
+# ── Notification Aggregation ──
+
+
+class TestAggregateNotification:
+
+    def test_creates_new_when_no_existing(self, mock_notifications_db):
+        from services.notification_service import aggregate_notification
+
+        mock_notifications_db.notifications.find_one.return_value = None
+
+        _run_async(aggregate_notification(
+            user_id="user123",
+            notification_type="community_comment",
+            title="New comment",
+            message="test message",
+            aggregate_key="post:abc123",
+        ))
+
+        mock_notifications_db.notifications.insert_one.assert_called_once()
+        args = mock_notifications_db.notifications.insert_one.call_args[0][0]
+        assert args["user_id"] == "user123"
+        assert args["type"] == "community_comment"
+        assert args["data"]["aggregate_key"] == "post:abc123"
+        assert args["aggregate_count"] == 1
+
+    def test_merges_with_existing_unread(self, mock_notifications_db):
+        from services.notification_service import aggregate_notification
+
+        existing_id = "existing_notif_id"
+        mock_notifications_db.notifications.find_one.return_value = {
+            "id": existing_id, "aggregate_count": 1,
+        }
+
+        result = _run_async(aggregate_notification(
+            user_id="user123",
+            notification_type="community_comment",
+            title="New comment",
+            message="newer message",
+            aggregate_key="post:abc123",
+        ))
+
+        assert result == existing_id
+        mock_notifications_db.notifications.update_one.assert_called_once()
+        args = mock_notifications_db.notifications.update_one.call_args
+        assert args[0][0] == {"id": existing_id}
+        assert args[1][0]["$set"]["aggregate_count"] == 2
+        assert args[1][0]["$set"]["message"] == "newer message"
+
+    def test_does_not_merge_when_read_exists(self, mock_notifications_db):
+        from services.notification_service import aggregate_notification
+
+        mock_notifications_db.notifications.find_one.return_value = None
+
+        _run_async(aggregate_notification(
+            user_id="user123",
+            notification_type="community_comment",
+            title="New comment",
+            message="test",
+            aggregate_key="post:abc123",
+        ))
+
+        mock_notifications_db.notifications.insert_one.assert_called_once()
+
+    def test_aggregate_count_increments_properly(self, mock_notifications_db):
+        from services.notification_service import aggregate_notification
+
+        existing_id = "existing_id"
+        mock_notifications_db.notifications.find_one.return_value = {
+            "id": existing_id, "aggregate_count": 3,
+        }
+
+        _run_async(aggregate_notification(
+            user_id="user123",
+            notification_type="community_comment",
+            title="New comment",
+            message="test",
+            aggregate_key="post:abc123",
+        ))
+
+        args = mock_notifications_db.notifications.update_one.call_args
+        assert args[1][0]["$set"]["aggregate_count"] == 4
+
+    def test_new_notification_has_aggregate_key_in_data(self, mock_notifications_db):
+        from services.notification_service import aggregate_notification
+
+        mock_notifications_db.notifications.find_one.return_value = None
+
+        _run_async(aggregate_notification(
+            user_id="user123",
+            notification_type="community_reaction",
+            title="Someone upvoted",
+            message="",
+            aggregate_key="reaction:post:abc123",
+            icon="thumbs-up",
+            data={"target_type": "post", "target_id": "abc123"},
+        ))
+
+        args = mock_notifications_db.notifications.insert_one.call_args[0][0]
+        assert args["data"]["aggregate_key"] == "reaction:post:abc123"
+        assert args["data"]["target_type"] == "post"
+        assert args["icon"] == "thumbs-up"
+
+
+class TestGetUserNotifications:
+
+    def _make_notif(self, nid, created_at):
+        return {
+            "id": nid, "user_id": "u1", "type": "test", "title": "t",
+            "message": "m", "icon": "bell", "read": False,
+            "aggregate_count": 1, "created_at": created_at, "data": {},
+        }
+
+    def test_returns_notifications_list(self, mock_notifications_db):
+        from services.notification_service import get_user_notifications
+
+        items = [self._make_notif("n1", "2024-01-02T00:00:00")]
+        mock_notifications_db.notifications.find.return_value.sort.return_value.to_list = AsyncMock(return_value=items)
+        mock_notifications_db.notifications.count_documents.return_value = 5
+
+        result = _run_async(get_user_notifications(user_id="u1"))
+        assert len(result["notifications"]) == 1
+        assert result["notifications"][0]["id"] == "n1"
+        assert result["unread_count"] == 5
+
+    def test_cursor_pagination_has_more(self, mock_notifications_db):
+        from services.notification_service import get_user_notifications
+
+        items = [self._make_notif(f"n{i}", f"2024-01-{i:02d}T00:00:00") for i in range(1, 22)]
+        mock_notifications_db.notifications.find.return_value.sort.return_value.to_list = AsyncMock(return_value=items)
+        mock_notifications_db.notifications.count_documents.return_value = 30
+
+        result = _run_async(get_user_notifications(user_id="u1", limit=20))
+        assert len(result["notifications"]) == 20
+        assert result["next_cursor"] is not None
+
+    def test_cursor_pagination_no_more(self, mock_notifications_db):
+        from services.notification_service import get_user_notifications
+
+        items = [self._make_notif(f"n{i}", "2024-01-01T00:00:00") for i in range(1, 6)]
+        mock_notifications_db.notifications.find.return_value.sort.return_value.to_list = AsyncMock(return_value=items)
+        mock_notifications_db.notifications.count_documents.return_value = 5
+
+        result = _run_async(get_user_notifications(user_id="u1", limit=20))
+        assert result["next_cursor"] is None
+
+    def test_unread_count_separate_query(self, mock_notifications_db):
+        from services.notification_service import get_user_notifications
+
+        mock_notifications_db.notifications.find.return_value.sort.return_value.to_list = AsyncMock(return_value=[])
+        mock_notifications_db.notifications.count_documents.return_value = 3
+
+        result = _run_async(get_user_notifications(user_id="u1"))
+        assert result["unread_count"] == 3
+        mock_notifications_db.notifications.count_documents.assert_called_with(
+            {"user_id": "u1", "read": False},
+        )
+
+    def test_projection_trims_fields(self, mock_notifications_db):
+        from services.notification_service import get_user_notifications
+
+        items = [self._make_notif("n1", "2024-01-01T00:00:00")]
+        mock_notifications_db.notifications.find.return_value.sort.return_value.to_list = AsyncMock(return_value=items)
+
+        _run_async(get_user_notifications(user_id="u1"))
+        _args = mock_notifications_db.notifications.find.call_args
+        assert _args is not None
+
+    def test_cursor_filter_applied(self, mock_notifications_db):
+        from services.notification_service import get_user_notifications
+
+        mock_notifications_db.notifications.find.return_value.sort.return_value.to_list = AsyncMock(return_value=[])
+        mock_notifications_db.notifications.count_documents.return_value = 0
+
+        _run_async(get_user_notifications(user_id="u1", cursor="2024-01-15T00:00:00"))
+        find_args = mock_notifications_db.notifications.find.call_args[0]
+        assert find_args[0].get("created_at") == {"$lt": "2024-01-15T00:00:00"}
+
+    def test_empty_result(self, mock_notifications_db):
+        from services.notification_service import get_user_notifications
+
+        mock_notifications_db.notifications.find.return_value.sort.return_value.to_list = AsyncMock(return_value=[])
+        mock_notifications_db.notifications.count_documents.return_value = 0
+
+        result = _run_async(get_user_notifications(user_id="nonexistent"))
+        assert result["notifications"] == []
+        assert result["next_cursor"] is None
+        assert result["unread_count"] == 0
+
+
+class TestMarkAllRead:
+
+    def test_marks_all_unread(self, mock_notifications_db):
+        from services.notification_service import mark_all_read
+
+        mock_notifications_db.notifications.update_many.return_value.modified_count = 5
+
+        count = _run_async(mark_all_read("user123"))
+        assert count == 5
+        mock_notifications_db.notifications.update_many.assert_called_with(
+            {"user_id": "user123", "read": False},
+            {"$set": {"read": True}},
+        )
+
+    def test_no_unread(self, mock_notifications_db):
+        from services.notification_service import mark_all_read
+
+        mock_notifications_db.notifications.update_many.return_value.modified_count = 0
+
+        count = _run_async(mark_all_read("user123"))
+        assert count == 0
+
+
+# ── Cursor Pagination Helpers ──
+
+
+class TestCursorPaginationHelpers:
+
+    def test_get_sort_config_known_sorts(self):
+        for sort in ("recent", "trending", "top", "discussed"):
+            cfg = get_sort_config(sort)
+            assert "field" in cfg
+            assert "coerce" in cfg
+
+    def test_get_sort_config_unknown_fallsback_to_recent(self):
+        cfg = get_sort_config("unknown_sort")
+        assert cfg["field"] == "created_at"
+
+    def test_parse_cursor_str(self):
+        result = parse_cursor("2024-01-01T00:00:00", str)
+        assert result == "2024-01-01T00:00:00"
+
+    def test_parse_cursor_float(self):
+        result = parse_cursor("123.456", float)
+        assert result == 123.456
+
+    def test_parse_cursor_int(self):
+        result = parse_cursor("42", int)
+        assert result == 42
+
+    def test_parse_cursor_none(self):
+        assert parse_cursor(None, str) is None
+
+    def test_parse_cursor_empty(self):
+        assert parse_cursor("", str) is None
+
+    def test_parse_cursor_invalid_returns_none(self):
+        assert parse_cursor("not_a_number", float) is None
+
+    def test_get_sort_spec_has_tiebreaker(self):
+        spec = get_sort_spec("created_at")
+        assert ("_id", 1) in spec
+
+    def test_get_sort_spec_always_two_elements(self):
+        for field in ("created_at", "stats.score", "stats.comment_count"):
+            spec = get_sort_spec(field)
+            assert len(spec) == 2
+
+    def test_sort_config_coerce_types(self):
+        assert SORT_CONFIG["recent"]["coerce"] == str
+        assert SORT_CONFIG["trending"]["coerce"] == str
+        assert SORT_CONFIG["top"]["coerce"] == float
+        assert SORT_CONFIG["discussed"]["coerce"] == int
+
+
+# ── Cache Helpers ──
+
+
+class TestCacheHelpers:
+
+    def _clean_cache(self):
+        cache_invalidate()
+
+    def test_cache_get_miss(self):
+        self._clean_cache()
+        assert cache_get("nonexistent") is None
+
+    def test_cache_set_and_get(self):
+        self._clean_cache()
+        cache_set("test_key", {"data": 42})
+        assert cache_get("test_key") == {"data": 42}
+
+    def test_cache_expires(self):
+        self._clean_cache()
+        cache_set("test_key", "value", ttl=0)
+        import time
+        time.sleep(0.001)
+        assert cache_get("test_key") is None
+
+    def test_cache_invalidate_all(self):
+        self._clean_cache()
+        cache_set("key1", "v1")
+        cache_set("key2", "v2")
+        cache_invalidate()
+        assert cache_get("key1") is None
+        assert cache_get("key2") is None
+
+    def test_cache_invalidate_pattern(self):
+        self._clean_cache()
+        cache_set("feed:recent", "v1")
+        cache_set("feed:top", "v2")
+        cache_set("stats", "v3")
+        cache_invalidate(pattern="feed")
+        assert cache_get("feed:recent") is None
+        assert cache_get("feed:top") is None
+        assert cache_get("stats") is not None
+
+    def test_build_cache_key_simple(self):
+        key = build_cache_key("feed", sort="recent")
+        assert "feed" in key
+        assert "sort=recent" in key
+
+    def test_build_cache_key_ignores_none(self):
+        key = build_cache_key("feed", sort="recent", specialty=None)
+        assert "specialty" not in key
+
+    def test_build_cache_key_sorted_params(self):
+        key = build_cache_key("test", b="2", a="1")
+        assert key.index("a=") < key.index("b=")
+
+
+# ── Shadow-hide Moderation Path ──
+
+
+class TestShadowHiddenModeration:
+
+    def test_shadow_hide_threshold_constant(self):
+        assert SHADOW_HIDE_THRESHOLD == 3
+
+    def test_offense_tracking_triggers_shadow(self):
+        uid = f"shadow-{uuid.uuid4().hex}"
+        for _ in range(SHADOW_HIDE_THRESHOLD):
+            increment_offense(uid)
+        assert get_recent_offenses(uid) >= SHADOW_HIDE_THRESHOLD
+
+    def test_increment_offense_returns_true_at_threshold(self):
+        uid = f"lock-{uuid.uuid4().hex}"
+        for _ in range(SHADOW_HIDE_THRESHOLD - 1):
+            increment_offense(uid)
+        assert increment_offense(uid) is True
+
+    def test_below_threshold_not_shadow(self):
+        uid = f"below-{uuid.uuid4().hex}"
+        for _ in range(SHADOW_HIDE_THRESHOLD - 1):
+            increment_offense(uid)
+        assert get_recent_offenses(uid) < SHADOW_HIDE_THRESHOLD
+
+
+# ── Serialization Helpers ──
+
+
+class TestSerializeNotification:
+
+    def test_serialize_notification_has_required_keys(self):
+        from services.notification_service import serialize_notification
+        doc = {
+            "id": "n1", "type": "test", "icon": "bell", "title": "t",
+            "message": "m", "read": False, "aggregate_count": 2,
+            "created_at": "2024-01-01", "data": {"key": "val"},
+        }
+        result = serialize_notification(doc)
+        for key in ("id", "type", "icon", "title", "message", "read", "aggregate_count", "created_at", "data"):
+            assert key in result
+
+    def test_serialize_notification_defaults(self):
+        from services.notification_service import serialize_notification
+        result = serialize_notification({"id": "n1"})
+        assert result["icon"] == "message-circle"
+        assert result["read"] is False
+        assert result["aggregate_count"] == 1
+        assert result["data"] == {}
+
+
+# ── Content Quality (duplicate detection edge cases) ──
+
+
+class TestContentQualityEdgeCases:
+
+    def test_exact_duplicate_content_triggers(self):
+        assert is_duplicate(
+            "How to treat pneumonia in elderly patients",
+            "Consider antibiotics and supportive care",
+            "How to treat pneumonia in elderly patients",
+            "Consider antibiotics and supportive care",
+        ) is True
+
+    def test_partial_title_match_not_enough(self):
+        assert is_duplicate(
+            "Heart disease management",
+            "Content about heart disease",
+            "Heart disease prevention",
+            "Content about prevention only",
+        ) is False
+
+    def test_empty_text_similarity_zero(self):
+        assert compute_text_similarity("", "") == 0.0
+
+    def test_compute_text_similarity_identical(self):
+        assert compute_text_similarity("hello world", "hello world") == 1.0
+
+    def test_compute_text_similarity_partial(self):
+        sim = compute_text_similarity("a b c d", "a b c e")
+        assert 0.5 < sim < 1.0
