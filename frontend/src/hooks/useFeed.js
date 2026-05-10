@@ -1,6 +1,5 @@
-import { useState, useCallback, useRef, useMemo } from "react";
-import axios from "axios";
-import { API } from "@/App";
+import { useState, useCallback, useRef } from "react";
+import apiClient from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
@@ -13,8 +12,6 @@ export function useFeed(token, filters = {}) {
   const cursorRef = useRef(null);
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
-
-  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const buildParams = useCallback((cursor = null) => {
     const f = filtersRef.current;
@@ -36,9 +33,9 @@ export function useFeed(token, filters = {}) {
     setError(null);
     cursorRef.current = null;
     try {
-      const res = await axios.get(
-        `${API}/community/feed?${buildParams()}`,
-        { headers, timeout: 12000 },
+      const res = await apiClient.get(
+        `/community/feed?${buildParams()}`,
+        { timeout: 12000 },
       );
       const data = res.data;
       setPosts(data.posts || []);
@@ -49,26 +46,25 @@ export function useFeed(token, filters = {}) {
     } finally {
       setLoading(false);
     }
-  }, [token, buildParams, headers]);
+  }, [token, buildParams]);
 
   const loadMore = useCallback(async () => {
     if (!token || loadingMore || !hasMore || !cursorRef.current) return;
     setLoadingMore(true);
     try {
-      const res = await axios.get(
-        `${API}/community/feed?${buildParams(cursorRef.current)}`,
-        { headers, timeout: 12000 },
+      const res = await apiClient.get(
+        `/community/feed?${buildParams(cursorRef.current)}`,
+        { timeout: 12000 },
       );
       const data = res.data;
       setPosts(prev => [...prev, ...(data.posts || [])]);
       cursorRef.current = data.next_cursor || null;
       setHasMore(!!data.next_cursor);
     } catch {
-      // silent — user can scroll again
     } finally {
       setLoadingMore(false);
     }
-  }, [token, loadingMore, hasMore, buildParams, headers]);
+  }, [token, loadingMore, hasMore, buildParams]);
 
   const updatePost = useCallback((postId, updater) => {
     setPosts(prev => prev.map(p => p.id === postId ? updater(p) : p));

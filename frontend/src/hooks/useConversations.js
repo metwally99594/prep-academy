@@ -1,24 +1,22 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import axios from "axios";
-import { API } from "@/App";
+import apiClient from "@/lib/api";
 
 export function useConversations(token) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all"); // "all" | "unread"
+  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const fetch = useCallback(async (quiet = false) => {
     if (!token) return;
     if (!quiet) setLoading(true);
     try {
-      const res = await axios.get(`${API}/messaging/conversations`, { headers, timeout: 10000 });
+      const res = await apiClient.get("/messaging/conversations", { timeout: 10000 });
       setConversations(res.data.conversations || []);
-    } catch { /* silent */ } finally {
+    } catch { } finally {
       setLoading(false);
     }
-  }, [token, headers]);
+  }, [token]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
@@ -30,9 +28,9 @@ export function useConversations(token) {
   const markRead = useCallback(async (convId) => {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, unread_count: 0 } : c));
     try {
-      await axios.post(`${API}/messaging/conversations/${convId}/read`, null, { headers, timeout: 8000 });
-    } catch { /* silent */ }
-  }, [headers]);
+      await apiClient.post(`/messaging/conversations/${convId}/read`, null, { timeout: 8000 });
+    } catch { }
+  }, []);
 
   const filtered = useMemo(() => {
     return conversations.filter(c => {

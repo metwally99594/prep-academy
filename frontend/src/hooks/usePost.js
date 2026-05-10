@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import axios from "axios";
-import { API } from "@/App";
+import apiClient from "@/lib/api";
 
 export function usePost(token, postId) {
   const [post, setPost] = useState(null);
@@ -9,16 +8,14 @@ export function usePost(token, postId) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const headers = { Authorization: `Bearer ${token}` };
-
   const load = useCallback(async () => {
     if (!token || !postId) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(
-        `${API}/community/posts/${postId}`,
-        { headers, timeout: 12000 },
+      const res = await apiClient.get(
+        `/community/posts/${postId}`,
+        { timeout: 12000 },
       );
       setPost(res.data.post);
       setComments(res.data.comments || []);
@@ -38,12 +35,11 @@ export function usePost(token, postId) {
   }, [load]);
 
   const addComment = useCallback(async (content, parentId = null) => {
-    const res = await axios.post(
-      `${API}/community/comments`,
+    const res = await apiClient.post(
+      "/community/comments",
       { post_id: postId, content, parent_id: parentId || undefined },
-      { headers, timeout: 12000 },
+      { timeout: 12000 },
     );
-    // Reload to get enriched comment with author name
     await load();
     return res.data;
   }, [token, postId, load]);

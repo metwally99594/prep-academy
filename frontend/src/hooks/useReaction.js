@@ -1,10 +1,7 @@
 import { useCallback } from "react";
-import axios from "axios";
-import { API } from "@/App";
+import apiClient from "@/lib/api";
 
-export function useReaction(token) {
-  const headers = { Authorization: `Bearer ${token}` };
-
+export function useReaction(_token) {
   const react = useCallback(async ({
     targetType,
     targetId,
@@ -14,23 +11,19 @@ export function useReaction(token) {
     onRollback,
     onCommit,
   }) => {
-    // If clicking the same reaction again → toggle off (send same reaction = toggle on backend)
     const isSame = currentReaction === reaction;
-
-    // Optimistic stats patch
     onOptimistic?.(isSame ? null : reaction);
-
     try {
-      const res = await axios.post(
-        `${API}/community/reactions`,
+      const res = await apiClient.post(
+        "/community/reactions",
         { target_type: targetType, target_id: targetId, reaction },
-        { headers, timeout: 10000 },
+        { timeout: 10000 },
       );
       onCommit?.(res.data.reaction ?? (isSame ? null : reaction), res.data.stats);
     } catch {
       onRollback?.(currentReaction);
     }
-  }, [token]);
+  }, []);
 
   return { react };
 }

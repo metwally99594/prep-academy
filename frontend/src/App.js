@@ -54,25 +54,9 @@ const CommunityPostPage = lazy(() => import("@/pages/CommunityPostPage"));
 const ModerationQueuePage = lazy(() => import("@/pages/ModerationQueuePage"));
 const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"));
 
-// API Configuration - Use relative URL for production, full URL for development
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-export const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
-
-// Global 401 interceptor — clears stale token and redirects to login
-axios.interceptors.response.use(
-  response => response,
-  error => {
-    if (
-      error.response?.status === 401 &&
-      localStorage.getItem("token") &&
-      !error.config?.url?.includes('/auth/')
-    ) {
-      localStorage.removeItem("token");
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+// API base URL for legacy raw axios calls in pages
+import { API } from "@/lib/api";
+export { API };
 
 // Auth Context
 export const AuthContext = createContext(null);
