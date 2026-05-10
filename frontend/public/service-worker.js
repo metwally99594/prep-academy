@@ -1,12 +1,10 @@
 /* PrepAcademy Service Worker — stale-while-revalidate for static, network-first for API */
-const STATIC_CACHE = 'pa-static-v3';
-const DYNAMIC_CACHE = 'pa-dynamic-v3';
-const API_ORIGINS = ['prep-academy.onrender.com'];
+const STATIC_CACHE = 'pa-static-v4';
+const DYNAMIC_CACHE = 'pa-dynamic-v4';
 
 const PRECACHE = ['/', '/offline.html', '/logo-elite.png', '/favicon.ico'];
 
 // Paths that must bypass the SW entirely so Authorization headers reach the server intact.
-// Streaming/download endpoints break when the SW re-fetches them from its own context.
 const SW_BYPASS = ['/api/export/'];
 
 self.addEventListener('install', event => {
@@ -32,12 +30,11 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.protocol === 'chrome-extension:') return;
 
-  // Bypass SW for download/streaming endpoints — browser handles natively so
-  // Authorization headers are forwarded correctly and responses are not buffered.
+  // Bypass SW for download/streaming endpoints
   if (SW_BYPASS.some(p => url.pathname.startsWith(p))) return;
 
-  // Network-first for API calls
-  if (API_ORIGINS.some(o => url.hostname.includes(o)) || url.pathname.startsWith('/api/')) {
+  // Network-first for API calls (matched by path prefix, works with any backend URL)
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request).catch(() =>
         new Response(JSON.stringify({ error: 'offline' }), {

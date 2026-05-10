@@ -1,3 +1,14 @@
 backend/.env
+frontend/.env
 __pycache__/
-*.pyc 
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+build/
+dist/
+venv/
+.venv/
+*.pdf
+*.log
+.DS_Store

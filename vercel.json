@@ -5,9 +5,5 @@
   "framework": "create-react-app",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "env": {
-    "REACT_APP_BACKEND_URL": "https://YOUR-RENDER-APP.onrender.com",
-    "REACT_APP_ADVANCED": "false"
-  }
+  ]
 }
