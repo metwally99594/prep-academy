@@ -1,8 +1,19 @@
-import { memo } from "react";
+import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Users, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export const CommunityHeader = memo(function CommunityHeader({ onNewPost, user }) {
+export function CommunityHeader({ onNewPost, user }) {
+  const navigate = useNavigate();
+
+  const handleClick = useCallback(() => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    onNewPost();
+  }, [user, onNewPost, navigate]);
+
   return (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-3">
@@ -14,13 +25,11 @@ export const CommunityHeader = memo(function CommunityHeader({ onNewPost, user }
           <p className="text-xs text-muted-foreground">Medizinische Diskussionen</p>
         </div>
       </div>
-      {user && (
-        <Button size="sm" className="gap-1.5 shrink-0" onClick={onNewPost}>
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Beitrag erstellen</span>
-          <span className="sm:hidden">Neu</span>
-        </Button>
-      )}
+      <Button size="sm" className="gap-1.5 shrink-0" onClick={handleClick}>
+        <Plus className="w-4 h-4" />
+        <span className="hidden sm:inline">Beitrag erstellen</span>
+        <span className="sm:hidden">Neu</span>
+      </Button>
     </div>
   );
-});
+}

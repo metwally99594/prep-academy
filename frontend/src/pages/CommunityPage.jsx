@@ -89,7 +89,6 @@ export default function CommunityPage() {
 
       {/* Always mounted — preserves draft across accidental close */}
       <NewPostModal
-        token={token}
         open={showNewPost}
         onClose={() => setShowNewPost(false)}
         onCreated={handlePostCreated}

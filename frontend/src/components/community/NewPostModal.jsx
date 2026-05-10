@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { API } from "@/App";
+import apiClient from "@/lib/api";
 import { X, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -8,7 +7,7 @@ import { TagPicker } from "./TagPicker";
 import { POST_TYPE_OPTIONS, SPECIALTY_OPTIONS, TOPIC_OPTIONS } from "./communityConstants";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
-export function NewPostModal({ token, open, onClose, onCreated }) {
+export function NewPostModal({ open, onClose, onCreated }) {
   const trapRef = useFocusTrap(open);
   const [type, setType] = useState("discussion");
   const [title, setTitle] = useState("");
@@ -16,7 +15,6 @@ export function NewPostModal({ token, open, onClose, onCreated }) {
   const [specialtyTags, setSpecialtyTags] = useState([]);
   const [topicTags, setTopicTags] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const headers = { Authorization: `Bearer ${token}` };
 
   // ESC to close (desktop)
   useEffect(() => {
@@ -38,8 +36,8 @@ export function NewPostModal({ token, open, onClose, onCreated }) {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const res = await axios.post(
-        `${API}/community/posts`,
+      const res = await apiClient.post(
+        "/community/posts",
         {
           title: title.trim(),
           content: content.trim(),
@@ -48,7 +46,6 @@ export function NewPostModal({ token, open, onClose, onCreated }) {
           topic_tags: topicTags,
           image_ids: [],
         },
-        { headers, timeout: 15000 },
       );
 
       const status = res.data.status;
@@ -71,7 +68,7 @@ export function NewPostModal({ token, open, onClose, onCreated }) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, title, content, type, specialtyTags, topicTags, headers, onCreated]);
+  }, [canSubmit, title, content, type, specialtyTags, topicTags, onCreated]);
 
   // Keep mounted so draft survives accidental close → reopen
   return (
