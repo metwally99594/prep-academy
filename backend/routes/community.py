@@ -24,7 +24,7 @@ from services.community_service import (
     compute_text_similarity, is_duplicate,
     compute_hot_score, compute_trending_score,
     check_phi, check_dangerous_advice,
-    check_post_rate, check_comment_rate, check_content_quality,
+    check_post_rate, check_comment_rate,
     check_burst_rate,
     extract_mentions,
 )
@@ -32,6 +32,7 @@ from services.moderation_service import (
     evaluate_auto_moderation, is_title_all_caps, has_external_links,
     build_moderation_entry, should_auto_hide, should_auto_queue,
     check_profanity, increment_offense, build_audit_entry,
+    check_content_quality,
     AUTO_QUEUE_REASONS,
 )
 
