@@ -130,7 +130,7 @@ class TestProductionValidation:
             if "canonical_vocab_valid" in entry:
                 print(f"    canonical_vocab_valid={entry['canonical_vocab_valid']}")
             if "strict_csm_triggered" in entry:
-                print(f"    strict_csm_triggered={entry['strict_csm_triggered')}")
+                print(f"    strict_csm_triggered={entry['strict_csm_triggered']}")
         else:
             print(f"  Job still {status} (timeout or error: {job.get('message', '')})")
 
