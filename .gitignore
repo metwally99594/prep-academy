@@ -12,3 +12,23 @@ venv/
 *.pdf
 *.log
 .DS_Store
+node_modules/
+
+# Data import / migration scripts (never commit raw data)
+import_*.py
+extract_*.py
+upload_*.py
+_test_parser.py
+*import_progress.json
+*for_import.json
+*_questions.json
+*render_logs.json
+*svc_info.json
+extract_vision_log.txt
+
+# IDE/editor config
+.claude/
+.vscode/
+.idea/
+
+
