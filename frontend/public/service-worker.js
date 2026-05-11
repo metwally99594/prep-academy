@@ -30,8 +30,12 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.protocol === 'chrome-extension:') return;
 
-  // Bypass SW for download/streaming endpoints
+  // Bypass SW for download/streaming endpoints and auth endpoints
   if (SW_BYPASS.some(p => url.pathname.startsWith(p))) return;
+  if (url.pathname.startsWith('/api/auth/')) return;
+
+  // Skip SW for authenticated requests to preserve Authorization headers
+  if (request.headers.get('Authorization')) return;
 
   // Network-first for API calls (matched by path prefix, works with any backend URL)
   if (url.pathname.startsWith('/api/')) {

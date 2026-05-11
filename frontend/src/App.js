@@ -154,6 +154,28 @@ const AuthProvider = ({ children }) => {
     };
   }, [token, userId]);
 
+  // Re-verify auth when tab becomes visible (handles stale tokens after sleep)
+  useEffect(() => {
+    if (!token) return;
+    const handleVisibility = () => {
+      if (!document.hidden) checkAuth();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [token, checkAuth]);
+
+  // Sync logout across tabs via storage events
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === "token" && !e.newValue) {
+        setUser(null);
+        setToken(null);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
     const { token: newToken, user: userData } = response.data;
