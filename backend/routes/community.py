@@ -9,7 +9,7 @@ from typing import Optional
 from database import db, logger
 from models import (
     CommunityPostCreate, CommunityPostUpdate,
-    CommunityPostListResponse, CommunityCommentCreate,
+    CommunityPostListResponse, CommunityCommentCreate, CommunityCommentUpdate,
     CommunityReaction, CommunityReport,
     ModerationAction,
 )
@@ -295,8 +295,10 @@ async def update_post(post_id: str, body: CommunityPostUpdate, user: dict = Depe
     cid = get_correlation_id() or "-"
     post = await get_post_or_404(post_id)
     if post["author_id"] != user["id"] and not user.get("is_admin"):
+        logger.warning("EDIT_REJECTED type=post reason=unauthorized id=%s user=%s correlation_id=%s", post_id[:8], user["id"][:8], cid)
         raise HTTPException(status_code=403, detail="Not authorized to edit this post")
     if post["status"] == "deleted":
+        logger.warning("EDIT_REJECTED type=post reason=deleted id=%s user=%s correlation_id=%s", post_id[:8], user["id"][:8], cid)
         raise HTTPException(status_code=400, detail="Cannot edit deleted post")
 
     with _timer:
@@ -328,6 +330,7 @@ async def delete_post(post_id: str, user: dict = Depends(get_current_user)):
     cid = get_correlation_id() or "-"
     post = await get_post_or_404(post_id)
     if post["author_id"] != user["id"] and not user.get("is_admin"):
+        logger.warning("DELETE_REJECTED type=post reason=unauthorized id=%s user=%s correlation_id=%s", post_id[:8], user["id"][:8], cid)
         raise HTTPException(status_code=403, detail="Not authorized to delete this post")
 
     with _timer:
@@ -423,6 +426,7 @@ async def delete_comment(comment_id: str, user: dict = Depends(get_current_user)
     cid = get_correlation_id() or "-"
     comment = await get_comment_or_404(comment_id)
     if comment["author_id"] != user["id"] and not user.get("is_admin"):
+        logger.warning("DELETE_REJECTED type=comment reason=unauthorized id=%s user=%s correlation_id=%s", comment_id[:8], user["id"][:8], cid)
         raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
 
     with _timer:
@@ -436,6 +440,34 @@ async def delete_comment(comment_id: str, user: dict = Depends(get_current_user)
             {"$inc": {"stats.comment_count": -1}},
         )
     logger.info("comment=deleted id=%s post=%s duration_ms=%.1f correlation_id=%s", comment_id[:8], comment["post_id"][:8], _timer.ms, cid)
+    return {"status": "ok"}
+
+
+@router.put("/community/comments/{comment_id}")
+async def update_comment(comment_id: str, body: CommunityCommentUpdate, user: dict = Depends(get_current_user)):
+    _timer = Timer()
+    cid = get_correlation_id() or "-"
+    comment = await get_comment_or_404(comment_id)
+    if comment["status"] == "deleted":
+        logger.warning("EDIT_REJECTED type=comment reason=deleted id=%s user=%s correlation_id=%s", comment_id[:8], user["id"][:8], cid)
+        raise HTTPException(status_code=400, detail="Cannot edit deleted comment")
+    if comment["author_id"] != user["id"] and not user.get("is_admin"):
+        logger.warning("EDIT_REJECTED type=comment reason=unauthorized id=%s user=%s correlation_id=%s", comment_id[:8], user["id"][:8], cid)
+        raise HTTPException(status_code=403, detail="Not authorized to edit this comment")
+
+    content_err = validate_comment_content(body.content)
+    if content_err:
+        raise HTTPException(status_code=400, detail=content_err)
+
+    with _timer:
+        sanitized = sanitize_html(body.content)
+        await db.community_comments.update_one(
+            {"id": comment_id},
+            {"$set": {"content": sanitized, "content_html": None, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+
+    logger.info("comment=edited id=%s post=%s author=%s duration_ms=%.1f correlation_id=%s",
+                comment_id[:8], comment["post_id"][:8], user["id"][:8], _timer.ms, cid)
     return {"status": "ok"}
 
 

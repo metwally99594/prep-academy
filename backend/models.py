@@ -299,6 +299,10 @@ class CommunityCommentCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000)
 
 
+class CommunityCommentUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=5000)
+
+
 class CommunityCommentResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
