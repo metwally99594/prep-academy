@@ -70,5 +70,5 @@ export function useFeed(token, filters = {}) {
     setPosts(prev => prev.map(p => p.id === postId ? updater(p) : p));
   }, []);
 
-  return { posts, loading, loadingMore, hasMore, error, load, loadMore, updatePost };
+  return { posts, setPosts, loading, loadingMore, hasMore, error, load, loadMore, updatePost };
 }

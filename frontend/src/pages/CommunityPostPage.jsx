@@ -1,13 +1,14 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/App";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle, Pencil, Trash2, Check, X, Loader2 } from "lucide-react";
 import { usePost } from "@/hooks/usePost";
 import { PostHeader } from "@/components/community/PostHeader";
 import { PostActions } from "@/components/community/PostActions";
 import { CommentSection } from "@/components/community/CommentSection";
 import { AIInsightBlock } from "@/components/community/AIInsightBlock";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { Button } from "@/components/ui/button";
 
 function PostMedia({ media }) {
   if (!media || media.length === 0) return null;
@@ -81,11 +82,55 @@ export default function CommunityPostPage() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
 
-  const { post, comments, userReaction, loading, error, applyReaction } = usePost(token, postId);
+  const { post, comments, userReaction, loading, error, applyReaction, updatePost, deletePost } = usePost(token, postId);
+
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleReacted = useCallback((reaction, stats) => {
     applyReaction(reaction, stats);
   }, [applyReaction]);
+
+  const handleEditStart = useCallback(() => {
+    if (!post) return;
+    setEditTitle(post.title || "");
+    setEditContent(post.content || "");
+    setEditing(true);
+  }, [post]);
+
+  const handleEditCancel = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  const handleEditSave = useCallback(async () => {
+    if (!editTitle.trim() || !editContent.trim() || editSubmitting) return;
+    setEditSubmitting(true);
+    try {
+      await updatePost({ title: editTitle.trim(), content: editContent.trim() });
+      setEditing(false);
+    } catch (e) {
+      // error toast handled in updatePost
+    } finally {
+      setEditSubmitting(false);
+    }
+  }, [editTitle, editContent, editSubmitting, updatePost]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await deletePost();
+      navigate("/community");
+    } catch {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }, [deletePost, navigate]);
+
+  const isAuthor = post && user && post.author_id === user.id;
 
   if (error) {
     return (
@@ -114,23 +159,93 @@ export default function CommunityPostPage() {
         <PostSkeleton />
       ) : (
         <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
-          <PostHeader
-            authorName={post.author_name}
-            createdAt={post.created_at}
-            type={post.type}
-            tags={[...(post.specialty_tags || []), ...(post.topic_tags || [])]}
-          />
-          <div>
-            <h1 className="text-base font-bold leading-snug mb-3">{post.title}</h1>
-            <MarkdownRenderer content={post.content} />
+          <div className="flex items-start justify-between gap-2">
+            <PostHeader
+              authorName={post.author_name}
+              createdAt={post.created_at}
+              type={post.type}
+              tags={[...(post.specialty_tags || []), ...(post.topic_tags || [])]}
+            />
+            {isAuthor && !editing && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={handleEditStart}
+                  className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Beitrag bearbeiten"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label="Beitrag löschen"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
-          <PostMedia media={post.media} />
-          <PostActions
-            token={token}
-            post={post}
-            userReaction={userReaction}
-            onReacted={handleReacted}
-          />
+
+          {editing ? (
+            <div className="space-y-3">
+              <input
+                type="text"
+                className="w-full rounded-xl border bg-background/50 px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                maxLength={200}
+                autoFocus
+              />
+              <textarea
+                className="w-full rounded-xl border bg-background/50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                maxLength={10000}
+                rows={6}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="ghost" onClick={handleEditCancel} disabled={editSubmitting}>
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Abbrechen
+                </Button>
+                <Button size="sm" onClick={handleEditSave} disabled={editSubmitting || !editTitle.trim() || !editContent.trim()}>
+                  {editSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                  Speichern
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <h1 className="text-base font-bold leading-snug mb-3">{post.title}</h1>
+                <MarkdownRenderer content={post.content} />
+              </div>
+              <PostMedia media={post.media} />
+              <PostActions
+                token={token}
+                post={post}
+                userReaction={userReaction}
+                onReacted={handleReacted}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDelete && !editing && (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 space-y-3">
+          <p className="text-sm font-semibold">Beitrag endgültig löschen?</p>
+          <p className="text-xs text-muted-foreground">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+          <div className="flex gap-2">
+            <Button variant="destructive" size="sm" onClick={handleDeleteConfirm} disabled={deleting}>
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
+              Löschen
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+              Abbrechen
+            </Button>
+          </div>
         </div>
       )}
 

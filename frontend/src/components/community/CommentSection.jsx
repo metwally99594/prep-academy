@@ -89,6 +89,54 @@ export function CommentSection({ postId, token, userId, userName, initialComment
     await submitComment(content, parentId);
   }, [submitComment]);
 
+  const handleEditComment = useCallback(async (commentId, content) => {
+    let original = null;
+    setComments(prevComments => {
+      const target = prevComments.find(c => c.id === commentId);
+      original = target ? { ...target } : null;
+      if (!target) return prevComments;
+      return prevComments.map(c =>
+        c.id === commentId ? { ...c, content, _optimistic: true } : c,
+      );
+    });
+    if (!original) return;
+    try {
+      await axios.put(
+        `${API}/community/comments/${commentId}`,
+        { content },
+        { headers, timeout: 12000 },
+      );
+      setComments(prevComments =>
+        prevComments.map(c => c.id === commentId ? { ...c, _optimistic: false } : c),
+      );
+    } catch (e) {
+      setComments(prevComments => {
+        const stillExists = prevComments.some(c => c.id === commentId);
+        if (!stillExists) return prevComments;
+        return prevComments.map(c =>
+          c.id === commentId ? { ...original, _optimistic: false } : c,
+        );
+      });
+      toast.error(e.response?.data?.detail || "Kommentar konnte nicht bearbeitet werden.");
+    }
+  }, [headers]);
+
+  const handleDeleteComment = useCallback(async (commentId) => {
+    let removed = null;
+    setComments(prevComments => {
+      const target = prevComments.find(c => c.id === commentId);
+      removed = target ? { ...target } : null;
+      return prevComments.filter(c => c.id !== commentId);
+    });
+    if (!removed) return;
+    try {
+      await axios.delete(`${API}/community/comments/${commentId}`, { headers, timeout: 12000 });
+    } catch (e) {
+      setComments(prevComments => [...prevComments, { ...removed, _optimistic: false }]);
+      toast.error(e.response?.data?.detail || "Kommentar konnte nicht gelöscht werden.");
+    }
+  }, [headers]);
+
   const realCount = comments.filter(c => !c._optimistic).length;
   const displayCount = realCount || commentCount;
 
@@ -111,6 +159,8 @@ export function CommentSection({ postId, token, userId, userName, initialComment
                 comment={comment}
                 userId={userId}
                 onSubmitReply={handleReply}
+                onEditComment={handleEditComment}
+                onDeleteComment={handleDeleteComment}
                 depth={0}
               />
               {comment.replies.length > 0 && (
@@ -121,6 +171,8 @@ export function CommentSection({ postId, token, userId, userName, initialComment
                       comment={reply}
                       userId={userId}
                       onSubmitReply={handleReply}
+                      onEditComment={handleEditComment}
+                      onDeleteComment={handleDeleteComment}
                       depth={1}
                     />
                   ))}

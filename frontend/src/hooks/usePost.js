@@ -49,5 +49,30 @@ export function usePost(token, postId) {
     if (stats) setPost(prev => prev ? { ...prev, stats } : prev);
   }, []);
 
-  return { post, comments, userReaction, loading, error, load, addComment, applyReaction };
+  const updatePost = useCallback(async (data) => {
+    const prev = post;
+    if (!prev) return;
+    setPost(prevPost => prevPost ? { ...prevPost, ...data, _optimistic: true } : prevPost);
+    try {
+      await apiClient.put(`/community/posts/${postId}`, data, { timeout: 12000 });
+      setPost(prevPost => prevPost ? { ...prevPost, _optimistic: false } : prevPost);
+    } catch (e) {
+      setPost(prevPost => {
+        if (!prevPost) return prevPost;
+        return { ...prev, _optimistic: false };
+      });
+      throw new Error(e.response?.data?.detail || "Fehler beim Bearbeiten");
+    }
+  }, [post, postId]);
+
+  const deletePost = useCallback(async () => {
+    if (!post) return;
+    try {
+      await apiClient.delete(`/community/posts/${postId}`, { timeout: 12000 });
+    } catch (e) {
+      throw new Error(e.response?.data?.detail || "Fehler beim Löschen");
+    }
+  }, [post, postId]);
+
+  return { post, comments, userReaction, loading, error, load, addComment, applyReaction, updatePost, deletePost };
 }

@@ -19,7 +19,7 @@ export default function CommunityPage() {
   const { filters, setFilter, searchInput, handleSearchInput, clearFilters, hasActiveFilters } =
     useCommunityFilters();
 
-  const { posts, loading, loadingMore, hasMore, error, load, loadMore } = useFeed(token, filters);
+  const { posts, setPosts, loading, loadingMore, hasMore, error, load, loadMore } = useFeed(token, filters);
 
   // Reload when any filter changes
   const filterKey = [filters.sort, filters.specialty, filters.topic, filters.type, filters.search].join("|");
@@ -27,6 +27,10 @@ export default function CommunityPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey]);
+
+  const handlePostDeleted = useCallback((postId) => {
+    setPosts(prev => prev.filter(p => p.id !== postId));
+  }, []);
 
   const handleLoadMore = useCallback(() => { loadMore(); }, [loadMore]);
 
@@ -76,7 +80,7 @@ export default function CommunityPage() {
           <div className={loading ? "opacity-60 pointer-events-none transition-opacity duration-150" : "transition-opacity duration-150"}>
             {posts.map(post => (
               <div key={post.id} className="mb-3">
-                <PostCard post={post} token={token} userId={user?.id} />
+                <PostCard post={post} token={token} userId={user?.id} onDelete={handlePostDeleted} />
               </div>
             ))}
           </div>
