@@ -84,7 +84,7 @@ export default function MessagingPage() {
       }
       toast.success("Nachricht gesendet");
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Fehler beim Senden");
+      toast.error(e.response?.data?.detail || "Nachricht konnte nicht gesendet werden. Bitte überprüfen Sie Ihre Verbindung.");
     } finally {
       setContacting(false);
     }

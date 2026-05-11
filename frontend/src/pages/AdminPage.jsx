@@ -462,7 +462,7 @@ export default function AdminPage() {
       await fetchQuestions();
     } catch (error) {
       console.error("Failed to fetch admin data:", error);
-      toast.error("Fehler beim Laden der Daten");
+      toast.error("Fehler beim Laden der Fragendaten. Bitte aktualisieren Sie die Seite.");
     } finally {
       setLoading(false);
     }
@@ -621,7 +621,7 @@ export default function AdminPage() {
       fetchData();
     } catch (error) {
       console.error("Bulk delete failed:", error);
-      toast.error("Fehler beim Löschen");
+      toast.error("Fehler beim Löschen. Bitte versuchen Sie es erneut.");
     } finally {
       setBulkDeleting(false);
     }
@@ -698,7 +698,7 @@ export default function AdminPage() {
       fetchDuplicates();
       fetchData();
     } catch {
-      toast.error("Fehler beim Löschen");
+      toast.error("Fehler beim Löschen. Bitte versuchen Sie es erneut.");
     } finally {
       setBulkDeleting(false);
     }

@@ -40,7 +40,7 @@ export function NewConvModal({ token, onClose, onCreated }) {
       );
       onCreated(res.data.conversation_id);
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Fehler beim Starten der Unterhaltung");
+      toast.error(e.response?.data?.detail || "Unterhaltung konnte nicht gestartet werden. Bitte überprüfen Sie Ihre Verbindung.");
     } finally {
       setSending(false);
     }

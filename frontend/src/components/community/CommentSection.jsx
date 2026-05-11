@@ -70,7 +70,7 @@ export function CommentSection({ postId, token, userId, userName, initialComment
       );
     } catch (e) {
       setComments(prev => prev.filter(c => c.id !== optimisticId));
-      toast.error(e.response?.data?.detail || "Fehler beim Senden");
+      toast.error(e.response?.data?.detail || "Kommentar konnte nicht gesendet werden. Bitte überprüfen Sie Ihre Verbindung.");
     }
   }, [postId, userId, userName, headers]);
 
