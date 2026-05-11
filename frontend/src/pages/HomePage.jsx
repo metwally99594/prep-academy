@@ -58,26 +58,35 @@ export default function HomePage() {
   const [examTypes, setExamTypes] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const { user } = useAuth();
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("splashSeen"));
   const handleSplashDone = useCallback(() => { setShowSplash(false); sessionStorage.setItem("splashSeen", "1"); }, []);
 
-  useEffect(() => {
+  const loadHomepageData = useCallback(() => {
+    setLoading(true);
+    setFetchError(null);
     Promise.all([
       axios.get(`${API}/specialties`),
       axios.get(`${API}/exam-types`),
     ]).then(([specRes, examRes]) => {
       const specs = Array.isArray(specRes.data) ? specRes.data : [];
       const exams = Array.isArray(examRes.data) ? examRes.data : [];
-      if (process.env.NODE_ENV === "development" && (!Array.isArray(specRes.data) || !Array.isArray(examRes.data))) {
-        console.warn("[HomePage] /specialties or /exam-types returned non-array payload", { specialties: specRes.data, examTypes: examRes.data });
+      if (process.env.NODE_ENV === "development") {
+        if (!Array.isArray(specRes.data)) console.warn("[HomePage] /specialties returned non-array", specRes.data);
+        if (!Array.isArray(examRes.data)) console.warn("[HomePage] /exam-types returned non-array", examRes.data);
       }
       setSpecialties(specs);
       setExamTypes(exams);
       const defaultExam = exams.find(e => e.question_count > 0) || exams[0];
       setSelectedExam(defaultExam?.id || null);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(err => {
+      if (process.env.NODE_ENV === "development") console.error("[HomePage] bootstrap failed", err);
+      setFetchError(err?.message || "Fehler beim Laden");
+    }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadHomepageData(); }, [loadHomepageData]);
 
   // Filter specialties based on selected exam
   const filteredSpecialties = specialties.filter(s => {
@@ -339,7 +348,14 @@ export default function HomePage() {
             <span style={{ color: '#c9a84c' }}>Fachgebiete</span>
           </h2>
 
-          {loading ? (
+          {fetchError && !loading ? (
+            <div className="text-center py-16 space-y-4">
+              <p className="text-sm text-white/40">Verbindungsfehler — Fachgebiete konnten nicht geladen werden</p>
+              <button onClick={loadHomepageData} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-medium text-white/60 hover:text-white hover:border-white/20 transition-all" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                Erneut versuchen
+              </button>
+            </div>
+          ) : loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(9)].map((_, i) => <div key={i} className="h-24 rounded-xl animate-pulse" style={{ background: 'rgba(201,168,76,0.03)' }} />)}
             </div>
