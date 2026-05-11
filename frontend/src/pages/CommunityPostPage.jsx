@@ -14,11 +14,11 @@ function PostMedia({ media }) {
   return (
     <div className="space-y-3">
       {media.map((m, i) => (
-        <div key={m.id || i}>
+        <div key={m.id || i} className="relative w-full rounded-xl overflow-hidden border border-border/40 bg-muted/20" style={{ aspectRatio: m.media_type === "video" ? "16/9" : "4/3" }}>
           {m.media_type === "video" ? (
             <video
               src={m.data_uri}
-              className="w-full rounded-xl border border-border/40"
+              className="absolute inset-0 w-full h-full object-contain"
               controls
               preload="metadata"
             />
@@ -26,7 +26,7 @@ function PostMedia({ media }) {
             <img
               src={m.data_uri}
               alt=""
-              className="w-full rounded-xl border border-border/40 max-h-[500px] object-contain"
+              className="absolute inset-0 w-full h-full object-contain"
               loading="lazy"
             />
           )}
@@ -99,7 +99,7 @@ export default function CommunityPostPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
       {/* Back */}
       <button
         onClick={() => navigate(-1)}

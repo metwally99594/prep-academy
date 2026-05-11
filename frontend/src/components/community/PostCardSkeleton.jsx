@@ -1,4 +1,4 @@
-export function PostCardSkeleton() {
+export function PostCardSkeleton({ hasMedia = false }) {
   return (
     <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-3 animate-pulse">
       <div className="flex items-center gap-2">
@@ -11,6 +11,7 @@ export function PostCardSkeleton() {
         <div className="h-3 bg-muted rounded w-full" />
         <div className="h-3 bg-muted rounded w-5/6" />
       </div>
+      {hasMedia && <div className="w-full rounded-xl bg-muted" style={{ aspectRatio: "16/9" }} />}
       <div className="flex gap-2 pt-1">
         <div className="h-6 bg-muted rounded w-16" />
         <div className="h-6 bg-muted rounded w-16" />

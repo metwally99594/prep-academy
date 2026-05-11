@@ -19,23 +19,24 @@ function stripMarkdown(text = "") {
 function MediaPreview({ media }) {
   if (media.length === 0) return null;
   const first = media[0];
-  if (first.media_type === "video") {
-    return (
-      <video
-        src={first.data_uri}
-        className="w-full max-h-48 rounded-xl object-cover border border-border/40 mt-1"
-        controls
-        preload="metadata"
-      />
-    );
-  }
   return (
-    <img
-      src={first.data_uri}
-      alt=""
-      className="w-full max-h-48 rounded-xl object-cover border border-border/40 mt-1"
-      loading="lazy"
-    />
+    <div className="relative w-full mt-1 rounded-xl overflow-hidden border border-border/40 bg-muted/20" style={{ aspectRatio: "16/9" }}>
+      {first.media_type === "video" ? (
+        <video
+          src={first.data_uri}
+          className="absolute inset-0 w-full h-full object-cover"
+          controls
+          preload="metadata"
+        />
+      ) : (
+        <img
+          src={first.data_uri}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
+        />
+      )}
+    </div>
   );
 }
 
