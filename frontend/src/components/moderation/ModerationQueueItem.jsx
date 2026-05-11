@@ -24,11 +24,12 @@ export const ModerationQueueItem = memo(function ModerationQueueItem({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [hideModalOpen, setHideModalOpen] = useState(false);
 
   const TypeIcon = item.target_type === "post" ? FileText : MessageSquare;
 
   const handleApprove = (e) => { e?.stopPropagation?.(); onAction(item, "approve"); };
-  const handleHide    = (e) => { e?.stopPropagation?.(); onAction(item, "hide"); };
+  const handleHide    = (e) => { e?.stopPropagation?.(); setHideModalOpen(true); };
   const handleDelete  = (e) => { e?.stopPropagation?.(); setDeleteModalOpen(true); };
 
   return (
@@ -144,6 +145,13 @@ export const ModerationQueueItem = memo(function ModerationQueueItem({
         onClose={() => setDeleteModalOpen(false)}
         onConfirm={(note) => { setDeleteModalOpen(false); onAction(item, "delete", note); }}
         action="delete"
+        preview={item.target_preview}
+      />
+      <ModerationActionModal
+        open={hideModalOpen}
+        onClose={() => setHideModalOpen(false)}
+        onConfirm={(note) => { setHideModalOpen(false); onAction(item, "hide", note); }}
+        action="hide"
         preview={item.target_preview}
       />
     </>
