@@ -30,7 +30,8 @@ export function NewPostModal({ open, onClose, onCreated }) {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  const canSubmit = title.trim().length >= 5 && content.trim().length >= 10 && !submitting;
+  const wordCount = content.trim() ? content.trim().split(/\s+/).filter(Boolean).length : 0;
+  const canSubmit = title.trim().length >= 5 && content.trim().length >= 50 && wordCount >= 5 && !submitting;
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -73,7 +74,7 @@ export function NewPostModal({ open, onClose, onCreated }) {
   // Keep mounted so draft survives accidental close → reopen
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 ${open ? "" : "hidden"}`}
+      className={`fixed inset-0 z-50 items-end sm:items-center justify-center p-0 sm:p-4 ${open ? "flex" : "hidden"}`}
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -154,9 +155,18 @@ export function NewPostModal({ open, onClose, onCreated }) {
               maxLength={10000}
               rows={5}
             />
-            <p className={`text-[10px] mt-1 text-right transition-colors ${content.length > 9500 ? "text-amber-500" : "text-muted-foreground"}`}>
-              {content.length}/10000
-            </p>
+            <div className="flex justify-between text-[10px] mt-1">
+              <span className={`transition-colors ${content.trim().length > 0 && (content.trim().length < 50 || wordCount < 5) ? "text-destructive" : "text-muted-foreground"}`}>
+                {content.trim().length > 0 && content.trim().length < 50
+                  ? `Noch ${50 - content.trim().length} Zeichen (min. 50)`
+                  : content.trim().length >= 50 && wordCount < 5
+                    ? "Mindestens 5 Wörter erforderlich"
+                    : "Mindestens 50 Zeichen"}
+              </span>
+              <span className={`transition-colors ${content.length > 9500 ? "text-amber-500" : "text-muted-foreground"}`}>
+                {content.length}/10000
+              </span>
+            </div>
           </div>
 
           {/* Tags */}

@@ -41,10 +41,12 @@ from services.community_cache import cache_get, cache_set, cache_invalidate, bui
 from services.community_serializers import (
     build_post_document, build_comment_document,
     build_deleted_post_update, build_deleted_comment_update,
-    build_report_document,
     build_moderation_action_status_map, build_moderation_action_update,
     build_community_stats_response,
     enrich_moderation_queue_items,
+)
+from services.community_feed_query import (
+    build_report_document,
 )
 from services.community_pagination import (
     paginate_feed, paginate_moderation_queue, paginate_audit,
