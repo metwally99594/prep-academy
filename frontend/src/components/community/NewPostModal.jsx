@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { TagPicker } from "./TagPicker";
 import { POST_TYPE_OPTIONS, SPECIALTY_OPTIONS, TOPIC_OPTIONS } from "./communityConstants";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useVisualViewport } from "@/hooks/useVisualViewport";
 
 const ALLOWED_MEDIA_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
 const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
@@ -17,6 +18,7 @@ function nextTempKey() { return `_upload_${++tempKeyCounter}`; }
 export function NewPostModal({ open, onClose, onCreated }) {
   const trapRef = useFocusTrap(open);
   const fileInputRef = useRef(null);
+  const vpHeight = useVisualViewport();
   const [type, setType] = useState("discussion");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -152,7 +154,7 @@ export function NewPostModal({ open, onClose, onCreated }) {
       <div
         ref={trapRef}
         className="relative w-full sm:max-w-xl rounded-t-2xl sm:rounded-2xl border bg-card shadow-2xl flex flex-col"
-        style={{ maxHeight: "90dvh" }}
+        style={{ maxHeight: vpHeight * 0.9 }}
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -169,7 +171,7 @@ export function NewPostModal({ open, onClose, onCreated }) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4" style={{ overscrollBehavior: "contain" }}>
           {/* Type selector */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2">Beitragstyp</p>

@@ -102,7 +102,7 @@ export default function MessagingPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="max-w-6xl mx-auto px-4 py-6" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
       <div
         className="flex rounded-2xl border border-border/50 overflow-hidden shadow-lg bg-card"
         style={{ height: "calc(100dvh - 9rem)" }}

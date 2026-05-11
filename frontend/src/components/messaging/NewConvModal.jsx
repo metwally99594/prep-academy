@@ -69,7 +69,7 @@ export function NewConvModal({ token, onClose, onCreated }) {
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto space-y-4" style={{ maxHeight: "calc(85dvh - 64px)" }}>
+        <div className="p-5 space-y-4" style={{ maxHeight: "calc(85dvh - 64px)", overflowY: "auto", overscrollBehavior: "contain" }}>
           {selected ? (
             <>
               {/* Selected user card */}
