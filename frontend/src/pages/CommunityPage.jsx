@@ -56,7 +56,13 @@ export default function CommunityPage() {
       {error && (
         <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-3 mb-4">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={() => load()}
+            className="text-xs font-medium text-destructive underline hover:no-underline shrink-0"
+          >
+            Erneut versuchen
+          </button>
         </div>
       )}
 

@@ -82,7 +82,7 @@ export default function CommunityPostPage() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
 
-  const { post, comments, userReaction, loading, error, applyReaction, updatePost, deletePost } = usePost(token, postId);
+  const { post, comments, userReaction, loading, error, load, applyReaction, updatePost, deletePost } = usePost(token, postId);
 
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -137,7 +137,13 @@ export default function CommunityPostPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-3">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={() => load()}
+            className="text-xs font-medium text-destructive underline hover:no-underline shrink-0"
+          >
+            Erneut versuchen
+          </button>
         </div>
       </div>
     );
