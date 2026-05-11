@@ -7,8 +7,10 @@ const isLocalHost =
   (window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1");
 
-export const BACKEND_URL = envUrl || (isLocalHost ? "http://127.0.0.1:8000" : "");
-export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
+const PRODUCTION_API_URL = "https://prep-academy.onrender.com";
+
+export const BACKEND_URL = envUrl || (isLocalHost ? "http://127.0.0.1:8000" : PRODUCTION_API_URL);
+export const API = `${BACKEND_URL}/api`;
 
 const apiClient = axios.create({ baseURL: API });
 
