@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import jwt
 import bcrypt
 
-from database import db, JWT_SECRET, JWT_ALGORITHM
+from database import db, JWT_SECRET, JWT_ALGORITHM, logger
 
 security = HTTPBearer(auto_error=False)
 
@@ -28,20 +28,25 @@ def create_token(user_id: str, is_admin: bool = False) -> str:
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
+        logger.info("AUTH_FAILED no_credentials")
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         token = credentials.credentials
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
         if not user:
+            logger.info("AUTH_FAILED user_not_found id=%s", payload.get("user_id", "?")[:8])
             raise HTTPException(status_code=401, detail="User not found")
         return user
     except jwt.ExpiredSignatureError:
+        logger.info("AUTH_FAILED token_expired")
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
+        logger.info("AUTH_FAILED invalid_token")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def get_admin_user(user: dict = Depends(get_current_user)):
     if not user.get("is_admin"):
+        logger.info("AUTH_FAILED admin_required user=%s", user.get("id", "?")[:8])
         raise HTTPException(status_code=403, detail="Admin access required")
     return user

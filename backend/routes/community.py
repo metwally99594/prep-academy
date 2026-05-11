@@ -101,6 +101,7 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
     cid = get_correlation_id() or "-"
     content_errs = validate_post_content(body.title, body.content)
     if content_errs:
+        logger.info("POST_REJECTED validation user=%s reason=%s", user["id"][:8], content_errs[0][:60])
         raise HTTPException(status_code=400, detail="; ".join(content_errs))
     type_err = validate_post_type(body.type)
     if type_err:
@@ -113,12 +114,15 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
         raise HTTPException(status_code=400, detail="; ".join(topic_errs))
     rate_err = check_post_rate(user["id"])
     if rate_err:
+        logger.info("POST_REJECTED rate_limit user=%s", user["id"][:8])
         raise HTTPException(status_code=429, detail=rate_err)
     burst_err = check_burst_rate(user["id"], "post")
     if burst_err:
+        logger.info("POST_REJECTED burst_limit user=%s", user["id"][:8])
         raise HTTPException(status_code=429, detail=burst_err)
     quality_err = check_content_quality(body.content)
     if quality_err:
+        logger.info("POST_REJECTED quality user=%s reason=%s", user["id"][:8], quality_err[:60])
         raise HTTPException(status_code=400, detail=quality_err)
 
     with _timer:
@@ -166,10 +170,12 @@ MAX_MEDIA_SIZE = 50 * 1024 * 1024  # 50 MB
 @router.post("/community/upload")
 async def upload_community_media(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     if file.content_type not in ALLOWED_MEDIA_TYPES:
+        logger.warning("UPLOAD_REJECTED type=%s user=%s", file.content_type, user["id"][:8])
         raise HTTPException(status_code=400, detail=f"Unsupported media type '{file.content_type}'")
 
     contents = await file.read()
     if len(contents) > MAX_MEDIA_SIZE:
+        logger.warning("UPLOAD_REJECTED size=%d user=%s", len(contents), user["id"][:8])
         raise HTTPException(status_code=400, detail=f"File too large ({len(contents)} bytes, max 50 MB)")
 
     encoded = base64.b64encode(contents).decode()

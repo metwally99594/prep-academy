@@ -286,7 +286,9 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
     from services.email_service import send_verification_email, send_admin_new_user_email
     existing = await db.users.find_one({"email": user.email})
     if existing:
-        raise HTTPException(status_code=400, detail="Registration failed. Please try again.")
+        if not existing.get("email_verified"):
+            raise HTTPException(status_code=400, detail="E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach oder fordern Sie einen neuen Link an.")
+        raise HTTPException(status_code=400, detail="Diese E-Mail-Adresse wird bereits verwendet. Bitte melden Sie sich an.")
 
     verification_token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
@@ -419,10 +421,12 @@ async def login(request: Request, credentials: UserLogin):
     password_ok = verify_password(credentials.password, stored_hash)
 
     if not user or not password_ok:
+        logger.info("AUTH_FAILED login_invalid email=%s", credentials.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # email_verified is False only for new accounts — existing accounts (no field) are treated as verified
     if user.get("email_verified") is False:
+        logger.info("AUTH_FAILED email_unverified email=%s", credentials.email)
         raise HTTPException(status_code=403, detail="email_not_verified")
 
     token = create_token(user["id"], user.get("is_admin", False))
@@ -4705,16 +4709,17 @@ cors_origins_env = os.environ.get('CORS_ORIGINS', '')
 if cors_origins_env and cors_origins_env != '*':
     cors_origins = [o.strip() for o in cors_origins_env.split(',') if o.strip()]
 else:
-    cors_origins_env = os.environ.get('VERCEL_URL', '')
-    if cors_origins_env:
+    vercel_url = os.environ.get('VERCEL_URL', '')
+    if vercel_url:
         cors_origins = [
-            f"https://{cors_origins_env}",
-            f"https://www.{cors_origins_env}",
+            f"https://{vercel_url}",
+            f"https://www.{vercel_url}",
         ]
     else:
         cors_origins = [
             "https://prep-academy-rho.vercel.app",
             "https://prep-academy.vercel.app",
+            "https://prep-academy-git-*.vercel.app",
             "http://localhost:3000",
             "http://localhost:5173",
         ]
