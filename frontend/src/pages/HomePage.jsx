@@ -67,10 +67,14 @@ export default function HomePage() {
       axios.get(`${API}/specialties`),
       axios.get(`${API}/exam-types`),
     ]).then(([specRes, examRes]) => {
-      setSpecialties(specRes.data);
-      setExamTypes(examRes.data);
-      // Default to first exam type with questions
-      const defaultExam = examRes.data.find(e => e.question_count > 0) || examRes.data[0];
+      const specs = Array.isArray(specRes.data) ? specRes.data : [];
+      const exams = Array.isArray(examRes.data) ? examRes.data : [];
+      if (process.env.NODE_ENV === "development" && (!Array.isArray(specRes.data) || !Array.isArray(examRes.data))) {
+        console.warn("[HomePage] /specialties or /exam-types returned non-array payload", { specialties: specRes.data, examTypes: examRes.data });
+      }
+      setSpecialties(specs);
+      setExamTypes(exams);
+      const defaultExam = exams.find(e => e.question_count > 0) || exams[0];
       setSelectedExam(defaultExam?.id || null);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -278,7 +282,7 @@ export default function HomePage() {
                 <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">Fragen Gesamt</div>
               </div>
               <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
-                <div className="text-4xl font-bold text-white">{displayNumber(activeSpecialtyCount || filteredSpecialties.filter(s => s.question_count > 0).length)}</div>
+                <div className="text-4xl font-bold text-white">{displayNumber(activeSpecialtyCount || (Array.isArray(filteredSpecialties) ? filteredSpecialties.filter(s => s.question_count > 0).length : 0))}</div>
                 <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">Fachgebiete</div>
               </div>
               <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
