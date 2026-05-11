@@ -1,11 +1,46 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, Loader2, MailCheck } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Loader2, MailCheck, Shield, ShieldAlert, ShieldCheck } from "lucide-react";
+
+function PasswordStrength({ password }) {
+  const strength = useMemo(() => {
+    let score = 0;
+    if (password.length >= 6) score++;
+    if (password.length >= 10) score++;
+    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^a-zA-Z0-9]/.test(password)) score++;
+    return score;
+  }, [password]);
+  if (!password) return null;
+  const bars = [
+    { fill: strength >= 1 ? "bg-red-500" : "bg-muted", label: "Schwach" },
+    { fill: strength >= 2 ? "bg-orange-400" : "bg-muted", label: "Mittel" },
+    { fill: strength >= 3 ? "bg-yellow-400" : "bg-muted", label: "Gut" },
+    { fill: strength >= 4 ? "bg-emerald-400" : "bg-muted", label: "Stark" },
+    { fill: strength >= 5 ? "bg-emerald-500" : "bg-muted", label: "Sehr stark" },
+  ];
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex gap-1">
+        {bars.map((b, i) => (
+          <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${b.fill}`} />
+        ))}
+      </div>
+      <p className={`text-[10px] ${
+        strength <= 1 ? "text-red-400" : strength <= 2 ? "text-orange-400" : strength <= 3 ? "text-yellow-400" : "text-emerald-400"
+      }`}>
+        {strength <= 1 ? <ShieldAlert className="w-3 h-3 inline mr-1" /> : strength >= 4 ? <ShieldCheck className="w-3 h-3 inline mr-1" /> : <Shield className="w-3 h-3 inline mr-1" />}
+        {bars[Math.min(strength, bars.length - 1)]?.label || ""}
+      </p>
+    </div>
+  );
+}
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -68,7 +103,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12"
-      style={{ background: "linear-gradient(135deg,#080818 0%,#0c1229 50%,#080818 100%)" }}>
+      style={{ background: "linear-gradient(135deg,#080818 0%,#0c1229 50%,#080818 100%)", paddingBottom: "max(3rem, env(safe-area-inset-bottom))" }}>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
@@ -134,6 +169,7 @@ export default function RegisterPage() {
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
+            <PasswordStrength password={password} />
           </div>
 
           <div className="space-y-2">
@@ -146,10 +182,13 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="pl-10 h-12"
+                className={`pl-10 h-12 ${confirmPassword && password !== confirmPassword ? "border-destructive" : ""}`}
                 data-testid="register-confirm-password-input"
               />
             </div>
+            {confirmPassword && password !== confirmPassword && (
+              <p className="text-[10px] text-destructive mt-1">Passwörter stimmen nicht überein</p>
+            )}
           </div>
 
           <Button type="submit" disabled={loading} data-testid="register-submit-btn"
