@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import apiClient from "@/lib/api";
-import { X, Send, Loader2, Image, Video, Trash2 } from "lucide-react";
+import { X, Send, Loader2, Image, Video, RefreshCw, CheckCircle2, AlertCircle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TagPicker } from "./TagPicker";
@@ -10,6 +10,9 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 const ALLOWED_MEDIA_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
 const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
 const MAX_MEDIA_ITEMS = 5;
+
+let tempKeyCounter = 0;
+function nextTempKey() { return `_upload_${++tempKeyCounter}`; }
 
 export function NewPostModal({ open, onClose, onCreated }) {
   const trapRef = useFocusTrap(open);
@@ -22,6 +25,7 @@ export function NewPostModal({ open, onClose, onCreated }) {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [mediaItems, setMediaItems] = useState([]);
+  const [uploadStates, setUploadStates] = useState({});
 
   useEffect(() => {
     if (!open) return;
@@ -35,14 +39,39 @@ export function NewPostModal({ open, onClose, onCreated }) {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
+  const hasUploadErrors = Object.values(uploadStates).some(s => s.status === "error");
   const wordCount = content.trim() ? content.trim().split(/\s+/).filter(Boolean).length : 0;
-  const canSubmit = title.trim().length >= 5 && content.trim().length >= 50 && wordCount >= 5 && !submitting && !uploading;
+  const canSubmit = title.trim().length >= 5 && content.trim().length >= 50 && wordCount >= 5 && !submitting && !uploading && !hasUploadErrors;
+
+  const doUpload = useCallback(async (file, tempKey) => {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await apiClient.post("/community/upload", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 120000,
+        onUploadProgress: (e) => {
+          if (e.total) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            setUploadStates(prev => ({ ...prev, [tempKey]: { ...prev[tempKey], progress: pct } }));
+          }
+        },
+      });
+      setMediaItems(prev => [...prev, res.data]);
+      setUploadStates(prev => { const n = { ...prev }; delete n[tempKey]; return n; });
+    } catch (err) {
+      setUploadStates(prev => ({
+        ...prev,
+        [tempKey]: { ...prev[tempKey], status: "error", error: err.response?.data?.detail || "Upload fehlgeschlagen" },
+      }));
+    }
+  }, []);
 
   const handleMediaPick = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
     if (files.length === 0) return;
-    const remaining = MAX_MEDIA_ITEMS - mediaItems.length;
+    const remaining = MAX_MEDIA_ITEMS - mediaItems.length - Object.keys(uploadStates).length;
     if (remaining <= 0) { toast.error("Max. 5 Medien pro Beitrag"); return; }
     const toUpload = files.slice(0, remaining);
     for (const file of toUpload) {
@@ -56,22 +85,13 @@ export function NewPostModal({ open, onClose, onCreated }) {
         toast.error(`Datei zu groß (max. 50 MB): ${file.name}`);
         continue;
       }
+      const tempKey = nextTempKey();
       setUploading(true);
-      try {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await apiClient.post("/community/upload", form, {
-          headers: { "Content-Type": "multipart/form-data" },
-          timeout: 120000,
-        });
-        setMediaItems(prev => [...prev, res.data]);
-      } catch (err) {
-        toast.error(err.response?.data?.detail || "Upload fehlgeschlagen");
-      } finally {
-        setUploading(false);
-      }
+      setUploadStates(prev => ({ ...prev, [tempKey]: { progress: 0, status: "uploading", error: "", name: file.name, file } }));
+      await doUpload(file, tempKey);
+      setUploading(false);
     }
-  }, [mediaItems.length]);
+  }, [mediaItems.length, uploadStates, doUpload]);
 
   const removeMedia = useCallback((mediaId) => {
     setMediaItems(prev => prev.filter(m => m.id !== mediaId));
@@ -245,8 +265,37 @@ export function NewPostModal({ open, onClose, onCreated }) {
               multiple
               onChange={handleMediaPick}
             />
-            {mediaItems.length > 0 && (
+            {(mediaItems.length > 0 || Object.keys(uploadStates).length > 0) && (
               <div className="flex flex-wrap gap-2 mb-2">
+                {Object.entries(uploadStates).map(([key, us]) => (
+                  <div key={key} className="relative w-20 h-20 rounded-xl border border-border/50 overflow-hidden bg-muted/30">
+                    {us.status === "uploading" ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-1">
+                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mb-1" />
+                        <div className="w-full bg-muted rounded-full h-1.5">
+                          <div className="bg-primary h-1.5 rounded-full transition-all duration-300" style={{ width: `${us.progress}%` }} />
+                        </div>
+                        <span className="text-[9px] text-muted-foreground mt-0.5">{us.progress}%</span>
+                      </div>
+                    ) : us.status === "error" ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-1 bg-destructive/5">
+                        <AlertCircle className="w-5 h-5 text-destructive" />
+                        <span className="text-[8px] text-destructive text-center leading-tight mt-0.5 line-clamp-2">{us.error}</span>
+                        <button
+                          onClick={() => {
+                            setUploadStates(prev => ({ ...prev, [key]: { ...prev[key], status: "uploading", progress: 0, error: "" } }));
+                            setUploading(true);
+                            doUpload(us.file, key).finally(() => setUploading(false));
+                          }}
+                          className="absolute inset-0 flex items-center justify-center bg-background/60 opacity-0 hover:opacity-100 transition-opacity"
+                          aria-label="Erneut versuchen"
+                        >
+                          <RefreshCw className="w-5 h-5 text-destructive" />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
                 {mediaItems.map(m => (
                   <div key={m.id} className="relative group">
                     {m.media_type === "video" ? (
@@ -261,6 +310,9 @@ export function NewPostModal({ open, onClose, onCreated }) {
                     >
                       <X className="w-3 h-3" />
                     </button>
+                    <div className="absolute bottom-0.5 right-0.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -275,11 +327,14 @@ export function NewPostModal({ open, onClose, onCreated }) {
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <Image className="w-4 h-4" />
-                  <Video className="w-4 h-4" />
+                  <Upload className="w-4 h-4" />
                 </>
               )}
-              {uploading ? "Wird hochgeladen…" : "Bilder / Videos hinzufügen (max. 50 MB)"}
+              {uploading
+                ? `Upload läuft… (${Object.values(uploadStates).filter(s => s.status === "uploading").length} Dateien)`
+                : mediaItems.length >= MAX_MEDIA_ITEMS
+                  ? "Max. 5 Medien erreicht"
+                  : "Bilder / Videos hinzufügen (max. 50 MB)"}
             </button>
           </div>
         </div>
