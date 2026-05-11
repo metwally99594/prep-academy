@@ -36,6 +36,13 @@ export default function NotificationsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Auto-refresh every 60s when page is visible
+  useEffect(() => {
+    if (!token) return;
+    const id = setInterval(() => { if (!document.hidden) load(); }, 60000);
+    return () => clearInterval(id);
+  }, [token, load]);
+
   const loadMore = useCallback(async () => {
     if (!cursorRef.current || loadingMore) return;
     setLoadingMore(true);
