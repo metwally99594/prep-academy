@@ -251,6 +251,7 @@ class CommunityPostCreate(BaseModel):
     topic_tags: List[str] = []
     type: str = "discussion"
     image_ids: List[str] = []
+    media: List[dict] = []
 
 
 class CommunityPostUpdate(BaseModel):
@@ -274,6 +275,7 @@ class CommunityPostResponse(BaseModel):
     status: str = "published"
     stats: dict = {}
     image_ids: list = []
+    media: list = []
     is_duplicate: bool = False
     duplicate_of: Optional[str] = None
     ai_summary: Optional[str] = None

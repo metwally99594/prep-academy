@@ -81,6 +81,7 @@ def build_post_document(
         "ai_moderation_result": None,
         "stats": {"view_count": 0, "upvote_count": 0, "downvote_count": 0, "comment_count": 0, "report_count": 0, "score": 0},
         "image_ids": body.image_ids,
+        "media": body.media,
         "duplicate_of": dup_of,
         "is_duplicate": dup_of is not None,
         "educational_safety_approved": True,

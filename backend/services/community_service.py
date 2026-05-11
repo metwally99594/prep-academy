@@ -315,7 +315,7 @@ def parse_cursor(cursor: Optional[str], coerce_func) -> Optional[any]:
 FEED_PROJECTION = {
     "_id": 1, "id": 1, "author_id": 1, "title": 1, "content": 1,
     "specialty_tags": 1, "topic_tags": 1, "type": 1, "status": 1,
-    "stats": 1, "image_ids": 1, "is_duplicate": 1, "duplicate_of": 1,
+    "stats": 1, "image_ids": 1, "media": 1, "is_duplicate": 1, "duplicate_of": 1,
     "created_at": 1, "updated_at": 1,
 }
 
@@ -348,6 +348,7 @@ def enrich_post_response(p: dict, author_name: str) -> dict:
         status=p.get("status", "published"),
         stats=p.get("stats", {}),
         image_ids=p.get("image_ids", []),
+        media=p.get("media", []),
         is_duplicate=p.get("is_duplicate", False),
         duplicate_of=p.get("duplicate_of"),
         ai_summary=p.get("ai_summary"),

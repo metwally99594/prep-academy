@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { PostHeader } from "./PostHeader";
 import { PostActions } from "./PostActions";
 
-// Strip common markdown syntax for plain-text card previews
 function stripMarkdown(text = "") {
   return text
     .replace(/#{1,6}\s+/g, "")
@@ -15,6 +14,29 @@ function stripMarkdown(text = "") {
     .replace(/[-*+]\s/g, "")
     .replace(/\n+/g, " ")
     .trim();
+}
+
+function MediaPreview({ media }) {
+  if (media.length === 0) return null;
+  const first = media[0];
+  if (first.media_type === "video") {
+    return (
+      <video
+        src={first.data_uri}
+        className="w-full max-h-48 rounded-xl object-cover border border-border/40 mt-1"
+        controls
+        preload="metadata"
+      />
+    );
+  }
+  return (
+    <img
+      src={first.data_uri}
+      alt=""
+      className="w-full max-h-48 rounded-xl object-cover border border-border/40 mt-1"
+      loading="lazy"
+    />
+  );
 }
 
 export const PostCard = memo(function PostCard({ post: initialPost, token, userId }) {
@@ -30,6 +52,7 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
   const allTags = [...(post.specialty_tags || []), ...(post.topic_tags || [])];
   const rawPreview = stripMarkdown(post.content || "");
   const preview = rawPreview.slice(0, 200) + (rawPreview.length > 200 ? "…" : "");
+  const postMedia = post.media || [];
 
   return (
     <article
@@ -54,6 +77,8 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
             </p>
           )}
         </div>
+
+        <MediaPreview media={postMedia} />
 
         <PostActions
           token={token}

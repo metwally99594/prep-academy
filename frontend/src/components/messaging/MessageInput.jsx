@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { AttachmentPreview } from "./AttachmentPreview";
 
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm", "video/quicktime", "application/pdf"];
 const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024; // 2 MB after compression
 const MAX_ATTACHMENTS = 5;
 
@@ -93,11 +93,11 @@ export function MessageInput({ onSend, disabled = false }) {
     if ((!trimmed && attachments.length === 0) || disabled || sending) return;
     setSending(true);
     const atts = attachments.map(a => ({
-      file_url: a.base64,
-      file_name: a.name,
+      filename: a.name,
       mime_type: a.mime,
       size_bytes: a.size,
-      thumbnail_url: a.preview || "",
+      image_base64: a.base64,
+      type: a.mime?.startsWith("image/") ? "image" : "file",
     }));
     try {
       await onSend(trimmed, atts);

@@ -17,12 +17,27 @@ function fmt(bytes) {
 
 function AttachmentItem({ att, isMe }) {
   const isImage = att.mime_type?.startsWith("image/");
+  const isVideo = att.mime_type?.startsWith("video/");
+  const src = att.image_base64 || att.file_url || "";
+  const name = att.filename || att.file_name || "Datei";
+  if (isVideo) {
+    return (
+      <div className="block mt-1.5 max-w-[320px]">
+        <video
+          src={src}
+          className="w-full rounded-xl border border-border/40"
+          controls
+          preload="metadata"
+        />
+      </div>
+    );
+  }
   if (isImage) {
     return (
-      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="block mt-1.5">
+      <a href={src} target="_blank" rel="noopener noreferrer" className="block mt-1.5">
         <img
-          src={att.file_url}
-          alt={att.file_name || "Bild"}
+          src={src}
+          alt={name}
           className="max-w-[240px] max-h-48 rounded-xl object-cover border border-white/10 hover:opacity-90 transition-opacity cursor-pointer"
           loading="lazy"
         />
@@ -32,8 +47,8 @@ function AttachmentItem({ att, isMe }) {
   // PDF / other file
   return (
     <a
-      href={att.file_url}
-      download={att.file_name || "datei"}
+      href={src}
+      download={name}
       className={`mt-1.5 flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-colors ${
         isMe
           ? "border-white/20 bg-white/10 hover:bg-white/20 text-primary-foreground"
@@ -44,7 +59,7 @@ function AttachmentItem({ att, isMe }) {
         <FileText className={`w-4 h-4 ${isMe ? "text-primary-foreground" : "text-primary"}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium truncate">{att.file_name || "Datei"}</p>
+        <p className="text-xs font-medium truncate">{name}</p>
         {att.size_bytes > 0 && (
           <p className={`text-[10px] ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
             {fmt(att.size_bytes)}

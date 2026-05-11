@@ -1,7 +1,8 @@
 """Medical Community Routes: Posts, Comments, Reactions, Moderation, Feeds."""
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 import uuid
 import asyncio
+import base64
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -153,6 +154,58 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
     logger.info("post=created id=%s user=%s status=%s duration_ms=%.1f correlation_id=%s",
                 post_id[:8], user["id"][:8], mod_result["status"], _timer.ms, cid)
     return {"id": post_id, "status": mod_result["status"], "is_duplicate": dup_of is not None, "created_at": now}
+
+
+ALLOWED_MEDIA_TYPES = {
+    "image/jpeg", "image/png", "image/webp", "image/gif",
+    "video/mp4", "video/webm", "video/quicktime",
+}
+MAX_MEDIA_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+@router.post("/community/upload")
+async def upload_community_media(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    if file.content_type not in ALLOWED_MEDIA_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported media type '{file.content_type}'")
+
+    contents = await file.read()
+    if len(contents) > MAX_MEDIA_SIZE:
+        raise HTTPException(status_code=400, detail=f"File too large ({len(contents)} bytes, max 50 MB)")
+
+    encoded = base64.b64encode(contents).decode()
+    media_type = "image" if file.content_type.startswith("image/") else "video"
+    data_uri = f"data:{file.content_type};base64,{encoded}"
+
+    media_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc).isoformat()
+    media_doc = {
+        "id": media_id,
+        "user_id": user["id"],
+        "filename": file.filename or "untitled",
+        "mime_type": file.content_type,
+        "media_type": media_type,
+        "size_bytes": len(contents),
+        "data_uri": data_uri,
+        "created_at": now,
+    }
+    await db.community_media.insert_one(media_doc)
+
+    return {
+        "id": media_id,
+        "filename": media_doc["filename"],
+        "mime_type": media_doc["mime_type"],
+        "media_type": media_type,
+        "size_bytes": media_doc["size_bytes"],
+        "data_uri": data_uri,
+    }
+
+
+@router.get("/community/media/{media_id}")
+async def get_community_media(media_id: str, user: dict = Depends(get_current_user)):
+    media = await db.community_media.find_one({"id": media_id}, {"_id": 0})
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+    return media
 
 
 @router.get("/community/feed")

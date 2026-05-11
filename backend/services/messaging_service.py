@@ -13,6 +13,7 @@ from typing import Optional
 
 ALLOWED_MIME_TYPES: set[str] = {
     "image/jpeg", "image/png", "image/gif", "image/webp",
+    "video/mp4", "video/webm", "video/quicktime",
     "application/pdf",
 }
 MAX_ATTACHMENTS_PER_MESSAGE = 5

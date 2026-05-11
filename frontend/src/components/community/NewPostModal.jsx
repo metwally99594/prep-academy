@@ -1,22 +1,28 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import apiClient from "@/lib/api";
-import { X, Send, Loader2 } from "lucide-react";
+import { X, Send, Loader2, Image, Video, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TagPicker } from "./TagPicker";
 import { POST_TYPE_OPTIONS, SPECIALTY_OPTIONS, TOPIC_OPTIONS } from "./communityConstants";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
+const ALLOWED_MEDIA_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
+const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
+const MAX_MEDIA_ITEMS = 5;
+
 export function NewPostModal({ open, onClose, onCreated }) {
   const trapRef = useFocusTrap(open);
+  const fileInputRef = useRef(null);
   const [type, setType] = useState("discussion");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [specialtyTags, setSpecialtyTags] = useState([]);
   const [topicTags, setTopicTags] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [mediaItems, setMediaItems] = useState([]);
 
-  // ESC to close (desktop)
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -24,14 +30,52 @@ export function NewPostModal({ open, onClose, onCreated }) {
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  // Prevent body scroll when modal open
   useEffect(() => {
     if (open) document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).filter(Boolean).length : 0;
-  const canSubmit = title.trim().length >= 5 && content.trim().length >= 50 && wordCount >= 5 && !submitting;
+  const canSubmit = title.trim().length >= 5 && content.trim().length >= 50 && wordCount >= 5 && !submitting && !uploading;
+
+  const handleMediaPick = useCallback(async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    const remaining = MAX_MEDIA_ITEMS - mediaItems.length;
+    if (remaining <= 0) { toast.error("Max. 5 Medien pro Beitrag"); return; }
+    const toUpload = files.slice(0, remaining);
+    for (const file of toUpload) {
+      const typeOk = ALLOWED_MEDIA_TYPES.includes(file.type);
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (!typeOk && !["jpg", "jpeg", "png", "webp", "gif", "mp4", "webm", "mov"].includes(ext)) {
+        toast.error(`Nicht unterstützt: ${file.name}`);
+        continue;
+      }
+      if (file.size > MAX_MEDIA_SIZE) {
+        toast.error(`Datei zu groß (max. 50 MB): ${file.name}`);
+        continue;
+      }
+      setUploading(true);
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await apiClient.post("/community/upload", form, {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 120000,
+        });
+        setMediaItems(prev => [...prev, res.data]);
+      } catch (err) {
+        toast.error(err.response?.data?.detail || "Upload fehlgeschlagen");
+      } finally {
+        setUploading(false);
+      }
+    }
+  }, [mediaItems.length]);
+
+  const removeMedia = useCallback((mediaId) => {
+    setMediaItems(prev => prev.filter(m => m.id !== mediaId));
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -46,6 +90,14 @@ export function NewPostModal({ open, onClose, onCreated }) {
           specialty_tags: specialtyTags,
           topic_tags: topicTags,
           image_ids: [],
+          media: mediaItems.map(m => ({
+            id: m.id,
+            media_type: m.media_type,
+            mime_type: m.mime_type,
+            filename: m.filename,
+            size_bytes: m.size_bytes,
+            data_uri: m.data_uri,
+          })),
         },
       );
 
@@ -56,12 +108,12 @@ export function NewPostModal({ open, onClose, onCreated }) {
         toast.success("Beitrag veröffentlicht!");
       }
 
-      // Reset draft
       setTitle("");
       setContent("");
       setType("discussion");
       setSpecialtyTags([]);
       setTopicTags([]);
+      setMediaItems([]);
 
       onCreated(res.data.id, status);
     } catch (e) {
@@ -69,9 +121,8 @@ export function NewPostModal({ open, onClose, onCreated }) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, title, content, type, specialtyTags, topicTags, onCreated]);
+  }, [canSubmit, title, content, type, specialtyTags, topicTags, mediaItems, onCreated]);
 
-  // Keep mounted so draft survives accidental close → reopen
   return (
     <div
       className={`fixed inset-0 z-50 items-end sm:items-center justify-center p-0 sm:p-4 ${open ? "flex" : "hidden"}`}
@@ -87,7 +138,6 @@ export function NewPostModal({ open, onClose, onCreated }) {
         aria-modal="true"
         aria-label="Neuen Beitrag erstellen"
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 shrink-0">
           <h3 className="font-semibold">Neuer Beitrag</h3>
           <button
@@ -99,7 +149,6 @@ export function NewPostModal({ open, onClose, onCreated }) {
           </button>
         </div>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
           {/* Type selector */}
           <div>
@@ -184,6 +233,55 @@ export function NewPostModal({ open, onClose, onCreated }) {
             onChange={setTopicTags}
             max={3}
           />
+
+          {/* Media */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Medien (optional)</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+              multiple
+              onChange={handleMediaPick}
+            />
+            {mediaItems.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {mediaItems.map(m => (
+                  <div key={m.id} className="relative group">
+                    {m.media_type === "video" ? (
+                      <video src={m.data_uri} className="w-20 h-20 rounded-xl object-cover border border-border/50" />
+                    ) : (
+                      <img src={m.data_uri} alt="" className="w-20 h-20 rounded-xl object-cover border border-border/50" />
+                    )}
+                    <button
+                      onClick={() => removeMedia(m.id)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Entfernen"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || mediaItems.length >= MAX_MEDIA_ITEMS}
+              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Image className="w-4 h-4" />
+                  <Video className="w-4 h-4" />
+                </>
+              )}
+              {uploading ? "Wird hochgeladen…" : "Bilder / Videos hinzufügen (max. 50 MB)"}
+            </button>
+          </div>
         </div>
 
         {/* Footer */}

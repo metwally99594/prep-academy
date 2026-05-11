@@ -9,6 +9,33 @@ import { CommentSection } from "@/components/community/CommentSection";
 import { AIInsightBlock } from "@/components/community/AIInsightBlock";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
+function PostMedia({ media }) {
+  if (!media || media.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {media.map((m, i) => (
+        <div key={m.id || i}>
+          {m.media_type === "video" ? (
+            <video
+              src={m.data_uri}
+              className="w-full rounded-xl border border-border/40"
+              controls
+              preload="metadata"
+            />
+          ) : (
+            <img
+              src={m.data_uri}
+              alt=""
+              className="w-full rounded-xl border border-border/40 max-h-[500px] object-contain"
+              loading="lazy"
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PostSkeleton() {
   return (
     <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4 animate-pulse">
@@ -97,6 +124,7 @@ export default function CommunityPostPage() {
             <h1 className="text-base font-bold leading-snug mb-3">{post.title}</h1>
             <MarkdownRenderer content={post.content} />
           </div>
+          <PostMedia media={post.media} />
           <PostActions
             token={token}
             post={post}
