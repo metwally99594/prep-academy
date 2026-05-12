@@ -74,14 +74,15 @@ def _wrap(body: str) -> str:
 </body></html>"""
 
 
-async def _send(to_email: str, to_name: str, subject: str, html: str, text: str = "") -> None:
+async def _send(to_email: str, to_name: str, subject: str, html: str, text: str = "") -> bool:
+    """Send email via Brevo. Returns True on success, False on failure (logged)."""
     key = _api_key()
     if not key:
         logger.warning("[Email] BREVO_API_KEY not set — skipping: %s to %s", subject, to_email)
-        return
+        return False
     if not _FROM_EMAIL:
         logger.error("[Email] EMAIL_FROM not set — skipping: %s to %s", subject, to_email)
-        return
+        return False
 
     payload = {
         "sender": {"email": _FROM_EMAIL, "name": _FROM_NAME},
@@ -113,21 +114,25 @@ async def _send(to_email: str, to_name: str, subject: str, html: str, text: str 
                 "[Email] SUCCESS '%s' → %s | status=%d | messageId=%s",
                 subject, to_email, r.status_code, message_id,
             )
+            return True
         else:
             logger.error(
                 "[Email] FAILURE '%s' → %s | status=%d | body=%s",
                 subject, to_email, r.status_code, resp_body,
             )
+            return False
     except Exception as exc:
         logger.error(
             "[Email] EXCEPTION '%s' → %s | error=%s\n%s",
             subject, to_email, exc, traceback.format_exc(),
         )
+        return False
 
 
 # ── Templates ──────────────────────────────────────────────────────────────
 
 async def send_verification_email(user: dict, token: str) -> None:
+    """Send verification email. Raises RuntimeError on failure."""
     link = f"{_FRONTEND}/verify-email?token={token}"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">E-Mail-Adresse bestätigen</h2>
@@ -142,12 +147,14 @@ async def send_verification_email(user: dict, token: str) -> None:
         <span style="color:rgba(201,168,76,0.6);word-break:break-all">{link}</span>
       </p>
     """
-    await _send(
+    ok = await _send(
         user["email"], user.get("name", ""),
         "Bestätigen Sie Ihre E-Mail-Adresse – PrepAcademy",
         _wrap(body),
         f"E-Mail bestätigen: {link}",
     )
+    if not ok:
+        raise RuntimeError(f"Failed to send verification email to {user.get('email', '?')}")
 
 
 async def send_welcome_email(user: dict) -> None:
@@ -172,6 +179,7 @@ async def send_welcome_email(user: dict) -> None:
 
 
 async def send_password_reset_email(user: dict, token: str) -> None:
+    """Send password reset email. Raises RuntimeError on failure."""
     link = f"{_FRONTEND}/reset-password?token={token}"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">Passwort zurücksetzen</h2>
@@ -186,12 +194,14 @@ async def send_password_reset_email(user: dict, token: str) -> None:
         Ihr Passwort bleibt unverändert.
       </p>
     """
-    await _send(
+    ok = await _send(
         user["email"], user.get("name", ""),
         "Passwort zurücksetzen – PrepAcademy",
         _wrap(body),
         f"Passwort zurücksetzen: {link}",
     )
+    if not ok:
+        raise RuntimeError(f"Failed to send password reset email to {user.get('email', '?')}")
 
 
 async def send_access_granted_email(user: dict, feature_label: str) -> None:

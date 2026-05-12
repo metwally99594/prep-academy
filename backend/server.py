@@ -320,7 +320,20 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
         "by_specialty": {}, "by_year": {}
     })
 
-    background_tasks.add_task(send_verification_email, user_doc, verification_token)
+    # Send verification email synchronously — must succeed or user gets error
+    try:
+        await send_verification_email(user_doc, verification_token)
+    except Exception as e:
+        logger.error("Registration failed: verification email error: %s", e)
+        # Roll back the user creation
+        await db.users.delete_one({"id": user_doc["id"]})
+        await db.user_stats.delete_one({"user_id": user_doc["id"]})
+        raise HTTPException(
+            status_code=502,
+            detail="Die Bestätigungs-E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.",
+        )
+
+    # Non-critical emails — fire and forget
     from services.email_service import send_trial_started_email
     background_tasks.add_task(send_trial_started_email, user_doc, 30)
 
@@ -351,7 +364,7 @@ async def verify_email(token: str, background_tasks: BackgroundTasks):
 
 @api_router.post("/auth/resend-verification", response_model=dict)
 @limiter.limit("3/minute")
-async def resend_verification(request: Request, body: dict, background_tasks: BackgroundTasks):
+async def resend_verification(request: Request, body: dict):
     from services.email_service import send_verification_email
     email = (body.get("email") or "").strip().lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
@@ -364,13 +377,17 @@ async def resend_verification(request: Request, body: dict, background_tasks: Ba
                 "verification_token_expires": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
             }}
         )
-        background_tasks.add_task(send_verification_email, user, new_token)
+        try:
+            await send_verification_email(user, new_token)
+        except Exception as e:
+            logger.error("Resend verification failed: %s", e)
+    # Always return the same message to prevent email enumeration
     return {"message": "Falls die E-Mail existiert und nicht verifiziert ist, wurde ein neuer Link gesendet."}
 
 
 @api_router.post("/auth/forgot-password", response_model=dict)
 @limiter.limit("5/minute")
-async def forgot_password(request: Request, body: dict, background_tasks: BackgroundTasks):
+async def forgot_password(request: Request, body: dict):
     from services.email_service import send_password_reset_email
     email = (body.get("email") or "").strip().lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
@@ -383,7 +400,10 @@ async def forgot_password(request: Request, body: dict, background_tasks: Backgr
                 "reset_token_expires": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
             }}
         )
-        background_tasks.add_task(send_password_reset_email, user, reset_token)
+        try:
+            await send_password_reset_email(user, reset_token)
+        except Exception as e:
+            logger.error("Forgot-password email failed: %s", e)
     # Always return success to prevent email enumeration
     return {"message": "Falls ein Konto mit dieser E-Mail existiert, haben wir einen Link gesendet."}
 
