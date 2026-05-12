@@ -120,11 +120,6 @@ async def create_post(body: CommunityPostCreate, user: dict = Depends(get_curren
     if burst_err:
         logger.info("POST_REJECTED burst_limit user=%s", user["id"][:8])
         raise HTTPException(status_code=429, detail=burst_err)
-    quality_err = check_content_quality(body.content)
-    if quality_err:
-        logger.info("POST_REJECTED quality user=%s reason=%s", user["id"][:8], quality_err[:60])
-        raise HTTPException(status_code=400, detail=quality_err)
-
     with _timer:
         user_doc = await db.users.find_one({"id": user["id"]})
         mod_result = await orchestrate_post_moderation(body.title, body.content, user["id"], user_doc)

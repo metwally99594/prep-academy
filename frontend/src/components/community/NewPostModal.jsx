@@ -42,8 +42,7 @@ export function NewPostModal({ open, onClose, onCreated }) {
   }, [open]);
 
   const hasUploadErrors = Object.values(uploadStates).some(s => s.status === "error");
-  const wordCount = content.trim() ? content.trim().split(/\s+/).filter(Boolean).length : 0;
-  const canSubmit = title.trim().length >= 5 && content.trim().length >= 50 && wordCount >= 5 && !submitting && !uploading && !hasUploadErrors;
+  const canSubmit = title.trim() && content.trim() && !submitting && !uploading && !hasUploadErrors;
 
   const doUpload = useCallback(async (file, tempKey) => {
     const form = new FormData();
@@ -205,12 +204,8 @@ export function NewPostModal({ open, onClose, onCreated }) {
               placeholder="Aussagekräftiger Titel…"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              maxLength={200}
               autoFocus={open}
             />
-            <p className={`text-[10px] mt-1 text-right transition-colors ${title.length > 180 ? "text-amber-500" : "text-muted-foreground"}`}>
-              {title.length}/200
-            </p>
           </div>
 
           {/* Content */}
@@ -223,21 +218,8 @@ export function NewPostModal({ open, onClose, onCreated }) {
               placeholder="Schreiben Sie Ihren Beitrag…"
               value={content}
               onChange={e => setContent(e.target.value)}
-              maxLength={10000}
               rows={5}
             />
-            <div className="flex justify-between text-[10px] mt-1">
-              <span className={`transition-colors ${content.trim().length > 0 && (content.trim().length < 50 || wordCount < 5) ? "text-destructive" : "text-muted-foreground"}`}>
-                {content.trim().length > 0 && content.trim().length < 50
-                  ? `Noch ${50 - content.trim().length} Zeichen (min. 50)`
-                  : content.trim().length >= 50 && wordCount < 5
-                    ? "Mindestens 5 Wörter erforderlich"
-                    : "Mindestens 50 Zeichen"}
-              </span>
-              <span className={`transition-colors ${content.length > 9500 ? "text-amber-500" : "text-muted-foreground"}`}>
-                {content.length}/10000
-              </span>
-            </div>
           </div>
 
           {/* Tags */}

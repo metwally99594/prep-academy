@@ -147,7 +147,6 @@ function LockedFeatureModal({ feature, onClose, token }) {
               placeholder="Optional: Warum benötigen Sie diesen Zugang?"
               value={msg}
               onChange={e => setMsg(e.target.value)}
-              maxLength={500}
             />
             <button onClick={submit} disabled={sending}
               className="w-full py-2.5 rounded-xl text-sm font-semibold mb-2 disabled:opacity-50"

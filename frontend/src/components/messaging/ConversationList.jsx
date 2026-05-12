@@ -163,8 +163,7 @@ function EmptyState({ isAdmin, filter, onContactAdmin, contactingAdmin, contactM
         rows={3}
         placeholder="Ihre Nachricht…"
         value={contactMsg}
-        onChange={e => setContactMsg(e.target.value)}
-        maxLength={2000}
+                onChange={e => setContactMsg(e.target.value)}
       />
       <Button
         size="sm"

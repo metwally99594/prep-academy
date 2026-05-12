@@ -199,8 +199,7 @@ export function CommentSection({ postId, token, userId, userName, initialComment
               handleSubmit();
             }
           }}
-          maxLength={2000}
-          rows={1}
+            rows={1}
         />
         <Button
           size="icon"

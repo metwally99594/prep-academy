@@ -322,17 +322,8 @@ def build_audit_entry(
     }
 
 
-# ── Content quality check ──
-
-MIN_POST_LENGTH = 50
-MIN_COMMENT_LENGTH = 10
+# ── Content quality check (disabled — no character limits) ──
 
 
-def check_content_quality(text: str, min_length: int = MIN_POST_LENGTH) -> Optional[str]:
-    stripped = text.strip()
-    if len(stripped) < min_length:
-        return f"Content too short ({len(stripped)} chars, minimum {min_length})"
-    word_count = len(stripped.split())
-    if word_count < 5:
-        return "Content too short (minimum 5 words)"
+def check_content_quality(text: str, min_length: int = 0) -> Optional[str]:
     return None

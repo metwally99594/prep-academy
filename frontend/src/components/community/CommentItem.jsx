@@ -160,7 +160,6 @@ export const CommentItem = memo(function CommentItem({
                 value={editText}
                 onChange={e => setEditText(e.target.value)}
                 onKeyDown={handleEditKeyDown}
-                maxLength={5000}
                 rows={3}
                 autoFocus
               />
@@ -245,7 +244,6 @@ export const CommentItem = memo(function CommentItem({
             value={replyText}
             onChange={e => setReplyText(e.target.value)}
             onKeyDown={handleReplyKeyDown}
-            maxLength={2000}
             rows={2}
             autoFocus
           />

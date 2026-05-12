@@ -99,7 +99,6 @@ export function NewConvModal({ token, onClose, onCreated }) {
                   placeholder="Schreiben Sie etwas…"
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  maxLength={2000}
                   autoFocus
                 />
               </div>

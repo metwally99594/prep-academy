@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
               <Input
                 id="password"
                 type={showPw ? "text" : "password"}
-                placeholder="Mindestens 6 Zeichen"
+                placeholder="Neues Passwort"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 className="pl-10 pr-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-amber-500/40"

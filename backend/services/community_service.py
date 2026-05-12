@@ -15,10 +15,6 @@ from pymongo.errors import DuplicateKeyError
 
 # ── Content validation ──
 
-MAX_TITLE_LENGTH = 200
-MAX_CONTENT_LENGTH = 10000
-MAX_COMMENT_LENGTH = 5000
-
 VALID_POST_TYPES = {"question", "discussion", "case_study", "resource"}
 VALID_REPORT_REASONS = {"spam", "inappropriate", "misinformation", "harassment", "off_topic", "other"}
 VALID_REACTIONS = {"upvote", "downvote"}
@@ -43,25 +39,16 @@ KNOWN_TOPICS: set[str] = {
 
 def validate_post_content(title: str, content: str) -> list[str]:
     errors: list[str] = []
-    stripped_title = title.strip()
-    stripped_content = content.strip()
-    if not stripped_title:
+    if not title.strip():
         errors.append("Title cannot be empty")
-    elif len(stripped_title) > MAX_TITLE_LENGTH:
-        errors.append(f"Title exceeds {MAX_TITLE_LENGTH} characters")
-    if not stripped_content:
+    if not content.strip():
         errors.append("Content cannot be empty")
-    elif len(stripped_content) > MAX_CONTENT_LENGTH:
-        errors.append(f"Content exceeds {MAX_CONTENT_LENGTH} characters")
     return errors
 
 
 def validate_comment_content(content: str) -> Optional[str]:
-    stripped = content.strip()
-    if not stripped:
+    if not content.strip():
         return "Comment cannot be empty"
-    if len(stripped) > MAX_COMMENT_LENGTH:
-        return f"Comment exceeds {MAX_COMMENT_LENGTH} characters"
     return None
 
 

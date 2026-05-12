@@ -140,7 +140,6 @@ export function MessageInput({ onSend, disabled = false }) {
   }, [handleFiles]);
 
   const canSend = (text.trim() || attachments.length > 0) && !disabled && !sending;
-  const charsLeft = 5000 - text.length;
 
   return (
     <div
@@ -195,15 +194,9 @@ export function MessageInput({ onSend, disabled = false }) {
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={onKeyDown}
-            maxLength={5000}
             disabled={disabled}
             aria-label="Nachricht"
           />
-          {charsLeft < 500 && (
-            <span className={`absolute bottom-1 right-2 text-[10px] select-none ${charsLeft < 100 ? "text-destructive" : "text-muted-foreground/50"}`}>
-              {charsLeft}
-            </span>
-          )}
         </div>
 
         <Button

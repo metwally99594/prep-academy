@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api", tags=["messaging"])
 
 
 class ContactAdminRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=5000)
+    content: str
     subject: Optional[str] = None
 
 

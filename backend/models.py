@@ -245,8 +245,8 @@ class ConversationTagsUpdate(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class CommunityPostCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=200)
-    content: str = Field(..., min_length=1, max_length=10000)
+    title: str
+    content: str
     specialty_tags: List[str] = []
     topic_tags: List[str] = []
     type: str = "discussion"
@@ -296,11 +296,11 @@ class CommunityPostListResponse(BaseModel):
 class CommunityCommentCreate(BaseModel):
     post_id: str
     parent_id: Optional[str] = None
-    content: str = Field(..., min_length=1, max_length=5000)
+    content: str
 
 
 class CommunityCommentUpdate(BaseModel):
-    content: str = Field(..., min_length=1, max_length=5000)
+    content: str
 
 
 class CommunityCommentResponse(BaseModel):

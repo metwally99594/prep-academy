@@ -98,12 +98,8 @@ export function ModerationActionModal({ open, onClose, onConfirm, action, previe
             placeholder={cfg.placeholder}
             value={note}
             onChange={e => setNote(e.target.value)}
-            maxLength={500}
             autoFocus
           />
-          <div className="text-right text-[10px] text-muted-foreground mt-0.5">
-            {note.length}/500
-          </div>
         </div>
 
         <div className="flex gap-2">

@@ -199,14 +199,12 @@ export default function CommunityPostPage() {
                 className="w-full rounded-xl border bg-background/50 px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
                 value={editTitle}
                 onChange={e => setEditTitle(e.target.value)}
-                maxLength={200}
                 autoFocus
               />
               <textarea
                 className="w-full rounded-xl border bg-background/50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
                 value={editContent}
                 onChange={e => setEditContent(e.target.value)}
-                maxLength={10000}
                 rows={6}
               />
               <div className="flex gap-2 justify-end">
