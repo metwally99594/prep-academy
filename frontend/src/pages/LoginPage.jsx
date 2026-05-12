@@ -34,6 +34,12 @@ export default function LoginPage() {
       toast.success("Erfolgreich angemeldet");
       navigate("/");
     } catch (error) {
+      console.error("LOGIN_FAILED", {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        code: error.code,
+      });
       const detail = error.response?.data?.detail || "";
       if (detail === "email_not_verified") {
         setUnverified(true);
