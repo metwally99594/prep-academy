@@ -118,9 +118,9 @@ async def test_send_password_reset_email_raises_on_failure():
 
 def test_brevo_config_check():
     """Check if Brevo is configured. This is informational, not a pass/fail test."""
-    from services.email_service import _api_key, _FROM_EMAIL
+    from services.email_service import _api_key, _from_email
     key = _api_key()
     if not key:
         pytest.skip("BREVO_API_KEY not set — skipping live integration checks")
     assert key, "BREVO_API_KEY should be non-empty"
-    assert _FROM_EMAIL, "EMAIL_FROM should be non-empty"
+    assert _from_email(), "EMAIL_FROM should be non-empty"

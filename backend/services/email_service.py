@@ -1,4 +1,10 @@
-"""Transactional email via Brevo REST API (uses httpx — no extra dependency)."""
+"""Transactional email via Brevo REST API (uses httpx — no extra dependency).
+
+Startup strategy:
+- NO module-level Brevo client init — everything is lazy inside functions
+- ALL os.environ reads use safe os.getenv() with defaults
+- Diagnostics are printed to stdout on first use, not at import time
+"""
 import os
 import logging
 import traceback
@@ -8,24 +14,45 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_BREVO_URL = "https://api.brevo.com/v3/smtp/email"
-_FRONTEND = os.getenv("FRONTEND_URL", "https://prep-academy-rho.vercel.app")
-_FROM_EMAIL = os.getenv("EMAIL_FROM", "mohamedmetwle99@gmail.com")
-_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "PrepAcademy")
+_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
-# Startup validation: warn loudly if Brevo is not configured
-if not _api_key():
-    logger.warning("=" * 60)
-    logger.warning("BREVO_API_KEY is NOT set — transactional emails will NOT be sent.")
-    logger.warning("Set BREVO_API_KEY in environment or .env to enable email delivery.")
-    logger.warning("See: https://app.brevo.com/settings/keys/api")
-    logger.warning("=" * 60)
-if not _FROM_EMAIL:
-    logger.warning("EMAIL_FROM is not set — transactional emails will NOT be sent.")
 
+# ── Lazy config helpers (safe — never raise at import time) ───────────────
 
 def _api_key() -> str:
     return os.getenv("BREVO_API_KEY", "").strip()
+
+
+def _frontend_url() -> str:
+    return os.getenv("FRONTEND_URL", "https://prep-academy-rho.vercel.app").strip()
+
+
+def _from_email() -> str:
+    return os.getenv("EMAIL_FROM", "mohamedmetwle99@gmail.com").strip()
+
+
+def _from_name() -> str:
+    return os.getenv("EMAIL_FROM_NAME", "PrepAcademy").strip()
+
+
+def _diagnose() -> None:
+    """Print startup diagnostics to stdout. Called once on first send attempt."""
+    import sys
+    key = _api_key()
+    fe = _from_email()
+    fn = _from_name()
+    fu = _frontend_url()
+    print("[email_service] ====== Brevo Config =====", flush=True)
+    print(f"[email_service] BREVO_API_KEY exists: {bool(key)}", flush=True)
+    print(f"[email_service] BREVO_API_KEY length: {len(key)}", flush=True)
+    print(f"[email_service] EMAIL_FROM: {fe}", flush=True)
+    print(f"[email_service] EMAIL_FROM_NAME: {fn}", flush=True)
+    print(f"[email_service] FRONTEND_URL: {fu}", flush=True)
+    print(f"[email_service] ===========================", flush=True)
+    if not key:
+        logger.warning("BREVO_API_KEY is NOT set — transactional emails will NOT be sent.")
+    if not fe:
+        logger.warning("EMAIL_FROM is not set — transactional emails will NOT be sent.")
 
 
 def _headers() -> dict:
@@ -63,9 +90,9 @@ def _wrap(body: str) -> str:
     <p style="font-size:11px;color:rgba(255,255,255,0.3);margin:0;line-height:1.8">
       © {year} Mohamed Metwally · PrepAcademy Elite<br>
       Lussmer Ring 69, 28777 Bremen, Deutschland<br>
-      <a href="{_FRONTEND}/impressum" style="color:rgba(201,168,76,0.5);text-decoration:none">Impressum</a>
+      <a href="{_frontend_url()}/impressum" style="color:rgba(201,168,76,0.5);text-decoration:none">Impressum</a>
       &nbsp;·&nbsp;
-      <a href="{_FRONTEND}/datenschutz" style="color:rgba(201,168,76,0.5);text-decoration:none">Datenschutz</a>
+      <a href="{_frontend_url()}/datenschutz" style="color:rgba(201,168,76,0.5);text-decoration:none">Datenschutz</a>
     </p>
   </td></tr>
 </table>
@@ -74,18 +101,28 @@ def _wrap(body: str) -> str:
 </body></html>"""
 
 
+_diagnosed = False
+
+
 async def _send(to_email: str, to_name: str, subject: str, html: str, text: str = "") -> bool:
     """Send email via Brevo. Returns True on success, False on failure (logged)."""
+    global _diagnosed
+    if not _diagnosed:
+        _diagnosed = True
+        _diagnose()
+
+    fe = _from_email()
+    fn = _from_name()
     key = _api_key()
     if not key:
         logger.warning("[Email] BREVO_API_KEY not set — skipping: %s to %s", subject, to_email)
         return False
-    if not _FROM_EMAIL:
+    if not fe:
         logger.error("[Email] EMAIL_FROM not set — skipping: %s to %s", subject, to_email)
         return False
 
     payload = {
-        "sender": {"email": _FROM_EMAIL, "name": _FROM_NAME},
+        "sender": {"email": fe, "name": fn},
         "to": [{"email": to_email, "name": to_name or to_email}],
         "subject": subject,
         "htmlContent": html,
@@ -95,12 +132,12 @@ async def _send(to_email: str, to_name: str, subject: str, html: str, text: str 
     # Log request summary (sanitized — no API key, no full HTML to avoid noise)
     logger.info(
         "[Email] Sending '%s' → %s (%s) | from=%s | htmlLen=%d",
-        subject, to_email, to_name, _FROM_EMAIL, len(html),
+        subject, to_email, to_name, fe, len(html),
     )
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(_BREVO_URL, json=payload, headers=_headers())
+            r = await client.post(_BREVO_API_URL, json=payload, headers=_headers())
 
         # Log full response details
         try:
@@ -133,7 +170,7 @@ async def _send(to_email: str, to_name: str, subject: str, html: str, text: str 
 
 async def send_verification_email(user: dict, token: str) -> None:
     """Send verification email. Raises RuntimeError on failure."""
-    link = f"{_FRONTEND}/verify-email?token={token}"
+    link = f"{_frontend_url()}/verify-email?token={token}"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">E-Mail-Adresse bestätigen</h2>
       <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
@@ -165,7 +202,7 @@ async def send_welcome_email(user: dict) -> None:
         Ihr Konto ist jetzt aktiv. Starten Sie Ihre Vorbereitung mit über 2.500 Prüfungsfragen,
         KI-Analysen und täglichen Podcasts.
       </p>
-      {_btn('Jetzt lernen', _FRONTEND)}
+      {_btn('Jetzt lernen', _frontend_url())}
       <div style="background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.1);border-radius:10px;padding:16px;margin-top:8px">
         <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em">Was Sie erwartet</p>
         <ul style="margin:0;padding-left:18px;color:rgba(255,255,255,0.7);font-size:14px;line-height:1.9">
@@ -180,7 +217,7 @@ async def send_welcome_email(user: dict) -> None:
 
 async def send_password_reset_email(user: dict, token: str) -> None:
     """Send password reset email. Raises RuntimeError on failure."""
-    link = f"{_FRONTEND}/reset-password?token={token}"
+    link = f"{_frontend_url()}/reset-password?token={token}"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">Passwort zurücksetzen</h2>
       <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
@@ -212,7 +249,7 @@ async def send_access_granted_email(user: dict, feature_label: str) -> None:
         Ihr Zugang zu <strong style="color:#c9a84c">{feature_label}</strong> wurde genehmigt.
         Sie können die Funktion ab sofort nutzen.
       </p>
-      {_btn('Zur App', _FRONTEND)}
+      {_btn('Zur App', _frontend_url())}
     """
     await _send(
         user["email"], user.get("name", ""),
@@ -246,7 +283,7 @@ async def send_access_rejected_email(user: dict, feature_label: str, reason: str
 
 
 async def send_admin_new_request_email(admin_email: str, user: dict, feature_label: str) -> None:
-    link = f"{_FRONTEND}/admin/analytics"
+    link = f"{_frontend_url()}/admin/analytics"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">Neue Zugangsanfrage</h2>
       <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:16px;margin-bottom:20px">
@@ -275,7 +312,7 @@ async def send_trial_started_email(user: dict, days: int = 30) -> None:
         Herzlich willkommen! Ihre <strong style="color:#c9a84c">{days}-tägige kostenlose Probezeit</strong>
         ist jetzt aktiv. Alle Funktionen stehen Ihnen uneingeschränkt zur Verfügung.
       </p>
-      {_btn('Jetzt starten', _FRONTEND)}
+      {_btn('Jetzt starten', _frontend_url())}
       <div style="background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.1);border-radius:10px;padding:16px;margin-top:8px">
         <p style="margin:0 0 8px 0;font-size:12px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em">Freigeschaltete Funktionen</p>
         <ul style="margin:0;padding-left:18px;color:rgba(255,255,255,0.7);font-size:14px;line-height:1.9">
@@ -297,7 +334,7 @@ async def send_trial_5days_warning_email(user: dict, days_left: int) -> None:
         Ihre Probezeit läuft in <strong style="color:#f59e0b">{days_left} Tagen</strong> ab.
         Nutzen Sie die verbleibende Zeit optimal oder kontaktieren Sie uns für eine Verlängerung.
       </p>
-      {_btn('Verlängerung anfragen', f"{_FRONTEND}/dashboard")}
+      {_btn('Verlängerung anfragen', f"{_frontend_url()}/dashboard")}
     """
     await _send(user["email"], user.get("name",""), f"⚠️ Probezeit endet in {days_left} Tagen – PrepAcademy", _wrap(body))
 
@@ -311,7 +348,7 @@ async def send_trial_2days_warning_email(user: dict, days_left: int) -> None:
         Letzte Chance: Ihre Probezeit endet <strong style="color:#ef4444">{label}</strong>.
         Danach stehen nur noch die Grundfunktionen zur Verfügung.
       </p>
-      {_btn('Verlängerung anfragen', f"{_FRONTEND}/dashboard")}
+      {_btn('Verlängerung anfragen', f"{_frontend_url()}/dashboard")}
       <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:16px 0 0 0">
         Kontakt: <a href="mailto:mohamedmetwle99@gmail.com" style="color:#c9a84c">mohamedmetwle99@gmail.com</a>
       </p>
@@ -327,7 +364,7 @@ async def send_trial_expired_email(user: dict) -> None:
         Ihre kostenlose Probezeit ist abgelaufen. Der Lernmodus (Study) steht Ihnen weiterhin
         zur Verfügung. Für den vollen Zugang kontaktieren Sie den Administrator.
       </p>
-      {_btn('Verlängerung anfragen', f"{_FRONTEND}/dashboard")}
+      {_btn('Verlängerung anfragen', f"{_frontend_url()}/dashboard")}
       <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:16px 0 0 0">
         Kontakt: <a href="mailto:mohamedmetwle99@gmail.com" style="color:#c9a84c">mohamedmetwle99@gmail.com</a>
       </p>
@@ -347,7 +384,7 @@ async def send_trial_extended_email(user: dict, days: int, new_end: str) -> None
         Ihre Probezeit wurde um <strong style="color:#c9a84c">{days} Tage</strong> verlängert.
         Neues Enddatum: <strong style="color:#c9a84c">{end_date}</strong>
       </p>
-      {_btn('Weiter lernen', _FRONTEND)}
+      {_btn('Weiter lernen', _frontend_url())}
     """
     await _send(user["email"], user.get("name",""), f"Probezeit verlängert (+{days} Tage) ✅", _wrap(body))
 
@@ -360,13 +397,13 @@ async def send_trial_made_permanent_email(user: dict) -> None:
         Ihr Konto hat jetzt <strong style="color:#c9a84c">permanenten Vollzugang</strong> zu allen
         PrepAcademy-Funktionen ohne zeitliche Begrenzung.
       </p>
-      {_btn('Zur App', _FRONTEND)}
+      {_btn('Zur App', _frontend_url())}
     """
     await _send(user["email"], user.get("name",""), "👑 Permanenter Zugang freigeschaltet – PrepAcademy", _wrap(body))
 
 
 async def send_admin_new_user_email(admin_email: str, user: dict) -> None:
-    link = f"{_FRONTEND}/admin/analytics"
+    link = f"{_frontend_url()}/admin/analytics"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">Neuer Nutzer registriert</h2>
       <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:16px;margin-bottom:20px">
