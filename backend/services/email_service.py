@@ -1,6 +1,7 @@
 """Transactional email via Brevo REST API (uses httpx — no extra dependency)."""
 import os
 import logging
+import traceback
 from datetime import datetime
 
 import httpx
@@ -12,10 +13,24 @@ _FRONTEND = os.getenv("FRONTEND_URL", "https://prep-academy-rho.vercel.app")
 _FROM_EMAIL = os.getenv("EMAIL_FROM", "mohamedmetwle99@gmail.com")
 _FROM_NAME = os.getenv("EMAIL_FROM_NAME", "PrepAcademy")
 
+# Startup validation: warn loudly if Brevo is not configured
+if not _api_key():
+    logger.warning("=" * 60)
+    logger.warning("BREVO_API_KEY is NOT set — transactional emails will NOT be sent.")
+    logger.warning("Set BREVO_API_KEY in environment or .env to enable email delivery.")
+    logger.warning("See: https://app.brevo.com/settings/keys/api")
+    logger.warning("=" * 60)
+if not _FROM_EMAIL:
+    logger.warning("EMAIL_FROM is not set — transactional emails will NOT be sent.")
+
+
+def _api_key() -> str:
+    return os.getenv("BREVO_API_KEY", "").strip()
+
 
 def _headers() -> dict:
     return {
-        "api-key": os.getenv("BREVO_API_KEY", ""),
+        "api-key": _api_key(),
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
@@ -60,10 +75,14 @@ def _wrap(body: str) -> str:
 
 
 async def _send(to_email: str, to_name: str, subject: str, html: str, text: str = "") -> None:
-    key = os.getenv("BREVO_API_KEY", "")
+    key = _api_key()
     if not key:
-        logger.warning("[Email] BREVO_API_KEY not set — skipping: %s", subject)
+        logger.warning("[Email] BREVO_API_KEY not set — skipping: %s to %s", subject, to_email)
         return
+    if not _FROM_EMAIL:
+        logger.error("[Email] EMAIL_FROM not set — skipping: %s to %s", subject, to_email)
+        return
+
     payload = {
         "sender": {"email": _FROM_EMAIL, "name": _FROM_NAME},
         "to": [{"email": to_email, "name": to_name or to_email}],
@@ -71,15 +90,39 @@ async def _send(to_email: str, to_name: str, subject: str, html: str, text: str 
         "htmlContent": html,
         "textContent": text or subject,
     }
+
+    # Log request summary (sanitized — no API key, no full HTML to avoid noise)
+    logger.info(
+        "[Email] Sending '%s' → %s (%s) | from=%s | htmlLen=%d",
+        subject, to_email, to_name, _FROM_EMAIL, len(html),
+    )
+
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(_BREVO_URL, json=payload, headers=_headers())
-        if r.status_code not in (200, 201):
-            logger.error("[Email] Brevo %s for '%s': %s", r.status_code, subject, r.text[:300])
+
+        # Log full response details
+        try:
+            resp_body = r.json()
+        except Exception:
+            resp_body = {"raw": r.text[:500]}
+
+        if r.status_code in (200, 201):
+            message_id = resp_body.get("messageId", "unknown")
+            logger.info(
+                "[Email] SUCCESS '%s' → %s | status=%d | messageId=%s",
+                subject, to_email, r.status_code, message_id,
+            )
         else:
-            logger.info("[Email] Sent '%s' → %s", subject, to_email)
+            logger.error(
+                "[Email] FAILURE '%s' → %s | status=%d | body=%s",
+                subject, to_email, r.status_code, resp_body,
+            )
     except Exception as exc:
-        logger.error("[Email] Send failed (%s): %s", subject, exc)
+        logger.error(
+            "[Email] EXCEPTION '%s' → %s | error=%s\n%s",
+            subject, to_email, exc, traceback.format_exc(),
+        )
 
 
 # ── Templates ──────────────────────────────────────────────────────────────
