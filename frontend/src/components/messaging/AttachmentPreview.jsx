@@ -8,24 +8,30 @@ function fmt(bytes) {
 }
 
 export const AttachmentPreview = memo(function AttachmentPreview({ attachment, onRemove }) {
-  const isImage = attachment.mime?.startsWith("image/");
+  if (!attachment) return null;
+  const mime = attachment.mime || "";
+  const isImage = mime.startsWith("image/");
 
   return (
     <div className="relative group">
       {isImage ? (
         <div className="w-16 h-16 rounded-xl overflow-hidden border border-border/50 bg-muted">
-          <img
-            src={attachment.base64}
-            alt={attachment.name}
-            className="w-full h-full object-cover"
-          />
+          {attachment.base64 ? (
+            <img
+              src={attachment.base64}
+              alt={attachment.name || ""}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">Kein Vorschau</div>
+          )}
         </div>
       ) : (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50 bg-muted max-w-[180px]">
           <FileText className="w-4 h-4 text-primary shrink-0" />
           <div className="min-w-0">
-            <p className="text-xs font-medium truncate">{attachment.name}</p>
-            <p className="text-[10px] text-muted-foreground">{fmt(attachment.size)}</p>
+            <p className="text-xs font-medium truncate">{attachment.name || "Datei"}</p>
+            <p className="text-[10px] text-muted-foreground">{fmt(attachment.size || 0)}</p>
           </div>
         </div>
       )}

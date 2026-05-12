@@ -205,7 +205,7 @@ async def contact_admin(body: ContactAdminRequest, user: dict = Depends(get_curr
 
 @router.post("/messaging/send")
 async def send_message(body: MessageSend, user: dict = Depends(get_current_user)):
-    content_err = validate_message_content(body.content)
+    content_err = validate_message_content(body.content, has_attachments=len(body.attachments) > 0)
     if content_err:
         raise HTTPException(status_code=400, detail=content_err)
     rate_err = check_rate_limit(user["id"])

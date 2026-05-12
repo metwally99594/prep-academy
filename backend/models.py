@@ -193,7 +193,7 @@ class MessageSend(BaseModel):
     conversation_id: Optional[str] = None
     recipient_id: str
     subject: Optional[str] = None
-    content: str = Field(..., min_length=1, max_length=5000)
+    content: str = Field(default="", max_length=5000)
     attachments: List[MessageAttachment] = []
 
 

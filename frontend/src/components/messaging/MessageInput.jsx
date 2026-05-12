@@ -9,19 +9,25 @@ const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024; // 2 MB after compression
 const MAX_ATTACHMENTS = 5;
 
 async function compressImage(file, targetBytes = 600 * 1024) {
-  if (file.size <= targetBytes) return file;
-  const bitmap = await createImageBitmap(file);
-  const ratio = Math.sqrt(targetBytes / file.size);
-  const w = Math.max(1, Math.floor(bitmap.width * ratio));
-  const h = Math.max(1, Math.floor(bitmap.height * ratio));
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
-  bitmap.close();
-  return new Promise(resolve =>
-    canvas.toBlob(b => resolve(b || file), file.type === "image/png" ? "image/jpeg" : file.type, 0.82),
-  );
+  try {
+    if (file.size <= targetBytes) return file;
+    const bitmap = await createImageBitmap(file);
+    const ratio = Math.sqrt(targetBytes / file.size);
+    const w = Math.max(1, Math.floor(bitmap.width * ratio));
+    const h = Math.max(1, Math.floor(bitmap.height * ratio));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    return new Promise(resolve =>
+      canvas.toBlob(b => resolve(b || file), file.type === "image/png" ? "image/jpeg" : file.type, 0.82),
+    );
+  } catch {
+    return file;
+  }
 }
 
 function fileToBase64(file) {
@@ -79,9 +85,14 @@ export function MessageInput({ onSend, disabled = false }) {
     if (remaining <= 0) { toast.error("Max. 5 Anhänge pro Nachricht"); return; }
     const selected = Array.from(files).slice(0, remaining);
     setProcessing(true);
-    const results = await Promise.all(selected.map(processFile));
-    setAttachments(prev => [...prev, ...results.filter(Boolean)]);
-    setProcessing(false);
+    try {
+      const results = await Promise.all(selected.map(f => processFile(f).catch(() => null)));
+      setAttachments(prev => [...prev, ...results.filter(Boolean)]);
+    } catch {
+      toast.error("Fehler beim Verarbeiten der Dateien");
+    } finally {
+      setProcessing(false);
+    }
   }, [attachments.length]);
 
   const removeAttachment = useCallback((id) => {

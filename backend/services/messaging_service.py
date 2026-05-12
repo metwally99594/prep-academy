@@ -41,14 +41,12 @@ MAX_CONTENT_LENGTH = 5000
 MIN_CONTENT_LENGTH = 1
 
 
-def validate_message_content(content: str) -> Optional[str]:
+def validate_message_content(content: str, has_attachments: bool = False) -> Optional[str]:
     stripped = content.strip()
-    if len(stripped) < MIN_CONTENT_LENGTH:
+    if not stripped and not has_attachments:
         return "Message content cannot be empty"
     if len(stripped) > MAX_CONTENT_LENGTH:
         return f"Message content exceeds {MAX_CONTENT_LENGTH} characters"
-    if not stripped or not stripped.strip():
-        return "Message content cannot be only whitespace"
     return None
 
 

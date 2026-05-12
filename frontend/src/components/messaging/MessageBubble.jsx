@@ -16,8 +16,10 @@ function fmt(bytes) {
 }
 
 function AttachmentItem({ att, isMe }) {
-  const isImage = att.mime_type?.startsWith("image/");
-  const isVideo = att.mime_type?.startsWith("video/");
+  if (!att) return null;
+  const mime = att.mime_type || "";
+  const isImage = mime.startsWith("image/");
+  const isVideo = mime.startsWith("video/");
   const src = att.image_base64 || att.file_url || "";
   const name = att.filename || att.file_name || "Datei";
   if (isVideo) {
@@ -72,6 +74,7 @@ function AttachmentItem({ att, isMe }) {
 }
 
 export const MessageBubble = memo(function MessageBubble({ msg, isMe, readByOther }) {
+  if (!msg) return null;
   if (msg.is_system_message) {
     return (
       <div className="flex justify-center my-1">
