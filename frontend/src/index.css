@@ -490,9 +490,9 @@ code, .font-mono {
 }
 
 .card-premium:hover {
-    transform: translateY(-2px);
-    border-color: rgba(201, 168, 76, 0.15);
-    box-shadow: 0 8px 32px rgba(6, 8, 26, 0.4), 0 2px 8px rgba(201, 168, 76, 0.06);
+    transform: translateY(-4px);
+    border-color: rgba(201, 168, 76, 0.2);
+    box-shadow: 0 12px 48px rgba(6, 8, 26, 0.5), 0 4px 16px rgba(201, 168, 76, 0.1);
 }
 
 .card-premium:hover::before {
@@ -521,13 +521,24 @@ code, .font-mono {
 }
 
 .card-premium-alt:hover {
-    transform: translateY(-2px);
-    border-color: rgba(30, 58, 138, 0.2);
-    box-shadow: 0 8px 32px rgba(6, 8, 26, 0.4), 0 2px 8px rgba(30, 64, 175, 0.06);
+    transform: translateY(-4px);
+    border-color: rgba(30, 58, 138, 0.25);
+    box-shadow: 0 12px 48px rgba(6, 8, 26, 0.5), 0 4px 16px rgba(30, 64, 175, 0.1);
 }
 
 .card-premium-alt:hover::before {
     opacity: 1;
+}
+
+/* ===== Card Raise Emphasis ===== */
+.card-raised {
+    box-shadow: 0 4px 24px rgba(6, 8, 26, 0.3);
+}
+
+.card-raised:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 56px rgba(6, 8, 26, 0.5), 0 4px 20px rgba(201, 168, 76, 0.12);
+    border-color: rgba(201, 168, 76, 0.25);
 }
 
 /* ===== Premium Gold Border Top ===== */
@@ -559,6 +570,16 @@ code, .font-mono {
 .section-enter-delay-1 { animation-delay: 0.1s; }
 .section-enter-delay-2 { animation-delay: 0.2s; }
 .section-enter-delay-3 { animation-delay: 0.3s; }
+.section-enter-delay-4 { animation-delay: 0.4s; }
+.section-enter-delay-5 { animation-delay: 0.5s; }
+.section-enter-delay-6 { animation-delay: 0.6s; }
+
+/* ===== Section Dividers ===== */
+.section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(201,168,76,0.12), rgba(201,168,76,0.06) 50%, transparent);
+    pointer-events: none;
+}
 
 /* ===== Spacing & Typography Refinements ===== */
 .section-spacing {

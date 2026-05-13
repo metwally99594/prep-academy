@@ -291,47 +291,58 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 2: LERNEN ═══════ */}
+      <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="01" text="Lernen" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
-            Fokus für deine nächste<br />
-            <span style={{ color: '#c9a84c' }}>medizinische Prüfung</span>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
+            Wie du lernst:<br />
+            <span style={{ color: '#c9a84c' }}>strukturiert, klar, Schritt für Schritt</span>
           </h2>
+          <p className="text-white/40 text-base sm:text-lg leading-relaxed max-w-xl mb-16">
+            Wähle dein Fachgebiet, beantworte originale Prüfungsfragen und vertiefe mit KI-Erklärungen — in deinem Tempo, mit direktem Feedback.
+          </p>
 
-          <div className="grid md:grid-cols-3 gap-6 mt-16">
+          <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
             {[
-              { num: "01", icon: "◆", title: "Prüfungsfragen", desc: "Trainiere mit medizinischen Fragen nach Fachgebiet, Stadt und Prüfungskontext." },
-              { num: "02", icon: "◈", title: "KI-Erklärungen", desc: "Verstehe richtige und falsche Antworten mit klaren, medizinisch fokussierten Erklärungen." },
-              { num: "03", icon: "◉", title: "30 Tage Trial", desc: "Neue Nutzer testen die Lernfunktionen 30 Tage lang, bevor Zugänge gezielt freigeschaltet werden." },
-            ].map((item, i) => (
-              <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
-                <div className="flex items-center gap-3 mb-6">
-                  <span className="text-xs font-mono" style={{ color: '#c9a84c' }}>{item.num}</span>
-                  <span className="text-lg" style={{ color: '#c9a84c' }}>{item.icon}</span>
+              { num: "01", icon: BookOpen, title: "Fachgebiet wählen", desc: "MedAT, ÖSDK oder deutsche Prüfungsordnung — wähle deine Prüfung und starte mit passgenauen Fragen." },
+              { num: "02", icon: Activity, title: "Fragen beantworten", desc: "Originalgetreue Prüfungsfragen mit sofortiger Auswertung. Jede Antwort zählt für deinen Fortschritt." },
+              { num: "03", icon: Bot, title: "KI-Erklärungen", desc: "Verstehe jede Frage mit detaillierten KI-generierten Erklärungen — als Text oder Audio." },
+            ].map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
+                  <div className="flex items-center gap-2 mb-6">
+                    <span style={{ color: '#c9a84c' }}>◆</span>
+                    <span className="text-xs font-mono" style={{ color: '#c9a84c' }}>{item.num}</span>
+                  </div>
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6" style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.1)' }}>
+                    <Icon className="w-7 h-7" style={{ color: '#c9a84c' }} />
+                  </div>
+                  <h3 className="text-white font-semibold text-lg mb-3">{item.title}</h3>
+                  <p className="text-white/35 text-sm leading-relaxed">{item.desc}</p>
                 </div>
-                <h3 className="font-semibold text-white mb-3 tracking-wide uppercase" style={{ fontSize: '0.85rem', letterSpacing: '0.15em' }}>{item.title}</h3>
-                <p className="text-white/40 text-sm leading-relaxed">{item.desc}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* ═══════ SECTION 3: DASHBOARD / FEATURES ═══════ */}
+      {/* ═══════ SECTION 3: DASHBOARD ═══════ */}
+      <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium-alt" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="02" text="Dashboard" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
-            Ruhiges Dashboard für<br />
-            <span style={{ color: '#c9a84c' }}>lange Lernsessions</span>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
+            Dein<br />
+            <span style={{ color: '#c9a84c' }}>digitaler Lernkompass</span>
           </h2>
 
-          <div className="grid md:grid-cols-3 gap-6 mt-12">
+          <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mt-12">
             {[
-              { icon: Shield, title: "Premium Dark Mode", desc: "Eine ruhige Oberfläche für lange, konzentrierte Lernsessions." },
+              { icon: Shield, title: "Datenschutz & Sicherheit", desc: "Deine Daten bleiben vertraulich. Keine Werbung, kein Tracking. Fokussiertes Lernen in einer geschützten Umgebung." },
               { icon: Layers, title: "Klare Lernstruktur", desc: "Fachgebiete, Prüfungsorte und Lernwerkzeuge bleiben schnell auffindbar." },
               { icon: Target, title: "Fortschritt im Blick", desc: "Statistiken und Lernziele zeigen, wo du sicher bist und wo Wiederholung lohnt." },
             ].map((item, i) => {
@@ -372,16 +383,17 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 4: KI / AI ═══════ */}
+      <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="03" text="Künstliche Intelligenz" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             KI-Werkzeuge für<br />
             <span style={{ color: '#c9a84c' }}>Fragen, Bilder und PDFs</span>
           </h2>
 
-          <div className="grid md:grid-cols-3 gap-8 mt-16">
+          <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mt-16">
             {[
               { num: "01", icon: Bot, title: "KI-Erklärungen", desc: "Direkte Erklärungen zu Prüfungsfragen, damit du nicht nur klickst, sondern verstehst." },
               { num: "02", icon: Activity, title: "Medical Analyzer", desc: "Analyse medizinischer Bilder mit mehrstufigem KI-Fallback für sichere Einschätzungen." },
@@ -407,11 +419,12 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 5: FACHGEBIETE (Specialties) ═══════ */}
+      <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium-alt" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="04" text="Fachgebiete" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 leading-tight heading-premium">
             Medizinische<br />
             <span style={{ color: '#c9a84c' }}>Fachgebiete</span>
           </h2>
@@ -461,7 +474,7 @@ export default function HomePage() {
           {/* Exam Simulation CTA */}
           {user && (
             <Link to="/exam-simulation" className="block mt-12">
-              <div className="card-premium p-6 sm:p-8 group cursor-pointer flex items-center justify-between" data-testid="exam-simulation-cta">
+              <div className="card-premium card-raised p-6 sm:p-8 group cursor-pointer flex items-center justify-between" data-testid="exam-simulation-cta">
                 <div className="flex items-center gap-5">
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.08)' }}>
                     <Clock className="w-7 h-7" style={{ color: '#c9a84c' }} />
@@ -479,6 +492,7 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 6: MODULE ═══════ */}
+      <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
@@ -506,11 +520,12 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 6.5: ZUGANG ═══════ */}
+      <div className="section-divider" />
       <section className="section-spacing relative section-enter" id="pricing">
         <div className="absolute inset-0 section-premium-alt" />
         <div className="max-w-5xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="06" text="Zugang" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Medizinisches Lernen<br />
             <span style={{ color: '#c9a84c' }}>kostenlos für alle</span>
           </h2>
@@ -583,6 +598,7 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 7: FAZIT / CTA ═══════ */}
+      <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 bg-premium-dark" />
         <div className="absolute inset-0 section-glow-center" />
