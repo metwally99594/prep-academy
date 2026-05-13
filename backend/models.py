@@ -345,3 +345,11 @@ class ModerationAction(BaseModel):
     target_id: str
     action: str
     reason: Optional[str] = None
+
+
+class AccessRequestCreate(BaseModel):
+    feature_pack: str = "advanced_features"
+
+
+class AccessRequestUpdate(BaseModel):
+    status: str  # "approved" | "rejected"

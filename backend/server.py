@@ -27,7 +27,8 @@ from models import (
     QuestionChoice, QuestionCreate, QuestionUpdate, QuestionResponse,
     AnswerSubmit, AnswerResult, FavoriteCreate, StatsResponse,
     AIExplainRequest, AIChatRequest, CustomQuizRequest, SpecialtyResponse,
-    NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest
+    NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest,
+    AccessRequestCreate, AccessRequestUpdate,
 )
 from auth import (
     hash_password, verify_password, create_token,
@@ -131,6 +132,10 @@ async def _background_db_sync():
         await db.community_reports.create_index([("status", 1), ("created_at", -1)])
         await db.community_moderation_queue.create_index([("reviewed", 1), ("severity", -1), ("created_at", -1)])
         await db.community_moderation_queue.create_index([("target_type", 1), ("target_id", 1)], unique=True)
+
+        # Access requests indexes
+        await db.access_requests.create_index([("user_id", 1), ("feature_pack", 1), ("status", 1)])
+        await db.access_requests.create_index([("created_at", -1)])
 
         logger.info("Background: Indexes created")
     except Exception as e:
@@ -3019,6 +3024,68 @@ async def set_user_permissions(user_id: str, body: dict, user: dict = Depends(ge
         raise HTTPException(status_code=400, detail="Keine gültigen Felder")
     await db.users.update_one({"id": user_id}, {"$set": updates})
     return {"user_id": user_id, **updates}
+
+
+# ============ ACCESS REQUESTS ============
+
+from services.access_request_service import (
+    create_access_request,
+    list_access_requests,
+    resolve_access_request,
+    FEATURE_PACKS,
+)
+
+
+@api_router.post("/access-requests")
+async def create_user_access_request(
+    body: AccessRequestCreate,
+    user: dict = Depends(get_current_user),
+):
+    """Create an access request for a feature pack."""
+    if body.feature_pack not in FEATURE_PACKS:
+        raise HTTPException(status_code=400, detail=f"Unbekanntes Feature-Pack '{body.feature_pack}'")
+    await create_access_request(user["id"], body.feature_pack)
+    return {"success": True}
+
+
+@api_router.get("/admin/access-requests")
+async def admin_list_access_requests(admin: dict = Depends(get_admin_user)):
+    """List all access requests, newest first."""
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Nur für Administratoren")
+    return await list_access_requests()
+
+
+@api_router.post("/admin/users/by-ids")
+async def admin_users_by_ids(body: dict, admin: dict = Depends(get_admin_user)):
+    """Resolve user names and emails by IDs (for admin UI)."""
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Nur für Administratoren")
+    ids = body.get("ids", [])
+    if not ids:
+        return {"users": []}
+    users = await db.users.find(
+        {"id": {"$in": ids}},
+        {"_id": 0, "id": 1, "name": 1, "email": 1},
+    ).to_list(length=len(ids))
+    return {"users": users}
+
+
+@api_router.patch("/admin/access-requests/{request_id}")
+async def admin_resolve_access_request(
+    request_id: str,
+    body: AccessRequestUpdate,
+    admin: dict = Depends(get_admin_user),
+):
+    """Approve or reject an access request."""
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Nur für Administratoren")
+    if body.status not in ("approved", "rejected"):
+        raise HTTPException(status_code=400, detail='Status muss "approved" oder "rejected" sein')
+    doc = await resolve_access_request(request_id, body.status, admin["id"])
+    if not doc:
+        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden")
+    return {"success": True, "status": body.status}
 
 
 ANALYZER_SPECIALISTS = {

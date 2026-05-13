@@ -39,6 +39,7 @@ import AdminReportsTab from "@/components/AdminReportsTab";
 import AdminTagsTab from "@/components/AdminTagsTab";
 import AdminPodcastTab from "@/components/AdminPodcastTab";
 import AdminRagTab from "@/components/AdminRagTab";
+import AdminAccessRequestsTab from "@/components/AdminAccessRequestsTab";
 import {
   Table,
   TableBody,
@@ -860,6 +861,10 @@ export default function AdminPage() {
             <Flag className="w-4 h-4" />
             Meldungen
           </TabsTrigger>
+          <TabsTrigger value="access-requests" className="gap-2" data-testid="access-requests-tab">
+            <ShieldCheck className="w-4 h-4" />
+            Zugang
+          </TabsTrigger>
           <TabsTrigger value="tags" className="gap-2" data-testid="tags-tab">
             <Tag className="w-4 h-4" />
             Tags
@@ -1553,6 +1558,10 @@ export default function AdminPage() {
 
         <TabsContent value="reports">
           <AdminReportsTab token={token} />
+        </TabsContent>
+
+        <TabsContent value="access-requests">
+          <AdminAccessRequestsTab token={token} />
         </TabsContent>
 
         <TabsContent value="tags">

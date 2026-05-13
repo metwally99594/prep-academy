@@ -141,6 +141,7 @@ export default function HomePage() {
 
       {/* ═══════ SECTION 1: HERO ═══════ */}
       <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-premium-dark" data-testid="hero-section">
+        <div className="absolute inset-0 opacity-20 sm:opacity-40 pointer-events-none z-0" style={{ backgroundImage: 'url(/design-references/deep_navy_gradient_design_1.png)', backgroundSize: 'cover', backgroundPosition: 'center right', backgroundRepeat: 'no-repeat' }} />
         <div className="absolute inset-0 hero-glow" />
         <div className="absolute inset-0 vignette-overlay" />
         <div className="absolute top-4 left-[20%] w-[35%] h-px light-streak" />

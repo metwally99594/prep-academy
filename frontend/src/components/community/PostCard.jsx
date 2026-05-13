@@ -5,6 +5,7 @@ import { PostActions } from "./PostActions";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import apiClient from "@/lib/api";
 import { toast } from "sonner";
+import { TRANSITIONS } from "@/lib/theme";
 
 function stripMarkdown(text = "") {
   return text
@@ -23,7 +24,7 @@ function MediaPreview({ media }) {
   if (media.length === 0) return null;
   const first = media[0];
   return (
-    <div className="relative w-full mt-1 rounded-xl overflow-hidden border border-border/40 bg-muted/20" style={{ aspectRatio: "16/9" }}>
+    <div className="relative w-full mt-1.5 rounded-xl overflow-hidden border border-border/30 bg-muted/10 shadow-sm" style={{ aspectRatio: "16/9" }}>
       {first.media_type === "video" ? (
         <video
           src={first.data_uri}
@@ -89,10 +90,10 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
 
   return (
     <article
-      className="rounded-2xl border border-border/40 bg-card hover:border-border/70 transition-colors cursor-pointer group"
+      className="rounded-xl border border-border/40 bg-card shadow-sm hover:shadow-md hover:border-border/60 transition-all duration-200 cursor-pointer group"
       onClick={() => navigate(`/community/${post.id}`)}
     >
-      <div className="p-5 space-y-3">
+      <div className="p-4 sm:p-5 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <PostHeader
             authorName={post.author_name}
@@ -104,13 +105,13 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
             <div className="relative shrink-0" ref={menuRef}>
               <button
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-                className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                className="p-1.5 rounded-lg hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors duration-150 opacity-0 group-hover:opacity-100 focus:opacity-100"
                 aria-label="Mehr"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-8 z-20 w-40 rounded-xl border border-border/50 bg-card shadow-xl overflow-hidden">
+                <div className="absolute right-0 top-8 z-20 w-40 rounded-xl border border-border/50 bg-card shadow-xl overflow-hidden animate-fade-in">
                   {confirmDelete ? (
                     <div className="p-3 space-y-2">
                       <p className="text-xs font-medium">Wirklich löschen?</p>
@@ -118,13 +119,13 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(); }}
                           disabled={deleting}
-                          className="flex-1 px-2 py-1 text-[10px] rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                          className="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 font-medium"
                         >
                           {deleting ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "Löschen"}
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
-                          className="flex-1 px-2 py-1 text-[10px] rounded-lg bg-muted hover:bg-accent"
+                          className="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-muted hover:bg-accent/50 font-medium"
                         >
                           Abbrechen
                         </button>
@@ -134,14 +135,14 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
                     <>
                       <button
                         onClick={(e) => { e.stopPropagation(); navigate(`/community/${post.id}`); setMenuOpen(false); }}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-xs hover:bg-accent transition-colors text-left"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-accent/50 transition-colors text-left font-medium"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                         Bearbeiten
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-xs hover:bg-accent transition-colors text-left text-destructive"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-accent/50 transition-colors text-left text-destructive font-medium"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Löschen
@@ -154,12 +155,12 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
           )}
         </div>
 
-        <div>
-          <h2 className="text-sm font-semibold leading-snug group-hover:text-primary transition-colors line-clamp-2">
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold leading-snug group-hover:text-primary transition-colors duration-150 line-clamp-2">
             {post.title}
           </h2>
           {preview && (
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+            <p className="text-xs text-muted-foreground/80 mt-0.5 line-clamp-2 leading-relaxed">
               {preview}
             </p>
           )}
