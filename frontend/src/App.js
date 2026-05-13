@@ -354,7 +354,7 @@ function AppRouter() {
 function App() {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);
 
