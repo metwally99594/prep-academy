@@ -420,15 +420,6 @@ code, .font-mono {
     background: linear-gradient(160deg, #06081a 0%, #080c24 30%, #0a0e28 60%, #06081a 100%);
 }
 
-.hero-glow {
-    background: radial-gradient(ellipse 70% 50% at 60% 35%, rgba(30, 64, 175, 0.10) 0%, transparent 70%),
-                radial-gradient(ellipse 50% 40% at 30% 60%, rgba(201, 168, 76, 0.04) 0%, transparent 60%);
-}
-
-.text-premium {
-    color: #e8e0d0;
-}
-
 .btn-gold-glow {
     position: relative;
     transition: all 0.3s ease;
@@ -441,39 +432,6 @@ code, .font-mono {
 
 .btn-gold-glow:active {
     transform: translateY(0);
-}
-
-.vignette-overlay {
-    background: radial-gradient(ellipse 100% 80% at 50% 50%, transparent 50%, rgba(6, 8, 26, 0.6) 100%);
-    pointer-events: none;
-}
-
-.light-streak {
-    position: absolute;
-    width: 40%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.08), rgba(255, 255, 255, 0.04), transparent);
-    transform: rotate(-15deg);
-    pointer-events: none;
-}
-
-/* ===== SVG Wireframe Container ===== */
-.hero-wireframe {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 45%;
-    height: 80%;
-    max-height: 600px;
-    opacity: 0.6;
-    pointer-events: none;
-}
-
-@media (max-width: 768px) {
-    .hero-wireframe {
-        display: none;
-    }
 }
 
 /* ===== Premium Section Backgrounds ===== */

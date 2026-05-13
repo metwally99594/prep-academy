@@ -141,87 +141,175 @@ export default function HomePage() {
 
       {/* ═══════ SECTION 1: HERO ═══════ */}
       <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-premium-dark" data-testid="hero-section">
-        <div className="absolute inset-0 opacity-20 sm:opacity-40 pointer-events-none z-0" style={{ backgroundImage: 'url(/design-references/deep_navy_gradient_design_1.png)', backgroundSize: 'cover', backgroundPosition: 'center right', backgroundRepeat: 'no-repeat' }} />
-        <div className="absolute inset-0 hero-glow" />
-        <div className="absolute inset-0 vignette-overlay" />
-        <div className="absolute top-4 left-[20%] w-[35%] h-px light-streak" />
-        <div className="absolute top-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.15), transparent)' }} />
-        <div className="absolute bottom-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.15), transparent)' }} />
 
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 40% at 80% 50%, rgba(30,64,175,0.06) 0%, transparent 70%)' }} />
+        {/* ── LAYER 1: Full-width background image ── */}
+        <div className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-25 sm:opacity-40 pointer-events-none z-0"
+          style={{ backgroundImage: 'url(/design-references/deep_navy_gradient_design_1.png)' }} />
 
-        {/* SVG wireframe — right side */}
-        <div className="hero-wireframe" aria-hidden="true">
-          <svg viewBox="0 0 500 600" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-            <g opacity="0.15" stroke="rgba(201,168,76,0.3)" strokeWidth="0.5">
-              <circle cx="250" cy="300" r="180" />
-              <circle cx="250" cy="300" r="120" />
-              <circle cx="250" cy="300" r="60" />
-              <line x1="250" y1="120" x2="250" y2="480" />
-              <line x1="70" y1="300" x2="430" y2="300" />
-              <ellipse cx="250" cy="300" rx="200" ry="240" strokeDasharray="4 4" />
+        {/* ── LAYER 2: Dark vignette for readability ── */}
+        <div className="absolute inset-0 pointer-events-none z-[1]"
+          style={{ background: 'radial-gradient(ellipse 100% 80% at 50% 50%, transparent 35%, rgba(6,8,26,0.75) 100%)' }} />
+
+        {/* ── LAYER 3: Blue glow (left-center) ── */}
+        <div className="absolute inset-0 pointer-events-none z-[1]"
+          style={{ background: 'radial-gradient(ellipse 60% 45% at 30% 45%, rgba(30,64,175,0.10) 0%, transparent 60%)' }} />
+
+        {/* ── LAYER 4: Warm gold ambiance ── */}
+        <div className="absolute top-1/4 left-1/4 w-1/2 h-1/3 pointer-events-none z-[1]"
+          style={{ background: 'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(201,168,76,0.03) 0%, transparent 65%)' }} />
+
+        {/* ── LAYER 5: Space horizon glow (bottom-right) ── */}
+        <div className="absolute bottom-0 right-0 w-[55%] h-[40%] pointer-events-none z-[1]"
+          style={{ background: 'radial-gradient(ellipse 80% 60% at 70% 100%, rgba(30,64,175,0.14) 0%, rgba(30,64,175,0.05) 40%, transparent 70%)' }} />
+
+        {/* ── LAYER 6: Blue brain glow (right side) ── */}
+        <div className="absolute right-[5%] top-1/2 -translate-y-1/2 w-[38%] h-[55%] pointer-events-none z-[1] hidden md:block"
+          style={{ background: 'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(59,130,246,0.22) 0%, rgba(37,99,235,0.10) 30%, transparent 65%)' }} />
+        {/* Inner brighter core */}
+        <div className="absolute right-[12%] top-1/2 -translate-y-1/2 w-[22%] h-[30%] pointer-events-none z-[1] hidden md:block"
+          style={{ background: 'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(96,165,250,0.15) 0%, transparent 60%)' }} />
+
+        {/* ── LAYER 7: Brain illustration + HUD rings (right side) ── */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[44%] h-[72%] max-h-[650px] pointer-events-none z-[2] hidden md:block"
+          aria-hidden="true">
+          <svg viewBox="0 0 500 600" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Outer HUD rings */}
+            <circle cx="280" cy="300" r="220" stroke="rgba(59,130,246,0.07)" strokeWidth="0.5" />
+            <circle cx="280" cy="300" r="185" stroke="rgba(59,130,246,0.05)" strokeWidth="0.4" strokeDasharray="3 5" />
+            <circle cx="280" cy="300" r="150" stroke="rgba(59,130,246,0.08)" strokeWidth="0.5" />
+            <circle cx="280" cy="300" r="115" stroke="rgba(59,130,246,0.05)" strokeWidth="0.35" strokeDasharray="2 4" />
+            <circle cx="280" cy="300" r="80" stroke="rgba(59,130,246,0.07)" strokeWidth="0.4" />
+            <circle cx="280" cy="300" r="45" stroke="rgba(59,130,246,0.06)" strokeWidth="0.3" strokeDasharray="2 3" />
+
+            {/* Crosshairs */}
+            <line x1="60" y1="300" x2="500" y2="300" stroke="rgba(59,130,246,0.04)" strokeWidth="0.3" />
+            <line x1="280" y1="80" x2="280" y2="520" stroke="rgba(59,130,246,0.04)" strokeWidth="0.3" />
+
+            {/* Diagonal grid */}
+            <line x1="130" y1="150" x2="430" y2="450" stroke="rgba(59,130,246,0.03)" strokeWidth="0.25" strokeDasharray="3 5" />
+            <line x1="430" y1="150" x2="130" y2="450" stroke="rgba(59,130,246,0.03)" strokeWidth="0.25" strokeDasharray="3 5" />
+
+            {/* Stylized brain silhouette */}
+            <g stroke="rgba(59,130,246,0.25)" strokeWidth="0.7" fill="none">
+              {/* Brain outer contour */}
+              <path d="M270 200 
+                C245 185, 200 195, 195 240 
+                C190 270, 195 295, 205 315 
+                C210 330, 225 345, 240 355 
+                C255 365, 265 370, 275 375 
+                C295 380, 315 375, 330 360 
+                C350 340, 365 310, 360 270 
+                C355 230, 330 205, 305 200 
+                C290 197, 280 205, 270 200Z" />
+              {/* Central sulcus */}
+              <path d="M275 200 C270 235, 280 270, 275 305 C270 335, 280 355, 275 375" strokeWidth="0.5" />
+              {/* Left hemisphere sulci */}
+              <path d="M245 220 C235 230, 230 245, 235 255" strokeWidth="0.4" />
+              <path d="M240 270 C228 285, 232 300, 242 310" strokeWidth="0.4" />
+              <path d="M248 325 C238 335, 242 348, 252 355" strokeWidth="0.4" />
+              {/* Right hemisphere sulci */}
+              <path d="M335 220 C345 230, 350 245, 345 255" strokeWidth="0.4" />
+              <path d="M340 270 C352 285, 348 300, 338 310" strokeWidth="0.4" />
+              <path d="M332 325 C342 335, 338 348, 328 355" strokeWidth="0.4" />
+              {/* Brain stem */}
+              <path d="M268 375 C265 395, 265 415, 270 435" strokeWidth="0.4" />
+              <path d="M282 375 C285 395, 285 415, 280 435" strokeWidth="0.4" />
+              {/* Inner neural detail */}
+              <path d="M260 260 C275 250, 285 258, 290 263" strokeWidth="0.3" opacity="0.7" />
+              <path d="M290 263 C295 258, 305 250, 320 260" strokeWidth="0.3" opacity="0.7" />
+              <path d="M258 305 C273 295, 285 303, 290 308" strokeWidth="0.3" opacity="0.7" />
+              <path d="M290 308 C295 303, 307 295, 322 305" strokeWidth="0.3" opacity="0.7" />
             </g>
-            <g opacity="0.08" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3">
-              <path d="M250 120 L280 180 L320 200 L350 260 L400 280" />
-              <path d="M250 480 L220 420 L180 400 L150 340 L100 320" />
-              <path d="M70 300 L130 280 L160 240 L200 220 L250 200" />
-              <path d="M430 300 L370 320 L340 360 L300 380 L250 400" />
+
+            {/* Glowing neural nodes */}
+            <g fill="rgba(96,165,250,0.5)">
+              <circle cx="280" cy="180" r="2" />
+              <circle cx="200" cy="215" r="1.8" />
+              <circle cx="360" cy="215" r="1.8" />
+              <circle cx="195" cy="285" r="1.5" />
+              <circle cx="365" cy="285" r="1.5" />
+              <circle cx="210" cy="345" r="1.8" />
+              <circle cx="350" cy="345" r="1.8" />
+              <circle cx="240" cy="365" r="2" />
+              <circle cx="320" cy="360" r="2" />
+              <circle cx="275" cy="380" r="1.8" />
+              <circle cx="270" cy="435" r="1.5" />
+              <circle cx="280" cy="435" r="1.5" />
             </g>
-            <g opacity="0.06" fill="rgba(201,168,76,0.4)">
-              <circle cx="250" cy="300" r="3" />
-              <circle cx="250" cy="180" r="2" />
-              <circle cx="250" cy="420" r="2" />
-              <circle cx="160" cy="300" r="2" />
-              <circle cx="340" cy="300" r="2" />
-              <circle cx="190" cy="230" r="1.5" />
-              <circle cx="310" cy="370" r="1.5" />
-              <circle cx="310" cy="230" r="1.5" />
-              <circle cx="190" cy="370" r="1.5" />
+
+            {/* Brighter center node */}
+            <circle cx="280" cy="300" r="2.5" fill="rgba(96,165,250,0.6)" />
+            <circle cx="280" cy="300" r="5" fill="rgba(96,165,250,0.15)" />
+
+            {/* HUD ring tick marks */}
+            <g stroke="rgba(59,130,246,0.10)" strokeWidth="0.6">
+              <line x1="280" y1="80" x2="280" y2="90" />
+              <line x1="500" y1="300" x2="490" y2="300" />
+              <line x1="280" y1="520" x2="280" y2="510" />
+              <line x1="60" y1="300" x2="70" y2="300" />
+              <line x1="436" y1="144" x2="429" y2="151" />
+              <line x1="124" y1="456" x2="131" y2="449" />
+              <line x1="436" y1="456" x2="429" y2="449" />
+              <line x1="124" y1="144" x2="131" y2="151" />
             </g>
-            <g opacity="0.04" stroke="rgba(201,168,76,0.2)" strokeWidth="0.3" strokeDasharray="2 3">
-              <rect x="100" y="160" width="80" height="50" rx="4" />
-              <rect x="320" y="380" width="80" height="50" rx="4" />
-              <rect x="140" y="400" width="60" height="40" rx="3" />
-              <rect x="300" y="140" width="60" height="40" rx="3" />
-            </g>
-            <g opacity="0.03" stroke="rgba(30,64,175,0.3)" strokeWidth="0.5">
-              <path d="M250 120 Q300 150 300 200" />
-              <path d="M250 480 Q200 450 200 400" />
-              <path d="M70 300 Q100 250 150 250" />
-              <path d="M430 300 Q400 350 350 350" />
+
+            {/* Outer orbital dots */}
+            <g fill="rgba(59,130,246,0.15)">
+              <circle cx="280" cy="78" r="1.2" />
+              <circle cx="502" cy="300" r="1.2" />
+              <circle cx="280" cy="522" r="1.2" />
+              <circle cx="58" cy="300" r="1.2" />
+              <circle cx="131" cy="151" r="1" />
+              <circle cx="429" cy="151" r="1" />
+              <circle cx="131" cy="449" r="1" />
+              <circle cx="429" cy="449" r="1" />
             </g>
           </svg>
         </div>
 
+        {/* ── LAYER 8: Content (left side, above everything) ── */}
         <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 py-20 w-full relative z-10">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border mb-8" style={{ borderColor: 'rgba(201,168,76,0.2)', background: 'rgba(201,168,76,0.04)' }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#c9a84c' }} />
-              <span className="text-xs font-medium tracking-[0.2em] uppercase" style={{ color: '#c9a84c' }}>Medizinische Exzellenz</span>
+          <div className="max-w-xl lg:max-w-lg">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border mb-10 sm:mb-12"
+              style={{ borderColor: 'rgba(201,168,76,0.18)', background: 'rgba(201,168,76,0.04)' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#c9a84c', boxShadow: '0 0 6px rgba(201,168,76,0.4)' }} />
+              <span className="text-xs font-medium tracking-[0.22em] uppercase" style={{ color: '#c9a84c' }}>Medizinische Exzellenz</span>
             </div>
 
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-[1.05] mb-4" data-testid="hero-title" style={{ fontFamily: "'Playfair Display', serif" }}>
-              <span className="text-white">Prep</span>
-              <span className="ml-3" style={{ color: '#c9a84c' }}>Academy</span>
+            {/* Title — single clean layer */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold leading-[1.05] mb-6 sm:mb-7 hero-title-mobile"
+              data-testid="hero-title"
+              style={{ fontFamily: "'Playfair Display', serif", letterSpacing: '-0.02em', textShadow: '0 2px 40px rgba(0,0,0,0.3)' }}>
+              <span className="text-white" style={{ textShadow: '0 0 30px rgba(255,255,255,0.06)' }}>Prep</span>
+              <span className="ml-3 sm:ml-4" style={{ color: '#c9a84c', textShadow: '0 0 30px rgba(201,168,76,0.15)' }}>Academy</span>
             </h1>
-            <p className="text-lg sm:text-xl tracking-[0.15em] uppercase font-light mb-8 text-premium" style={{ opacity: 0.35 }}>Klar. Präzise. KI-gestützt.</p>
 
-            <p className="text-white/55 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl">
+            {/* Subtitle — one clean line */}
+            <p className="text-base sm:text-lg tracking-[0.18em] uppercase font-light mb-6"
+              style={{ color: 'rgba(232,224,208,0.45)' }}>Klar. Präzise. KI-gestützt.</p>
+
+            {/* Paragraph */}
+            <p className="text-white/55 text-base sm:text-lg leading-relaxed mb-10 max-w-lg">
               Medizinische Prüfungsvorbereitung für Österreich und Deutschland: echte Fragen, KI-Erklärungen, Analyzer, PDF-Notebook und 30 Tage Testphase.
             </p>
 
-            <div className="flex flex-wrap gap-2 mb-8 max-w-xl">
+            {/* Feature pills */}
+            <div className="flex flex-wrap gap-3 mb-10">
               {["30 Tage kostenlos testen", "Medical Analyzer", "PDF Notebook"].map((item) => (
-                <span key={item} className="px-3 py-1.5 rounded-full border text-xs tracking-[0.12em] uppercase" style={{ borderColor: 'rgba(201,168,76,0.14)', background: 'rgba(201,168,76,0.035)', color: 'rgba(232,224,208,0.45)' }}>
+                <span key={item} className="px-4 py-2 rounded-full border text-xs tracking-[0.12em] uppercase font-medium"
+                  style={{ borderColor: 'rgba(201,168,76,0.14)', background: 'rgba(201,168,76,0.03)', color: 'rgba(232,224,208,0.5)' }}>
                   {item}
                 </span>
               ))}
             </div>
 
+            {/* CTA buttons */}
             {!user ? (
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link to="/guest-quiz">
-                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="hero-guest-btn">
+                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow"
+                    style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="hero-guest-btn">
                     Kostenlos testen
                     <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -234,7 +322,8 @@ export default function HomePage() {
               </div>
             ) : (
               <Link to="/dashboard">
-                <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+                <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow"
+                  style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
                   Zum Dashboard
                   <ArrowRight className="w-4 h-4" />
                 </Button>
@@ -242,6 +331,10 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+        {/* ── Gold border at section bottom ── */}
+        <div className="absolute bottom-0 left-0 right-0 h-px z-10 pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.25), rgba(201,168,76,0.12), transparent)' }} />
       </section>
 
       {/* ═══════ EXAM TYPE SELECTOR ═══════ */}
