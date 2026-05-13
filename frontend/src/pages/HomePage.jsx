@@ -18,27 +18,17 @@ const iconMap = {
 const SplashOverlay = ({ onDone }) => {
   const [phase, setPhase] = useState(0);
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 100);
-    const t2 = setTimeout(() => setPhase(2), 1400);
-    const t3 = setTimeout(() => setPhase(3), 2200);
-    const t4 = setTimeout(() => onDone(), 2800);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    const t1 = setTimeout(() => setPhase(1), 80);
+    const t2 = setTimeout(() => setPhase(2), 1000);
+    const t3 = setTimeout(() => onDone(), 1600);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 
   return (
-    <div className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-700 ${phase >= 3 ? "opacity-0 pointer-events-none" : "opacity-100"}`} style={{ background: "linear-gradient(135deg, #06081a 0%, #0a1128 40%, #06081a 100%)" }} data-testid="splash-overlay">
-      <div className="absolute top-1/2 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.25), transparent)', transform: 'translateY(-50px)' }} />
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-500 ${phase >= 2 ? "opacity-0 pointer-events-none" : "opacity-100"}`} style={{ background: "linear-gradient(135deg, #06081a 0%, #0a1128 40%, #06081a 100%)" }} data-testid="splash-overlay">
       <div className="text-center relative">
-        <div className={`transition-all duration-700 ${phase >= 1 ? "opacity-100 scale-100" : "opacity-0 scale-75"}`}>
-          <img src="/logo-elite.png" alt="Prep Academy" className="w-44 h-44 mx-auto mb-6 object-contain" style={{ filter: "drop-shadow(0 0 40px rgba(201,168,76,0.25))" }} />
-        </div>
-        <div className={`transition-all duration-600 delay-300 ${phase >= 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          <h1 className="text-5xl sm:text-6xl font-black tracking-tight text-white mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Prep<span className="ml-2" style={{ color: '#c9a84c' }}>Academy</span>
-          </h1>
-          <div className={`transition-all duration-500 delay-700 ${phase >= 2 ? "opacity-100" : "opacity-0"}`}>
-            <p className="text-white/25 text-xs tracking-[0.4em] uppercase">Medizinische Exzellenz</p>
-          </div>
+        <div className={`transition-all duration-600 ${phase >= 1 ? "opacity-100 scale-100" : "opacity-0 scale-75"}`}>
+          <img src="/logo-elite.png" alt="Prep Academy" className="w-44 h-44 mx-auto object-contain" style={{ filter: "drop-shadow(0 0 40px rgba(201,168,76,0.25))" }} />
         </div>
       </div>
     </div>
