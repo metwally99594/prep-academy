@@ -132,9 +132,7 @@ export default function HomePage() {
       {/* ═══════ SECTION 1: HERO ═══════ */}
       <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-premium-dark" data-testid="hero-section">
 
-        {/* Decorative layers */}
-        <div className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-25 sm:opacity-40 pointer-events-none z-0"
-          style={{ backgroundImage: 'url(/design-references/deep_navy_gradient_design_1.png)' }} />
+        {/* Decorative overlays */}
         <div className="absolute inset-0 pointer-events-none z-[1] hero-overlays" aria-hidden="true" />
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[44%] h-[72%] max-h-[650px] pointer-events-none z-[2] hidden md:block" aria-hidden="true">
           <svg viewBox="0 0 500 600" className="w-full h-full" fill="none">
