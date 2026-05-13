@@ -12,6 +12,13 @@ module.exports = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+  		boxShadow: {
+  			'sm': 'var(--shadow-sm)',
+  			'md': 'var(--shadow-md)',
+  			'lg': 'var(--shadow-lg)',
+  			'xl': 'var(--shadow-xl)',
+  			'glow': 'var(--shadow-glow)',
+  		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -70,11 +77,21 @@ module.exports = {
   				to: {
   					height: '0'
   				}
-  			}
+  			},
+  			'skeleton-pulse': {
+  				'0%, 100%': { opacity: '0.4' },
+  				'50%': { opacity: '0.8' },
+  			},
+  			'fade-in': {
+  				from: { opacity: '0', transform: 'translateY(4px)' },
+  				to: { opacity: '1', transform: 'translateY(0)' },
+  			},
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'skeleton-pulse': 'skeleton-pulse 1.5s ease-in-out infinite',
+  			'fade-in': 'fade-in 0.25s ease-out',
   		}
   	}
   },

@@ -93,17 +93,16 @@ function LockedFeatureModal({ feature, onClose, token }) {
   const [sending, setSending] = useState(false);
 
   const submit = async () => {
-    const featureKey = FEATURE_KEY_MAP[feature] || feature.toLowerCase();
     setSending(true);
     try {
       await axios.post(`${API}/access-requests`,
-        { feature: featureKey, user_message: msg },
+        { feature_pack: "advanced_features" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setPhase("sent");
     } catch (err) {
       const detail = err.response?.data?.detail || "Fehler beim Senden";
-      if (detail.includes("ausstehende Anfrage")) {
+      if (detail && detail.includes("ausstehende Anfrage")) {
         setPhase("sent");
       } else {
         toast.error(detail);

@@ -8,6 +8,7 @@ import {
   ArrowRight, BookOpen, Clock, CheckCircle,
   Target, Shield, FileText, Bot, Layers, Pill,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const iconMap = {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity, Pill,
@@ -59,7 +60,8 @@ export default function HomePage() {
   const [selectedExam, setSelectedExam] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const [requestingAccess, setRequestingAccess] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("splashSeen"));
   const handleSplashDone = useCallback(() => { setShowSplash(false); sessionStorage.setItem("splashSeen", "1"); }, []);
 
@@ -87,6 +89,23 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => { loadHomepageData(); }, [loadHomepageData]);
+
+  const requestAdvancedAccess = async () => {
+    if (!token) { toast.error("Bitte melden Sie sich an"); return; }
+    setRequestingAccess(true);
+    try {
+      await axios.post(`${API}/access-requests`,
+        { feature_pack: "advanced_features" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success("Anfrage gesendet");
+    } catch (err) {
+      const detail = err.response?.data?.detail || "Fehler beim Senden";
+      toast.error(detail);
+    } finally {
+      setRequestingAccess(false);
+    }
+  };
 
   // Filter specialties based on selected exam
   const filteredSpecialties = specialties.filter(s => {
@@ -121,11 +140,57 @@ export default function HomePage() {
       {showSplash && <SplashOverlay onDone={handleSplashDone} />}
 
       {/* ═══════ SECTION 1: HERO ═══════ */}
-      <section className="relative min-h-[100vh] flex items-center overflow-hidden" data-testid="hero-section">
-        {/* bg effects */}
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 60% at 70% 40%, rgba(30,58,138,0.08) 0%, transparent 70%)' }} />
+      <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-premium-dark" data-testid="hero-section">
+        <div className="absolute inset-0 hero-glow" />
+        <div className="absolute inset-0 vignette-overlay" />
+        <div className="absolute top-4 left-[20%] w-[35%] h-px light-streak" />
         <div className="absolute top-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.15), transparent)' }} />
         <div className="absolute bottom-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.15), transparent)' }} />
+
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 40% at 80% 50%, rgba(30,64,175,0.06) 0%, transparent 70%)' }} />
+
+        {/* SVG wireframe — right side */}
+        <div className="hero-wireframe" aria-hidden="true">
+          <svg viewBox="0 0 500 600" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+            <g opacity="0.15" stroke="rgba(201,168,76,0.3)" strokeWidth="0.5">
+              <circle cx="250" cy="300" r="180" />
+              <circle cx="250" cy="300" r="120" />
+              <circle cx="250" cy="300" r="60" />
+              <line x1="250" y1="120" x2="250" y2="480" />
+              <line x1="70" y1="300" x2="430" y2="300" />
+              <ellipse cx="250" cy="300" rx="200" ry="240" strokeDasharray="4 4" />
+            </g>
+            <g opacity="0.08" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3">
+              <path d="M250 120 L280 180 L320 200 L350 260 L400 280" />
+              <path d="M250 480 L220 420 L180 400 L150 340 L100 320" />
+              <path d="M70 300 L130 280 L160 240 L200 220 L250 200" />
+              <path d="M430 300 L370 320 L340 360 L300 380 L250 400" />
+            </g>
+            <g opacity="0.06" fill="rgba(201,168,76,0.4)">
+              <circle cx="250" cy="300" r="3" />
+              <circle cx="250" cy="180" r="2" />
+              <circle cx="250" cy="420" r="2" />
+              <circle cx="160" cy="300" r="2" />
+              <circle cx="340" cy="300" r="2" />
+              <circle cx="190" cy="230" r="1.5" />
+              <circle cx="310" cy="370" r="1.5" />
+              <circle cx="310" cy="230" r="1.5" />
+              <circle cx="190" cy="370" r="1.5" />
+            </g>
+            <g opacity="0.04" stroke="rgba(201,168,76,0.2)" strokeWidth="0.3" strokeDasharray="2 3">
+              <rect x="100" y="160" width="80" height="50" rx="4" />
+              <rect x="320" y="380" width="80" height="50" rx="4" />
+              <rect x="140" y="400" width="60" height="40" rx="3" />
+              <rect x="300" y="140" width="60" height="40" rx="3" />
+            </g>
+            <g opacity="0.03" stroke="rgba(30,64,175,0.3)" strokeWidth="0.5">
+              <path d="M250 120 Q300 150 300 200" />
+              <path d="M250 480 Q200 450 200 400" />
+              <path d="M70 300 Q100 250 150 250" />
+              <path d="M430 300 Q400 350 350 350" />
+            </g>
+          </svg>
+        </div>
 
         <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 py-20 w-full relative z-10">
           <div className="max-w-3xl">
@@ -138,15 +203,15 @@ export default function HomePage() {
               <span className="text-white">Prep</span>
               <span className="ml-3" style={{ color: '#c9a84c' }}>Academy</span>
             </h1>
-            <p className="text-lg sm:text-xl text-white/30 tracking-[0.15em] uppercase font-light mb-8">Klar. Präzise. KI-gestützt.</p>
+            <p className="text-lg sm:text-xl tracking-[0.15em] uppercase font-light mb-8 text-premium" style={{ opacity: 0.35 }}>Klar. Präzise. KI-gestützt.</p>
 
-            <p className="text-white/50 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl">
+            <p className="text-white/55 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl">
               Medizinische Prüfungsvorbereitung für Österreich und Deutschland: echte Fragen, KI-Erklärungen, Analyzer, PDF-Notebook und 30 Tage Testphase.
             </p>
 
             <div className="flex flex-wrap gap-2 mb-8 max-w-xl">
               {["30 Tage kostenlos testen", "Medical Analyzer", "PDF Notebook"].map((item) => (
-                <span key={item} className="px-3 py-1.5 rounded-full border text-xs tracking-[0.12em] uppercase text-white/45" style={{ borderColor: 'rgba(201,168,76,0.14)', background: 'rgba(201,168,76,0.035)' }}>
+                <span key={item} className="px-3 py-1.5 rounded-full border text-xs tracking-[0.12em] uppercase" style={{ borderColor: 'rgba(201,168,76,0.14)', background: 'rgba(201,168,76,0.035)', color: 'rgba(232,224,208,0.45)' }}>
                   {item}
                 </span>
               ))}
@@ -155,7 +220,7 @@ export default function HomePage() {
             {!user ? (
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link to="/guest-quiz">
-                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="hero-guest-btn">
+                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="hero-guest-btn">
                     Kostenlos testen
                     <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -168,7 +233,7 @@ export default function HomePage() {
               </div>
             ) : (
               <Link to="/dashboard">
-                <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+                <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
                   Zum Dashboard
                   <ArrowRight className="w-4 h-4" />
                 </Button>
@@ -223,11 +288,11 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 2: LERNEN ═══════ */}
-      <section className="py-24 sm:py-32 relative">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #080c22 50%, #06081a 100%)' }} />
+      <section className="section-spacing relative section-enter">
+        <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="01" text="Lernen" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
             Fokus für deine nächste<br />
             <span style={{ color: '#c9a84c' }}>medizinische Prüfung</span>
           </h2>
@@ -237,13 +302,13 @@ export default function HomePage() {
               { num: "01", icon: "◆", title: "Prüfungsfragen", desc: "Trainiere mit medizinischen Fragen nach Fachgebiet, Stadt und Prüfungskontext." },
               { num: "02", icon: "◈", title: "KI-Erklärungen", desc: "Verstehe richtige und falsche Antworten mit klaren, medizinisch fokussierten Erklärungen." },
               { num: "03", icon: "◉", title: "30 Tage Trial", desc: "Neue Nutzer testen die Lernfunktionen 30 Tage lang, bevor Zugänge gezielt freigeschaltet werden." },
-            ].map((item) => (
-              <div key={item.num} className="p-8 rounded-2xl border transition-all duration-300 hover:-translate-y-1 group" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.08)' }}>
+            ].map((item, i) => (
+              <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
                 <div className="flex items-center gap-3 mb-6">
                   <span className="text-xs font-mono" style={{ color: '#c9a84c' }}>{item.num}</span>
                   <span className="text-lg" style={{ color: '#c9a84c' }}>{item.icon}</span>
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3 tracking-wide uppercase" style={{ fontSize: '0.85rem', letterSpacing: '0.15em' }}>{item.title}</h3>
+                <h3 className="font-semibold text-white mb-3 tracking-wide uppercase" style={{ fontSize: '0.85rem', letterSpacing: '0.15em' }}>{item.title}</h3>
                 <p className="text-white/40 text-sm leading-relaxed">{item.desc}</p>
               </div>
             ))}
@@ -252,11 +317,11 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 3: DASHBOARD / FEATURES ═══════ */}
-      <section className="py-24 sm:py-32 relative">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #0a0e24 50%, #06081a 100%)' }} />
+      <section className="section-spacing relative section-enter">
+        <div className="absolute inset-0 section-premium-alt" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="02" text="Dashboard" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
             Ruhiges Dashboard für<br />
             <span style={{ color: '#c9a84c' }}>lange Lernsessions</span>
           </h2>
@@ -269,7 +334,7 @@ export default function HomePage() {
             ].map((item, i) => {
               const Icon = item.icon;
               return (
-                <div key={i} className="p-6 rounded-xl border transition-all duration-300 hover:-translate-y-1" style={{ background: 'rgba(30,58,138,0.04)', borderColor: 'rgba(30,58,138,0.1)' }}>
+                <div key={i} className={`card-premium-alt p-6 section-enter-delay-${i + 1}`}>
                   <Icon className="w-6 h-6 mb-4" style={{ color: '#c9a84c' }} />
                   <h3 className="text-white font-semibold mb-2">{item.title}</h3>
                   <p className="text-white/35 text-sm leading-relaxed">{item.desc}</p>
@@ -279,7 +344,7 @@ export default function HomePage() {
           </div>
 
           {/* Dashboard mockup card */}
-          <div className="mt-16 p-8 rounded-2xl border" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.08)' }}>
+          <div className="mt-16 card-premium p-8 gold-border-top">
             <div className="flex items-center gap-3 mb-6">
               <span className="text-xs font-mono tracking-widest" style={{ color: '#c9a84c' }}>PREP ACADEMY</span>
               <span style={{ color: '#c9a84c' }}>◆</span>
@@ -304,11 +369,11 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 4: KI / AI ═══════ */}
-      <section className="py-24 sm:py-32 relative">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #080c22 50%, #06081a 100%)' }} />
+      <section className="section-spacing relative section-enter">
+        <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="03" text="Künstliche Intelligenz" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
             KI-Werkzeuge für<br />
             <span style={{ color: '#c9a84c' }}>Fragen, Bilder und PDFs</span>
           </h2>
@@ -318,10 +383,10 @@ export default function HomePage() {
               { num: "01", icon: Bot, title: "KI-Erklärungen", desc: "Direkte Erklärungen zu Prüfungsfragen, damit du nicht nur klickst, sondern verstehst." },
               { num: "02", icon: Activity, title: "Medical Analyzer", desc: "Analyse medizinischer Bilder mit mehrstufigem KI-Fallback für sichere Einschätzungen." },
               { num: "03", icon: FileText, title: "PDF Notebook", desc: "Aus Skripten und PDFs entstehen Lernkarten, Zusammenfassungen, Audio und MindMaps." },
-            ].map((item) => {
+            ].map((item, i) => {
               const Icon = item.icon;
               return (
-                <div key={item.num} className="relative p-8">
+                <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
                   <div className="flex items-center gap-2 mb-6">
                     <span style={{ color: '#c9a84c' }}>◆</span>
                     <span className="text-xs font-mono" style={{ color: '#c9a84c' }}>{item.num}</span>
@@ -339,8 +404,8 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 5: FACHGEBIETE (Specialties) ═══════ */}
-      <section className="py-24 sm:py-32 relative">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #0a0e24 50%, #06081a 100%)' }} />
+      <section className="section-spacing relative section-enter">
+        <div className="absolute inset-0 section-premium-alt" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="04" text="Fachgebiete" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
@@ -367,7 +432,7 @@ export default function HomePage() {
                 const locParam = exam?.location ? `?exam_location=${exam.location}` : '';
                 return (
                   <Link key={specialty.id} to={user ? `/specialty/${specialty.id}${locParam}` : "/login"} data-testid={`specialty-card-${specialty.id}`}>
-                    <div className="p-5 rounded-xl border group cursor-pointer transition-all duration-300 hover:-translate-y-1" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.06)' }}>
+                    <div className="card-premium p-5 group cursor-pointer">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(201,168,76,0.06)' }}>
                           <IconComponent className="w-6 h-6" style={{ color: '#c9a84c' }} />
@@ -393,7 +458,7 @@ export default function HomePage() {
           {/* Exam Simulation CTA */}
           {user && (
             <Link to="/exam-simulation" className="block mt-12">
-              <div className="p-6 sm:p-8 rounded-xl border group cursor-pointer transition-all duration-300 hover:-translate-y-1 flex items-center justify-between" style={{ background: 'rgba(201,168,76,0.03)', borderColor: 'rgba(201,168,76,0.1)' }} data-testid="exam-simulation-cta">
+              <div className="card-premium p-6 sm:p-8 group cursor-pointer flex items-center justify-between" data-testid="exam-simulation-cta">
                 <div className="flex items-center gap-5">
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.08)' }}>
                     <Clock className="w-7 h-7" style={{ color: '#c9a84c' }} />
@@ -411,11 +476,11 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 6: MODULE ═══════ */}
-      <section className="py-24 sm:py-32 relative">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #080c22 50%, #06081a 100%)' }} />
+      <section className="section-spacing relative section-enter">
+        <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="05" text="Module" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 heading-premium">
             Mehr als ein Quiz:<br />
             <span style={{ color: '#c9a84c' }}>ein medizinischer Lernraum</span>
           </h2>
@@ -426,8 +491,8 @@ export default function HomePage() {
               { step: "02", title: "Analyzer", desc: "Medizinische Bildanalyse als zusätzliches Werkzeug für klinisches Denken." },
               { step: "03", title: "Notebook", desc: "PDFs in strukturierte Lernkarten, Zusammenfassungen und Audio verwandeln." },
               { step: "04", title: "Podcast", desc: "Tägliche Wiederholung als kompakte medizinische Audio-Lerneinheit." },
-            ].map((item) => (
-              <div key={item.step} className="relative p-6 rounded-xl border transition-all duration-300 hover:-translate-y-1" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.06)' }}>
+            ].map((item, i) => (
+              <div key={item.step} className={`card-premium p-6 section-enter-delay-${i + 1}`}>
                 <div className="text-5xl font-bold mb-4" style={{ color: 'rgba(201,168,76,0.08)' }}>{item.step}</div>
                 <h3 className="font-semibold text-white mb-2 uppercase text-sm tracking-wider">{item.title}</h3>
                 <p className="text-white/35 text-sm leading-relaxed">{item.desc}</p>
@@ -438,11 +503,11 @@ export default function HomePage() {
       </section>
 
       {/* ═══════ SECTION 6.5: ZUGANG ═══════ */}
-      <section className="py-24 sm:py-32 relative" id="pricing">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #06081a 0%, #080c22 50%, #06081a 100%)' }} />
+      <section className="section-spacing relative section-enter" id="pricing">
+        <div className="absolute inset-0 section-premium-alt" />
         <div className="max-w-5xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
           <SectionLabel number="06" text="Zugang" />
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 heading-premium">
             Medizinisches Lernen<br />
             <span style={{ color: '#c9a84c' }}>kostenlos für alle</span>
           </h2>
@@ -450,7 +515,7 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {/* Free for all */}
-            <div className="p-8 rounded-2xl border" style={{ background: 'rgba(201,168,76,0.02)', borderColor: 'rgba(201,168,76,0.08)' }}>
+            <div className="card-premium p-8">
               <div className="text-xs font-mono tracking-widest text-white/30 uppercase mb-4">Für alle</div>
               <div className="text-4xl font-bold text-white mb-1">Kostenlos</div>
               <p className="text-sm text-white/30 mb-8">Nach Registrierung sofort verfügbar</p>
@@ -484,8 +549,7 @@ export default function HomePage() {
             </div>
 
             {/* Admin-gated */}
-            <div className="p-8 rounded-2xl border relative overflow-hidden" style={{ background: 'rgba(201,168,76,0.04)', borderColor: 'rgba(201,168,76,0.2)' }}>
-              <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #c9a84c, transparent)' }} />
+            <div className="card-premium p-8 gold-border-top">
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-xs font-mono tracking-widest uppercase" style={{ color: '#c9a84c' }}>Erweiterte Funktionen</span>
               </div>
@@ -505,26 +569,28 @@ export default function HomePage() {
                   </li>
                 ))}
               </ul>
-              <a href="mailto:kontakt@prepacademy.at" className="block">
-                <button className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
-                  Zugang anfragen
-                </button>
-              </a>
+              <button onClick={requestAdvancedAccess} disabled={requestingAccess}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+                {requestingAccess ? "Wird gesendet…" : "Zugang anfragen"}
+              </button>
             </div>
           </div>
         </div>
       </section>
 
       {/* ═══════ SECTION 7: FAZIT / CTA ═══════ */}
-      <section className="py-24 sm:py-32 relative">
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(201,168,76,0.03) 0%, transparent 70%)' }} />
+      <section className="section-spacing relative section-enter">
+        <div className="absolute inset-0 bg-premium-dark" />
+        <div className="absolute inset-0 section-glow-center" />
+        <div className="absolute top-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.1), transparent)' }} />
         <div className="max-w-4xl mx-auto px-6 sm:px-10 lg:px-16 text-center relative z-10">
           <div className="flex items-center justify-center gap-2 mb-8">
             <span style={{ color: '#c9a84c' }}>◆</span>
             <span className="text-xs tracking-[0.2em] uppercase text-white/30">Fazit — Ihre professionelle Zukunft</span>
           </div>
 
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Ihre berufliche<br />
             <span style={{ color: '#c9a84c' }}>Zukunft beginnt hier</span>
           </h2>
@@ -541,14 +607,14 @@ export default function HomePage() {
 
           {!user ? (
             <Link to="/register">
-              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="cta-register-btn">
+              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="cta-register-btn">
                 Jetzt Starten
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
           ) : (
             <Link to="/dashboard">
-              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
                 Zum Dashboard
                 <ArrowRight className="w-4 h-4" />
               </Button>
