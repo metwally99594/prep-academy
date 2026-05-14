@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API, useAuth } from "@/App";
@@ -133,10 +133,10 @@ export default function HomePage() {
     <div style={{ background: '#06081a', color: '#d4d4d8' }}>
       {!user && showSplash && <SplashOverlay onDone={handleSplashDone} />}
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 1: HERO ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
-      <section className="relative min-h-[100vh] flex items-center overflow-hidden hero-medical" data-testid="hero-section">
+      {/* SECTION */}
+      <section className="relative min-h-[100vh] flex items-center overflow-hidden hero-medical" style={{ background: '#0a1628' }} data-testid="hero-section">
 
-        {/* Decorative overlays */}
+        {/* SECTION */}
         <div className="absolute inset-0 pointer-events-none z-[0] medical-pattern" aria-hidden="true" />
         <div className="absolute inset-0 pointer-events-none z-[1] hero-overlays" aria-hidden="true" />
         <div className="floating-icons-container" aria-hidden="true">
@@ -209,13 +209,13 @@ export default function HomePage() {
               data-testid="hero-title"
               style={{ fontFamily: "'Playfair Display', serif", letterSpacing: '-0.02em' }}>
               <span className="text-white">Prep</span>
-              <span className="ml-3 sm:ml-4 text-cyan-200">Academy</span>
+              <span className="ml-3 sm:ml-4 text-[#c9a84c]">Academy</span>
             </h1>
 
-            <p className="text-base sm:text-lg tracking-[0.18em] uppercase font-light mb-6 text-white/65">Klar. Prï¿½zise. KI-gestï¿½tzt.</p>
+            <p className="text-base sm:text-lg tracking-[0.18em] uppercase font-light mb-6 text-white/65">KLAR. PRÄZISE. KI-GESTÜTZT.</p>
 
             <p className="text-white/55 text-base sm:text-lg leading-relaxed mb-10 max-w-lg">
-              Medizinische Pr++fungsvorbereitung f++r +ï¿½sterreich und Deutschland: echte Fragen, KI-Erkl+ï¿½rungen, Analyzer, PDF-Notebook und 30 Tage Testphase.
+              Medizinische Prüfungsvorbereitung für Österreich und Deutschland: echte Fragen, KI-Erklärungen, Analyzer, PDF-Notebook und 30 Tage Testphase.
             </p>
 
             <div className="flex flex-wrap gap-3 mb-10">
@@ -256,11 +256,11 @@ export default function HomePage() {
           style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), rgba(255,255,255,0.1), transparent)' }} />
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ EXAM TYPE SELECTOR ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <section className="relative z-20 -mt-8 pb-12">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6">
-            <p className="text-xs tracking-[0.2em] uppercase text-white/30">Pr++fung / Exam</p>
+            <p className="text-xs tracking-[0.2em] uppercase text-white/30">Prüfung / Exam</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {examTypes.map((exam) => {
@@ -280,10 +280,10 @@ export default function HomePage() {
                 >
                   {isActive && <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-xl bg-primary" />}
                   <div className="text-xl mb-2">
-                    {exam.icon === 'flag_at' && '????'}
-                    {exam.icon === 'mountain' && '???'}
-                    {exam.icon === 'building' && '???'}
-                    {exam.icon === 'pill' && '??'}
+                    {exam.icon === 'flag_at' && '🇦🇹'}
+                    {exam.icon === 'mountain' && '🏔️'}
+                    {exam.icon === 'building' && '🏛️'}
+                    {exam.icon === 'pill' && '💊'}
                   </div>
                   <h3 className={`font-semibold text-sm sm:text-base mb-1 ${isActive ? 'text-primary' : 'text-white/80'}`}>
                     {exam.name}
@@ -300,7 +300,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 2: LERNEN ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
@@ -308,23 +308,23 @@ export default function HomePage() {
           <SectionLabel number="01" text="Lernen" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Wie du lernst:<br />
-            <span className="text-gradient-blue">strukturiert, klar, Schritt f++r Schritt</span>
+            <span className="text-gradient-blue">strukturiert, klar, Schritt für Schritt</span>
           </h2>
           <p className="text-white/40 text-base sm:text-lg leading-relaxed max-w-xl mb-16">
-            W+ï¿½hle dein Fachgebiet, beantworte originale Pr++fungsfragen und vertiefe mit KI-Erkl+ï¿½rungen ï¿½ï¿½ï¿½ in deinem Tempo, mit direktem Feedback.
+            Wähle dein Fachgebiet, beantworte originale Prüfungsfragen und vertiefe mit KI-Erklärungen — in deinem Tempo, mit direktem Feedback.
           </p>
 
           <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
             {[
-              { num: "01", icon: BookOpen, title: "Fachgebiet w+ï¿½hlen", desc: "MedAT, +ï¿½SDK oder deutsche Pr++fungsordnung ï¿½ï¿½ï¿½ w+ï¿½hle deine Pr++fung und starte mit passgenauen Fragen." },
-              { num: "02", icon: Activity, title: "Fragen beantworten", desc: "Originalgetreue Pr++fungsfragen mit sofortiger Auswertung. Jede Antwort z+ï¿½hlt f++r deinen Fortschritt." },
-              { num: "03", icon: Bot, title: "KI-Erkl+ï¿½rungen", desc: "Verstehe jede Frage mit detaillierten KI-generierten Erkl+ï¿½rungen ï¿½ï¿½ï¿½ als Text oder Audio." },
+              { num: "01", icon: BookOpen, title: "Fachgebiet wählen", desc: "MedAT, ÖSDK oder deutsche Prüfungsordnung — wähle deine Prüfung und starte mit passgenauen Fragen." },
+              { num: "02", icon: Activity, title: "Fragen beantworten", desc: "Originalgetreue Prüfungsfragen mit sofortiger Auswertung. Jede Antwort zählt für deinen Fortschritt." },
+              { num: "03", icon: Bot, title: "KI-Erklärungen", desc: "Verstehe jede Frage mit detaillierten KI-generierten Erklärungen — als Text oder Audio." },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
                 <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
                   <div className="flex items-center gap-2 mb-6">
-                    <span className="text-primary">Ôùå</span>
+                    <span className="text-primary">◆</span>
                     <span className="text-xs font-mono" style={{ color: 'hsl(var(--primary))' }}>{item.num}</span>
                   </div>
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6" style={{ background: 'hsl(var(--primary) / 0.06)', border: '1px solid hsl(var(--primary) / 0.1)' }}>
@@ -339,7 +339,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 3: DASHBOARD ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium-alt" />
@@ -352,8 +352,8 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mt-12">
             {[
-              { icon: Shield, title: "Datenschutz & Sicherheit", desc: "Deine Daten bleiben vertraulich. Keine Werbung, kein Tracking. Fokussiertes Lernen in einer gesch++tzten Umgebung." },
-              { icon: Layers, title: "Klare Lernstruktur", desc: "Fachgebiete, Pr++fungsorte und Lernwerkzeuge bleiben schnell auffindbar." },
+              { icon: Shield, title: "Datenschutz & Sicherheit", desc: "Deine Daten bleiben vertraulich. Keine Werbung, kein Tracking. Fokussiertes Lernen in einer geschützten Umgebung." },
+              { icon: Layers, title: "Klare Lernstruktur", desc: "Fachgebiete, Prüfungsorte und Lernwerkzeuge bleiben schnell auffindbar." },
               { icon: Target, title: "Fortschritt im Blick", desc: "Statistiken und Lernziele zeigen, wo du sicher bist und wo Wiederholung lohnt." },
             ].map((item, i) => {
               const Icon = item.icon;
@@ -367,11 +367,11 @@ export default function HomePage() {
             })}
           </div>
 
-          {/* Dashboard mockup card */}
+          {/* SECTION */}
           <div className="mt-16 card-premium p-8 gold-border-top">
             <div className="flex items-center gap-3 mb-6">
               <span className="text-xs font-mono tracking-widest" style={{ color: 'hsl(var(--primary))' }}>PREP ACADEMY</span>
-              <span className="text-primary">Ôùå</span>
+              <span className="text-primary">◆</span>
               <span className="text-xs text-white/30">DASHBOARD</span>
             </div>
             <div className="grid grid-cols-3 gap-6">
@@ -385,35 +385,35 @@ export default function HomePage() {
               </div>
               <div className="text-center p-6 rounded-xl" style={{ background: 'hsl(var(--primary) / 0.04)', border: '1px solid hsl(var(--primary) / 0.08)' }}>
                 <div className="text-4xl font-bold" style={{ color: 'hsl(var(--primary))' }}>AI</div>
-                <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">KI-Erkl+ï¿½rungen</div>
+                <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">KI-Erklärungen</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 4: KI / AI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
-          <SectionLabel number="03" text="K++nstliche Intelligenz" />
+          <SectionLabel number="03" text="Künstliche Intelligenz" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
-            KI-Werkzeuge f++r<br />
+            KI-Werkzeuge für<br />
             <span className="text-gradient-blue">Fragen, Bilder und PDFs</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mt-16">
             {[
-              { num: "01", icon: Bot, title: "KI-Erkl+ï¿½rungen", desc: "Direkte Erkl+ï¿½rungen zu Pr++fungsfragen, damit du nicht nur klickst, sondern verstehst." },
-              { num: "02", icon: Activity, title: "Medical Analyzer", desc: "Analyse medizinischer Bilder mit mehrstufigem KI-Fallback f++r sichere Einsch+ï¿½tzungen." },
+              { num: "01", icon: Bot, title: "KI-Erklärungen", desc: "Direkte Erklärungen zu Prüfungsfragen, damit du nicht nur klickst, sondern verstehst." },
+              { num: "02", icon: Activity, title: "Medical Analyzer", desc: "Analyse medizinischer Bilder mit mehrstufigem KI-Fallback für sichere Einschätzungen." },
               { num: "03", icon: FileText, title: "PDF Notebook", desc: "Aus Skripten und PDFs entstehen Lernkarten, Zusammenfassungen, Audio und MindMaps." },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
                 <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
                   <div className="flex items-center gap-2 mb-6">
-                    <span className="text-primary">Ôùå</span>
+                    <span className="text-primary">◆</span>
                     <span className="text-xs font-mono" style={{ color: 'hsl(var(--primary))' }}>{item.num}</span>
                   </div>
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6" style={{ background: 'hsl(var(--primary) / 0.06)', border: '1px solid hsl(var(--primary) / 0.1)' }}>
@@ -428,7 +428,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 5: FACHGEBIETE (Specialties) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium-alt" />
@@ -441,7 +441,7 @@ export default function HomePage() {
 
           {fetchError ? (
             <div className="text-center py-16 space-y-4">
-              <p className="text-sm text-white/40">Verbindungsfehler ï¿½ï¿½ï¿½ Fachgebiete konnten nicht geladen werden</p>
+              <p className="text-sm text-white/40">Verbindungsfehler — Fachgebiete konnten nicht geladen werden</p>
               <button onClick={loadHomepageData} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-medium text-white/60 hover:text-white hover:border-white/20 transition-all" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
                 Erneut versuchen
               </button>
@@ -475,13 +475,13 @@ export default function HomePage() {
               })}
               {filteredSpecialties.length === 0 && !loading && (
                 <div className="col-span-full text-center py-12">
-                  <p className="text-white/30 text-sm">Noch keine Fragen f++r diese Pr++fung vorhanden</p>
+                  <p className="text-white/30 text-sm">Noch keine Fragen für diese Prüfung vorhanden</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* Exam Simulation CTA */}
+          {/* SECTION */}
           {user && (
             <Link to="/exam-simulation" className="block mt-12">
               <div className="card-premium card-raised p-6 sm:p-8 group cursor-pointer flex items-center justify-between" data-testid="exam-simulation-cta">
@@ -490,8 +490,8 @@ export default function HomePage() {
                     <Clock className="w-7 h-7" style={{ color: 'hsl(var(--primary))' }} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Pr++fungssimulation</h3>
-                    <p className="text-white/30 text-sm">250 Fragen -ï¿½ 4 Stunden -ï¿½ 60% zum Bestehen</p>
+                    <h3 className="text-lg font-semibold text-white">Prüfungssimulation</h3>
+                    <p className="text-white/30 text-sm">250 Fragen · 4 Stunden · 60% zum Bestehen</p>
                   </div>
                 </div>
                 <ArrowRight className="w-5 h-5 text-white/20 group-hover:text-white/60 transition-colors" />
@@ -501,7 +501,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 6: MODULE ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
@@ -514,10 +514,10 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-4 gap-6">
             {[
-              { step: "01", title: "Quiz", desc: "Fachbezogene Pr++fungsvorbereitung mit echten medizinischen Fragen." },
-              { step: "02", title: "Analyzer", desc: "Medizinische Bildanalyse als zus+ï¿½tzliches Werkzeug f++r klinisches Denken." },
+              { step: "01", title: "Quiz", desc: "Fachbezogene Prüfungsvorbereitung mit echten medizinischen Fragen." },
+              { step: "02", title: "Analyzer", desc: "Medizinische Bildanalyse als zusätzliches Werkzeug für klinisches Denken." },
               { step: "03", title: "Notebook", desc: "PDFs in strukturierte Lernkarten, Zusammenfassungen und Audio verwandeln." },
-              { step: "04", title: "Podcast", desc: "T+ï¿½gliche Wiederholung als kompakte medizinische Audio-Lerneinheit." },
+              { step: "04", title: "Podcast", desc: "Tägliche Wiederholung als kompakte medizinische Audio-Lerneinheit." },
             ].map((item, i) => (
               <div key={item.step} className={`card-premium p-6 section-enter-delay-${i + 1}`}>
                 <div className="text-5xl font-bold mb-4" style={{ color: 'hsl(var(--primary) / 0.08)' }}>{item.step}</div>
@@ -529,7 +529,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 6.5: ZUGANG ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter" id="pricing">
         <div className="absolute inset-0 section-premium-alt" />
@@ -537,22 +537,22 @@ export default function HomePage() {
           <SectionLabel number="06" text="Zugang" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Medizinisches Lernen<br />
-            <span className="text-gradient-blue">kostenlos f++r alle</span>
+            <span className="text-gradient-blue">kostenlos für alle</span>
           </h2>
-          <p className="text-white/40 mb-16 max-w-xl">Registrieren Sie sich kostenlos und starten Sie sofort. Neue Nutzer erhalten 30 Tage Testphase f++r die erweiterten Lernfunktionen; danach werden Zug+ï¿½nge gezielt freigeschaltet.</p>
+          <p className="text-white/40 mb-16 max-w-xl">Registrieren Sie sich kostenlos und starten Sie sofort. Neue Nutzer erhalten 30 Tage Testphase für die erweiterten Lernfunktionen; danach werden Zugänge gezielt freigeschaltet.</p>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {/* Free for all */}
             <div className="card-premium p-8">
-              <div className="text-xs font-mono tracking-widest text-white/30 uppercase mb-4">F++r alle</div>
+              <div className="text-xs font-mono tracking-widest text-white/30 uppercase mb-4">Für alle</div>
               <div className="text-4xl font-bold text-white mb-1">Kostenlos</div>
-              <p className="text-sm text-white/30 mb-8">Nach Registrierung sofort verf++gbar</p>
+              <p className="text-sm text-white/30 mb-8">Nach Registrierung sofort verfügbar</p>
               <ul className="space-y-3 mb-8">
                 {[
                   "Study Mode frei nutzbar",
-                  "30 Tage Testphase f++r Lernfunktionen",
+                  "30 Tage Testphase für Lernfunktionen",
                   "Fortschrittsstatistiken",
-                  "T+ï¿½gliche Lernziele",
+                  "Tägliche Lernziele",
                   "Dunkelmodus & mobile Ansicht",
                 ].map(f => (
                   <li key={f} className="flex items-center gap-3 text-sm text-white/50">
@@ -570,7 +570,7 @@ export default function HomePage() {
               ) : (
                 <Link to="/dashboard" className="block">
                   <button className="w-full py-3 rounded-xl border text-sm font-semibold text-white/40 cursor-default" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                    Bereits registriert Ô£ï¿½
+                    Bereits registriert ✓
                   </button>
                 </Link>
               )}
@@ -586,8 +586,8 @@ export default function HomePage() {
               <ul className="space-y-3 mb-8">
                 {[
                   "Medizinische Bildanalyse (Analyzer)",
-                  "Notebook ï¿½ï¿½ï¿½ PDF zu Lernkarten & Audio",
-                  "T+ï¿½glicher Medizin-Podcast",
+                  "Notebook — PDF zu Lernkarten & Audio",
+                  "Täglicher Medizin-Podcast",
                   "Hierarchische Wissensvernetzung",
                   "Audio-Zusammenfassungen & MindMaps",
                 ].map(f => (
@@ -599,14 +599,14 @@ export default function HomePage() {
               </ul>
               <button onClick={requestAdvancedAccess} disabled={requestingAccess}
                 className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50 btn-medical">
-                {requestingAccess ? "Wird gesendetï¿½Çª" : "Zugang anfragen"}
+                {requestingAccess ? "Wird gesendet..." : "Zugang anfragen"}
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 7: FAZIT / CTA ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      {/* SECTION */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 bg-premium-dark" />
@@ -614,8 +614,8 @@ export default function HomePage() {
         <div className="absolute top-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.1), transparent)' }} />
         <div className="max-w-4xl mx-auto px-6 sm:px-10 lg:px-16 text-center relative z-10">
           <div className="flex items-center justify-center gap-2 mb-8">
-            <span className="text-primary">Ôùå</span>
-            <span className="text-xs tracking-[0.2em] uppercase text-white/30">Fazit ï¿½ï¿½ï¿½ Ihre professionelle Zukunft</span>
+            <span className="text-primary">◆</span>
+            <span className="text-xs tracking-[0.2em] uppercase text-white/30">Fazit — Ihre professionelle Zukunft</span>
           </div>
 
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
@@ -624,7 +624,7 @@ export default function HomePage() {
           </h2>
 
           <p className="text-white/40 text-lg leading-relaxed mb-12 max-w-2xl mx-auto">
-            Prep Academy ist Ihr strategischer Partner f++r den Erfolg in der +ï¿½sterreichischen Medizinwelt. Nutzen Sie die fortschrittlichste Technologie f++r Ihre medizinische Karriere.
+            Prep Academy ist Ihr strategischer Partner für den Erfolg in der Österreichischen Medizinwelt. Nutzen Sie die fortschrittlichste Technologie für Ihre medizinische Karriere.
           </p>
 
           <div className="flex items-center justify-center gap-8 mb-12 text-xs tracking-[0.2em] uppercase text-white/20">
