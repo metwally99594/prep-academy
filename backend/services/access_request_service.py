@@ -171,3 +171,94 @@ async def resolve_access_request(
 def _dup_error():
     from fastapi import HTTPException
     return HTTPException(status_code=409, detail="Es besteht bereits eine ausstehende Anfrage für dieses Feature-Pack.")
+
+
+async def create_contact_request(
+    name: str,
+    email: str,
+    phone: Optional[str] = None,
+    message: Optional[str] = None,
+    feature_pack: str = "advanced_features",
+) -> dict:
+    """Create a public contact / access request for a non-authenticated visitor.
+
+    Saves to db.access_requests with user_id=None and embedded contact info.
+    Notifies all admins via in-app notification + email.
+    """
+    from database import db, logger
+
+    email = email.strip().lower()
+    name = name.strip()
+    phone = (phone or "").strip() or None
+    message = (message or "").strip() or None
+
+    # Throttle: block if same email has pending lead within last 24h
+    existing = await db.access_requests.find_one({
+        "user_email": email,
+        "user_id": None,
+        "status": "pending",
+    })
+    if existing:
+        logger.info("contact_request=duplicate_blocked email=%s", email[:6])
+        raise _dup_error()
+
+    label = FEATURE_PACK_LABELS.get(feature_pack, feature_pack)
+    doc = {
+        "id": uuid.uuid4().hex,
+        "user_id": None,
+        "user_name": name,
+        "user_email": email,
+        "phone": phone,
+        "message": message,
+        "feature_pack": feature_pack,
+        "feature_label": label,
+        "status": "pending",
+        "source": "public_contact_form",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "reviewed_at": None,
+        "reviewed_by": None,
+    }
+    await db.access_requests.insert_one(doc)
+    logger.info("contact_request=created email=%s request_id=%s", email[:6], doc["id"])
+
+    # Notify all admins
+    try:
+        admins = await db.users.find({"is_admin": True}, {"_id": 0, "id": 1, "email": 1, "name": 1}).to_list(20)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        contact_summary = f"📧 {email}"
+        if phone:
+            contact_summary += f"  📞 {phone}"
+        notif_message = f"{name} möchte Zugang zu {label}. Kontakt: {contact_summary}"
+        if message:
+            notif_message += f"\nNachricht: {message[:200]}"
+
+        for admin in admins:
+            await db.notifications.insert_one({
+                "id": uuid.uuid4().hex,
+                "user_id": admin["id"],
+                "type": "contact_request",
+                "title": "Neue Kontaktanfrage (öffentlich)",
+                "message": notif_message,
+                "icon": "mail",
+                "read": False,
+                "request_id": doc["id"],
+                "contact_email": email,
+                "contact_phone": phone,
+                "created_at": now_iso,
+            })
+            if admin.get("email"):
+                try:
+                    from services.email_service import send_admin_new_request_email
+                    fake_user = {
+                        "name": name,
+                        "email": email,
+                        "phone": phone or "",
+                        "message": message or "",
+                    }
+                    asyncio.ensure_future(send_admin_new_request_email(admin["email"], fake_user, label))
+                except Exception:
+                    pass
+    except Exception:
+        logger.exception("contact_request=notification_failed")
+
+    return doc

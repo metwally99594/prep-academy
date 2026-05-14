@@ -353,3 +353,12 @@ class AccessRequestCreate(BaseModel):
 
 class AccessRequestUpdate(BaseModel):
     status: str  # "approved" | "rejected"
+
+
+class ContactRequestCreate(BaseModel):
+    """Public contact / interest form submitted by non-authenticated visitors."""
+    name: str = Field(..., min_length=1, max_length=120)
+    email: EmailStr
+    phone: Optional[str] = Field(None, max_length=40)
+    message: Optional[str] = Field(None, max_length=1000)
+    feature_pack: Optional[str] = "advanced_features"

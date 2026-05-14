@@ -284,20 +284,46 @@ async def send_access_rejected_email(user: dict, feature_label: str, reason: str
 
 async def send_admin_new_request_email(admin_email: str, user: dict, feature_label: str) -> None:
     link = f"{_frontend_url()}/admin/analytics"
+    phone = user.get("phone", "")
+    message = user.get("message", "")
+    is_public = bool(user.get("phone") or user.get("message"))
+
+    title = "Neue Kontaktanfrage" if is_public else "Neue Zugangsanfrage"
+
+    phone_block = ""
+    if phone:
+        phone_block = f"""
+        <p style="margin:6px 0 0 0;color:rgba(255,255,255,0.7);font-size:13px">
+          📞 <a href="tel:{phone}" style="color:#60a5fa;text-decoration:none">{phone}</a>
+        </p>"""
+
+    message_block = ""
+    if message:
+        safe_msg = message.replace("<", "&lt;").replace(">", "&gt;")
+        message_block = f"""
+      <div style="background:rgba(59,130,246,0.05);border-left:3px solid #3b82f6;border-radius:6px;padding:12px 14px;margin-bottom:20px">
+        <p style="margin:0;color:rgba(255,255,255,0.5);font-size:11px;text-transform:uppercase;letter-spacing:0.05em">Nachricht</p>
+        <p style="margin:6px 0 0 0;color:rgba(255,255,255,0.85);font-size:14px;line-height:1.5;white-space:pre-wrap">{safe_msg}</p>
+      </div>"""
+
     body = f"""
-      <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">Neue Zugangsanfrage</h2>
+      <h2 style="color:#3b82f6;font-size:20px;margin:0 0 16px 0">{title}</h2>
       <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:16px;margin-bottom:20px">
         <p style="margin:0 0 4px 0"><strong>{user.get('name','')}</strong></p>
-        <p style="margin:0;color:rgba(255,255,255,0.5);font-size:13px">{user.get('email','')}</p>
-        <p style="margin:8px 0 0 0;font-size:13px;color:rgba(201,168,76,0.8)">
+        <p style="margin:0;color:rgba(255,255,255,0.5);font-size:13px">
+          ✉️ <a href="mailto:{user.get('email','')}" style="color:#60a5fa;text-decoration:none">{user.get('email','')}</a>
+        </p>
+        {phone_block}
+        <p style="margin:10px 0 0 0;font-size:13px;color:rgba(59,130,246,0.9)">
           Funktion: <strong>{feature_label}</strong>
         </p>
       </div>
+      {message_block}
       {_btn('Zur Admin-Übersicht', link)}
     """
     await _send(
         admin_email, "Admin",
-        f"Neue Zugangsanfrage: {feature_label} von {user.get('name','')}",
+        f"{title}: {feature_label} von {user.get('name','')}",
         _wrap(body),
     )
 

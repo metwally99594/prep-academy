@@ -3,7 +3,7 @@ import axios from "axios";
 import { API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, Mail, Phone, MessageSquare, Globe, User } from "lucide-react";
 
 const STATUS_BADGE = {
   pending: { label: "Ausstehend", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
@@ -48,26 +48,30 @@ export default function AdminAccessRequestsTab({ token }) {
   };
 
   const resolveUserNames = async () => {
-    const userIds = [...new Set(requests.map(r => r.user_id))];
+    // Only fetch names for registered users (skip public contact form submissions)
+    const userIds = [...new Set(requests.map(r => r.user_id).filter(Boolean))];
+    if (userIds.length === 0) {
+      setRequests(prev => prev.map(r => ({ ...r, _user: r._user || null })));
+      return;
+    }
     try {
       const res = await axios.post(`${API}/admin/users/by-ids`, { ids: userIds }, { headers });
       const nameMap = {};
       (res.data?.users || []).forEach(u => { nameMap[u.id] = u; });
       setRequests(prev => prev.map(r => ({
         ...r,
-        _user: nameMap[r.user_id] || { name: r.user_id, email: "" },
+        _user: r.user_id ? (nameMap[r.user_id] || { name: r.user_id.slice(0, 8), email: "" }) : null,
       })));
     } catch (e) {
-      // Fallback: show user_id
       setRequests(prev => prev.map(r => ({
         ...r,
-        _user: { name: r.user_id, email: "" },
+        _user: r.user_id ? { name: r.user_id.slice(0, 8), email: "" } : null,
       })));
     }
   };
 
   useEffect(() => {
-    if (requests.length > 0 && !requests[0]._user) {
+    if (requests.length > 0 && requests[0]._user === undefined) {
       resolveUserNames();
     }
   }, [requests.length]);
@@ -103,64 +107,96 @@ export default function AdminAccessRequestsTab({ token }) {
           <p>Keine Zugangsanfragen vorhanden</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-2 font-medium text-muted-foreground">Benutzer</th>
-                <th className="text-left py-3 px-2 font-medium text-muted-foreground">E-Mail</th>
-                <th className="text-left py-3 px-2 font-medium text-muted-foreground">Feature</th>
-                <th className="text-left py-3 px-2 font-medium text-muted-foreground">Status</th>
-                <th className="text-left py-3 px-2 font-medium text-muted-foreground">Erstellt</th>
-                <th className="text-right py-3 px-2 font-medium text-muted-foreground">Aktionen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map(r => (
-                <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-2 font-medium">{r._user?.name || r.user_id.slice(0, 8)}</td>
-                  <td className="py-3 px-2 text-muted-foreground">{r._user?.email || "—"}</td>
-                  <td className="py-3 px-2">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/5 text-xs font-medium">
-                      {r.feature_pack === "advanced_features" ? "Erweiterte Funktionen" : r.feature_pack || r.feature_label || r.feature || "—"}
-                    </span>
-                  </td>
-                  <td className="py-3 px-2">{badge(r.status)}</td>
-                  <td className="py-3 px-2 text-muted-foreground text-xs">
-                    {r.created_at ? new Date(r.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                  </td>
-                  <td className="py-3 px-2 text-right">
-                    {r.status === "pending" ? (
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => resolve(r.id, "approved")}
-                          disabled={resolving === r.id}
-                          className="text-emerald-600 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                        >
-                          {resolving === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                          <span className="hidden sm:inline ml-1">Genehmigen</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => resolve(r.id, "rejected")}
-                          disabled={resolving === r.id}
-                          className="text-red-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                        >
-                          {resolving === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                          <span className="hidden sm:inline ml-1">Ablehnen</span>
-                        </Button>
+        <div className="space-y-3">
+          {requests.map(r => {
+            const isPublic = !r.user_id || r.source === "public_contact_form";
+            const displayName = isPublic ? (r.user_name || "Unbekannt") : (r._user?.name || r.user_id?.slice(0, 8));
+            const displayEmail = isPublic ? r.user_email : (r._user?.email || "—");
+            return (
+              <div key={r.id} className="rounded-xl border border-border bg-card/50 p-4 hover:bg-muted/30 transition-colors">
+                <div className="flex flex-wrap items-start gap-3 justify-between">
+                  <div className="flex-1 min-w-0">
+                    {/* Header */}
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      {isPublic ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">
+                          <Globe className="w-3 h-3" /> Öffentliche Anfrage
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">
+                          <User className="w-3 h-3" /> Registriert
+                        </span>
+                      )}
+                      {badge(r.status)}
+                      <span className="text-xs text-muted-foreground">
+                        {r.created_at ? new Date(r.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                      </span>
+                    </div>
+
+                    {/* Contact info */}
+                    <div className="space-y-1.5">
+                      <div className="font-medium text-base">{displayName}</div>
+                      {displayEmail && displayEmail !== "—" && (
+                        <a href={`mailto:${displayEmail}`} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+                          <Mail className="w-3.5 h-3.5" /> {displayEmail}
+                        </a>
+                      )}
+                      {r.phone && (
+                        <div>
+                          <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+                            <Phone className="w-3.5 h-3.5" /> {r.phone}
+                          </a>
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground">
+                        Feature: <span className="font-medium text-foreground">
+                          {r.feature_label || (r.feature_pack === "advanced_features" ? "Erweiterte Funktionen" : r.feature_pack) || "—"}
+                        </span>
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                    </div>
+
+                    {/* Message */}
+                    {r.message && (
+                      <div className="mt-3 p-3 rounded-lg bg-muted/40 border-l-2 border-primary/40">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          <MessageSquare className="w-3 h-3" /> Nachricht
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap">{r.message}</p>
+                      </div>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+
+                  {/* Actions */}
+                  {r.status === "pending" && (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => resolve(r.id, "approved")}
+                        disabled={resolving === r.id}
+                        className="text-emerald-600 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                        data-testid={`approve-${r.id}`}
+                      >
+                        {resolving === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        <span className="hidden sm:inline ml-1">{isPublic ? "Kontaktiert" : "Genehmigen"}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => resolve(r.id, "rejected")}
+                        disabled={resolving === r.id}
+                        className="text-red-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        data-testid={`reject-${r.id}`}
+                      >
+                        {resolving === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                        <span className="hidden sm:inline ml-1">Ablehnen</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

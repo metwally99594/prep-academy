@@ -28,7 +28,7 @@ from models import (
     AnswerSubmit, AnswerResult, FavoriteCreate, StatsResponse,
     AIExplainRequest, AIChatRequest, CustomQuizRequest, SpecialtyResponse,
     NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest,
-    AccessRequestCreate, AccessRequestUpdate,
+    AccessRequestCreate, AccessRequestUpdate, ContactRequestCreate,
 )
 from auth import (
     hash_password, verify_password, create_token,
@@ -3030,6 +3030,7 @@ async def set_user_permissions(user_id: str, body: dict, user: dict = Depends(ge
 
 from services.access_request_service import (
     create_access_request,
+    create_contact_request,
     list_access_requests,
     resolve_access_request,
     FEATURE_PACKS,
@@ -3046,6 +3047,24 @@ async def create_user_access_request(
         raise HTTPException(status_code=400, detail=f"Unbekanntes Feature-Pack '{body.feature_pack}'")
     await create_access_request(user["id"], body.feature_pack)
     return {"success": True}
+
+
+@api_router.post("/contact-requests")
+async def create_public_contact_request(body: ContactRequestCreate):
+    """Public endpoint — non-authenticated visitors can request access / contact.
+    The admin gets a notification (in-app + email) and contacts the visitor manually.
+    """
+    feature_pack = body.feature_pack or "advanced_features"
+    if feature_pack not in FEATURE_PACKS:
+        raise HTTPException(status_code=400, detail=f"Unbekanntes Feature-Pack '{feature_pack}'")
+    await create_contact_request(
+        name=body.name,
+        email=body.email,
+        phone=body.phone,
+        message=body.message,
+        feature_pack=feature_pack,
+    )
+    return {"success": True, "message": "Vielen Dank! Wir melden uns in Kürze bei Ihnen."}
 
 
 @api_router.get("/admin/access-requests")

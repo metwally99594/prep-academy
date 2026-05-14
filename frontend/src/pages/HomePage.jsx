@@ -10,6 +10,7 @@ import {
   Dna, Plus, Microscope, Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
+import RequestAccessModal from "@/components/RequestAccessModal";
 
 const iconMap = {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity, Pill,
@@ -53,6 +54,7 @@ export default function HomePage() {
   const [fetchError, setFetchError] = useState(null);
   const { user, token } = useAuth();
   const [requestingAccess, setRequestingAccess] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("splashSeen"));
   const handleSplashDone = useCallback(() => { setShowSplash(false); sessionStorage.setItem("splashSeen", "1"); }, []);
 
@@ -78,14 +80,18 @@ export default function HomePage() {
   useEffect(() => { loadHomepageData(); }, [loadHomepageData]);
 
   const requestAdvancedAccess = async () => {
-    if (!token) { toast.error("Bitte melden Sie sich an"); return; }
+    // If user is not logged in, open the public contact form modal
+    if (!token) {
+      setContactModalOpen(true);
+      return;
+    }
     setRequestingAccess(true);
     try {
       await axios.post(`${API}/access-requests`,
         { feature_pack: "advanced_features" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Anfrage gesendet");
+      toast.success("Anfrage gesendet — wir melden uns in Kürze bei Ihnen.");
     } catch (err) {
       const detail = err.response?.data?.detail || "Fehler beim Senden";
       if (detail && detail.includes("ausstehende Anfrage")) {
@@ -650,6 +656,8 @@ export default function HomePage() {
           )}
         </div>
       </section>
+
+      <RequestAccessModal open={contactModalOpen} onClose={() => setContactModalOpen(false)} />
     </div>
   );
 }
