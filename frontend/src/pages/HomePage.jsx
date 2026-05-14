@@ -7,6 +7,7 @@ import {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity,
   ArrowRight, BookOpen, Clock, CheckCircle,
   Target, Shield, FileText, Bot, Layers, Pill,
+  Dna, Plus, Microscope, Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +29,7 @@ const SplashOverlay = ({ onDone }) => {
     <div className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-500 ${phase >= 2 ? "opacity-0 pointer-events-none" : "opacity-100"}`} style={{ background: "linear-gradient(135deg, #06081a 0%, #0a1128 40%, #06081a 100%)" }} data-testid="splash-overlay">
       <div className="text-center relative">
         <div className={`transition-all duration-600 ${phase >= 1 ? "opacity-100 scale-100" : "opacity-0 scale-75"}`}>
-          <img src="/logo-elite.png" alt="Prep Academy" className="w-44 h-44 mx-auto object-contain" style={{ filter: "drop-shadow(0 0 40px rgba(201,168,76,0.25))" }} />
+          <img src="/logo-elite.png" alt="Prep Academy" className="w-44 h-44 mx-auto object-contain" style={{ filter: "drop-shadow(0 0 40px rgba(59,130,246,0.25))" }} />
         </div>
       </div>
     </div>
@@ -38,8 +39,8 @@ const SplashOverlay = ({ onDone }) => {
 /* Section label */
 const SectionLabel = ({ number, text }) => (
   <div className="flex items-center gap-3 mb-6">
-    <span className="text-xs font-mono tracking-widest" style={{ color: '#c9a84c' }}>{number}</span>
-    <div className="w-12 h-px" style={{ background: 'rgba(201,168,76,0.3)' }} />
+    <span className="text-xs font-mono tracking-widest text-primary">{number}</span>
+    <div className="w-12 h-px bg-primary/30" />
     <span className="text-xs tracking-[0.2em] uppercase text-white/40">{text}</span>
   </div>
 );
@@ -129,14 +130,25 @@ export default function HomePage() {
   }, [loading]);
 
   return (
-    <div style={{ background: '#06081a', color: '#e8e0d0' }}>
+    <div style={{ background: '#06081a', color: '#d4d4d8' }}>
       {!user && showSplash && <SplashOverlay onDone={handleSplashDone} />}
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 1: HERO ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
-      <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-premium-dark" data-testid="hero-section">
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 1: HERO ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
+      <section className="relative min-h-[100vh] flex items-center overflow-hidden hero-medical" data-testid="hero-section">
 
         {/* Decorative overlays */}
+        <div className="absolute inset-0 pointer-events-none z-[0] medical-pattern" aria-hidden="true" />
         <div className="absolute inset-0 pointer-events-none z-[1] hero-overlays" aria-hidden="true" />
+        <div className="floating-icons-container" aria-hidden="true">
+          <div className="floating-icon dna"><Dna /></div>
+          <div className="floating-icon heart"><Heart /></div>
+          <div className="floating-icon cross"><Plus /></div>
+          <div className="floating-icon microscope"><Microscope /></div>
+          <div className="floating-icon pulse"><Activity /></div>
+          <div className="floating-icon brain"><Brain /></div>
+          <div className="floating-icon pill"><Pill /></div>
+          <div className="floating-icon stethoscope"><Stethoscope /></div>
+        </div>
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[44%] h-[72%] max-h-[650px] pointer-events-none z-[2] hidden md:block" aria-hidden="true">
           <svg viewBox="0 0 500 600" className="w-full h-full" fill="none">
             <circle cx="280" cy="300" r="220" stroke="rgba(59,130,246,0.07)" strokeWidth="0.5" />
@@ -188,29 +200,28 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 py-20 w-full relative z-10">
           <div className="max-w-xl lg:max-w-lg">
             <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border mb-10 sm:mb-12"
-              style={{ borderColor: 'rgba(201,168,76,0.18)', background: 'rgba(201,168,76,0.04)' }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#c9a84c', boxShadow: '0 0 6px rgba(201,168,76,0.4)' }} />
-              <span className="text-xs font-medium tracking-[0.22em] uppercase" style={{ color: '#c9a84c' }}>Medizinische Exzellenz</span>
+              style={{ borderColor: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-white/80" style={{ boxShadow: '0 0 6px rgba(255,255,255,0.5)' }} />
+              <span className="text-xs font-medium tracking-[0.22em] uppercase text-white/80">Medizinische Exzellenz</span>
             </div>
 
             <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold leading-[1.05] mb-6 sm:mb-7 hero-title-mobile"
               data-testid="hero-title"
               style={{ fontFamily: "'Playfair Display', serif", letterSpacing: '-0.02em' }}>
               <span className="text-white">Prep</span>
-              <span className="ml-3 sm:ml-4" style={{ color: '#c9a84c' }}>Academy</span>
+              <span className="ml-3 sm:ml-4 text-cyan-200">Academy</span>
             </h1>
 
-            <p className="text-base sm:text-lg tracking-[0.18em] uppercase font-light mb-6"
-              style={{ color: 'rgba(232,224,208,0.45)' }}>Klar. Pr├ñzise. KI-gest├╝tzt.</p>
+            <p className="text-base sm:text-lg tracking-[0.18em] uppercase font-light mb-6 text-white/65">Klar. Prï¿½zise. KI-gestï¿½tzt.</p>
 
             <p className="text-white/55 text-base sm:text-lg leading-relaxed mb-10 max-w-lg">
-              Medizinische Pr├╝fungsvorbereitung f├╝r ├ûsterreich und Deutschland: echte Fragen, KI-Erkl├ñrungen, Analyzer, PDF-Notebook und 30 Tage Testphase.
+              Medizinische Pr++fungsvorbereitung f++r +ï¿½sterreich und Deutschland: echte Fragen, KI-Erkl+ï¿½rungen, Analyzer, PDF-Notebook und 30 Tage Testphase.
             </p>
 
             <div className="flex flex-wrap gap-3 mb-10">
               {["30 Tage kostenlos testen", "Medical Analyzer", "PDF Notebook"].map((item) => (
                 <span key={item} className="px-4 py-2 rounded-full border text-xs tracking-[0.12em] uppercase font-medium"
-                  style={{ borderColor: 'rgba(201,168,76,0.14)', background: 'rgba(201,168,76,0.03)', color: 'rgba(232,224,208,0.5)' }}>
+                  style={{ borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)' }}>
                   {item}
                 </span>
               ))}
@@ -219,22 +230,20 @@ export default function HomePage() {
             {!user ? (
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link to="/guest-quiz">
-                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow"
-                    style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="hero-guest-btn">
+                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold rounded-xl bg-white hover:bg-white/95 transition-all hover:-translate-y-0.5 border-0" style={{ color: '#1e40af' }} data-testid="hero-guest-btn">
                     Kostenlos testen
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
                 <Link to="/register">
-                  <Button size="lg" variant="outline" className="gap-2 px-8 h-14 text-base font-semibold rounded-none tracking-wider uppercase border-[#c9a84c]/30 text-[#c9a84c] hover:bg-[#c9a84c]/10" data-testid="hero-register-btn">
+                  <Button size="lg" variant="outline" className="gap-2 px-8 h-14 text-base font-semibold rounded-xl border-white/40 text-white hover:bg-white/10 hover:text-white" data-testid="hero-register-btn">
                     Konto erstellen
                   </Button>
                 </Link>
               </div>
             ) : (
               <Link to="/dashboard">
-                <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow"
-                  style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+                <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold rounded-xl bg-white hover:bg-white/95 transition-all hover:-translate-y-0.5 border-0" style={{ color: '#1e40af' }}>
                   Zum Dashboard
                   <ArrowRight className="w-4 h-4" />
                 </Button>
@@ -244,14 +253,14 @@ export default function HomePage() {
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.25), rgba(201,168,76,0.12), transparent)' }} />
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), rgba(255,255,255,0.1), transparent)' }} />
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ EXAM TYPE SELECTOR ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ EXAM TYPE SELECTOR ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <section className="relative z-20 -mt-8 pb-12">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6">
-            <p className="text-xs tracking-[0.2em] uppercase text-white/30">Pr├╝fung / Exam</p>
+            <p className="text-xs tracking-[0.2em] uppercase text-white/30">Pr++fung / Exam</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {examTypes.map((exam) => {
@@ -262,26 +271,26 @@ export default function HomePage() {
                   onClick={() => setSelectedExam(exam.id)}
                   data-testid={`exam-type-${exam.id}`}
                   className={`relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${
-                    isActive ? 'border-[#c9a84c]/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'
+                    isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'
                   }`}
                   style={{
-                    background: isActive ? 'rgba(201,168,76,0.06)' : 'rgba(201,168,76,0.015)',
-                    boxShadow: isActive ? '0 8px 32px rgba(201,168,76,0.08)' : 'none',
+                    background: isActive ? 'hsl(var(--primary) / 0.08)' : 'rgba(255,255,255,0.03)',
+                    boxShadow: isActive ? '0 8px 32px hsl(var(--primary) / 0.15)' : 'none',
                   }}
                 >
-                  {isActive && <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-xl" style={{ background: 'linear-gradient(90deg, transparent, #c9a84c, transparent)' }} />}
+                  {isActive && <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-xl bg-primary" />}
                   <div className="text-xl mb-2">
-                    {exam.icon === 'flag_at' && '­ƒçª­ƒç╣'}
-                    {exam.icon === 'mountain' && '­ƒÅö´©Å'}
-                    {exam.icon === 'building' && '­ƒÅÖ´©Å'}
-                    {exam.icon === 'pill' && '­ƒÆè'}
+                    {exam.icon === 'flag_at' && '????'}
+                    {exam.icon === 'mountain' && '???'}
+                    {exam.icon === 'building' && '???'}
+                    {exam.icon === 'pill' && '??'}
                   </div>
-                  <h3 className={`font-semibold text-sm sm:text-base mb-1 ${isActive ? 'text-[#c9a84c]' : 'text-white/80'}`}>
+                  <h3 className={`font-semibold text-sm sm:text-base mb-1 ${isActive ? 'text-primary' : 'text-white/80'}`}>
                     {exam.name}
-                    {isActive && <span className="ml-2 text-[#c9a84c]">Ô£ô</span>}
+                    {isActive && <span className="ml-2 text-primary">?</span>}
                   </h3>
                   <p className="text-[11px] sm:text-xs text-white/30 leading-snug mb-2 line-clamp-2">{exam.subtitle}</p>
-                  <p className="text-xs font-mono" style={{ color: isActive ? '#c9a84c' : 'rgba(255,255,255,0.25)' }}>
+                  <p className="text-xs font-mono" style={{ color: isActive ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.25)' }}>
                     {exam.question_count.toLocaleString('de-DE')} Fragen
                   </p>
                 </button>
@@ -291,7 +300,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 2: LERNEN ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 2: LERNEN ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
@@ -299,27 +308,27 @@ export default function HomePage() {
           <SectionLabel number="01" text="Lernen" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Wie du lernst:<br />
-            <span style={{ color: '#c9a84c' }}>strukturiert, klar, Schritt f├╝r Schritt</span>
+            <span className="text-gradient-blue">strukturiert, klar, Schritt f++r Schritt</span>
           </h2>
           <p className="text-white/40 text-base sm:text-lg leading-relaxed max-w-xl mb-16">
-            W├ñhle dein Fachgebiet, beantworte originale Pr├╝fungsfragen und vertiefe mit KI-Erkl├ñrungen ÔÇö in deinem Tempo, mit direktem Feedback.
+            W+ï¿½hle dein Fachgebiet, beantworte originale Pr++fungsfragen und vertiefe mit KI-Erkl+ï¿½rungen ï¿½ï¿½ï¿½ in deinem Tempo, mit direktem Feedback.
           </p>
 
           <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
             {[
-              { num: "01", icon: BookOpen, title: "Fachgebiet w├ñhlen", desc: "MedAT, ├ûSDK oder deutsche Pr├╝fungsordnung ÔÇö w├ñhle deine Pr├╝fung und starte mit passgenauen Fragen." },
-              { num: "02", icon: Activity, title: "Fragen beantworten", desc: "Originalgetreue Pr├╝fungsfragen mit sofortiger Auswertung. Jede Antwort z├ñhlt f├╝r deinen Fortschritt." },
-              { num: "03", icon: Bot, title: "KI-Erkl├ñrungen", desc: "Verstehe jede Frage mit detaillierten KI-generierten Erkl├ñrungen ÔÇö als Text oder Audio." },
+              { num: "01", icon: BookOpen, title: "Fachgebiet w+ï¿½hlen", desc: "MedAT, +ï¿½SDK oder deutsche Pr++fungsordnung ï¿½ï¿½ï¿½ w+ï¿½hle deine Pr++fung und starte mit passgenauen Fragen." },
+              { num: "02", icon: Activity, title: "Fragen beantworten", desc: "Originalgetreue Pr++fungsfragen mit sofortiger Auswertung. Jede Antwort z+ï¿½hlt f++r deinen Fortschritt." },
+              { num: "03", icon: Bot, title: "KI-Erkl+ï¿½rungen", desc: "Verstehe jede Frage mit detaillierten KI-generierten Erkl+ï¿½rungen ï¿½ï¿½ï¿½ als Text oder Audio." },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
                 <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
                   <div className="flex items-center gap-2 mb-6">
-                    <span style={{ color: '#c9a84c' }}>Ôùå</span>
-                    <span className="text-xs font-mono" style={{ color: '#c9a84c' }}>{item.num}</span>
+                    <span className="text-primary">Ôùå</span>
+                    <span className="text-xs font-mono" style={{ color: 'hsl(var(--primary))' }}>{item.num}</span>
                   </div>
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6" style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.1)' }}>
-                    <Icon className="w-7 h-7" style={{ color: '#c9a84c' }} />
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6" style={{ background: 'hsl(var(--primary) / 0.06)', border: '1px solid hsl(var(--primary) / 0.1)' }}>
+                    <Icon className="w-7 h-7" style={{ color: 'hsl(var(--primary))' }} />
                   </div>
                   <h3 className="text-white font-semibold text-lg mb-3">{item.title}</h3>
                   <p className="text-white/35 text-sm leading-relaxed">{item.desc}</p>
@@ -330,7 +339,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 3: DASHBOARD ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 3: DASHBOARD ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium-alt" />
@@ -338,19 +347,19 @@ export default function HomePage() {
           <SectionLabel number="02" text="Dashboard" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Dein<br />
-            <span style={{ color: '#c9a84c' }}>digitaler Lernkompass</span>
+            <span className="text-gradient-blue">digitaler Lernkompass</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mt-12">
             {[
-              { icon: Shield, title: "Datenschutz & Sicherheit", desc: "Deine Daten bleiben vertraulich. Keine Werbung, kein Tracking. Fokussiertes Lernen in einer gesch├╝tzten Umgebung." },
-              { icon: Layers, title: "Klare Lernstruktur", desc: "Fachgebiete, Pr├╝fungsorte und Lernwerkzeuge bleiben schnell auffindbar." },
+              { icon: Shield, title: "Datenschutz & Sicherheit", desc: "Deine Daten bleiben vertraulich. Keine Werbung, kein Tracking. Fokussiertes Lernen in einer gesch++tzten Umgebung." },
+              { icon: Layers, title: "Klare Lernstruktur", desc: "Fachgebiete, Pr++fungsorte und Lernwerkzeuge bleiben schnell auffindbar." },
               { icon: Target, title: "Fortschritt im Blick", desc: "Statistiken und Lernziele zeigen, wo du sicher bist und wo Wiederholung lohnt." },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
                 <div key={i} className={`card-premium-alt p-6 section-enter-delay-${i + 1}`}>
-                  <Icon className="w-6 h-6 mb-4" style={{ color: '#c9a84c' }} />
+                  <Icon className="w-6 h-6 mb-4" style={{ color: 'hsl(var(--primary))' }} />
                   <h3 className="text-white font-semibold mb-2">{item.title}</h3>
                   <p className="text-white/35 text-sm leading-relaxed">{item.desc}</p>
                 </div>
@@ -361,54 +370,54 @@ export default function HomePage() {
           {/* Dashboard mockup card */}
           <div className="mt-16 card-premium p-8 gold-border-top">
             <div className="flex items-center gap-3 mb-6">
-              <span className="text-xs font-mono tracking-widest" style={{ color: '#c9a84c' }}>PREP ACADEMY</span>
-              <span style={{ color: '#c9a84c' }}>Ôùå</span>
+              <span className="text-xs font-mono tracking-widest" style={{ color: 'hsl(var(--primary))' }}>PREP ACADEMY</span>
+              <span className="text-primary">Ôùå</span>
               <span className="text-xs text-white/30">DASHBOARD</span>
             </div>
             <div className="grid grid-cols-3 gap-6">
-              <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
+              <div className="text-center p-6 rounded-xl" style={{ background: 'hsl(var(--primary) / 0.04)', border: '1px solid hsl(var(--primary) / 0.08)' }}>
                 <div className="text-4xl font-bold text-white">{displayNumber(totalAvailableQuestions || totalQ)}</div>
                 <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">Fragen Gesamt</div>
               </div>
-              <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
+              <div className="text-center p-6 rounded-xl" style={{ background: 'hsl(var(--primary) / 0.04)', border: '1px solid hsl(var(--primary) / 0.08)' }}>
                 <div className="text-4xl font-bold text-white">{displayNumber(activeSpecialtyCount || (Array.isArray(filteredSpecialties) ? filteredSpecialties.filter(s => s.question_count > 0).length : 0))}</div>
                 <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">Fachgebiete</div>
               </div>
-              <div className="text-center p-6 rounded-xl" style={{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.08)' }}>
-                <div className="text-4xl font-bold" style={{ color: '#c9a84c' }}>AI</div>
-                <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">KI-Erkl├ñrungen</div>
+              <div className="text-center p-6 rounded-xl" style={{ background: 'hsl(var(--primary) / 0.04)', border: '1px solid hsl(var(--primary) / 0.08)' }}>
+                <div className="text-4xl font-bold" style={{ color: 'hsl(var(--primary))' }}>AI</div>
+                <div className="text-xs text-white/30 mt-1 tracking-wider uppercase">KI-Erkl+ï¿½rungen</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 4: KI / AI ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 4: KI / AI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 relative z-10">
-          <SectionLabel number="03" text="K├╝nstliche Intelligenz" />
+          <SectionLabel number="03" text="K++nstliche Intelligenz" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
-            KI-Werkzeuge f├╝r<br />
-            <span style={{ color: '#c9a84c' }}>Fragen, Bilder und PDFs</span>
+            KI-Werkzeuge f++r<br />
+            <span className="text-gradient-blue">Fragen, Bilder und PDFs</span>
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mt-16">
             {[
-              { num: "01", icon: Bot, title: "KI-Erkl├ñrungen", desc: "Direkte Erkl├ñrungen zu Pr├╝fungsfragen, damit du nicht nur klickst, sondern verstehst." },
-              { num: "02", icon: Activity, title: "Medical Analyzer", desc: "Analyse medizinischer Bilder mit mehrstufigem KI-Fallback f├╝r sichere Einsch├ñtzungen." },
+              { num: "01", icon: Bot, title: "KI-Erkl+ï¿½rungen", desc: "Direkte Erkl+ï¿½rungen zu Pr++fungsfragen, damit du nicht nur klickst, sondern verstehst." },
+              { num: "02", icon: Activity, title: "Medical Analyzer", desc: "Analyse medizinischer Bilder mit mehrstufigem KI-Fallback f++r sichere Einsch+ï¿½tzungen." },
               { num: "03", icon: FileText, title: "PDF Notebook", desc: "Aus Skripten und PDFs entstehen Lernkarten, Zusammenfassungen, Audio und MindMaps." },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
                 <div key={item.num} className={`card-premium p-8 section-enter-delay-${i + 1}`}>
                   <div className="flex items-center gap-2 mb-6">
-                    <span style={{ color: '#c9a84c' }}>Ôùå</span>
-                    <span className="text-xs font-mono" style={{ color: '#c9a84c' }}>{item.num}</span>
+                    <span className="text-primary">Ôùå</span>
+                    <span className="text-xs font-mono" style={{ color: 'hsl(var(--primary))' }}>{item.num}</span>
                   </div>
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6" style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.1)' }}>
-                    <Icon className="w-7 h-7" style={{ color: '#c9a84c' }} />
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6" style={{ background: 'hsl(var(--primary) / 0.06)', border: '1px solid hsl(var(--primary) / 0.1)' }}>
+                    <Icon className="w-7 h-7" style={{ color: 'hsl(var(--primary))' }} />
                   </div>
                   <h3 className="text-white font-semibold text-lg mb-3">{item.title}</h3>
                   <p className="text-white/35 text-sm leading-relaxed">{item.desc}</p>
@@ -419,7 +428,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 5: FACHGEBIETE (Specialties) ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 5: FACHGEBIETE (Specialties) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium-alt" />
@@ -427,19 +436,19 @@ export default function HomePage() {
           <SectionLabel number="04" text="Fachgebiete" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 leading-tight heading-premium">
             Medizinische<br />
-            <span style={{ color: '#c9a84c' }}>Fachgebiete</span>
+            <span className="text-gradient-blue">Fachgebiete</span>
           </h2>
 
           {fetchError ? (
             <div className="text-center py-16 space-y-4">
-              <p className="text-sm text-white/40">Verbindungsfehler ÔÇö Fachgebiete konnten nicht geladen werden</p>
+              <p className="text-sm text-white/40">Verbindungsfehler ï¿½ï¿½ï¿½ Fachgebiete konnten nicht geladen werden</p>
               <button onClick={loadHomepageData} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-medium text-white/60 hover:text-white hover:border-white/20 transition-all" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
                 Erneut versuchen
               </button>
             </div>
           ) : specialties.length === 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => <div key={i} className="min-h-[116px] rounded-xl animate-pulse" style={{ background: 'rgba(201,168,76,0.03)' }} />)}
+              {[...Array(6)].map((_, i) => <div key={i} className="min-h-[116px] rounded-xl animate-pulse" style={{ background: 'hsl(var(--primary) / 0.03)' }} />)}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -451,8 +460,8 @@ export default function HomePage() {
                   <Link key={specialty.id} to={user ? `/specialty/${specialty.id}${locParam}` : "/login"} data-testid={`specialty-card-${specialty.id}`}>
                     <div className="card-premium p-5 group cursor-pointer">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(201,168,76,0.06)' }}>
-                          <IconComponent className="w-6 h-6" style={{ color: '#c9a84c' }} />
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'hsl(var(--primary) / 0.06)' }}>
+                          <IconComponent className="w-6 h-6" style={{ color: 'hsl(var(--primary))' }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-white text-sm truncate">{specialty.name_de}</h3>
@@ -466,7 +475,7 @@ export default function HomePage() {
               })}
               {filteredSpecialties.length === 0 && !loading && (
                 <div className="col-span-full text-center py-12">
-                  <p className="text-white/30 text-sm">Noch keine Fragen f├╝r diese Pr├╝fung vorhanden</p>
+                  <p className="text-white/30 text-sm">Noch keine Fragen f++r diese Pr++fung vorhanden</p>
                 </div>
               )}
             </div>
@@ -477,12 +486,12 @@ export default function HomePage() {
             <Link to="/exam-simulation" className="block mt-12">
               <div className="card-premium card-raised p-6 sm:p-8 group cursor-pointer flex items-center justify-between" data-testid="exam-simulation-cta">
                 <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.08)' }}>
-                    <Clock className="w-7 h-7" style={{ color: '#c9a84c' }} />
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'hsl(var(--primary) / 0.08)' }}>
+                    <Clock className="w-7 h-7" style={{ color: 'hsl(var(--primary))' }} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Pr├╝fungssimulation</h3>
-                    <p className="text-white/30 text-sm">250 Fragen ┬À 4 Stunden ┬À 60% zum Bestehen</p>
+                    <h3 className="text-lg font-semibold text-white">Pr++fungssimulation</h3>
+                    <p className="text-white/30 text-sm">250 Fragen -ï¿½ 4 Stunden -ï¿½ 60% zum Bestehen</p>
                   </div>
                 </div>
                 <ArrowRight className="w-5 h-5 text-white/20 group-hover:text-white/60 transition-colors" />
@@ -492,7 +501,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 6: MODULE ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 6: MODULE ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 section-premium" />
@@ -500,18 +509,18 @@ export default function HomePage() {
           <SectionLabel number="05" text="Module" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-16 heading-premium">
             Mehr als ein Quiz:<br />
-            <span style={{ color: '#c9a84c' }}>ein medizinischer Lernraum</span>
+            <span className="text-gradient-blue">ein medizinischer Lernraum</span>
           </h2>
 
           <div className="grid md:grid-cols-4 gap-6">
             {[
-              { step: "01", title: "Quiz", desc: "Fachbezogene Pr├╝fungsvorbereitung mit echten medizinischen Fragen." },
-              { step: "02", title: "Analyzer", desc: "Medizinische Bildanalyse als zus├ñtzliches Werkzeug f├╝r klinisches Denken." },
+              { step: "01", title: "Quiz", desc: "Fachbezogene Pr++fungsvorbereitung mit echten medizinischen Fragen." },
+              { step: "02", title: "Analyzer", desc: "Medizinische Bildanalyse als zus+ï¿½tzliches Werkzeug f++r klinisches Denken." },
               { step: "03", title: "Notebook", desc: "PDFs in strukturierte Lernkarten, Zusammenfassungen und Audio verwandeln." },
-              { step: "04", title: "Podcast", desc: "T├ñgliche Wiederholung als kompakte medizinische Audio-Lerneinheit." },
+              { step: "04", title: "Podcast", desc: "T+ï¿½gliche Wiederholung als kompakte medizinische Audio-Lerneinheit." },
             ].map((item, i) => (
               <div key={item.step} className={`card-premium p-6 section-enter-delay-${i + 1}`}>
-                <div className="text-5xl font-bold mb-4" style={{ color: 'rgba(201,168,76,0.08)' }}>{item.step}</div>
+                <div className="text-5xl font-bold mb-4" style={{ color: 'hsl(var(--primary) / 0.08)' }}>{item.step}</div>
                 <h3 className="font-semibold text-white mb-2 uppercase text-sm tracking-wider">{item.title}</h3>
                 <p className="text-white/35 text-sm leading-relaxed">{item.desc}</p>
               </div>
@@ -520,7 +529,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 6.5: ZUGANG ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 6.5: ZUGANG ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter" id="pricing">
         <div className="absolute inset-0 section-premium-alt" />
@@ -528,26 +537,26 @@ export default function HomePage() {
           <SectionLabel number="06" text="Zugang" />
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Medizinisches Lernen<br />
-            <span style={{ color: '#c9a84c' }}>kostenlos f├╝r alle</span>
+            <span className="text-gradient-blue">kostenlos f++r alle</span>
           </h2>
-          <p className="text-white/40 mb-16 max-w-xl">Registrieren Sie sich kostenlos und starten Sie sofort. Neue Nutzer erhalten 30 Tage Testphase f├╝r die erweiterten Lernfunktionen; danach werden Zug├ñnge gezielt freigeschaltet.</p>
+          <p className="text-white/40 mb-16 max-w-xl">Registrieren Sie sich kostenlos und starten Sie sofort. Neue Nutzer erhalten 30 Tage Testphase f++r die erweiterten Lernfunktionen; danach werden Zug+ï¿½nge gezielt freigeschaltet.</p>
 
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {/* Free for all */}
             <div className="card-premium p-8">
-              <div className="text-xs font-mono tracking-widest text-white/30 uppercase mb-4">F├╝r alle</div>
+              <div className="text-xs font-mono tracking-widest text-white/30 uppercase mb-4">F++r alle</div>
               <div className="text-4xl font-bold text-white mb-1">Kostenlos</div>
-              <p className="text-sm text-white/30 mb-8">Nach Registrierung sofort verf├╝gbar</p>
+              <p className="text-sm text-white/30 mb-8">Nach Registrierung sofort verf++gbar</p>
               <ul className="space-y-3 mb-8">
                 {[
                   "Study Mode frei nutzbar",
-                  "30 Tage Testphase f├╝r Lernfunktionen",
+                  "30 Tage Testphase f++r Lernfunktionen",
                   "Fortschrittsstatistiken",
-                  "T├ñgliche Lernziele",
+                  "T+ï¿½gliche Lernziele",
                   "Dunkelmodus & mobile Ansicht",
                 ].map(f => (
                   <li key={f} className="flex items-center gap-3 text-sm text-white/50">
-                    <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#c9a84c' }} />
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'hsl(var(--primary))' }} />
                     {f}
                   </li>
                 ))}
@@ -561,7 +570,7 @@ export default function HomePage() {
               ) : (
                 <Link to="/dashboard" className="block">
                   <button className="w-full py-3 rounded-xl border text-sm font-semibold text-white/40 cursor-default" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                    Bereits registriert Ô£ô
+                    Bereits registriert Ô£ï¿½
                   </button>
                 </Link>
               )}
@@ -570,53 +579,52 @@ export default function HomePage() {
             {/* Admin-gated */}
             <div className="card-premium p-8 gold-border-top">
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-xs font-mono tracking-widest uppercase" style={{ color: '#c9a84c' }}>Erweiterte Funktionen</span>
+                <span className="text-xs font-mono tracking-widest uppercase" style={{ color: 'hsl(var(--primary))' }}>Erweiterte Funktionen</span>
               </div>
               <div className="text-2xl font-bold text-white mb-1">Auf Anfrage</div>
               <p className="text-sm text-white/30 mb-8">Freischaltung durch Administrator</p>
               <ul className="space-y-3 mb-8">
                 {[
                   "Medizinische Bildanalyse (Analyzer)",
-                  "Notebook ÔÇö PDF zu Lernkarten & Audio",
-                  "T├ñglicher Medizin-Podcast",
+                  "Notebook ï¿½ï¿½ï¿½ PDF zu Lernkarten & Audio",
+                  "T+ï¿½glicher Medizin-Podcast",
                   "Hierarchische Wissensvernetzung",
                   "Audio-Zusammenfassungen & MindMaps",
                 ].map(f => (
                   <li key={f} className="flex items-center gap-3 text-sm text-white/70">
-                    <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#c9a84c' }} />
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'hsl(var(--primary))' }} />
                     {f}
                   </li>
                 ))}
               </ul>
               <button onClick={requestAdvancedAccess} disabled={requestingAccess}
-                className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
-                {requestingAccess ? "Wird gesendetÔÇª" : "Zugang anfragen"}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50 btn-medical">
+                {requestingAccess ? "Wird gesendetï¿½Çª" : "Zugang anfragen"}
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 7: FAZIT / CTA ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
+      {/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ SECTION 7: FAZIT / CTA ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */}
       <div className="section-divider" />
       <section className="section-spacing relative section-enter">
         <div className="absolute inset-0 bg-premium-dark" />
         <div className="absolute inset-0 section-glow-center" />
-        <div className="absolute top-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.1), transparent)' }} />
+        <div className="absolute top-0 left-0 w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.1), transparent)' }} />
         <div className="max-w-4xl mx-auto px-6 sm:px-10 lg:px-16 text-center relative z-10">
           <div className="flex items-center justify-center gap-2 mb-8">
-            <span style={{ color: '#c9a84c' }}>Ôùå</span>
-            <span className="text-xs tracking-[0.2em] uppercase text-white/30">Fazit ÔÇö Ihre professionelle Zukunft</span>
+            <span className="text-primary">Ôùå</span>
+            <span className="text-xs tracking-[0.2em] uppercase text-white/30">Fazit ï¿½ï¿½ï¿½ Ihre professionelle Zukunft</span>
           </div>
 
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 heading-premium">
             Ihre berufliche<br />
-            <span style={{ color: '#c9a84c' }}>Zukunft beginnt hier</span>
+            <span className="text-gradient-blue">Zukunft beginnt hier</span>
           </h2>
 
           <p className="text-white/40 text-lg leading-relaxed mb-12 max-w-2xl mx-auto">
-            Prep Academy ist Ihr strategischer Partner f├╝r den Erfolg in der ├Âsterreichischen Medizinwelt. Nutzen Sie die fortschrittlichste Technologie f├╝r Ihre medizinische Karriere.
+            Prep Academy ist Ihr strategischer Partner f++r den Erfolg in der +ï¿½sterreichischen Medizinwelt. Nutzen Sie die fortschrittlichste Technologie f++r Ihre medizinische Karriere.
           </p>
 
           <div className="flex items-center justify-center gap-8 mb-12 text-xs tracking-[0.2em] uppercase text-white/20">
@@ -627,14 +635,14 @@ export default function HomePage() {
 
           {!user ? (
             <Link to="/register">
-              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="cta-register-btn">
+              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-medical" data-testid="cta-register-btn">
                 Jetzt Starten
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
           ) : (
             <Link to="/dashboard">
-              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-gold-glow" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-medical">
                 Zum Dashboard
                 <ArrowRight className="w-4 h-4" />
               </Button>

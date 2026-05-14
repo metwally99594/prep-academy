@@ -323,12 +323,12 @@ export const Layout = () => {
   return (
     <div className="app-container min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-2xl border-b border-border/30" style={{ borderImage: 'linear-gradient(90deg, transparent, hsl(42 65% 52% / 0.15), transparent) 1' }}>
+      <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-2xl border-b border-primary/15">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group flex-shrink-0" data-testid="logo-link">
-              <div className="w-12 h-12 rounded-lg overflow-hidden border border-[#c9a84c]/30 flex-shrink-0">
+              <div className="w-12 h-12 rounded-lg overflow-hidden border border-primary/25 flex-shrink-0">
                 <img src="/logo-elite.png" alt="Prep Academy" className="w-full h-full object-cover" />
               </div>
               <span className="text-base font-semibold hidden lg:block whitespace-nowrap">Prep Academy</span>
@@ -1024,7 +1024,7 @@ export const Layout = () => {
       </main>
 
       {/* Footer */}
-      <footer className="py-8 mt-auto" style={{ borderTop: '1px solid transparent', borderImage: 'linear-gradient(90deg, transparent, hsl(42 65% 52% / 0.15), transparent) 1' }}>
+      <footer className="py-8 mt-auto border-t border-primary/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
