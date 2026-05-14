@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
 import { API, useAuth } from "@/App";
+import { fetchWithTimeout } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity,
@@ -61,39 +61,47 @@ export default function HomePage() {
   const handleSplashDone = useCallback(() => { setShowSplash(false); }, []);
 
   const loadHomepageData = useCallback(() => {
+    let cancelled = false;
     setSpecialtiesLoading(true);
     setExamTypesLoading(true);
     setFetchError(null);
 
-    axios.get(`${API}/specialties`)
+    fetchWithTimeout(`${API}/specialties`)
       .then(res => {
+        if (cancelled) return;
         const specs = Array.isArray(res.data) ? res.data : [];
-        if (process.env.NODE_ENV === "development" && !Array.isArray(res.data))
-          console.warn("[HomePage] /specialties returned non-array", res.data);
         setSpecialties(specs);
       })
       .catch(err => {
-        if (process.env.NODE_ENV === "development") console.error("[HomePage] /specialties failed", err);
-        setFetchError(err?.message || "Fehler beim Laden");
+        if (cancelled) return;
+        if (err.name === "AbortError" || err.code === "ERR_CANCELED" || err.message?.includes("timed out")) {
+          setFetchError("Server antwortet nicht — bitte später erneut versuchen");
+        } else {
+          setFetchError(err?.message || "Fehler beim Laden");
+        }
       })
-      .finally(() => setSpecialtiesLoading(false));
+      .finally(() => { if (!cancelled) setSpecialtiesLoading(false); });
 
-    axios.get(`${API}/exam-types`)
+    fetchWithTimeout(`${API}/exam-types`)
       .then(res => {
+        if (cancelled) return;
         const exams = Array.isArray(res.data) ? res.data : [];
-        if (process.env.NODE_ENV === "development" && !Array.isArray(res.data))
-          console.warn("[HomePage] /exam-types returned non-array", res.data);
         setExamTypes(exams);
         const defaultExam = exams.find(e => e.question_count > 0) || exams[0];
         setSelectedExam(defaultExam?.id || null);
       })
       .catch(err => {
-        if (process.env.NODE_ENV === "development") console.error("[HomePage] /exam-types failed", err);
+        if (cancelled) return;
       })
-      .finally(() => setExamTypesLoading(false));
+      .finally(() => { if (!cancelled) setExamTypesLoading(false); });
+
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { loadHomepageData(); }, [loadHomepageData]);
+  useEffect(() => {
+    const cleanup = loadHomepageData();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [loadHomepageData]);
 
   const requestAdvancedAccess = async () => {
     if (!token) { toast.error("Bitte melden Sie sich an"); return; }

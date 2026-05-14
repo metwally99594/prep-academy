@@ -47,4 +47,13 @@ apiClient.interceptors.response.use(
   }
 );
 
+// Fetch with timeout using AbortController.
+// Rejects cleanly after `timeoutMs` if no response. Safe fallback for cold
+// Render starts or slow networks — homepage sections render with empty state.
+export function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return axios.get(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
 export default apiClient;
