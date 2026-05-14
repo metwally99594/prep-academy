@@ -50,8 +50,6 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!token) return;
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 120000);
-    return () => clearInterval(interval);
   }, [fetchNotifications, token]);
 
   const markAllRead = async () => {

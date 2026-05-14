@@ -13,6 +13,7 @@ import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import Layout from "@/components/Layout";
+import DebugPage from "@/pages/DebugPage";
 
 // Lazy load non-critical pages
 const ExamSimulationPage = lazy(() => import("@/pages/ExamSimulationPage"));
@@ -118,15 +119,20 @@ const AuthProvider = ({ children }) => {
         setLoading(false);
         return;
       }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       try {
         const response = await axios.get(`${API}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
         setUser(response.data);
       } catch (error) {
         console.error("Token verification failed:", error);
         localStorage.removeItem("token");
         setToken(null);
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
     setLoading(false);
@@ -136,32 +142,6 @@ const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  // Heartbeat to track online status - use user.id to avoid re-runs from object reference changes
-  const userId = user?.id;
-  useEffect(() => {
-    if (!token || !userId) return;
-    
-    let isMounted = true;
-    const sendHeartbeat = async () => {
-      if (!isMounted) return;
-      try {
-        await axios.post(`${API}/admin/activity/heartbeat`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (error) {
-        // Silently fail - not critical
-      }
-    };
-    
-    // Send immediately and every 2 minutes
-    sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 120000);
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [token, userId]);
 
   // Re-verify auth when tab becomes visible (handles stale tokens after sleep)
   useEffect(() => {
@@ -183,6 +163,13 @@ const AuthProvider = ({ children }) => {
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  // Graceful logout when apiClient intercepts a 401 (token expired/revoked)
+  useEffect(() => {
+    const handle401 = () => { setUser(null); setToken(null); };
+    window.addEventListener("auth:logout", handle401);
+    return () => window.removeEventListener("auth:logout", handle401);
   }, []);
 
   const login = async (email, password) => {
@@ -251,6 +238,7 @@ function AppRouter() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
+        <Route path="/__debug" element={<DebugPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
@@ -361,7 +349,9 @@ function AppRouter() {
 function App() {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.getRegistrations()
+        .then(regs => { regs.forEach(r => r.unregister()); })
+        .catch(() => {});
     }
   }, []);
 

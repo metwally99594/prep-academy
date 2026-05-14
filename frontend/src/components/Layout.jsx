@@ -212,8 +212,6 @@ export const Layout = () => {
       } catch { /* silent */ }
     };
     fetch();
-    const id = setInterval(() => { if (!document.hidden) fetch(); }, 60000);
-    return () => clearInterval(id);
   }, [token]);
 
   const handleLogout = () => {

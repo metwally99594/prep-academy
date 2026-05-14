@@ -14,11 +14,6 @@ self.addEventListener('activate', (event) => {
       await Promise.all(keys.map((k) => caches.delete(k)));
       const regs = await self.registration ? [self.registration] : [];
       for (const r of regs) { try { await r.unregister(); } catch (e) {} }
-      const clientList = await self.clients.matchAll({ type: 'window' });
-      for (const c of clientList) {
-        try { c.navigate(c.url); } catch (e) {}
-      }
     } catch (e) {}
   })());
-  self.clients.claim();
 });
