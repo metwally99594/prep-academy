@@ -118,15 +118,20 @@ const AuthProvider = ({ children }) => {
         setLoading(false);
         return;
       }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       try {
         const response = await axios.get(`${API}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
         setUser(response.data);
       } catch (error) {
         console.error("Token verification failed:", error);
         localStorage.removeItem("token");
         setToken(null);
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
     setLoading(false);

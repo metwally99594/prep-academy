@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
 import { API, useAuth } from "@/App";
+import { fetchWithTimeout } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity,
@@ -48,37 +48,60 @@ export default function HomePage() {
   const [specialties, setSpecialties] = useState([]);
   const [examTypes, setExamTypes] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [specialtiesLoading, setSpecialtiesLoading] = useState(true);
+  const [examTypesLoading, setExamTypesLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const { user, token } = useAuth();
   const [requestingAccess, setRequestingAccess] = useState(false);
-  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("splashSeen"));
-  const handleSplashDone = useCallback(() => { setShowSplash(false); sessionStorage.setItem("splashSeen", "1"); }, []);
+  const [showSplash, setShowSplash] = useState(() => {
+    if (sessionStorage.getItem("splashSeen")) return false;
+    sessionStorage.setItem("splashSeen", "1");
+    return true;
+  });
+  const handleSplashDone = useCallback(() => { setShowSplash(false); }, []);
 
   const loadHomepageData = useCallback(() => {
-    setLoading(true);
+    let cancelled = false;
+    setSpecialtiesLoading(true);
+    setExamTypesLoading(true);
     setFetchError(null);
-    Promise.all([
-      axios.get(`${API}/specialties`),
-      axios.get(`${API}/exam-types`),
-    ]).then(([specRes, examRes]) => {
-      const specs = Array.isArray(specRes.data) ? specRes.data : [];
-      const exams = Array.isArray(examRes.data) ? examRes.data : [];
-      if (process.env.NODE_ENV === "development") {
-        if (!Array.isArray(specRes.data)) console.warn("[HomePage] /specialties returned non-array", specRes.data);
-        if (!Array.isArray(examRes.data)) console.warn("[HomePage] /exam-types returned non-array", examRes.data);
-      }
-      setSpecialties(specs);
-      setExamTypes(exams);
-      const defaultExam = exams.find(e => e.question_count > 0) || exams[0];
-      setSelectedExam(defaultExam?.id || null);
-    }).catch(err => {
-      if (process.env.NODE_ENV === "development") console.error("[HomePage] bootstrap failed", err);
-      setFetchError(err?.message || "Fehler beim Laden");
-    }).finally(() => setLoading(false));
+
+    fetchWithTimeout(`${API}/specialties`)
+      .then(res => {
+        if (cancelled) return;
+        const specs = Array.isArray(res.data) ? res.data : [];
+        setSpecialties(specs);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        if (err.name === "AbortError" || err.code === "ERR_CANCELED" || err.message?.includes("timed out")) {
+          setFetchError("Server antwortet nicht — bitte später erneut versuchen");
+        } else {
+          setFetchError(err?.message || "Fehler beim Laden");
+        }
+      })
+      .finally(() => { if (!cancelled) setSpecialtiesLoading(false); });
+
+    fetchWithTimeout(`${API}/exam-types`)
+      .then(res => {
+        if (cancelled) return;
+        const exams = Array.isArray(res.data) ? res.data : [];
+        setExamTypes(exams);
+        const defaultExam = exams.find(e => e.question_count > 0) || exams[0];
+        setSelectedExam(defaultExam?.id || null);
+      })
+      .catch(err => {
+        if (cancelled) return;
+      })
+      .finally(() => { if (!cancelled) setExamTypesLoading(false); });
+
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { loadHomepageData(); }, [loadHomepageData]);
+  useEffect(() => {
+    const cleanup = loadHomepageData();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [loadHomepageData]);
 
   const requestAdvancedAccess = async () => {
     if (!token) { toast.error("Bitte melden Sie sich an"); return; }
@@ -128,9 +151,9 @@ export default function HomePage() {
   const activeSpecialtyCount = useMemo(() => specialties.filter(sp => (sp.question_count || 0) > 0).length, [specialties]);
 
   const displayNumber = useCallback((value) => {
-    if (loading) return "...";
+    if (specialtiesLoading) return "...";
     return value > 0 ? value.toLocaleString("de-DE") : "Live";
-  }, [loading]);
+  }, [specialtiesLoading]);
 
   return (
     <div style={{ background: '#06081a', color: '#e8e0d0' }}>
@@ -434,14 +457,14 @@ export default function HomePage() {
             <span style={{ color: '#c9a84c' }}>Fachgebiete</span>
           </h2>
 
-          {fetchError && !loading ? (
+          {fetchError && !specialtiesLoading ? (
             <div className="text-center py-16 space-y-4">
               <p className="text-sm text-white/40">Verbindungsfehler — Fachgebiete konnten nicht geladen werden</p>
               <button onClick={loadHomepageData} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-medium text-white/60 hover:text-white hover:border-white/20 transition-all" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
                 Erneut versuchen
               </button>
             </div>
-          ) : loading ? (
+          ) : specialtiesLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => <div key={i} className="min-h-[116px] rounded-xl animate-pulse" style={{ background: 'rgba(201,168,76,0.03)' }} />)}
             </div>
@@ -468,7 +491,7 @@ export default function HomePage() {
                   </Link>
                 );
               })}
-              {filteredSpecialties.length === 0 && !loading && (
+              {filteredSpecialties.length === 0 && !specialtiesLoading && (
                 <div className="col-span-full text-center py-12">
                   <p className="text-white/30 text-sm">Noch keine Fragen für diese Prüfung vorhanden</p>
                 </div>

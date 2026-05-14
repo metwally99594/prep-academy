@@ -44,7 +44,7 @@ export default function DragDrop({ question, submitted, answer, onChange, result
               key={item.id}
               onClick={() => handleItemClick(item.id)}
               disabled={submitted}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-[color,background-color,border-color,box-shadow] ${
                 selectedItem === item.id
                   ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c] shadow-sm'
                   : 'border-border/40 bg-muted/30 hover:border-[#c9a84c]/40 hover:bg-muted/50'
@@ -73,7 +73,7 @@ export default function DragDrop({ question, submitted, answer, onChange, result
             <div
               key={cat.id}
               onClick={() => handleCategoryClick(cat.id)}
-              className={`p-3 rounded-xl border-2 min-h-[80px] transition-all ${
+              className={`p-3 rounded-xl border-2 min-h-[80px] transition-[color,background-color,border-color] ${
                 submitted
                   ? 'cursor-default border-border/20 bg-muted/5'
                   : isTarget

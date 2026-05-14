@@ -110,8 +110,8 @@ export const RADII = {
  * Transition presets for interactive elements.
  */
 export const TRANSITIONS = {
-  interactive: "transition-all duration-200",
+  interactive: "transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-200",
   color: "transition-colors duration-150",
-  lift: "hover:-translate-y-0.5 hover:shadow-md transition-all duration-200",
+  lift: "hover:-translate-y-0.5 hover:shadow-md transition-[transform,box-shadow] duration-200",
   fade: "transition-opacity duration-200",
 };

@@ -96,6 +96,10 @@ export default function QuizPage() {
   const [showReview, setShowReview] = useState(false);
   const [highlights, setHighlights] = useState({}); // { questionIndex: [{text, color}] }
 
+  // In-session caches to avoid redundant per-question API calls
+  const favoritesCache = useRef({}); // questionId → boolean
+  const notesCache = useRef({});     // questionId → string
+
   // TTS — Read aloud the current question
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [ttsLoading, setTtsLoading] = useState(false);
@@ -310,31 +314,38 @@ export default function QuizPage() {
     toast.error("Zeit abgelaufen!");
   };
 
-  // Favorites
+  // Favorites — cached per question to avoid a round-trip on every navigation
   useEffect(() => {
-    const checkFavorite = async () => {
-      if (!currentQuestion || !token) return;
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const response = await axios.get(`${API}/favorites/check/${currentQuestion.id}`, { headers });
-        setIsFavorite(response.data.is_favorite);
-      } catch {}
-    };
-    checkFavorite();
+    if (!currentQuestion || !token) return;
+    const qId = currentQuestion.id;
+    if (qId in favoritesCache.current) {
+      setIsFavorite(favoritesCache.current[qId]);
+      return;
+    }
+    axios.get(`${API}/favorites/check/${qId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        favoritesCache.current[qId] = res.data.is_favorite;
+        setIsFavorite(res.data.is_favorite);
+      })
+      .catch(() => {});
   }, [currentQuestion, token]);
 
-  // Notes
+  // Notes — cached per question to avoid a round-trip on every navigation
   useEffect(() => {
-    const fetchNote = async () => {
-      if (!currentQuestion || !token) return;
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const res = await axios.get(`${API}/notes/${currentQuestion.id}`, { headers });
-        setNoteText(res.data.text || "");
-      } catch { setNoteText(""); }
-    };
-    fetchNote();
     setNoteOpen(false);
+    if (!currentQuestion || !token) return;
+    const qId = currentQuestion.id;
+    if (qId in notesCache.current) {
+      setNoteText(notesCache.current[qId]);
+      return;
+    }
+    axios.get(`${API}/notes/${qId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        const text = res.data.text || "";
+        notesCache.current[qId] = text;
+        setNoteText(text);
+      })
+      .catch(() => { setNoteText(""); });
   }, [currentQuestion, token]);
 
   // When navigating to a question, restore its state
@@ -388,6 +399,7 @@ export default function QuizPage() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post(`${API}/notes`, { question_id: currentQuestion.id, text: noteText }, { headers });
+      notesCache.current[currentQuestion.id] = noteText;
       toast.success("Notiz gespeichert");
       setNoteOpen(false);
     } catch { toast.error("Fehler beim Speichern"); }
@@ -499,9 +511,11 @@ export default function QuizPage() {
     if (!currentQuestion) return;
     try {
       const headers = { Authorization: `Bearer ${token}` };
+      const newVal = !isFavorite;
       if (isFavorite) { await axios.delete(`${API}/favorites/${currentQuestion.id}`, { headers }); toast.success("Aus Favoriten entfernt"); }
       else { await axios.post(`${API}/favorites`, { question_id: currentQuestion.id }, { headers }); toast.success("Zu Favoriten hinzugefügt"); }
-      setIsFavorite(!isFavorite);
+      favoritesCache.current[currentQuestion.id] = newVal;
+      setIsFavorite(newVal);
     } catch { toast.error("Fehler beim Aktualisieren der Favoriten"); }
   };
 
@@ -752,7 +766,7 @@ export default function QuizPage() {
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
-      <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden'} fixed md:relative top-0 left-0 h-full md:h-auto w-64 md:w-56 lg:w-60 flex-shrink-0 transition-all duration-300 z-40 md:z-auto bg-background md:bg-transparent border-r md:border-0 border-border/30 overflow-y-auto`}>
+      <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden'} fixed md:relative top-0 left-0 h-full md:h-auto w-64 md:w-56 lg:w-60 flex-shrink-0 transition-[transform,width] duration-300 z-40 md:z-auto bg-background md:bg-transparent border-r md:border-0 border-border/30 overflow-y-auto`}>
         <div className="sticky top-20 p-3 space-y-3">
           {/* Progress header */}
           <div className="text-xs text-muted-foreground font-mono">

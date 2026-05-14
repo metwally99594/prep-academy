@@ -357,7 +357,7 @@ export default function ExamSimulationPage() {
               <button
                 key={city.id}
                 onClick={() => setSelectedCity(city.id)}
-                className={`p-6 rounded-xl border-2 transition-all text-center ${
+                className={`p-6 rounded-xl border-2 transition-[color,background-color,border-color] text-center ${
                   selectedCity === city.id
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-primary/50'
@@ -462,7 +462,7 @@ export default function ExamSimulationPage() {
       <div className="flex min-h-[calc(100vh-4rem)]" data-testid="exam-stage">
         {/* ═══ SIDEBAR - Question Grid ═══ */}
         {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
-        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden'} fixed md:relative top-0 left-0 h-full md:h-auto w-64 md:w-56 lg:w-60 flex-shrink-0 transition-all duration-300 z-40 md:z-auto bg-background md:bg-transparent border-r md:border-0 border-border/30 overflow-y-auto`}>
+        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden'} fixed md:relative top-0 left-0 h-full md:h-auto w-64 md:w-56 lg:w-60 flex-shrink-0 transition-[transform,width] duration-300 z-40 md:z-auto bg-background md:bg-transparent border-r md:border-0 border-border/30 overflow-y-auto`}>
           <div className="sticky top-20 p-3 space-y-3">
             {/* Timer in sidebar */}
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm ${timeRemaining < 600 ? 'bg-red-500/20 text-red-500' : 'bg-muted/50 text-foreground'}`}>
@@ -493,7 +493,7 @@ export default function ExamSimulationPage() {
                 if (isCurrent) bg += ' ring-2 ring-[#c9a84c]';
                 return (
                   <button key={idx} onClick={() => goToQuestion(idx)}
-                    className={`w-8 h-8 rounded-md text-xs font-mono font-semibold transition-all ${bg}`}
+                    className={`w-8 h-8 rounded-md text-xs font-mono font-semibold transition-[color,background-color,box-shadow] ${bg}`}
                     data-testid={`sim-grid-btn-${idx}`}>
                     {idx + 1}
                   </button>
