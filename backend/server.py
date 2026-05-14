@@ -4722,6 +4722,10 @@ async def app_root():
 async def root():
     return {"message": "Medical MCQ API", "version": "1.0.0"}
 
+@api_router.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 # Include routers
 app.include_router(api_router)
 
