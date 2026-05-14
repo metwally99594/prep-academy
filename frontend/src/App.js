@@ -13,6 +13,7 @@ import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import Layout from "@/components/Layout";
+import DebugPage from "@/pages/DebugPage";
 
 // Lazy load non-critical pages
 const ExamSimulationPage = lazy(() => import("@/pages/ExamSimulationPage"));
@@ -237,6 +238,7 @@ function AppRouter() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
+        <Route path="/__debug" element={<DebugPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
