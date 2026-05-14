@@ -127,7 +127,7 @@ export default function HomePage() {
 
   return (
     <div style={{ background: '#06081a', color: '#e8e0d0' }}>
-      {showSplash && <SplashOverlay onDone={handleSplashDone} />}
+      {!user && showSplash && <SplashOverlay onDone={handleSplashDone} />}
 
       {/* ═══════ SECTION 1: HERO ═══════ */}
       <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-premium-dark" data-testid="hero-section">

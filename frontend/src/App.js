@@ -7,13 +7,14 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { Loader2 } from "lucide-react";
 
-// Eager load critical pages
+// Eager load critical pages — dashboard is the primary destination after login,
+// lazy loading it adds an unnecessary Suspense spinner during the login→dashboard transition.
 import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
+import DashboardPage from "@/pages/DashboardPage";
 import Layout from "@/components/Layout";
 
 // Lazy load non-critical pages
-const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
 const ExamSimulationPage = lazy(() => import("@/pages/ExamSimulationPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 // AuthCallback removed - Google Auth disabled
@@ -109,6 +110,10 @@ const AuthProvider = ({ children }) => {
 
   const checkAuth = useCallback(async () => {
     if (token) {
+      if (user) {
+        setLoading(false);
+        return;
+      }
       try {
         const response = await axios.get(`${API}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -121,7 +126,7 @@ const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
-  }, [token]);
+  }, [token, user]);
 
   useEffect(() => {
     checkAuth();

@@ -43,7 +43,6 @@ export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [weeklyActivity, setWeeklyActivity] = useState([]);
   const [gamification, setGamification] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [examDateOpen, setExamDateOpen] = useState(false);
   const [selectedExamDate, setSelectedExamDate] = useState(null);
   const [weaknessMap, setWeaknessMap] = useState(null);
@@ -56,33 +55,23 @@ export default function DashboardPage() {
   const [challengeAll, setChallengeAll] = useState(false);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const [statsRes, activityRes, gamRes] = await Promise.all([
-          axios.get(`${API}/dashboard/stats`, { headers }),
-          axios.get(`${API}/dashboard/weekly-activity`, { headers }),
-          axios.get(`${API}/gamification/profile`, { headers }),
-        ]);
-        setStats(statsRes.data);
-        setWeeklyActivity(activityRes.data);
-        setGamification(gamRes.data);
-        // Load weakness map and percentile
-        try {
-          const [wmRes, pRes] = await Promise.all([
-            axios.get(`${API}/dashboard/weakness-map`, { headers }),
-            axios.get(`${API}/dashboard/percentile`, { headers }),
-          ]);
-          setWeaknessMap(wmRes.data);
-          setPercentile(pRes.data);
-        } catch { /* non-critical */ }
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (token) fetchDashboardData();
+    if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      axios.get(`${API}/dashboard/stats`, { headers }),
+      axios.get(`${API}/dashboard/weekly-activity`, { headers }),
+      axios.get(`${API}/gamification/profile`, { headers }),
+      axios.get(`${API}/dashboard/weakness-map`, { headers }).catch(() => ({ data: null })),
+      axios.get(`${API}/dashboard/percentile`, { headers }).catch(() => ({ data: null })),
+    ]).then(([statsRes, activityRes, gamRes, wmRes, pRes]) => {
+      setStats(statsRes.data);
+      setWeeklyActivity(activityRes.data);
+      setGamification(gamRes.data);
+      setWeaknessMap(wmRes.data);
+      setPercentile(pRes.data);
+    }).catch(error => {
+      console.error("Failed to fetch dashboard data:", error);
+    });
   }, [token]);
 
   const getDaysUntilExam = () => {
@@ -127,21 +116,6 @@ export default function DashboardPage() {
 
   const daysUntilExam = getDaysUntilExam();
   const weeklyTotal = weeklyActivity.reduce((sum, day) => sum + day.questions, 0);
-
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid gap-6">
-          <div className="skeleton h-40 rounded-2xl" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-24 rounded-xl" />)}
-          </div>
-          <div className="skeleton h-64 rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
-
   const level = gamification?.level;
   const xp = gamification?.xp || 0;
   const badges = gamification?.badges || [];
