@@ -446,27 +446,17 @@ code, .font-mono {
    SECTION BACKGROUNDS
 ══════════════════════════════════════════ */
 
+/* Premium dark sections — always dark in both light & dark mode
+   (these sections have white text designed for dark backgrounds) */
 .bg-premium-dark {
-    background: hsl(var(--background));
-}
-
-.dark .bg-premium-dark {
     background: #080d1a;
 }
 
 .section-premium {
-    background: hsl(var(--background));
-}
-
-.dark .section-premium {
     background: linear-gradient(180deg, #080d1a 0%, #0c1225 50%, #080d1a 100%);
 }
 
 .section-premium-alt {
-    background: hsl(var(--secondary));
-}
-
-.dark .section-premium-alt {
     background: linear-gradient(180deg, #080d1a 0%, #0a1020 50%, #080d1a 100%);
 }
 
@@ -659,8 +649,12 @@ code, .font-mono {
 
 .floating-icon {
     position: absolute;
-    opacity: 0.08;
+    opacity: 0.15;
     will-change: transform;
+}
+
+.dark .floating-icon {
+    opacity: 0.10;
 }
 
 .floating-icon svg {
@@ -685,12 +679,8 @@ code, .font-mono {
 ══════════════════════════════════════════ */
 
 .hero-medical {
-    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 55%, #06b6d4 100%);
-    position: relative;
-}
-
-.dark .hero-medical {
     background: linear-gradient(135deg, #080d1a 0%, #0f1e40 50%, #0c3353 100%);
+    position: relative;
 }
 
 .hero-medical::before {
@@ -757,4 +747,64 @@ code, .font-mono {
     background: radial-gradient(circle, hsl(var(--primary) / 0.06) 0%, transparent 70%);
     pointer-events: none;
     border-radius: inherit;
+}
+
+/* ══════════════════════════════════════════
+   LIGHT-MODE VISIBILITY FIXES
+   Ensures icons and decorative elements remain
+   visible when switching from dark to light theme
+══════════════════════════════════════════ */
+
+/* Card-premium variants: keep dark interior so white text inside stays readable */
+:root:not(.dark) .card-premium {
+    background: rgba(8, 13, 26, 0.92);
+    border-color: rgba(59, 130, 246, 0.25);
+    color: hsl(210 40% 96%);
+}
+
+:root:not(.dark) .card-premium-alt {
+    background: rgba(8, 13, 26, 0.92);
+    border-color: rgba(6, 182, 212, 0.25);
+    color: hsl(210 40% 96%);
+}
+
+:root:not(.dark) .card-premium:hover {
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+:root:not(.dark) .card-premium-alt:hover {
+    border-color: rgba(6, 182, 212, 0.5);
+}
+
+/* Icons inside medical-themed buttons & gradients always white */
+.btn-medical svg,
+.btn-medical-glow svg,
+.btn-3d svg,
+.hero-medical svg.lucide,
+.section-premium svg.lucide-arrow-right,
+.section-premium-alt svg.lucide-arrow-right {
+    color: currentColor;
+}
+
+/* Generic Lucide icons without explicit color: use theme foreground */
+:root:not(.dark) svg.lucide:not([style*="color"]):not([class*="text-"]):not([class*="fill-"]) {
+    color: hsl(var(--foreground));
+}
+
+/* Force HomePage container styling consistent across themes (white text on dark navy)
+   This targets the wrapper div with hardcoded #06081a background */
+:root:not(.dark) main > div[style*="background"] {
+    color: hsl(210 40% 96%);
+}
+
+/* Override navigation/layout text colors for light mode visibility */
+:root:not(.dark) header svg.lucide,
+:root:not(.dark) nav svg.lucide,
+:root:not(.dark) aside svg.lucide {
+    color: hsl(var(--foreground));
+}
+
+/* Sonner toast - ensure readable in both modes */
+:root:not(.dark) [data-sonner-toast] {
+    color: hsl(var(--foreground));
 }
