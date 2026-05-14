@@ -3054,16 +3054,18 @@ async def create_public_contact_request(body: ContactRequestCreate):
     """Public endpoint — non-authenticated visitors can request access / contact.
     The admin gets a notification (in-app + email) and contacts the visitor manually.
     """
+    from database import logger
     feature_pack = body.feature_pack or "advanced_features"
     if feature_pack not in FEATURE_PACKS:
         raise HTTPException(status_code=400, detail=f"Unbekanntes Feature-Pack '{feature_pack}'")
-    await create_contact_request(
+    result = await create_contact_request(
         name=body.name,
         email=body.email,
         phone=body.phone,
         message=body.message,
         feature_pack=feature_pack,
     )
+    logger.info("contact_request=submitted email=%s name=%s", body.email[:6], body.name[:20])
     return {"success": True, "message": "Vielen Dank! Wir melden uns in Kürze bei Ihnen."}
 
 
