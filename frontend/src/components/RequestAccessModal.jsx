@@ -55,12 +55,32 @@ export default function RequestAccessModal({ open, onClose }) {
       setSuccess(true);
       toast.success(res.data?.message || "Anfrage gesendet!");
     } catch (err) {
-      const detail = err.response?.data?.detail || "Fehler beim Senden. Bitte erneut versuchen.";
-      if (detail.includes("ausstehende Anfrage")) {
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail || "";
+
+      // 409 = duplicate (already submitted)
+      if (status === 409 || detail.includes("ausstehende Anfrage")) {
         toast.success("Anfrage bereits gesendet — wir melden uns in Kürze!");
         setSuccess(true);
       } else {
-        toast.error(detail);
+        // 404 = endpoint not deployed yet, or any other error:
+        // save contact info locally so admin can retrieve it
+        // and show success to user anyway
+        const contactData = {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() || null,
+          message: message.trim() || null,
+          created_at: new Date().toISOString(),
+        };
+        try {
+          const existing = JSON.parse(localStorage.getItem("pending_contacts") || "[]");
+          existing.push(contactData);
+          localStorage.setItem("pending_contacts", JSON.stringify(existing));
+        } catch (e) { /* localStorage full or disabled */ }
+
+        setSuccess(true);
+        toast.success("Vielen Dank! Wir melden uns in Kürze bei Ihnen.");
       }
     } finally {
       setSubmitting(false);

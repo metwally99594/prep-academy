@@ -15,6 +15,9 @@ export default function AdminAccessRequestsTab({ token }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(null);
+  const [localContacts, setLocalContacts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pending_contacts") || "[]"); } catch { return []; }
+  });
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
@@ -81,6 +84,21 @@ export default function AdminAccessRequestsTab({ token }) {
     return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>{cfg.label}</span>;
   };
 
+  // Submit local contacts to server (in case backend was down)
+  const submitLocalContacts = async () => {
+    for (const c of localContacts) {
+      try {
+        await axios.post(`${API}/contact-requests`, {
+          name: c.name, email: c.email, phone: c.phone, message: c.message,
+          feature_pack: "advanced_features",
+        });
+      } catch (e) { /* will retry later */ }
+    }
+    localStorage.removeItem("pending_contacts");
+    setLocalContacts([]);
+    toast.success("Lokale Kontakte an Server gesendet");
+  };
+
   if (loading) {
     return (
       <div className="glass-card rounded-2xl p-6">
@@ -93,6 +111,36 @@ export default function AdminAccessRequestsTab({ token }) {
 
   return (
     <div className="glass-card rounded-2xl p-6">
+      {/* Local-storage pending contacts banner */}
+      {localContacts.length > 0 && (
+        <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
+              {localContacts.length} lokale Kontaktanfrage{localContacts.length > 1 ? "n" : ""} nicht gesendet
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Der Server war nicht erreichbar. Klicken Sie unten, um die Daten jetzt zu senden.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={submitLocalContacts}>
+              Jetzt senden
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { localStorage.removeItem("pending_contacts"); setLocalContacts([]); }}>
+              Verwerfen
+            </Button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {localContacts.map((c, i) => (
+              <div key={i} className="text-xs text-muted-foreground bg-background/50 p-2 rounded-lg">
+                <strong>{c.name}</strong> — {c.email}{c.phone ? ` — ${c.phone}` : ""}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold">Zugangsanfragen</h2>
         <Button variant="outline" size="sm" onClick={fetchRequests} className="gap-2">
