@@ -141,32 +141,6 @@ const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  // Heartbeat to track online status - use user.id to avoid re-runs from object reference changes
-  const userId = user?.id;
-  useEffect(() => {
-    if (!token || !userId) return;
-    
-    let isMounted = true;
-    const sendHeartbeat = async () => {
-      if (!isMounted) return;
-      try {
-        await axios.post(`${API}/admin/activity/heartbeat`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (error) {
-        // Silently fail - not critical
-      }
-    };
-    
-    // Send immediately and every 2 minutes
-    sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 120000);
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [token, userId]);
 
   // Re-verify auth when tab becomes visible (handles stale tokens after sleep)
   useEffect(() => {

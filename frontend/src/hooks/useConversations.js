@@ -20,10 +20,6 @@ export function useConversations(token) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  useEffect(() => {
-    const id = setInterval(() => { if (!document.hidden) fetch(true); }, 30000);
-    return () => clearInterval(id);
-  }, [fetch]);
 
   const markRead = useCallback(async (convId) => {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, unread_count: 0 } : c));

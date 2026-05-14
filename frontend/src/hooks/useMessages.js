@@ -35,11 +35,6 @@ export function useMessages(token, convId, userId) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convId]);
 
-  useEffect(() => {
-    if (!convId) return;
-    const id = setInterval(() => { if (!document.hidden) fetch(true); }, 4000);
-    return () => clearInterval(id);
-  }, [fetch, convId]);
 
   const sendMessage = useCallback(async (text, attachments = []) => {
     if (!otherId) throw new Error("Kein Empfänger gefunden");
