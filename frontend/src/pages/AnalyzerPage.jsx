@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import DOMPurify from "dompurify";
 import axios from "axios";
 import { API, useAuth } from "@/App";
 import { Button } from "@/components/ui/button";
@@ -567,7 +568,7 @@ export default function AnalyzerPage() {
 
               {/* Report Body */}
               <div className="p-5 prose prose-sm max-w-none dark:prose-invert [&_h2]:text-[#c9a84c] [&_h2]:text-sm [&_h2]:mt-4 [&_h2]:mb-2 [&_strong]:text-foreground [&_li]:text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: formatMarkdown(result.analysis) }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatMarkdown(result.analysis)) }}
                 data-testid="analysis-content" />
             </div>
           )}
@@ -608,7 +609,7 @@ export default function AnalyzerPage() {
                       {expandedHistory === item.id && (
                         <div className="border-t border-border/20 p-2.5">
                           <div className="prose prose-xs max-w-none dark:prose-invert [&_h2]:text-[10px] [&_h2]:text-[#c9a84c] [&_li]:text-[10px] [&_p]:text-[10px] max-h-48 overflow-y-auto"
-                            dangerouslySetInnerHTML={{ __html: formatMarkdown(item.analysis) }} />
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatMarkdown(item.analysis)) }} />
                           <div className="flex gap-1 mt-2">
                             <Button variant="ghost" size="sm" className="h-6 text-[10px] text-red-400 gap-1 px-2" onClick={() => deleteAnalysis(item.id)}>
                               <Trash2 className="w-2.5 h-2.5" /> Löschen

@@ -190,6 +190,13 @@ const AuthProvider = ({ children }) => {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
+  // Graceful logout when apiClient intercepts a 401 (token expired/revoked)
+  useEffect(() => {
+    const handle401 = () => { setUser(null); setToken(null); };
+    window.addEventListener("auth:logout", handle401);
+    return () => window.removeEventListener("auth:logout", handle401);
+  }, []);
+
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
     const { token: newToken, user: userData } = response.data;

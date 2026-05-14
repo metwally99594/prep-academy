@@ -41,7 +41,7 @@ apiClient.interceptors.response.use(
       !error.config?.url?.includes("/auth/")
     ) {
       localStorage.removeItem("token");
-      if (isBrowser) window.location.href = "/login";
+      if (isBrowser) window.dispatchEvent(new CustomEvent("auth:logout"));
     }
     return Promise.reject(error);
   }

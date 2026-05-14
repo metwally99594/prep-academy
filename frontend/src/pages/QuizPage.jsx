@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import DOMPurify from "dompurify";
 import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { API, useAuth } from "@/App";
@@ -557,17 +558,19 @@ export default function QuizPage() {
     toast.success("Markierungen gelöscht");
   };
 
-  // Render text with highlights
+  // Render text with highlights — output is sanitized before injection
   const renderHighlightedText = (rawText) => {
     if (!rawText) return "";
+    const safe = DOMPurify.sanitize(rawText, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
     const qHighlights = highlights[currentIndex] || [];
-    if (qHighlights.length === 0) return rawText;
-    let result = rawText;
+    if (qHighlights.length === 0) return safe;
+    let result = safe;
     qHighlights.forEach(h => {
-      const escaped = h.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escaped = DOMPurify.sanitize(h.text, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       result = result.replace(new RegExp(`(${escaped})`, 'gi'), `<mark style="background:rgba(201,168,76,0.3);padding:1px 2px;border-radius:3px;">$1</mark>`);
     });
-    return result;
+    return DOMPurify.sanitize(result, { ALLOWED_TAGS: ['mark'], ALLOWED_ATTR: ['style'] });
   };
 
   const canSubmit = () => {
