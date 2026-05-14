@@ -10,7 +10,7 @@
 .header-glass {
     background: rgba(8, 8, 24, 0.85);
     backdrop-filter: blur(24px);
-    border-bottom: 1px solid rgba(201, 168, 76, 0.08);
+    border-bottom: 1px solid hsl(var(--primary) / 0.08);
 }
 
 /* Main content wrapper */
@@ -42,7 +42,7 @@
     max-height: 300px;
     object-fit: contain;
     border-radius: 0.75rem;
-    border: 1px solid rgba(201, 168, 76, 0.1);
+    border: 1px solid hsl(var(--primary) / 0.12);
 }
 
 /* Progress indicator */
