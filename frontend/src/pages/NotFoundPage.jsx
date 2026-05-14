@@ -8,13 +8,13 @@ export default function NotFoundPage() {
         {/* Big 404 */}
         <div className="relative mb-8">
           <div className="text-[120px] sm:text-[160px] font-black leading-none select-none"
-            style={{ color: 'rgba(201,168,76,0.08)', fontFamily: "'Playfair Display', serif" }}>
+            style={{ color: 'rgba(59,130,246,0.08)', fontFamily: "'Playfair Display', serif" }}>
             404
           </div>
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)' }}>
-              <Search size={32} style={{ color: '#c9a84c' }} />
+              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <Search size={32} style={{ color: '#3b82f6' }} />
             </div>
           </div>
         </div>
@@ -36,8 +36,8 @@ export default function NotFoundPage() {
           ].map(({ to, icon: Icon, label }) => (
             <Link key={to} to={to}
               className="flex flex-col items-center gap-2 p-4 rounded-xl border transition-all hover:-translate-y-0.5"
-              style={{ borderColor: 'rgba(201,168,76,0.08)', background: 'rgba(201,168,76,0.02)' }}>
-              <Icon size={20} style={{ color: '#c9a84c' }} />
+              style={{ borderColor: 'rgba(59,130,246,0.08)', background: 'rgba(59, 130, 246, 0.02)' }}>
+              <Icon size={20} style={{ color: '#3b82f6' }} />
               <span className="text-xs font-medium">{label}</span>
             </Link>
           ))}
@@ -45,7 +45,7 @@ export default function NotFoundPage() {
 
         <Link to="/"
           className="inline-flex items-center gap-2 text-sm font-medium transition-colors"
-          style={{ color: '#c9a84c' }}>
+          style={{ color: '#3b82f6' }}>
           <ArrowLeft size={16} />
           Zurück zur Startseite
         </Link>

@@ -116,13 +116,13 @@ export default function AIChat({ question, isOpen, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-2xl h-[600px] rounded-2xl border shadow-2xl flex flex-col overflow-hidden animate-fadeIn"
-        style={{ background: '#0c1229', borderColor: 'rgba(201,168,76,0.15)' }}>
+        style={{ background: '#0c1229', borderColor: 'rgba(59,130,246,0.15)' }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(201,168,76,0.1)', background: 'rgba(201,168,76,0.03)' }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(59, 130, 246, 0.03)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.1)' }}>
-              <Sparkles className="w-5 h-5" style={{ color: '#c9a84c' }} />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.1)' }}>
+              <Sparkles className="w-5 h-5" style={{ color: '#3b82f6' }} />
             </div>
             <div>
               <h3 className="font-semibold text-white text-sm">Medizinischer KI-Assistent</h3>
@@ -138,7 +138,7 @@ export default function AIChat({ question, isOpen, onClose }) {
                   </button>
                   {showModelPicker && (
                     <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[180px]"
-                      style={{ background: '#0f1a3a', borderColor: 'rgba(201,168,76,0.15)' }} data-testid="model-picker-dropdown">
+                      style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }} data-testid="model-picker-dropdown">
                       {MODELS.map(m => (
                         <button key={m.id} onClick={() => { setSelectedModel(m.id); setShowModelPicker(false); }}
                           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedModel === m.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
@@ -148,7 +148,7 @@ export default function AIChat({ question, isOpen, onClose }) {
                             <span className="text-white font-medium">{m.name}</span>
                             <span className="text-white/30 text-xs ml-2">{m.provider}</span>
                           </div>
-                          {selectedModel === m.id && <span className="ml-auto text-xs" style={{ color: '#c9a84c' }}>&#10003;</span>}
+                          {selectedModel === m.id && <span className="ml-auto text-xs" style={{ color: '#3b82f6' }}>&#10003;</span>}
                         </button>
                       ))}
                     </div>
@@ -168,14 +168,14 @@ export default function AIChat({ question, isOpen, onClose }) {
                   </button>
                   {showLangPicker && (
                     <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[160px]"
-                      style={{ background: '#0f1a3a', borderColor: 'rgba(201,168,76,0.15)' }} data-testid="lang-picker-dropdown">
+                      style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }} data-testid="lang-picker-dropdown">
                       {LANGUAGES.map(l => (
                         <button key={l.id} onClick={() => { setSelectedLang(l.id); setShowLangPicker(false); }}
                           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedLang === l.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
                           data-testid={`lang-${l.id}`}>
                           <span>{FLAG_EMOJI[l.flag]}</span>
                           <span className="text-white">{l.name}</span>
-                          {selectedLang === l.id && <span className="ml-auto text-xs" style={{ color: '#c9a84c' }}>&#10003;</span>}
+                          {selectedLang === l.id && <span className="ml-auto text-xs" style={{ color: '#3b82f6' }}>&#10003;</span>}
                         </button>
                       ))}
                     </div>
@@ -196,15 +196,15 @@ export default function AIChat({ question, isOpen, onClose }) {
               <div key={index} className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`} data-testid={`chat-message-${index}`}>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   message.role === "user" ? "bg-white/10" : ""
-                }`} style={message.role !== "user" ? { background: `${(MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#c9a84c')}15` } : {}}>
+                }`} style={message.role !== "user" ? { background: `${(MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#3b82f6')}15` } : {}}>
                   {message.role === "user"
                     ? <User className="w-4 h-4 text-white/60" />
-                    : <Bot className="w-4 h-4" style={{ color: MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#c9a84c' }} />
+                    : <Bot className="w-4 h-4" style={{ color: MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#3b82f6' }} />
                   }
                 </div>
                 <div className={`flex-1 p-4 rounded-2xl text-sm leading-relaxed ${
                   message.role === "user" ? "rounded-tr-sm text-white/90" : "rounded-tl-sm text-white/80"
-                }`} style={{ background: message.role === "user" ? 'rgba(201,168,76,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
+                }`} style={{ background: message.role === "user" ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
                   <p className="whitespace-pre-wrap" style={{ direction: selectedLang === 'ar' ? 'rtl' : 'ltr' }}>{message.content}</p>
                 </div>
               </div>
@@ -226,7 +226,7 @@ export default function AIChat({ question, isOpen, onClose }) {
         </ScrollArea>
 
         {/* Input */}
-        <div className="p-4 border-t" style={{ borderColor: 'rgba(201,168,76,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+        <div className="p-4 border-t" style={{ borderColor: 'rgba(59,130,246,0.08)', background: 'rgba(0,0,0,0.2)' }}>
           <div className="flex gap-2">
             <Input
               ref={inputRef}
@@ -234,13 +234,13 @@ export default function AIChat({ question, isOpen, onClose }) {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder={PLACEHOLDERS[selectedLang] || PLACEHOLDERS.de}
-              className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#c9a84c]/30"
+              className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#3b82f6]/30"
               disabled={loading}
               dir={selectedLang === 'ar' ? 'rtl' : 'ltr'}
               data-testid="ai-chat-input"
             />
             <Button onClick={sendMessage} disabled={loading || !input.trim()}
-              className="border-0" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}
+              className="border-0" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}
               data-testid="ai-chat-send">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>

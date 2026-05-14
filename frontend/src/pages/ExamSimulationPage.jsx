@@ -477,7 +477,7 @@ export default function ExamSimulationPage() {
             <Progress value={(answeredCount / questions.length) * 100} className="h-1.5" />
 
             {/* Specialty */}
-            <div className="text-sm font-semibold" style={{ color: '#c9a84c' }}>
+            <div className="text-sm font-semibold" style={{ color: '#3b82f6' }}>
               {currentQuestion.specialty_name}
             </div>
 
@@ -490,7 +490,7 @@ export default function ExamSimulationPage() {
                 let bg = 'bg-muted/50 text-muted-foreground hover:bg-muted';
                 if (isAnsweredQ) bg = 'bg-emerald-500/20 text-emerald-400';
                 if (isFlaggedQ) bg = 'bg-amber-500/20 text-amber-400';
-                if (isCurrent) bg += ' ring-2 ring-[#c9a84c]';
+                if (isCurrent) bg += ' ring-2 ring-[#3b82f6]';
                 return (
                   <button key={idx} onClick={() => goToQuestion(idx)}
                     className={`w-8 h-8 rounded-md text-xs font-mono font-semibold transition-[color,background-color,box-shadow] ${bg}`}
@@ -552,7 +552,7 @@ export default function ExamSimulationPage() {
           {/* Question Card */}
           <div className="glass-card rounded-2xl p-6 md:p-8 mb-4">
             <div className="flex items-center gap-2 mb-4">
-              {currentQuestion?.year && <span className="px-3 py-1 text-xs rounded-lg font-medium" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>{currentQuestion.year}</span>}
+              {currentQuestion?.year && <span className="px-3 py-1 text-xs rounded-lg font-medium" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>{currentQuestion.year}</span>}
               {currentQuestion.choices.filter(c => c.is_correct).length > 1 && (
                 <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs rounded-lg font-medium">Mehrfachauswahl</span>
               )}
@@ -575,7 +575,7 @@ export default function ExamSimulationPage() {
                     className={`choice-btn w-full text-left p-4 rounded-xl flex items-center gap-4 ${isSelected ? 'selected' : ''}`}
                     data-testid={`sim-choice-${idx}`}>
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
-                      isSelected ? 'border-[#c9a84c] text-[#c9a84c]' : 'border-muted-foreground/30 text-muted-foreground'
+                      isSelected ? 'border-[#3b82f6] text-[#3b82f6]' : 'border-muted-foreground/30 text-muted-foreground'
                     }`}>
                       {String.fromCharCode(65 + idx)}
                     </div>
@@ -662,7 +662,7 @@ export default function ExamSimulationPage() {
             {wrongAnswers.map(({ idx, question: q, userAnswer, correctIds }) => (
               <div key={idx} className="glass-card rounded-xl p-5 border-l-4 border-red-500/40">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>Frage {idx + 1}</span>
+                  <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>Frage {idx + 1}</span>
                   <span className="text-xs text-muted-foreground">{q.specialty_name}</span>
                   {q.year && <span className="text-xs text-muted-foreground">{q.year}</span>}
                 </div>
@@ -761,7 +761,7 @@ export default function ExamSimulationPage() {
         {/* Actions */}
         <div className="flex flex-wrap justify-center gap-4">
           {wrongAnswers.length > 0 && (
-            <Button onClick={() => setShowReview(true)} className="gap-2" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="sim-review-wrong-btn">
+            <Button onClick={() => setShowReview(true)} className="gap-2" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }} data-testid="sim-review-wrong-btn">
               <XCircle className="w-4 h-4" /> {wrongAnswers.length} Fehler anzeigen
             </Button>
           )}

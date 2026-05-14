@@ -22,7 +22,7 @@ export default function Luckentext({ question, submitted, answer, onChange, resu
                   type="text"
                   value={answer || ""}
                   onChange={e => onChange(e.target.value)}
-                  className="inline-block border-b-2 border-[#c9a84c] bg-transparent text-center font-semibold mx-1 outline-none text-sm w-36 pb-0.5"
+                  className="inline-block border-b-2 border-[#3b82f6] bg-transparent text-center font-semibold mx-1 outline-none text-sm w-36 pb-0.5"
                   placeholder="Antwort eingeben"
                   autoComplete="off"
                 />

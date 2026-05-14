@@ -209,7 +209,7 @@ export default function HomePage() {
               data-testid="hero-title"
               style={{ fontFamily: "'Playfair Display', serif", letterSpacing: '-0.02em' }}>
               <span className="text-white">Prep</span>
-              <span className="ml-3 sm:ml-4 text-[#c9a84c]">Academy</span>
+              <span className="ml-3 sm:ml-4 text-[#3b82f6]">Academy</span>
             </h1>
 
             <p className="text-base sm:text-lg tracking-[0.18em] uppercase font-light mb-6 text-white/65">KLAR. PRÄZISE. KI-GESTÜTZT.</p>

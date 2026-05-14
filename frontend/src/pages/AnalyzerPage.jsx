@@ -263,17 +263,17 @@ export default function AnalyzerPage() {
   @page { size: A4; margin: 16mm 14mm 22mm 14mm; }
   * { box-sizing: border-box; }
   body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; margin: 0; padding: 0; line-height: 1.55; font-size: 11pt; }
-  .header { border-bottom: 3px solid #c9a84c; padding-bottom: 14px; margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; }
+  .header { border-bottom: 3px solid #3b82f6; padding-bottom: 14px; margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; }
   .header .brand { display: flex; align-items: center; gap: 14px; }
   .header .brand img { width: 54px; height: 54px; border-radius: 10px; }
   .header .brand .t1 { font-family: 'Playfair Display', Georgia, serif; font-size: 22pt; font-weight: 700; color: #0c1229; letter-spacing: -0.5px; }
-  .header .brand .t1 span { color: #c9a84c; }
+  .header .brand .t1 span { color: #3b82f6; }
   .header .brand .t2 { font-size: 9pt; color: #6b7280; text-transform: uppercase; letter-spacing: 1.5px; }
   .header .meta { text-align: right; font-size: 9pt; color: #6b7280; }
-  .header .meta .badge { display: inline-block; padding: 4px 10px; background: #c9a84c; color: #0c1229; font-weight: 700; border-radius: 6px; font-size: 9pt; margin-bottom: 4px; }
+  .header .meta .badge { display: inline-block; padding: 4px 10px; background: #3b82f6; color: #0c1229; font-weight: 700; border-radius: 6px; font-size: 9pt; margin-bottom: 4px; }
 
   .title-section { background: linear-gradient(135deg, #0c1229, #1a1f3a); color: #fff; padding: 18px 22px; border-radius: 12px; margin-bottom: 18px; }
-  .title-section h1 { margin: 0 0 6px 0; font-family: 'Playfair Display', Georgia, serif; font-size: 20pt; color: #c9a84c; }
+  .title-section h1 { margin: 0 0 6px 0; font-family: 'Playfair Display', Georgia, serif; font-size: 20pt; color: #3b82f6; }
   .title-section p { margin: 0; font-size: 10pt; opacity: 0.9; }
 
   .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 22px; }
@@ -284,13 +284,13 @@ export default function AnalyzerPage() {
   .bar { height: 6px; background: #e5e7eb; border-radius: 3px; margin-top: 6px; overflow: hidden; }
   .bar > div { height: 100%; border-radius: 3px; }
 
-  .ctx { background: #fdf6e6; border-right: 3px solid #c9a84c; padding: 10px 14px; border-radius: 6px; margin-bottom: 18px; font-size: 10pt; }
+  .ctx { background: #fdf6e6; border-right: 3px solid #3b82f6; padding: 10px 14px; border-radius: 6px; margin-bottom: 18px; font-size: 10pt; }
   .ctx .t { font-weight: 700; color: #8b6914; margin-bottom: 3px; font-size: 9pt; text-transform: uppercase; letter-spacing: 1px; }
 
   .content { font-size: 10.5pt; }
-  .content h2 { color: #c9a84c; border-bottom: 2px solid #c9a84c; padding-bottom: 4px; margin: 20px 0 10px 0; font-size: 13pt; }
+  .content h2 { color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; margin: 20px 0 10px 0; font-size: 13pt; }
   .content h3 { color: #0c1229; margin: 14px 0 6px 0; font-size: 11pt; }
-  .content hr { border: 0; border-top: 1px dashed #c9a84c; margin: 22px 0; }
+  .content hr { border: 0; border-top: 1px dashed #3b82f6; margin: 22px 0; }
   .content ul { margin: 6px 0 10px 0; padding-left: 20px; }
   .content li { margin-bottom: 4px; }
   .content strong { color: #0c1229; }
@@ -299,11 +299,11 @@ export default function AnalyzerPage() {
   .disclaimer { margin-top: 26px; padding: 12px 14px; background: #fff8e1; border: 1px solid #fbbf24; border-radius: 8px; font-size: 8.5pt; color: #78350f; }
   .disclaimer strong { color: #92400e; }
 
-  .footer { margin-top: 30px; padding-top: 18px; border-top: 2px solid #c9a84c; display: flex; align-items: center; justify-content: space-between; }
+  .footer { margin-top: 30px; padding-top: 18px; border-top: 2px solid #3b82f6; display: flex; align-items: center; justify-content: space-between; }
   .footer img { width: 48px; height: 48px; border-radius: 8px; }
   .footer .info { text-align: center; flex: 1; }
   .footer .info .name { font-family: 'Playfair Display', Georgia, serif; font-size: 14pt; font-weight: 700; color: #0c1229; }
-  .footer .info .name span { color: #c9a84c; }
+  .footer .info .name span { color: #3b82f6; }
   .footer .info .tag { font-size: 8pt; color: #6b7280; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px; }
   .footer .page { font-size: 8pt; color: #6b7280; }
 
@@ -313,7 +313,7 @@ export default function AnalyzerPage() {
   }
   .actions { position: fixed; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 99; }
   .actions button { padding: 8px 16px; border: 0; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 10pt; }
-  .actions .p { background: #c9a84c; color: #0c1229; }
+  .actions .p { background: #3b82f6; color: #0c1229; }
   .actions .c { background: #e5e7eb; color: #374151; }
 </style>
 </head><body>
@@ -384,7 +384,7 @@ export default function AnalyzerPage() {
     win.document.close();
   };
 
-  if (hasAccess === null) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" style={{ color: '#c9a84c' }} /></div>;
+  if (hasAccess === null) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" style={{ color: '#3b82f6' }} /></div>;
   if (hasAccess === false) return (
     <div className="max-w-md mx-auto px-4 py-20 text-center">
       <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
@@ -401,11 +401,11 @@ export default function AnalyzerPage() {
     <div className="max-w-[1200px] mx-auto px-4 py-6" data-testid="analyzer-page">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)' }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)' }}>
           <Stethoscope className="w-5 h-5 text-[#06081a]" />
         </div>
         <div>
-          <h1 className="text-xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Medical <span style={{ color: '#c9a84c' }}>Analyzer</span></h1>
+          <h1 className="text-xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Medical <span style={{ color: '#3b82f6' }}>Analyzer</span></h1>
           <p className="text-xs text-muted-foreground">Multi-AI Befundanalyse mit Zweitmeinung</p>
         </div>
       </div>
@@ -416,13 +416,13 @@ export default function AnalyzerPage() {
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 pb-2 border-b border-border/30">Untersuchungstypen</p>
           {REPORT_TYPES.map(rt => (
             <button key={rt.id} onClick={() => setReportType(rt.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${reportType === rt.id ? 'bg-[#c9a84c]/10 border-r-[3px] border-[#c9a84c]' : 'hover:bg-muted/30'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${reportType === rt.id ? 'bg-[#3b82f6]/10 border-r-[3px] border-[#3b82f6]' : 'hover:bg-muted/30'}`}
               data-testid={`mod-${rt.id}`}>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${reportType === rt.id ? 'bg-[#c9a84c] text-[#06081a]' : 'bg-muted/50'}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${reportType === rt.id ? 'bg-[#3b82f6] text-[#06081a]' : 'bg-muted/50'}`}>
                 {rt.emoji}
               </div>
               <div className="min-w-0">
-                <div className={`text-xs font-semibold ${reportType === rt.id ? 'text-[#c9a84c]' : ''}`}>{rt.label}</div>
+                <div className={`text-xs font-semibold ${reportType === rt.id ? 'text-[#3b82f6]' : ''}`}>{rt.label}</div>
                 <div className="text-[10px] text-muted-foreground truncate">{rt.desc}</div>
               </div>
             </button>
@@ -432,7 +432,7 @@ export default function AnalyzerPage() {
         {/* ── Main Content ── */}
         <div className="space-y-4">
           {/* Privacy Note */}
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs" style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)', color: '#c9a84c' }}>
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#3b82f6' }}>
             <Shield className="w-4 h-4 flex-shrink-0" />
             3 KI-Modelle: Gemma 4 31B (Google) + Nemotron 12B VL (NVIDIA) + Qianfan OCR (Baidu) — mit Fallback-Chain
           </div>
@@ -489,14 +489,14 @@ export default function AnalyzerPage() {
               <input ref={fileRef} type="file" accept="image/*,video/*,.pdf,.dcm,.dicom" multiple className="hidden" onChange={handleFileSelect} />
             </div>
           ) : (
-            <div className={`glass-card rounded-2xl p-8 text-center cursor-pointer transition-all border-2 border-dashed ${dragging ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-border/30 hover:border-[#c9a84c]/40'}`}
+            <div className={`glass-card rounded-2xl p-8 text-center cursor-pointer transition-all border-2 border-dashed ${dragging ? 'border-[#3b82f6] bg-[#3b82f6]/5' : 'border-border/30 hover:border-[#3b82f6]/40'}`}
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={onDrop}
               onClick={() => fileRef.current?.click()}
               data-testid="upload-dropzone">
-              <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.1)' }}>
-                <Upload className="w-7 h-7" style={{ color: '#c9a84c' }} />
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.1)' }}>
+                <Upload className="w-7 h-7" style={{ color: '#3b82f6' }} />
               </div>
               <p className="font-semibold text-sm mb-1">Bilder hochladen oder hierher ziehen</p>
               <p className="text-xs text-muted-foreground mb-3">Mehrere Bilder möglich — DICOM · PNG · JPG · PDF bis 10MB</p>
@@ -527,7 +527,7 @@ export default function AnalyzerPage() {
           {/* Analyze Button */}
           <Button onClick={analyzeReport} disabled={analyzing || images.length === 0}
             className="w-full gap-2 h-12 text-base font-semibold"
-            style={images.length > 0 && !analyzing ? { background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' } : {}}
+            style={images.length > 0 && !analyzing ? { background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' } : {}}
             data-testid="analyze-btn">
             {analyzing ? <><Loader2 className="w-5 h-5 animate-spin" /> Multi-AI Analyse läuft (Gemma 4 31B + Nemotron 12B + Qianfan)...</>
               : <>{selectedType && <span className="text-lg">{selectedType.emoji}</span>} {images.length > 1 ? `${images.length} Bilder` : selectedType?.label || 'Bericht'} analysieren (3 KI)</>}
@@ -537,7 +537,7 @@ export default function AnalyzerPage() {
           {result && (
             <div className="glass-card rounded-2xl overflow-hidden" data-testid="analysis-result">
               {/* Header */}
-              <div className="flex items-center gap-3 px-5 py-3 border-b border-border/30" style={{ background: 'rgba(201,168,76,0.05)' }}>
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-border/30" style={{ background: 'rgba(59,130,246,0.05)' }}>
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 <div className="flex-1">
                   <h3 className="font-bold text-sm">KI-Analysebericht — {result.report_type}</h3>
@@ -567,7 +567,7 @@ export default function AnalyzerPage() {
               </div>
 
               {/* Report Body */}
-              <div className="p-5 prose prose-sm max-w-none dark:prose-invert [&_h2]:text-[#c9a84c] [&_h2]:text-sm [&_h2]:mt-4 [&_h2]:mb-2 [&_strong]:text-foreground [&_li]:text-sm leading-relaxed"
+              <div className="p-5 prose prose-sm max-w-none dark:prose-invert [&_h2]:text-[#3b82f6] [&_h2]:text-sm [&_h2]:mt-4 [&_h2]:mb-2 [&_strong]:text-foreground [&_li]:text-sm leading-relaxed"
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatMarkdown(result.analysis)) }}
                 data-testid="analysis-content" />
             </div>
@@ -579,10 +579,10 @@ export default function AnalyzerPage() {
           <div className="glass-card rounded-2xl p-3" data-testid="history-section">
             <div className="flex items-center justify-between mb-2 px-1">
               <h2 className="font-semibold text-xs flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" style={{ color: '#c9a84c' }} /> Letzte Analysen
+                <Clock className="w-3.5 h-3.5" style={{ color: '#3b82f6' }} /> Letzte Analysen
               </h2>
               {history.length > 3 && (
-                <button onClick={() => setShowAllHistory(!showAllHistory)} className="text-[10px] text-[#c9a84c] hover:underline">
+                <button onClick={() => setShowAllHistory(!showAllHistory)} className="text-[10px] text-[#3b82f6] hover:underline">
                   {showAllHistory ? "Weniger" : `Alle (${history.length})`}
                 </button>
               )}
@@ -608,7 +608,7 @@ export default function AnalyzerPage() {
                       </button>
                       {expandedHistory === item.id && (
                         <div className="border-t border-border/20 p-2.5">
-                          <div className="prose prose-xs max-w-none dark:prose-invert [&_h2]:text-[10px] [&_h2]:text-[#c9a84c] [&_li]:text-[10px] [&_p]:text-[10px] max-h-48 overflow-y-auto"
+                          <div className="prose prose-xs max-w-none dark:prose-invert [&_h2]:text-[10px] [&_h2]:text-[#3b82f6] [&_li]:text-[10px] [&_p]:text-[10px] max-h-48 overflow-y-auto"
                             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatMarkdown(item.analysis)) }} />
                           <div className="flex gap-1 mt-2">
                             <Button variant="ghost" size="sm" className="h-6 text-[10px] text-red-400 gap-1 px-2" onClick={() => deleteAnalysis(item.id)}>
@@ -630,8 +630,8 @@ export default function AnalyzerPage() {
           {/* Footer Disclaimer */}
           <div className="px-3 py-2 rounded-xl bg-muted/20 border border-border/20">
             <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
-              <Stethoscope className="w-3 h-3 inline mr-1" style={{ color: '#c9a84c' }} />
-              <span style={{ color: '#c9a84c' }}>Prep Academy</span> — Multi-AI Befundanalyse.
+              <Stethoscope className="w-3 h-3 inline mr-1" style={{ color: '#3b82f6' }} />
+              <span style={{ color: '#3b82f6' }}>Prep Academy</span> — Multi-AI Befundanalyse.
               Nur zur Unterstützung. Ärztliche Beurteilung hat Vorrang.
             </p>
           </div>
@@ -645,12 +645,12 @@ function formatMarkdown(text) {
   if (!text) return "";
   return text
     .replace(/## (.*)/g, "<h2>$1</h2>")
-    .replace(/### (.*)/g, "<h3 style='font-size:13px;font-weight:700;margin-top:12px;color:#c9a84c'>$1</h3>")
+    .replace(/### (.*)/g, "<h3 style='font-size:13px;font-weight:700;margin-top:12px;color:#3b82f6'>$1</h3>")
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/^[-•] (.*)/gm, "<li>$1</li>")
     .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
     .replace(/<\/ul>\s*<ul>/g, "")
-    .replace(/---/g, "<hr style='border-color:rgba(201,168,76,0.2);margin:16px 0'/>")
+    .replace(/---/g, "<hr style='border-color:rgba(59,130,246,0.2);margin:16px 0'/>")
     .replace(/\n\n/g, "<br/><br/>")
     .replace(/\n/g, "<br/>");
 }

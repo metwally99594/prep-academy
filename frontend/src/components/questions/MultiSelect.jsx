@@ -12,7 +12,7 @@ export default function MultiSelect({ question, submitted, selectedChoices, onTo
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium" style={{ color: '#c9a84c' }}>
+      <p className="text-xs font-medium" style={{ color: '#3b82f6' }}>
         Mehrere Antworten möglich – alle richtigen auswählen
       </p>
       {choices.map((choice, index) => {
@@ -33,7 +33,7 @@ export default function MultiSelect({ question, submitted, selectedChoices, onTo
             <div className={`w-9 h-9 rounded flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
               status === 'correct' ? 'bg-emerald-500 text-white border-emerald-500' :
               status === 'incorrect' ? 'bg-red-500 text-white border-red-500' :
-              isSelected ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' :
+              isSelected ? 'border-[#3b82f6] bg-[#3b82f6]/20 text-[#3b82f6]' :
               'border-muted-foreground/30 text-muted-foreground'
             }`}>
               {status === 'correct' ? <Check className="w-4 h-4" /> :

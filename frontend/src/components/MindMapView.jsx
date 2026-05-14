@@ -6,7 +6,7 @@ export default function MindMapView({ data }) {
 
   return (
     <div>
-      <h3 className="text-xl font-bold mb-4" style={{ color: '#c9a84c' }}>{data.title}</h3>
+      <h3 className="text-xl font-bold mb-4" style={{ color: '#3b82f6' }}>{data.title}</h3>
       <div className="space-y-2">
         {(data.children || []).map((branch, bi) => (
           <BranchItem key={bi} branch={branch} />
@@ -18,7 +18,7 @@ export default function MindMapView({ data }) {
 
 function BranchItem({ branch }) {
   const [open, setOpen] = useState(true);
-  const color = branch.color || '#c9a84c';
+  const color = branch.color || '#3b82f6';
   const kids = branch.children || [];
 
   return (
@@ -41,7 +41,7 @@ function BranchItem({ branch }) {
 
 function LeafItem({ leaf }) {
   const [open, setOpen] = useState(false);
-  const color = leaf.color || '#c9a84c';
+  const color = leaf.color || '#3b82f6';
   const kids = leaf.children || [];
 
   return (

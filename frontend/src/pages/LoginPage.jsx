@@ -68,7 +68,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-3 mb-6">
-            <img src="/logo-elite.png" alt="Prep Academy" className="w-28 h-28 object-contain" style={{ filter: "drop-shadow(0 0 20px rgba(201,168,76,0.2))" }} />
+            <img src="/logo-elite.png" alt="Prep Academy" className="w-28 h-28 object-contain" style={{ filter: "drop-shadow(0 0 20px rgba(59,130,246,0.2))" }} />
           </Link>
           <h1 className="text-2xl font-bold mb-2 text-white" data-testid="login-title">Anmelden</h1>
           <p className="text-white/50">Melden Sie sich an, um auf Ihr Konto zuzugreifen</p>
@@ -95,14 +95,14 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="rounded-2xl p-8 space-y-5 border border-[#c9a84c]/10" style={{ background: 'rgba(12, 18, 41, 0.8)', backdropFilter: 'blur(20px)' }}>
+        <form onSubmit={handleSubmit} className="rounded-2xl p-8 space-y-5 border border-[#3b82f6]/10" style={{ background: 'rgba(12, 18, 41, 0.8)', backdropFilter: 'blur(20px)' }}>
           <div className="space-y-2">
             <Label htmlFor="email" className="text-white/80">E-Mail</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
               <Input id="email" type="email" placeholder="beispiel@email.com" value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="pl-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#c9a84c]/40"
+                className="pl-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#3b82f6]/40"
                 data-testid="login-email-input" />
             </div>
           </div>
@@ -118,7 +118,7 @@ export default function LoginPage() {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
               <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="pl-10 pr-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#c9a84c]/40"
+                className="pl-10 pr-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#3b82f6]/40"
                 data-testid="login-password-input" />
               <button type="button" onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
@@ -129,14 +129,14 @@ export default function LoginPage() {
           </div>
 
           <Button type="submit"
-            className="w-full h-12 text-base font-semibold text-[#0a0a1a] border-0 bg-gradient-to-r from-[#c9a84c] to-[#dbb85c] hover:shadow-[0_4px_20px_rgba(201,168,76,0.3)] transition-all"
+            className="w-full h-12 text-base font-semibold text-[#0a0a1a] border-0 bg-gradient-to-r from-[#3b82f6] to-[#60a5fa] hover:shadow-[0_4px_20px_rgba(59,130,246,0.3)] transition-all"
             disabled={loading} data-testid="login-submit-btn">
             {loading ? <><Loader2 className="w-5 h-5 animate-spin mr-2" />Anmeldung läuft…</> : "Anmelden"}
           </Button>
 
           <div className="text-center text-sm">
             <span className="text-white/40">Noch kein Konto? </span>
-            <Link to="/register" className="text-[#c9a84c] hover:underline" data-testid="register-link">Registrieren</Link>
+            <Link to="/register" className="text-[#3b82f6] hover:underline" data-testid="register-link">Registrieren</Link>
           </div>
         </form>
       </div>

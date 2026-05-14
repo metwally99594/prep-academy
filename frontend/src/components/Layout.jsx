@@ -116,7 +116,7 @@ function LockedFeatureModal({ feature, onClose, token }) {
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative max-w-sm w-full rounded-2xl border p-6 shadow-2xl"
-        style={{ background: '#0c1229', borderColor: 'rgba(201,168,76,0.2)' }}
+        style={{ background: '#0c1229', borderColor: 'rgba(59,130,246,0.2)' }}
         onClick={e => e.stopPropagation()}>
 
         {phase === "sent" ? (
@@ -130,7 +130,7 @@ function LockedFeatureModal({ feature, onClose, token }) {
               Der Administrator wurde benachrichtigt und wird Ihre Anfrage für <strong className="text-foreground">{feature}</strong> bearbeiten.
             </p>
             <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
               Schließen
             </button>
           </div>
@@ -149,7 +149,7 @@ function LockedFeatureModal({ feature, onClose, token }) {
             />
             <button onClick={submit} disabled={sending}
               className="w-full py-2.5 rounded-xl text-sm font-semibold mb-2 disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
               {sending ? "Wird gesendet…" : "Anfrage senden"}
             </button>
             <button onClick={() => setPhase("info")}
@@ -160,8 +160,8 @@ function LockedFeatureModal({ feature, onClose, token }) {
         ) : (
           <div className="text-center">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
-              <Lock size={26} style={{ color: '#c9a84c' }} />
+              style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)' }}>
+              <Lock size={26} style={{ color: '#3b82f6' }} />
             </div>
             <h3 className="text-lg font-bold mb-2">Funktion gesperrt</h3>
             <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
@@ -169,7 +169,7 @@ function LockedFeatureModal({ feature, onClose, token }) {
             </p>
             <button onClick={() => setPhase("form")}
               className="w-full py-2.5 rounded-xl text-sm font-semibold mb-2"
-              style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+              style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
               Zugang anfragen
             </button>
             <button onClick={onClose}
