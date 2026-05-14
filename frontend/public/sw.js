@@ -15,7 +15,6 @@ self.addEventListener('activate', (event) => {
       for (const r of regs) { try { await r.unregister(); } catch (e) {} }
     } catch (e) {}
   })());
-  self.clients.claim();
 });
 
 // No fetch handler: the browser falls back to network for all requests.
