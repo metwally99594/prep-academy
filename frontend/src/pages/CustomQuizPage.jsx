@@ -191,7 +191,7 @@ export default function CustomQuizPage() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleSpec(spec.id); }}
                   data-testid={`spec-checkbox-${spec.id}`}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left cursor-pointer select-none ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-[color,background-color,border-color] text-left cursor-pointer select-none ${
                     checked
                       ? "border-primary bg-primary/5 text-foreground"
                       : "border-border hover:border-primary/30 text-muted-foreground hover:text-foreground"
@@ -223,7 +223,7 @@ export default function CustomQuizPage() {
                 key={city.value}
                 onClick={() => setExamLocation(city.value)}
                 data-testid={`city-filter-${city.value || "all"}`}
-                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-[color,background-color,border-color] ${
                   examLocation === city.value
                     ? "border-primary bg-primary/5 text-foreground"
                     : "border-border hover:border-primary/30 text-muted-foreground hover:text-foreground"
@@ -304,7 +304,7 @@ export default function CustomQuizPage() {
               {tags.map(tag => (
                 <button key={tag.id} onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
                   data-testid={`tag-filter-${tag.id}`}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-[color,background-color,border-color,box-shadow] ${
                     selectedTags.includes(tag.id) ? "border-current ring-1 ring-current" : "border-border text-muted-foreground hover:border-current"
                   }`}
                   style={{ color: selectedTags.includes(tag.id) ? tag.color : undefined }}>
@@ -358,7 +358,7 @@ export default function CustomQuizPage() {
             <button
               onClick={() => setQuizMode("study")}
               data-testid="custom-study-mode-btn"
-              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-[color,background-color,border-color] ${
                 quizMode === "study"
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-primary/30"
@@ -373,7 +373,7 @@ export default function CustomQuizPage() {
             <button
               onClick={() => setQuizMode("exam")}
               data-testid="custom-exam-mode-btn"
-              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-[color,background-color,border-color] ${
                 quizMode === "exam"
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-primary/30"

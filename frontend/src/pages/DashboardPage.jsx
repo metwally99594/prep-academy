@@ -190,7 +190,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <Popover open={examDateOpen} onOpenChange={setExamDateOpen}>
           <PopoverTrigger asChild>
-            <div className="glass-card rounded-2xl p-5 flex items-center gap-4 cursor-pointer hover:ring-2 hover:ring-blue-500/40 transition-all" data-testid="exam-countdown">
+            <div className="glass-card rounded-2xl p-5 flex items-center gap-4 cursor-pointer hover:ring-2 hover:ring-blue-500/40 transition-[box-shadow]" data-testid="exam-countdown">
               <div className="p-3 rounded-xl bg-blue-500/20">
                 <CalendarDays className="w-6 h-6 text-blue-500" />
               </div>
