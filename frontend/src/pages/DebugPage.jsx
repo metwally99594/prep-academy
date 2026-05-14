@@ -186,7 +186,7 @@ export default function DebugPage() {
 
 const page = { minHeight: "100vh", background: "#0a0e1a", padding: "32px 24px", fontFamily: "ui-monospace, monospace", fontSize: 13 };
 const section = { marginBottom: 28, padding: 16, background: "#111827", borderRadius: 8, border: "1px solid #1f2937" };
-const heading = { color: "#c9a84c", fontSize: 13, fontWeight: 700, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.1em" };
+const heading = { color: "#3b82f6", fontSize: 13, fontWeight: 700, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.1em" };
 const row = { display: "flex", flexDirection: "column", gap: 4, padding: "10px 0", borderBottom: "1px solid #1f2937" };
 const pre = { background: "#0d1117", color: "#86efac", padding: 8, borderRadius: 4, fontSize: 11, overflow: "auto", maxHeight: 120, margin: "4px 0 0" };
 const btn = { padding: "6px 14px", background: "#1f2937", color: "#f9fafb", border: "1px solid #374151", borderRadius: 6, cursor: "pointer", fontSize: 12 };

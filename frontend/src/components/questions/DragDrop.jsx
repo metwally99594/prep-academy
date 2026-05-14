@@ -46,8 +46,8 @@ export default function DragDrop({ question, submitted, answer, onChange, result
               disabled={submitted}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-[color,background-color,border-color,box-shadow] ${
                 selectedItem === item.id
-                  ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c] shadow-sm'
-                  : 'border-border/40 bg-muted/30 hover:border-[#c9a84c]/40 hover:bg-muted/50'
+                  ? 'border-[#3b82f6] bg-[#3b82f6]/20 text-[#3b82f6] shadow-sm'
+                  : 'border-border/40 bg-muted/30 hover:border-[#3b82f6]/40 hover:bg-muted/50'
               }`}
             >
               {item.text}
@@ -58,7 +58,7 @@ export default function DragDrop({ question, submitted, answer, onChange, result
           )}
         </div>
         {selectedItem && !submitted && (
-          <p className="text-xs mt-2" style={{ color: '#c9a84c' }}>
+          <p className="text-xs mt-2" style={{ color: '#3b82f6' }}>
             → Klicke auf eine Kategorie, um den Begriff zuzuordnen
           </p>
         )}
@@ -77,7 +77,7 @@ export default function DragDrop({ question, submitted, answer, onChange, result
                 submitted
                   ? 'cursor-default border-border/20 bg-muted/5'
                   : isTarget
-                  ? 'border-[#c9a84c]/60 bg-[#c9a84c]/5 cursor-pointer hover:bg-[#c9a84c]/10'
+                  ? 'border-[#3b82f6]/60 bg-[#3b82f6]/5 cursor-pointer hover:bg-[#3b82f6]/10'
                   : 'border-border/30 bg-muted/10'
               }`}
             >
@@ -94,7 +94,7 @@ export default function DragDrop({ question, submitted, answer, onChange, result
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                           : status === 'incorrect'
                           ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          : 'bg-[#c9a84c]/20 text-[#c9a84c] border border-[#c9a84c]/30 cursor-pointer hover:bg-red-500/10 hover:text-red-400'
+                          : 'bg-[#3b82f6]/20 text-[#3b82f6] border border-[#3b82f6]/30 cursor-pointer hover:bg-red-500/10 hover:text-red-400'
                       }`}
                     >
                       {status === 'correct' && <Check className="w-3 h-3" />}

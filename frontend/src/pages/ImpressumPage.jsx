@@ -9,8 +9,8 @@ export default function ImpressumPage() {
       </Link>
 
       <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.1)' }}>
-          <Building2 size={20} style={{ color: '#c9a84c' }} />
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.1)' }}>
+          <Building2 size={20} style={{ color: '#3b82f6' }} />
         </div>
         <h1 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Impressum</h1>
       </div>
@@ -29,8 +29,8 @@ export default function ImpressumPage() {
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-2">Kontakt</h2>
           <p>
-            Telefon: <a href="tel:+4915561785638" className="text-[#c9a84c] hover:underline">+49 15561 785638</a><br />
-            E-Mail: <a href="mailto:mohamedmetwle99@gmail.com" className="text-[#c9a84c] hover:underline">mohamedmetwle99@gmail.com</a>
+            Telefon: <a href="tel:+4915561785638" className="text-[#3b82f6] hover:underline">+49 15561 785638</a><br />
+            E-Mail: <a href="mailto:mohamedmetwle99@gmail.com" className="text-[#3b82f6] hover:underline">mohamedmetwle99@gmail.com</a>
           </p>
         </section>
 
@@ -80,7 +80,7 @@ export default function ImpressumPage() {
           <h2 className="text-lg font-semibold text-foreground mb-2">Online-Streitbeilegung</h2>
           <p>
             Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:{" "}
-            <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] hover:underline">
+            <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" className="text-[#3b82f6] hover:underline">
               ec.europa.eu/consumers/odr
             </a>
             . Unsere E-Mail-Adresse finden Sie oben im Impressum. Wir sind nicht verpflichtet und nicht bereit,

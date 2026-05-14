@@ -161,7 +161,7 @@ export default function DashboardPage() {
               </Button>
             </Link>
             <Link to="/spaced-review">
-              <Button variant="outline" size="sm" className="gap-2 border-[#c9a84c]/30 text-[#c9a84c] hover:bg-[#c9a84c]/10" data-testid="spaced-review-btn">
+              <Button variant="outline" size="sm" className="gap-2 border-[#3b82f6]/30 text-[#3b82f6] hover:bg-[#3b82f6]/10" data-testid="spaced-review-btn">
                 <RotateCcw className="w-4 h-4" />
                 Wiederholung
               </Button>
@@ -384,7 +384,7 @@ export default function DashboardPage() {
         {weaknessMap && weaknessMap.specialties?.length > 0 && (
           <div className="glass-card rounded-2xl p-6" data-testid="weakness-map">
             <h3 className="font-semibold text-base mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" style={{ color: '#c9a84c' }} /> Stärken & Schwächen
+              <BarChart3 className="w-5 h-5" style={{ color: '#3b82f6' }} /> Stärken & Schwächen
             </h3>
             <div className="space-y-3">
               {weaknessMap.specialties.map(s => (
@@ -419,8 +419,8 @@ export default function DashboardPage() {
         {percentile && percentile.total_users > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="glass-card rounded-2xl p-6 text-center" data-testid="percentile-card">
-              <Users className="w-8 h-8 mx-auto mb-2" style={{ color: '#c9a84c' }} />
-              <div className="text-3xl font-bold" style={{ color: '#c9a84c' }}>{percentile.percentile}%</div>
+              <Users className="w-8 h-8 mx-auto mb-2" style={{ color: '#3b82f6' }} />
+              <div className="text-3xl font-bold" style={{ color: '#3b82f6' }}>{percentile.percentile}%</div>
               <p className="text-xs text-muted-foreground mt-1">Besser als {percentile.percentile}% der Nutzer</p>
               <p className="text-xs text-muted-foreground">Platz {percentile.rank} von {percentile.total_users}</p>
             </div>
@@ -438,7 +438,7 @@ export default function DashboardPage() {
         {/* ═══ CHALLENGE MODE ═══ */}
         <div className="glass-card rounded-2xl p-6" data-testid="challenge-section">
           <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
-            <Swords className="w-5 h-5" style={{ color: '#c9a84c' }} /> Freunde herausfordern
+            <Swords className="w-5 h-5" style={{ color: '#3b82f6' }} /> Freunde herausfordern
           </h3>
           <p className="text-sm text-muted-foreground mb-4">Erstelle eine Challenge - du bestimmst alles!</p>
           
@@ -487,7 +487,7 @@ export default function DashboardPage() {
 
           {/* Create Button */}
           <Button disabled={challengeLoading} className="w-full gap-2 mt-2"
-            style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}
+            style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}
             onClick={async () => {
               setChallengeLoading(true);
               try {

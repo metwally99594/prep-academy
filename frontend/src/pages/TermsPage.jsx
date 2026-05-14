@@ -9,8 +9,8 @@ export default function TermsPage() {
       </Link>
 
       <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.1)' }}>
-          <FileText size={20} style={{ color: '#c9a84c' }} />
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.1)' }}>
+          <FileText size={20} style={{ color: '#3b82f6' }} />
         </div>
         <h1 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Allgemeine Geschäftsbedingungen (AGB)</h1>
       </div>
@@ -103,7 +103,7 @@ export default function TermsPage() {
         <section>
           <h2 className="text-base font-semibold text-foreground mb-2">§ 9 Kündigung</h2>
           <p>
-            Sie können Ihr Konto jederzeit durch Kontaktaufnahme unter <a href="mailto:kontakt@prepacademy.at" className="text-[#c9a84c] hover:underline">kontakt@prepacademy.at</a> löschen lassen. Bereits bezahlte Premium-Zugangspässe werden nicht zurückerstattet.
+            Sie können Ihr Konto jederzeit durch Kontaktaufnahme unter <a href="mailto:kontakt@prepacademy.at" className="text-[#3b82f6] hover:underline">kontakt@prepacademy.at</a> löschen lassen. Bereits bezahlte Premium-Zugangspässe werden nicht zurückerstattet.
           </p>
         </section>
 

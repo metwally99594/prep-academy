@@ -71,11 +71,11 @@ export default function KeyboardShortcuts() {
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden"
-        style={{ background: '#0c1229', borderColor: 'rgba(201,168,76,0.15)' }}
+        style={{ background: '#0c1229', borderColor: 'rgba(59,130,246,0.15)' }}
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(201,168,76,0.08)' }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(59,130,246,0.08)' }}>
           <div className="flex items-center gap-2">
-            <Keyboard size={16} style={{ color: '#c9a84c' }} />
+            <Keyboard size={16} style={{ color: '#3b82f6' }} />
             <span className="font-semibold text-sm">Tastenkürzel</span>
           </div>
           <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -94,7 +94,7 @@ export default function KeyboardShortcuts() {
                 <div className="flex items-center gap-1">
                   {s.keys.map((k, j) => (
                     <span key={j} className="px-2 py-0.5 rounded text-xs font-mono"
-                      style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.12)', color: '#c9a84c' }}>
+                      style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59, 130, 246, 0.12)', color: '#3b82f6' }}>
                       {k}
                     </span>
                   ))}
@@ -103,8 +103,8 @@ export default function KeyboardShortcuts() {
             );
           })}
         </div>
-        <div className="px-5 py-3 text-xs text-muted-foreground/40 text-center" style={{ borderTop: '1px solid rgba(201,168,76,0.05)' }}>
-          Drücken Sie <kbd className="px-1 rounded" style={{ background: 'rgba(201,168,76,0.08)' }}>Esc</kbd> zum Schließen
+        <div className="px-5 py-3 text-xs text-muted-foreground/40 text-center" style={{ borderTop: '1px solid rgba(59,130,246,0.05)' }}>
+          Drücken Sie <kbd className="px-1 rounded" style={{ background: 'rgba(59,130,246,0.08)' }}>Esc</kbd> zum Schließen
         </div>
       </div>
     </div>

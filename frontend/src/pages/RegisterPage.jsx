@@ -108,13 +108,13 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
             <img src="/logo-elite.png" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
-              style={{ filter: "drop-shadow(0 0 16px rgba(201,168,76,0.2))" }} />
+              style={{ filter: "drop-shadow(0 0 16px rgba(59,130,246,0.2))" }} />
           </Link>
           <h1 className="text-2xl font-bold mb-2 text-white" data-testid="register-title">Konto erstellen</h1>
           <p className="text-white/50">Registrieren Sie sich und beginnen Sie zu lernen</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-[#c9a84c]/10 p-8 space-y-5"
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-[#3b82f6]/10 p-8 space-y-5"
           style={{ background: "rgba(12,18,41,0.8)", backdropFilter: "blur(20px)" }}>
           <div className="space-y-2">
             <Label htmlFor="name">Vollständiger Name</Label>
@@ -193,7 +193,7 @@ export default function RegisterPage() {
 
           <Button type="submit" disabled={loading} data-testid="register-submit-btn"
             className="w-full h-12 text-base font-semibold border-0"
-            style={{ background: "linear-gradient(135deg,#c9a84c,#dbb85c)", color: "#06081a" }}>
+            style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", color: "#06081a" }}>
             {loading ? <><Loader2 className="w-5 h-5 animate-spin mr-2" />Konto wird erstellt…</> : "Registrieren"}
           </Button>
 

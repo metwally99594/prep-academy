@@ -17,7 +17,7 @@ export default function SEOSpecialtyPage() {
       .finally(() => setLoading(false));
   }, [specialtyId]);
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-[#c9a84c] border-t-transparent rounded-full" /></div>;
+  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-[#3b82f6] border-t-transparent rounded-full" /></div>;
   if (!data) return <div className="text-center py-20 text-muted-foreground">Fachgebiet nicht gefunden</div>;
 
   return (
@@ -26,25 +26,25 @@ export default function SEOSpecialtyPage() {
       <div className="text-center mb-10">
         <div className="text-4xl mb-3">{data.icon}</div>
         <h1 className="text-3xl sm:text-4xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
-          {data.name_de} <span style={{ color: '#c9a84c' }}>Prüfungsfragen</span>
+          {data.name_de} <span style={{ color: '#3b82f6' }}>Prüfungsfragen</span>
         </h1>
         <p className="text-muted-foreground">Bereite dich optimal auf die medizinische Prüfung vor</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-10">
-        <div className="p-5 rounded-xl border border-border/30 text-center" style={{ background: 'rgba(201,168,76,0.03)' }}>
-          <BookOpen className="w-6 h-6 mx-auto mb-2" style={{ color: '#c9a84c' }} />
+        <div className="p-5 rounded-xl border border-border/30 text-center" style={{ background: 'rgba(59, 130, 246, 0.03)' }}>
+          <BookOpen className="w-6 h-6 mx-auto mb-2" style={{ color: '#3b82f6' }} />
           <div className="text-2xl font-bold">{data.total_questions}</div>
           <div className="text-xs text-muted-foreground">Fragen</div>
         </div>
-        <div className="p-5 rounded-xl border border-border/30 text-center" style={{ background: 'rgba(201,168,76,0.03)' }}>
-          <Users className="w-6 h-6 mx-auto mb-2" style={{ color: '#c9a84c' }} />
+        <div className="p-5 rounded-xl border border-border/30 text-center" style={{ background: 'rgba(59, 130, 246, 0.03)' }}>
+          <Users className="w-6 h-6 mx-auto mb-2" style={{ color: '#3b82f6' }} />
           <div className="text-2xl font-bold">{data.active_users}</div>
           <div className="text-xs text-muted-foreground">Aktive Nutzer</div>
         </div>
-        <div className="p-5 rounded-xl border border-border/30 text-center" style={{ background: 'rgba(201,168,76,0.03)' }}>
-          <Calendar className="w-6 h-6 mx-auto mb-2" style={{ color: '#c9a84c' }} />
+        <div className="p-5 rounded-xl border border-border/30 text-center" style={{ background: 'rgba(59, 130, 246, 0.03)' }}>
+          <Calendar className="w-6 h-6 mx-auto mb-2" style={{ color: '#3b82f6' }} />
           <div className="text-2xl font-bold">{data.years?.length || 0}</div>
           <div className="text-xs text-muted-foreground">Prüfungsjahre</div>
         </div>
@@ -53,11 +53,11 @@ export default function SEOSpecialtyPage() {
       {/* Sample Questions */}
       <div className="mb-10">
         <h2 className="text-xl font-bold mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Beispielfragen aus <span style={{ color: '#c9a84c' }}>{data.name_de}</span>
+          Beispielfragen aus <span style={{ color: '#3b82f6' }}>{data.name_de}</span>
         </h2>
         <div className="space-y-4">
           {data.sample_questions?.map((q, i) => (
-            <div key={q.id || i} className="p-5 rounded-xl border border-border/30" style={{ background: 'rgba(201,168,76,0.02)' }}>
+            <div key={q.id || i} className="p-5 rounded-xl border border-border/30" style={{ background: 'rgba(59, 130, 246, 0.02)' }}>
               <p className="font-medium text-sm mb-3">{q.question_text_de || q.question_text}</p>
               <div className="space-y-2">
                 {(q.choices || []).map((c, j) => (
@@ -81,7 +81,7 @@ export default function SEOSpecialtyPage() {
           <h3 className="font-semibold mb-3">Verfügbare Prüfungsjahre</h3>
           <div className="flex flex-wrap gap-2">
             {data.years.map(y => (
-              <span key={y.year} className="px-3 py-1.5 rounded-full text-xs font-mono" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>
+              <span key={y.year} className="px-3 py-1.5 rounded-full text-xs font-mono" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
                 {y.year} ({y.count} Fragen)
               </span>
             ))}
@@ -90,15 +90,15 @@ export default function SEOSpecialtyPage() {
       )}
 
       {/* CTA */}
-      <div className="p-8 rounded-2xl text-center" style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.1), rgba(201,168,76,0.03))', border: '1px solid rgba(201,168,76,0.2)' }}>
-        <GraduationCap className="w-10 h-10 mx-auto mb-3" style={{ color: '#c9a84c' }} />
+      <div className="p-8 rounded-2xl text-center" style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59, 130, 246, 0.03))', border: '1px solid rgba(59,130,246,0.2)' }}>
+        <GraduationCap className="w-10 h-10 mx-auto mb-3" style={{ color: '#3b82f6' }} />
         <h3 className="text-lg font-bold mb-2">Bereit für die Prüfung?</h3>
         <p className="text-sm text-muted-foreground mb-4">
           Registriere dich kostenlos und erhalte Zugang zu allen {data.total_questions} {data.name_de}-Fragen
         </p>
         <div className="flex gap-3 justify-center">
           <Link to="/register">
-            <Button className="gap-2" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="seo-register-btn">
+            <Button className="gap-2" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }} data-testid="seo-register-btn">
               <UserPlus className="w-4 h-4" /> Kostenlos registrieren
             </Button>
           </Link>

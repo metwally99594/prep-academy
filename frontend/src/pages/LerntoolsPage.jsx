@@ -23,7 +23,7 @@ const SPECIALTIES = [
 ];
 
 const TOOLS = [
-  { id: "study-guide", name: "Lernleitfaden", icon: BookOpen, desc: "KI-generierter Studienguide", color: "#c9a84c" },
+  { id: "study-guide", name: "Lernleitfaden", icon: BookOpen, desc: "KI-generierter Studienguide", color: "#3b82f6" },
   { id: "flashcards", name: "Lernkarten", icon: Layers, desc: "Flashcards aus Prüfungsfragen", color: "#3b82f6" },
   { id: "audio", name: "Audio-Podcast", icon: Headphones, desc: "Lernpodcast zum Anhören", color: "#10b981" },
   { id: "mind-map", name: "Mind Map", icon: GitBranch, desc: "Visuelle Wissensstruktur", color: "#8b5cf6" },
@@ -187,8 +187,8 @@ export default function LerntoolsPage() {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8 page-enter" data-testid="lerntools-page">
         <div className="text-center mb-10">
-          <h1 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: "'Playfair Display', serif", color: '#e8e0d0' }}>
-            Lern<span style={{ color: '#c9a84c' }}>tools</span>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: "'Playfair Display', serif", color: '#d4d4d8' }}>
+            Lern<span style={{ color: '#3b82f6' }}>tools</span>
           </h1>
           <p style={{ color: '#8899aa' }}>KI-gestützte Werkzeuge für dein Medizinstudium</p>
         </div>
@@ -199,12 +199,12 @@ export default function LerntoolsPage() {
             return (
               <button key={tool.id} onClick={() => setActiveTool(tool.id)}
                 className="p-6 rounded-2xl border text-left transition-all duration-300 hover:-translate-y-1 group cursor-pointer"
-                style={{ background: '#0f1a3a', borderColor: 'rgba(201,168,76,0.12)' }}
+                style={{ background: '#0f1a3a', borderColor: 'rgba(59, 130, 246, 0.12)' }}
                 data-testid={`tool-${tool.id}`}>
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{ background: `${tool.color}15` }}>
                   <Icon className="w-6 h-6" style={{ color: tool.color }} />
                 </div>
-                <h3 className="font-semibold text-base mb-1" style={{ color: '#e8e0d0' }}>{tool.name}</h3>
+                <h3 className="font-semibold text-base mb-1" style={{ color: '#d4d4d8' }}>{tool.name}</h3>
                 <p className="text-sm" style={{ color: '#8899aa' }}>{tool.desc}</p>
               </button>
             );
@@ -273,7 +273,7 @@ export default function LerntoolsPage() {
             else if (activeTool === "flashcards") generateFlashcards();
             else if (activeTool === "audio") generateAudio();
             else if (activeTool === "mind-map") generateMindMap();
-          }} disabled={loading} className="gap-2" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="generate-btn">
+          }} disabled={loading} className="gap-2" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }} data-testid="generate-btn">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {loading ? "Wird generiert..." : "Generieren"}
           </Button>
@@ -295,10 +295,10 @@ export default function LerntoolsPage() {
           </div>
           <div onClick={() => setFlipped(!flipped)}
             className="glass-card rounded-2xl p-8 min-h-[200px] flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-[1.01]"
-            style={{ borderColor: flipped ? 'rgba(16,185,129,0.3)' : 'rgba(201,168,76,0.15)' }}
+            style={{ borderColor: flipped ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.15)' }}
             data-testid="flashcard">
             <div className="text-center">
-              <div className="text-xs font-mono mb-3" style={{ color: flipped ? '#10b981' : '#c9a84c' }}>
+              <div className="text-xs font-mono mb-3" style={{ color: flipped ? '#10b981' : '#3b82f6' }}>
                 {flipped ? "ANTWORT" : "FRAGE"}
               </div>
               <p className="text-lg font-medium">
@@ -330,7 +330,7 @@ export default function LerntoolsPage() {
             <div className="glass-card rounded-2xl p-6 flex items-center gap-4">
               <button onClick={toggleAudio}
                 className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)' }}
+                style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)' }}
                 data-testid="play-audio-btn">
                 {isPlaying ? <Pause className="w-6 h-6 text-[#06081a]" /> : <Play className="w-6 h-6 text-[#06081a] ml-1" />}
               </button>
@@ -384,11 +384,11 @@ export default function LerntoolsPage() {
                 )}
                 {chatMessages.map((msg, i) => (
                   <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                    <div className={`max-w-[80%] p-3 rounded-xl text-sm ${msg.role === "user" ? "bg-[#c9a84c]/10 border border-[#c9a84c]/20" : "bg-muted/30 border border-border/30"}`}>
+                    <div className={`max-w-[80%] p-3 rounded-xl text-sm ${msg.role === "user" ? "bg-[#3b82f6]/10 border border-[#3b82f6]/20" : "bg-muted/30 border border-border/30"}`}>
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                       {msg.citations && msg.citations.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {msg.citations.map((c, ci) => <span key={ci} className="text-[10px] px-1.5 py-0.5 rounded bg-[#c9a84c]/10 text-[#c9a84c]">{c}</span>)}
+                          {msg.citations.map((c, ci) => <span key={ci} className="text-[10px] px-1.5 py-0.5 rounded bg-[#3b82f6]/10 text-[#3b82f6]">{c}</span>)}
                         </div>
                       )}
                     </div>
@@ -402,7 +402,7 @@ export default function LerntoolsPage() {
                 onKeyDown={e => { if (e.key === "Enter") sendChatMessage(); }}
                 placeholder="Frage zu deinen Quellen..." disabled={!selNotebook || chatLoading} className="flex-1" data-testid="source-chat-input" />
               <Button onClick={sendChatMessage} disabled={!selNotebook || chatLoading || !chatInput.trim()}
-                style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="source-chat-send">
+                style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }} data-testid="source-chat-send">
                 {chatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
               </Button>
             </div>
@@ -415,8 +415,8 @@ export default function LerntoolsPage() {
         <div className="space-y-4">
           <div className="glass-card rounded-2xl p-6">
             <div className="text-center">
-              <label className="cursor-pointer inline-flex flex-col items-center gap-3 p-8 border-2 border-dashed rounded-2xl transition-colors hover:border-[#c9a84c]/30"
-                style={{ borderColor: 'rgba(201,168,76,0.1)' }}>
+              <label className="cursor-pointer inline-flex flex-col items-center gap-3 p-8 border-2 border-dashed rounded-2xl transition-colors hover:border-[#3b82f6]/30"
+                style={{ borderColor: 'rgba(59,130,246,0.1)' }}>
                 <Upload className="w-10 h-10 text-muted-foreground" />
                 <span className="text-sm font-medium">PDF oder Text hochladen</span>
                 <span className="text-xs text-muted-foreground">Wird als Lernquelle gespeichert</span>
@@ -450,7 +450,7 @@ export default function LerntoolsPage() {
       {/* Loading overlay */}
       {loading && !["source-upload", "source-chat"].includes(activeTool) && (
         <div className="flex flex-col items-center justify-center py-12 gap-4">
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#c9a84c' }} />
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#3b82f6' }} />
           <p className="text-sm text-muted-foreground">KI generiert Inhalte...</p>
         </div>
       )}

@@ -31,7 +31,7 @@ function TierBadge({ tier }) {
 }
 
 function ScoreBar({ score }) {
-  const color = score >= 80 ? "#c9a84c" : score >= 50 ? "#22c55e" : score >= 20 ? "#3b82f6" : "#64748b";
+  const color = score >= 80 ? "#3b82f6" : score >= 50 ? "#22c55e" : score >= 20 ? "#3b82f6" : "#64748b";
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
@@ -45,7 +45,7 @@ function ScoreBar({ score }) {
 // ── Score Gauge ────────────────────────────────────────────────────
 function ScoreGauge({ score }) {
   const angle = (score / 100) * 180 - 90;
-  const color = score >= 80 ? "#c9a84c" : score >= 50 ? "#22c55e" : score >= 20 ? "#3b82f6" : "#64748b";
+  const color = score >= 80 ? "#3b82f6" : score >= 50 ? "#22c55e" : score >= 20 ? "#3b82f6" : "#64748b";
   const r = 54, cx = 64, cy = 64;
   const toXY = (deg) => {
     const rad = (deg - 90) * Math.PI / 180;

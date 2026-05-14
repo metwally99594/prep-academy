@@ -66,7 +66,7 @@ export default function SpacedReviewPage() {
     setSubmitted(false);
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" style={{ color: '#c9a84c' }} /></div>;
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" style={{ color: '#3b82f6' }} /></div>;
 
   const q = questions[currentIdx];
   const percentage = score.total > 0 ? Math.round(score.correct / score.total * 100) : 0;
@@ -75,19 +75,19 @@ export default function SpacedReviewPage() {
   if (stage === "intro") {
     return (
       <div className="max-w-lg mx-auto px-4 py-12 text-center" data-testid="review-intro">
-        <Brain className="w-16 h-16 mx-auto mb-4" style={{ color: '#c9a84c' }} />
+        <Brain className="w-16 h-16 mx-auto mb-4" style={{ color: '#3b82f6' }} />
         <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Spaced <span style={{ color: '#c9a84c' }}>Repetition</span>
+          Spaced <span style={{ color: '#3b82f6' }}>Repetition</span>
         </h1>
         <p className="text-muted-foreground mb-6">Wiederhole Fragen nach dem SM-2 Algorithmus</p>
 
         {stats && (
           <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="p-4 rounded-xl border border-border/30" style={{ background: 'rgba(201,168,76,0.03)' }}>
-              <div className="text-2xl font-bold" style={{ color: '#c9a84c' }}>{stats.due_today}</div>
+            <div className="p-4 rounded-xl border border-border/30" style={{ background: 'rgba(59, 130, 246, 0.03)' }}>
+              <div className="text-2xl font-bold" style={{ color: '#3b82f6' }}>{stats.due_today}</div>
               <div className="text-xs text-muted-foreground">Heute fällig</div>
             </div>
-            <div className="p-4 rounded-xl border border-border/30" style={{ background: 'rgba(201,168,76,0.03)' }}>
+            <div className="p-4 rounded-xl border border-border/30" style={{ background: 'rgba(59, 130, 246, 0.03)' }}>
               <div className="text-2xl font-bold">{stats.total_cards}</div>
               <div className="text-xs text-muted-foreground">Gesamt</div>
             </div>
@@ -99,7 +99,7 @@ export default function SpacedReviewPage() {
         )}
 
         {questions.length > 0 ? (
-          <Button onClick={startReview} className="gap-2" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="start-review-btn">
+          <Button onClick={startReview} className="gap-2" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }} data-testid="start-review-btn">
             <RotateCcw className="w-4 h-4" /> {questions.length} Fragen wiederholen
           </Button>
         ) : (
@@ -117,12 +117,12 @@ export default function SpacedReviewPage() {
   if (stage === "done") {
     return (
       <div className="max-w-lg mx-auto px-4 py-12 text-center" data-testid="review-done">
-        <Trophy className="w-14 h-14 mx-auto mb-4" style={{ color: '#c9a84c' }} />
-        <div className="text-5xl font-bold mb-2" style={{ color: '#c9a84c' }}>{percentage}%</div>
+        <Trophy className="w-14 h-14 mx-auto mb-4" style={{ color: '#3b82f6' }} />
+        <div className="text-5xl font-bold mb-2" style={{ color: '#3b82f6' }}>{percentage}%</div>
         <p className="text-muted-foreground mb-6">{score.correct} von {score.total} richtig</p>
         <div className="flex gap-3 justify-center">
           <Link to="/dashboard"><Button variant="outline" className="gap-2">Dashboard</Button></Link>
-          <Button onClick={() => window.location.reload()} className="gap-2" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+          <Button onClick={() => window.location.reload()} className="gap-2" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
             <RotateCcw className="w-4 h-4" /> Weiter üben
           </Button>
         </div>
@@ -136,22 +136,22 @@ export default function SpacedReviewPage() {
     <div className="max-w-2xl mx-auto px-4 py-8" data-testid="review-quiz">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
-          <RotateCcw size={16} style={{ color: '#c9a84c' }} />
+          <RotateCcw size={16} style={{ color: '#3b82f6' }} />
           <span className="text-sm text-muted-foreground font-mono">Wiederholung {currentIdx + 1}/{questions.length}</span>
         </div>
-        <span className="text-sm font-medium" style={{ color: '#c9a84c' }}>{score.correct} richtig</span>
+        <span className="text-sm font-medium" style={{ color: '#3b82f6' }}>{score.correct} richtig</span>
       </div>
       {q.sr_interval && (
         <div className="mb-3 text-xs text-muted-foreground/60">
           Intervall: {q.sr_interval} Tage | Wiederholungen: {q.sr_repetitions}
         </div>
       )}
-      <div className="p-6 rounded-xl border border-border/30 mb-6" style={{ background: 'rgba(201,168,76,0.03)' }}>
+      <div className="p-6 rounded-xl border border-border/30 mb-6" style={{ background: 'rgba(59, 130, 246, 0.03)' }}>
         <p className="text-base leading-relaxed">{q.question_text_de || q.question_text}</p>
       </div>
       <div className="space-y-3">
         {(q.choices || []).map(c => {
-          let style = "border-border/30 hover:border-[#c9a84c]/40";
+          let style = "border-border/30 hover:border-[#3b82f6]/40";
           if (submitted && c.is_correct) style = "border-emerald-500/50 bg-emerald-500/10";
           else if (submitted && c.id === selectedChoice && !c.is_correct) style = "border-red-500/50 bg-red-500/10";
           return (
@@ -170,7 +170,7 @@ export default function SpacedReviewPage() {
         <div className="mt-4 p-4 rounded-xl border border-border/20 bg-muted/20 text-sm text-muted-foreground">{q.explanation_de}</div>
       )}
       {submitted && (
-        <Button onClick={nextQuestion} className="w-full mt-4 gap-2" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+        <Button onClick={nextQuestion} className="w-full mt-4 gap-2" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
           {currentIdx + 1 >= questions.length ? "Ergebnis" : "Weiter"} <ArrowRight className="w-4 h-4" />
         </Button>
       )}

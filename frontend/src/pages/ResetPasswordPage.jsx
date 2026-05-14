@@ -55,7 +55,7 @@ export default function ResetPasswordPage() {
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
             <img src="/logo-elite.png" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
-              style={{ filter: "drop-shadow(0 0 16px rgba(201,168,76,0.2))" }} />
+              style={{ filter: "drop-shadow(0 0 16px rgba(59,130,246,0.2))" }} />
           </Link>
           <h1 className="text-2xl font-bold text-white mb-1">Neues Passwort</h1>
           <p className="text-white/40 text-sm">Geben Sie Ihr neues Passwort ein</p>
@@ -99,7 +99,7 @@ export default function ResetPasswordPage() {
           </div>
 
           <Button type="submit" disabled={loading || !password || !confirm} className="w-full h-12 text-base font-semibold border-0"
-            style={{ background: "linear-gradient(135deg,#c9a84c,#dbb85c)", color: "#06081a" }}>
+            style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", color: "#06081a" }}>
             {loading ? <><Loader2 className="w-5 h-5 animate-spin mr-2" />Wird gespeichert…</> : "Passwort ändern"}
           </Button>
 

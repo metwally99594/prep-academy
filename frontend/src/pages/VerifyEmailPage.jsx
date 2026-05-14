@@ -51,7 +51,7 @@ export default function VerifyEmailPage() {
       <div className="w-full max-w-md text-center">
         <Link to="/" className="inline-block mb-8">
           <img src="/logo-elite.png" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
-            style={{ filter: "drop-shadow(0 0 16px rgba(201,168,76,0.2))" }} />
+            style={{ filter: "drop-shadow(0 0 16px rgba(59,130,246,0.2))" }} />
         </Link>
 
         {status === "loading" && (
@@ -67,7 +67,7 @@ export default function VerifyEmailPage() {
             <h1 className="text-xl font-bold text-white mb-2">E-Mail bestätigt!</h1>
             <p className="text-white/50 mb-6">Ihr Konto ist jetzt aktiv. Sie werden weitergeleitet…</p>
             <Link to="/login">
-              <Button className="w-full h-11" style={{ background: "linear-gradient(135deg,#c9a84c,#dbb85c)", color: "#06081a" }}>
+              <Button className="w-full h-11" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", color: "#06081a" }}>
                 Jetzt anmelden
               </Button>
             </Link>
@@ -91,7 +91,7 @@ export default function VerifyEmailPage() {
                   className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-amber-500/40"
                 />
                 <Button onClick={handleResend} disabled={resending || !resendEmail.trim()} className="w-full h-11"
-                  style={{ background: "linear-gradient(135deg,#c9a84c,#dbb85c)", color: "#06081a" }}>
+                  style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", color: "#06081a" }}>
                   {resending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Wird gesendet…</> : <><Mail className="w-4 h-4 mr-2" />Link erneut senden</>}
                 </Button>
               </div>

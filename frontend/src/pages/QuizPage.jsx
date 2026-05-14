@@ -546,7 +546,7 @@ export default function QuizPage() {
     if (text && text.length > 1) {
       setHighlights(prev => ({
         ...prev,
-        [currentIndex]: [...(prev[currentIndex] || []), { text, color: '#c9a84c' }]
+        [currentIndex]: [...(prev[currentIndex] || []), { text, color: '#3b82f6' }]
       }));
       selection.removeAllRanges();
       toast.success("Markiert!");
@@ -568,7 +568,7 @@ export default function QuizPage() {
     qHighlights.forEach(h => {
       const escaped = DOMPurify.sanitize(h.text, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
         .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(new RegExp(`(${escaped})`, 'gi'), `<mark style="background:rgba(201,168,76,0.3);padding:1px 2px;border-radius:3px;">$1</mark>`);
+      result = result.replace(new RegExp(`(${escaped})`, 'gi'), `<mark style="background:rgba(59,130,246,0.3);padding:1px 2px;border-radius:3px;">$1</mark>`);
     });
     return DOMPurify.sanitize(result, { ALLOWED_TAGS: ['mark'], ALLOWED_ATTR: ['style'] });
   };
@@ -605,11 +605,11 @@ export default function QuizPage() {
       <div className="max-w-5xl mx-auto px-4 py-8" data-testid="review-screen">
         {/* Score Summary */}
         <div className="glass-card rounded-2xl p-8 text-center mb-8">
-          <Trophy className="w-12 h-12 mx-auto mb-4" style={{ color: '#c9a84c' }} />
+          <Trophy className="w-12 h-12 mx-auto mb-4" style={{ color: '#3b82f6' }} />
           <h2 className="text-3xl font-bold mb-2" data-testid="quiz-complete-title">
             {isExamMode ? "Prüfung beendet!" : "Quiz beendet!"}
           </h2>
-          <div className="text-5xl font-bold mb-2" style={{ color: '#c9a84c' }} data-testid="quiz-score">{percentage}%</div>
+          <div className="text-5xl font-bold mb-2" style={{ color: '#3b82f6' }} data-testid="quiz-score">{percentage}%</div>
           <p className="text-lg text-muted-foreground">{score.correct} von {score.total} richtig</p>
 
           {isExamMode && (
@@ -633,7 +633,7 @@ export default function QuizPage() {
             <Button onClick={restartQuiz} variant="outline" className="gap-2" data-testid="restart-quiz-btn">
               <RotateCcw className="w-4 h-4" /> Wiederholen
             </Button>
-            <Button onClick={() => setShareOpen(true)} className="gap-2" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }} data-testid="share-results-btn">
+            <Button onClick={() => setShareOpen(true)} className="gap-2" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }} data-testid="share-results-btn">
               <Share2 className="w-4 h-4" /> Teilen
             </Button>
             <Link to={specialtyId === 'custom' ? '/custom-quiz' : `/specialty/${specialtyId}`}>
@@ -678,7 +678,7 @@ export default function QuizPage() {
               return (
                 <div key={idx} className="glass-card rounded-xl p-5 border-l-4 border-red-500/40" data-testid={`review-wrong-${idx}`}>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>Frage {parseInt(idx) + 1}</span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>Frage {parseInt(idx) + 1}</span>
                     {q.year && <span className="text-xs text-muted-foreground">{q.year}</span>}
                     {(qType !== 'single_choice') && (
                       <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">{qType}</span>
@@ -778,7 +778,7 @@ export default function QuizPage() {
           <Progress value={(answeredCount / questions.length) * 100} className="h-1.5" />
 
           {/* Specialty name */}
-          <div className="text-sm font-semibold" style={{ color: '#c9a84c' }}>
+          <div className="text-sm font-semibold" style={{ color: '#3b82f6' }}>
             {specialtyId === 'custom' ? 'Eigene Auswahl' : (specNameDe || specialtyId)}
             <div className="text-xs text-muted-foreground font-normal">{answeredCount}/{questions.length}</div>
           </div>
@@ -792,7 +792,7 @@ export default function QuizPage() {
               if (a?.submitted && a.correct) bg = 'bg-emerald-500/20 text-emerald-400';
               if (a?.submitted && !a.correct && !a.skipped) bg = 'bg-red-500/20 text-red-400';
               if (a?.skipped) bg = 'bg-amber-500/20 text-amber-400';
-              if (isCurrent) bg += ' ring-2 ring-[#c9a84c]';
+              if (isCurrent) bg += ' ring-2 ring-[#3b82f6]';
               return (
                 <button key={idx} onClick={() => goToQuestion(idx)}
                   className={`w-8 h-8 rounded-md text-xs font-mono font-semibold transition-all ${bg}`}
@@ -861,7 +861,7 @@ export default function QuizPage() {
         {/* Question Card */}
         <div className="glass-card rounded-2xl p-6 md:p-8 mb-4">
           <div className="flex items-center gap-2 mb-4 flex-wrap">
-            {currentQuestion?.year && <span className="px-3 py-1 text-xs rounded-lg font-medium" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>{currentQuestion.year}</span>}
+            {currentQuestion?.year && <span className="px-3 py-1 text-xs rounded-lg font-medium" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>{currentQuestion.year}</span>}
             {currentQuestion?.tags?.map(t => <span key={t} className="px-2 py-0.5 bg-muted text-xs rounded-md text-muted-foreground">{t}</span>)}
             {correctCount > 1 && <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs rounded-lg font-medium">{correctCount} richtige</span>}
             <button
@@ -919,7 +919,7 @@ export default function QuizPage() {
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
                     getChoiceClass(choice) === "correct" ? "bg-emerald-500 text-white border-emerald-500"
                     : getChoiceClass(choice) === "incorrect" ? "bg-red-500 text-white border-red-500"
-                    : selectedChoices.includes(choice.id) ? "border-[#c9a84c] text-[#c9a84c]" : "border-muted-foreground/30 text-muted-foreground"
+                    : selectedChoices.includes(choice.id) ? "border-[#3b82f6] text-[#3b82f6]" : "border-muted-foreground/30 text-muted-foreground"
                   }`}>
                     {getChoiceClass(choice) === "correct" ? <Check className="w-4 h-4" />
                     : getChoiceClass(choice) === "incorrect" ? <X className="w-4 h-4" />
@@ -966,7 +966,7 @@ export default function QuizPage() {
             <FileText className="w-4 h-4" /> {noteText ? "Notiz bearbeiten" : "Notiz"}
           </button>
           <button onClick={() => setHighlightMode(!highlightMode)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${highlightMode ? 'bg-[#c9a84c]/20 text-[#c9a84c]' : 'bg-muted/40 hover:bg-muted'}`}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${highlightMode ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : 'bg-muted/40 hover:bg-muted'}`}
             data-testid="highlight-toggle-btn">
             <Highlighter className="w-4 h-4" /> {highlightMode ? "Markieren: AN" : "Markieren"}
           </button>
@@ -999,8 +999,8 @@ export default function QuizPage() {
               </div>
             )}
             {aiExplanation && (
-              <div className="glass-card rounded-xl p-5 border-l-4 border-[#c9a84c]/30">
-                <h3 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4" style={{ color: '#c9a84c' }} /> KI-Erklärung</h3>
+              <div className="glass-card rounded-xl p-5 border-l-4 border-[#3b82f6]/30">
+                <h3 className="font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4" style={{ color: '#3b82f6' }} /> KI-Erklärung</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line">{aiExplanation}</p>
               </div>
             )}

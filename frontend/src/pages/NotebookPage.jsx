@@ -16,7 +16,7 @@ const VOICES = [
 ];
 
 const ANALYSIS_STAGES = [
-  { id: "layer1", label: "Globale Analyse", desc: "Überblick & Struktur", icon: "🔍", color: "#c9a84c" },
+  { id: "layer1", label: "Globale Analyse", desc: "Überblick & Struktur", icon: "🔍", color: "#3b82f6" },
   { id: "layer2", label: "Detailanalyse", desc: "Chunks & Konzepte", icon: "🧠", color: "#818cf8" },
   { id: "layer3", label: "Wissensvernetzung", desc: "Synthese & Verbindungen", icon: "🔗", color: "#34d399" },
 ];
@@ -27,9 +27,9 @@ function AnalysisProgressBanner({ progress, preview, onDismiss }) {
   const currentIdx = isDone ? 3 : ANALYSIS_STAGES.findIndex(s => s.id === progress.stage);
 
   return (
-    <div className="mb-3 rounded-xl border overflow-hidden" style={{ borderColor: isDone ? 'rgba(52,211,153,0.3)' : 'rgba(201,168,76,0.2)' }}>
+    <div className="mb-3 rounded-xl border overflow-hidden" style={{ borderColor: isDone ? 'rgba(52,211,153,0.3)' : 'rgba(59,130,246,0.2)' }}>
       {/* Stage indicator row */}
-      <div className="flex items-center px-4 py-2.5 gap-3" style={{ background: isDone ? 'rgba(52,211,153,0.05)' : 'rgba(201,168,76,0.05)' }}>
+      <div className="flex items-center px-4 py-2.5 gap-3" style={{ background: isDone ? 'rgba(52,211,153,0.05)' : 'rgba(59,130,246,0.05)' }}>
         {isDone
           ? <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
           : <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: ANALYSIS_STAGES[currentIdx]?.color }} />}
@@ -405,8 +405,8 @@ export default function NotebookPage() {
   if (accessDenied) {
     return (
       <div data-testid="notebook-locked" className="max-w-lg mx-auto px-4 py-20 text-center">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(201,168,76,0.1)' }}>
-          <Lock size={32} style={{ color: '#c9a84c' }} />
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(59,130,246,0.1)' }}>
+          <Lock size={32} style={{ color: '#3b82f6' }} />
         </div>
         <h2 className="text-xl font-bold mb-2">Notebook gesperrt</h2>
         <p className="text-muted-foreground text-sm">Diese Funktion ist nur für freigeschaltete Benutzer verfügbar.</p>
@@ -427,13 +427,13 @@ export default function NotebookPage() {
     return (
       <div data-testid="notebook-chat" className="max-w-4xl mx-auto px-4 py-4 flex flex-col" style={{ height: "calc(100vh - 80px)" }}>
         {/* Header */}
-        <div className="flex items-center gap-3 mb-3 pb-3" style={{ borderBottom: '1px solid rgba(201,168,76,0.1)' }}>
+        <div className="flex items-center gap-3 mb-3 pb-3" style={{ borderBottom: '1px solid rgba(59,130,246,0.1)' }}>
           <button data-testid="notebook-back-btn" onClick={() => { setActiveNotebook(null); setNotebookMeta(null); setMessages([]); setActiveTab("chat"); setAnalysisProgress(null); setAnalysisPreview(null); }}
             className="p-2 rounded-lg hover:bg-muted transition-colors">
             <ArrowLeft size={20} />
           </button>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(201,168,76,0.1)' }}>
-            <FileText size={20} style={{ color: '#c9a84c' }} />
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(59,130,246,0.1)' }}>
+            <FileText size={20} style={{ color: '#3b82f6' }} />
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-semibold truncate text-sm">{activeNotebook.filename}</h2>
@@ -454,7 +454,7 @@ export default function NotebookPage() {
             )}
             <div className="flex gap-1">
               <button data-testid="notebook-summarize-btn" onClick={() => doAction("summarize")} disabled={!!actionLoading}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 hover:bg-muted" style={{ color: '#c9a84c' }}>
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 hover:bg-muted" style={{ color: '#3b82f6' }}>
                 {actionLoading === "summarize" ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Zusammenfassen
               </button>
               <button data-testid="notebook-mcq-btn" onClick={() => doAction("mcq")} disabled={!!actionLoading}
@@ -508,9 +508,9 @@ export default function NotebookPage() {
             return (
               <button key={tab.id} onClick={() => { setActiveTab(tab.id); if (tab.action && tab.id !== "chat") tab.action(); }}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                  isActive ? 'text-[#c9a84c]' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  isActive ? 'text-[#3b82f6]' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                 }`}
-                style={isActive ? { background: 'rgba(201,168,76,0.1)' } : {}}
+                style={isActive ? { background: 'rgba(59,130,246,0.1)' } : {}}
                 data-testid={`tab-${tab.id}`}>
                 <Icon size={14} />
                 {tab.name}
@@ -527,11 +527,11 @@ export default function NotebookPage() {
               <div className="flex-1 overflow-y-auto space-y-3 pb-3">
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
-                    <Brain size={48} strokeWidth={1} style={{ color: '#c9a84c' }} />
+                    <Brain size={48} strokeWidth={1} style={{ color: '#3b82f6' }} />
                     <p className="text-center text-sm">Stellen Sie eine Frage zu<br /><strong>{activeNotebook.filename}</strong></p>
                     {notebookMeta?.topics?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 justify-center max-w-md">
-                        {notebookMeta.topics.map((t, i) => <span key={i} className="px-2.5 py-1 rounded-full text-xs" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>{t}</span>)}
+                        {notebookMeta.topics.map((t, i) => <span key={i} className="px-2.5 py-1 rounded-full text-xs" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>{t}</span>)}
                       </div>
                     )}
                     {/* Show analysis preview if available */}
@@ -569,7 +569,7 @@ export default function NotebookPage() {
                       className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                         msg.role === "user" ? "rounded-br-md" : "rounded-bl-md bg-muted/30 border border-border/30"
                       }`}
-                      style={msg.role === "user" ? { background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.15)' } : {}}>
+                      style={msg.role === "user" ? { background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.15)' } : {}}>
                       {msg.content}
                     </div>
                   </div>
@@ -577,21 +577,21 @@ export default function NotebookPage() {
                 {(sending || actionLoading) && (
                   <div className="flex justify-start">
                     <div className="bg-muted/30 border border-border/30 px-4 py-3 rounded-2xl rounded-bl-md flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin" style={{ color: '#c9a84c' }} />
+                      <Loader2 size={14} className="animate-spin" style={{ color: '#3b82f6' }} />
                       <span className="text-xs text-muted-foreground">{actionLoading === "mcq" ? "MCQ wird generiert..." : actionLoading === "summarize" ? "Zusammenfassung..." : "Denkt nach..."}</span>
                     </div>
                   </div>
                 )}
                 <div ref={chatEndRef} />
               </div>
-              <div className="flex gap-2 pt-3" style={{ borderTop: '1px solid rgba(201,168,76,0.08)' }}>
+              <div className="flex gap-2 pt-3" style={{ borderTop: '1px solid rgba(59,130,246,0.08)' }}>
                 <input data-testid="notebook-chat-input" value={input} onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
                   placeholder="Frage stellen... (Deutsch / English / العربية / Русский / Українська)"
-                  className="flex-1 px-4 py-2.5 bg-muted/30 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/30 text-sm" />
+                  className="flex-1 px-4 py-2.5 bg-muted/30 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/30 text-sm" />
                 <button data-testid="notebook-send-btn" onClick={sendMessage} disabled={!input.trim() || sending}
                   className="px-4 py-2.5 rounded-xl disabled:opacity-40 transition-colors text-sm font-medium"
-                  style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+                  style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
                   <Send size={18} />
                 </button>
               </div>
@@ -603,14 +603,14 @@ export default function NotebookPage() {
             <div className="space-y-4">
               {toolLoading && (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#3b82f6' }} />
                   <span className="text-sm text-muted-foreground">Lernleitfaden wird erstellt...</span>
                   <span className="text-xs text-muted-foreground/60">Bitte warten — dies kann bei großen Dokumenten 1–2 Minuten dauern</span>
                 </div>
               )}
               {guideContent && <div className="p-6 rounded-xl border border-border/30 bg-muted/10 text-sm leading-relaxed whitespace-pre-wrap" data-testid="guide-output">{guideContent}</div>}
               {!toolLoading && !guideContent && (
-                <button onClick={generateStudyGuide} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all">
+                <button onClick={generateStudyGuide} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#3b82f6]/30 hover:text-foreground transition-all">
                   <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Lernleitfaden generieren</p>
                   <p className="text-xs mt-1 opacity-60">Tiefenanalyse → strukturierter Lernplan</p>
@@ -624,7 +624,7 @@ export default function NotebookPage() {
             <div className="space-y-4">
               {toolLoading && (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#3b82f6' }} />
                   <span className="text-sm text-muted-foreground">Lernkarten werden erstellt...</span>
                   <span className="text-xs text-muted-foreground/60">KI erstellt klinische Beispiele für jede Karte</span>
                 </div>
@@ -639,10 +639,10 @@ export default function NotebookPage() {
                   </div>
                   <div onClick={() => setFlipped(!flipped)}
                     className="p-8 min-h-[180px] flex items-center justify-center cursor-pointer transition-all duration-300 rounded-xl border"
-                    style={{ borderColor: flipped ? 'rgba(16,185,129,0.3)' : 'rgba(201,168,76,0.15)', background: flipped ? 'rgba(16,185,129,0.03)' : 'rgba(201,168,76,0.03)' }}
+                    style={{ borderColor: flipped ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.15)', background: flipped ? 'rgba(16,185,129,0.03)' : 'rgba(59, 130, 246, 0.03)' }}
                     data-testid="flashcard">
                     <div className="text-center">
-                      <div className="text-xs font-mono mb-3" style={{ color: flipped ? '#10b981' : '#c9a84c' }}>{flipped ? "ANTWORT" : "FRAGE"}</div>
+                      <div className="text-xs font-mono mb-3" style={{ color: flipped ? '#10b981' : '#3b82f6' }}>{flipped ? "ANTWORT" : "FRAGE"}</div>
                       <p className="text-lg font-medium">{flipped ? cards[cardIdx]?.back : cards[cardIdx]?.front}</p>
                     </div>
                   </div>
@@ -654,7 +654,7 @@ export default function NotebookPage() {
                 </>
               )}
               {!toolLoading && cards.length === 0 && (
-                <button onClick={generateFlashcards} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all">
+                <button onClick={generateFlashcards} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#3b82f6]/30 hover:text-foreground transition-all">
                   <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Lernkarten generieren</p>
                   <p className="text-xs mt-1 opacity-60">15 Karten mit klinischen Beispielen</p>
@@ -677,12 +677,12 @@ export default function NotebookPage() {
                       <RotateCcw size={12} className="inline mr-1" />Neu generieren
                     </button>
                   )}
-                  {!audioData && !toolLoading && <button onClick={generateAudio} className="px-4 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'rgba(201,168,76,0.15)', color: '#c9a84c' }} data-testid="generate-audio-btn">Podcast generieren</button>}
+                  {!audioData && !toolLoading && <button onClick={generateAudio} className="px-4 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }} data-testid="generate-audio-btn">Podcast generieren</button>}
                 </div>
               </div>
               {toolLoading && (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#3b82f6' }} />
                   <span className="text-sm text-muted-foreground">Audio wird generiert...</span>
                   <span className="text-xs text-muted-foreground/60">Skript + Sprachsynthese</span>
                 </div>
@@ -690,8 +690,8 @@ export default function NotebookPage() {
               {audioData && (
                 <>
                   {audioData.audio_base64 && (
-                    <div className="flex items-center gap-4 p-5 rounded-xl border" style={{ borderColor: 'rgba(201,168,76,0.15)', background: 'rgba(201,168,76,0.03)' }}>
-                      <button onClick={toggleAudio} className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)' }} data-testid="play-audio-btn">
+                    <div className="flex items-center gap-4 p-5 rounded-xl border" style={{ borderColor: 'rgba(59,130,246,0.15)', background: 'rgba(59, 130, 246, 0.03)' }}>
+                      <button onClick={toggleAudio} className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)' }} data-testid="play-audio-btn">
                         {isPlaying ? <Pause className="w-6 h-6 text-[#06081a]" /> : <Play className="w-6 h-6 text-[#06081a] ml-1" />}
                       </button>
                       <div>
@@ -724,14 +724,14 @@ export default function NotebookPage() {
             <div>
               {toolLoading && (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#c9a84c' }} />
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#3b82f6' }} />
                   <span className="text-sm text-muted-foreground">Mind Map wird erstellt...</span>
                   <span className="text-xs text-muted-foreground/60">Wissensstruktur aus Tiefenanalyse</span>
                 </div>
               )}
               {mindMap && <div className="p-6 rounded-xl border border-border/30 bg-muted/10" data-testid="mindmap-output"><MindMapView data={mindMap} /></div>}
               {!toolLoading && !mindMap && (
-                <button onClick={generateMindMap} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#c9a84c]/30 hover:text-foreground transition-all">
+                <button onClick={generateMindMap} className="w-full py-8 rounded-xl border border-dashed border-border/50 text-muted-foreground hover:border-[#3b82f6]/30 hover:text-foreground transition-all">
                   <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Mind Map generieren</p>
                   <p className="text-xs mt-1 opacity-60">Verknüpfte Konzepte visualisieren</p>
@@ -750,13 +750,13 @@ export default function NotebookPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2" style={{ fontFamily: "'Playfair Display', serif" }}>
-            <Brain size={24} style={{ color: '#c9a84c' }} /> PDF <span style={{ color: '#c9a84c' }}>Notebook</span>
+            <Brain size={24} style={{ color: '#3b82f6' }} /> PDF <span style={{ color: '#3b82f6' }}>Notebook</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Laden Sie medizinische PDFs hoch und lernen Sie mit KI</p>
         </div>
         <label data-testid="notebook-upload-btn"
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl cursor-pointer transition-colors text-sm font-medium ${uploading ? "opacity-50 pointer-events-none" : ""}`}
-          style={{ background: 'linear-gradient(135deg, #c9a84c, #dbb85c)', color: '#06081a' }}>
+          style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
           {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
           {uploading ? "Wird hochgeladen..." : "PDF hochladen"}
           <input ref={fileInputRef} type="file" accept=".pdf" onChange={uploadPDF} className="hidden" />
@@ -779,23 +779,23 @@ export default function NotebookPage() {
           {notebooks.map(nb => (
             <div key={nb.id} data-testid={`notebook-item-${nb.id}`}
               className="flex items-center gap-4 p-4 border rounded-xl cursor-pointer group transition-all hover:-translate-y-0.5"
-              style={{ borderColor: 'rgba(201,168,76,0.08)', background: 'rgba(201,168,76,0.02)' }}
+              style={{ borderColor: 'rgba(59,130,246,0.08)', background: 'rgba(59, 130, 246, 0.02)' }}
               onClick={() => openNotebook(nb)}>
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(201,168,76,0.08)' }}>
-                <FileText size={22} style={{ color: '#c9a84c' }} />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(59,130,246,0.08)' }}>
+                <FileText size={22} style={{ color: '#3b82f6' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium truncate">{nb.filename}</h3>
                 <div className="flex items-center gap-3 mt-0.5">
                   <span className="text-xs text-muted-foreground">{nb.page_count} Seiten</span>
-                  {nb.chunk_count > 1 && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c' }}>{nb.chunk_count} Abschnitte</span>}
+                  {nb.chunk_count > 1 && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>{nb.chunk_count} Abschnitte</span>}
                   {nb.word_count > 0 && <span className="text-xs text-muted-foreground">{Math.round(nb.word_count/1000)}k Wörter</span>}
                   <span className="text-xs text-muted-foreground">{new Date(nb.created_at).toLocaleDateString("de-DE")}</span>
-                  {nb.topics?.length > 0 && <span className="text-xs" style={{ color: '#c9a84c' }}>{nb.topics.slice(0, 2).join(", ")}</span>}
+                  {nb.topics?.length > 0 && <span className="text-xs" style={{ color: '#3b82f6' }}>{nb.topics.slice(0, 2).join(", ")}</span>}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <MessageSquare size={16} className="text-muted-foreground/30 group-hover:text-[#c9a84c] transition-colors" />
+                <MessageSquare size={16} className="text-muted-foreground/30 group-hover:text-[#3b82f6] transition-colors" />
                 <button data-testid={`notebook-delete-${nb.id}`}
                   onClick={e => { e.stopPropagation(); deleteNotebook(nb.id); }}
                   className="p-1.5 text-muted-foreground/30 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
