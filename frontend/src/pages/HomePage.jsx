@@ -14,6 +14,27 @@ const iconMap = {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity, Pill,
 };
 
+/* Splash */
+const SplashOverlay = ({ onDone }) => {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 80);
+    const t2 = setTimeout(() => setPhase(2), 1000);
+    const t3 = setTimeout(() => onDone(), 1600);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [onDone]);
+
+  return (
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-500 ${phase >= 2 ? "opacity-0 pointer-events-none" : "opacity-100"}`} style={{ background: "linear-gradient(135deg, #06081a 0%, #0a1128 40%, #06081a 100%)" }} data-testid="splash-overlay">
+      <div className="text-center relative">
+        <div className={`transition-all duration-600 ${phase >= 1 ? "opacity-100 scale-100" : "opacity-0 scale-75"}`}>
+          <img src="/logo-elite.png" alt="Prep Academy" className="w-44 h-44 mx-auto object-contain" style={{ filter: "drop-shadow(0 0 40px rgba(201,168,76,0.25))" }} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* Section label */
 const SectionLabel = ({ number, text }) => (
   <div className="flex items-center gap-3 mb-6">
@@ -31,6 +52,8 @@ export default function HomePage() {
   const [fetchError, setFetchError] = useState(null);
   const { user, token } = useAuth();
   const [requestingAccess, setRequestingAccess] = useState(false);
+  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem("splashSeen"));
+  const handleSplashDone = useCallback(() => { setShowSplash(false); sessionStorage.setItem("splashSeen", "1"); }, []);
 
   const loadHomepageData = useCallback(() => {
     setFetchError(null);
@@ -49,6 +72,7 @@ export default function HomePage() {
       })
       .catch(() => {});
   }, []);
+
 
   useEffect(() => { loadHomepageData(); }, [loadHomepageData]);
 
@@ -106,8 +130,59 @@ export default function HomePage() {
 
   return (
     <div style={{ background: '#06081a', color: '#e8e0d0' }}>
+      {!user && showSplash && <SplashOverlay onDone={handleSplashDone} />}
+
       {/* ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ SECTION 1: HERO ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ */}
       <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-premium-dark" data-testid="hero-section">
+
+        {/* Decorative overlays */}
+        <div className="absolute inset-0 pointer-events-none z-[1] hero-overlays" aria-hidden="true" />
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[44%] h-[72%] max-h-[650px] pointer-events-none z-[2] hidden md:block" aria-hidden="true">
+          <svg viewBox="0 0 500 600" className="w-full h-full" fill="none">
+            <circle cx="280" cy="300" r="220" stroke="rgba(59,130,246,0.07)" strokeWidth="0.5" />
+            <circle cx="280" cy="300" r="185" stroke="rgba(59,130,246,0.05)" strokeWidth="0.4" strokeDasharray="3 5" />
+            <circle cx="280" cy="300" r="150" stroke="rgba(59,130,246,0.08)" strokeWidth="0.5" />
+            <circle cx="280" cy="300" r="115" stroke="rgba(59,130,246,0.05)" strokeWidth="0.35" strokeDasharray="2 4" />
+            <circle cx="280" cy="300" r="80" stroke="rgba(59,130,246,0.07)" strokeWidth="0.4" />
+            <circle cx="280" cy="300" r="45" stroke="rgba(59,130,246,0.06)" strokeWidth="0.3" strokeDasharray="2 3" />
+            <line x1="60" y1="300" x2="500" y2="300" stroke="rgba(59,130,246,0.04)" strokeWidth="0.3" />
+            <line x1="280" y1="80" x2="280" y2="520" stroke="rgba(59,130,246,0.04)" strokeWidth="0.3" />
+            <line x1="130" y1="150" x2="430" y2="450" stroke="rgba(59,130,246,0.03)" strokeWidth="0.25" strokeDasharray="3 5" />
+            <line x1="430" y1="150" x2="130" y2="450" stroke="rgba(59,130,246,0.03)" strokeWidth="0.25" strokeDasharray="3 5" />
+            <g stroke="rgba(59,130,246,0.25)" strokeWidth="0.7" fill="none">
+              <path d="M270 200 C245 185 200 195 195 240 C190 270 195 295 205 315 C210 330 225 345 240 355 C255 365 265 370 275 375 C295 380 315 375 330 360 C350 340 365 310 360 270 C355 230 330 205 305 200 C290 197 280 205 270 200Z" />
+              <path d="M275 200 C270 235 280 270 275 305 C270 335 280 355 275 375" strokeWidth="0.5" />
+              <path d="M245 220 C235 230 230 245 235 255" strokeWidth="0.4" />
+              <path d="M240 270 C228 285 232 300 242 310" strokeWidth="0.4" />
+              <path d="M248 325 C238 335 242 348 252 355" strokeWidth="0.4" />
+              <path d="M335 220 C345 230 350 245 345 255" strokeWidth="0.4" />
+              <path d="M340 270 C352 285 348 300 338 310" strokeWidth="0.4" />
+              <path d="M332 325 C342 335 338 348 328 355" strokeWidth="0.4" />
+              <path d="M268 375 C265 395 265 415 270 435" strokeWidth="0.4" />
+              <path d="M282 375 C285 395 285 415 280 435" strokeWidth="0.4" />
+            </g>
+            <g fill="rgba(96,165,250,0.5)">
+              <circle cx="280" cy="180" r="2" /><circle cx="200" cy="215" r="1.8" /><circle cx="360" cy="215" r="1.8" />
+              <circle cx="195" cy="285" r="1.5" /><circle cx="365" cy="285" r="1.5" /><circle cx="210" cy="345" r="1.8" />
+              <circle cx="350" cy="345" r="1.8" /><circle cx="240" cy="365" r="2" /><circle cx="320" cy="360" r="2" />
+              <circle cx="275" cy="380" r="1.8" /><circle cx="270" cy="435" r="1.5" /><circle cx="280" cy="435" r="1.5" />
+            </g>
+            <circle cx="280" cy="300" r="2.5" fill="rgba(96,165,250,0.6)" />
+            <circle cx="280" cy="300" r="5" fill="rgba(96,165,250,0.15)" />
+            <g stroke="rgba(59,130,246,0.10)" strokeWidth="0.6">
+              <line x1="280" y1="80" x2="280" y2="90" /><line x1="500" y1="300" x2="490" y2="300" />
+              <line x1="280" y1="520" x2="280" y2="510" /><line x1="60" y1="300" x2="70" y2="300" />
+              <line x1="436" y1="144" x2="429" y2="151" /><line x1="124" y1="456" x2="131" y2="449" />
+              <line x1="436" y1="456" x2="429" y2="449" /><line x1="124" y1="144" x2="131" y2="151" />
+            </g>
+            <g fill="rgba(59,130,246,0.15)">
+              <circle cx="280" cy="78" r="1.2" /><circle cx="502" cy="300" r="1.2" />
+              <circle cx="280" cy="522" r="1.2" /><circle cx="58" cy="300" r="1.2" />
+              <circle cx="131" cy="151" r="1" /><circle cx="429" cy="151" r="1" />
+              <circle cx="131" cy="449" r="1" /><circle cx="429" cy="449" r="1" />
+            </g>
+          </svg>
+        </div>
 
         {/* Content */}
         <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 py-20 w-full relative z-10">
@@ -570,5 +645,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-

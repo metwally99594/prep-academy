@@ -9,3 +9,15 @@ root.render(
     <App />
   </React.StrictMode>,
 );
+
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    const ls = document.getElementById("loading-screen");
+    if (ls) {
+      ls.style.transition = "opacity 0.3s ease";
+      ls.style.opacity = "0";
+      ls.style.pointerEvents = "none";
+      setTimeout(() => { ls.remove?.(); }, 350);
+    }
+  });
+});
