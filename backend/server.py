@@ -3049,11 +3049,14 @@ async def create_user_access_request(
 
 
 @api_router.get("/admin/access-requests")
-async def admin_list_access_requests(admin: dict = Depends(get_admin_user)):
+async def admin_list_access_requests(
+    status: Optional[str] = None,
+    admin: dict = Depends(get_admin_user),
+):
     """List all access requests, newest first."""
     if not admin.get("is_admin"):
         raise HTTPException(status_code=403, detail="Nur für Administratoren")
-    return await list_access_requests()
+    return await list_access_requests(status=status)
 
 
 @api_router.post("/admin/users/by-ids")

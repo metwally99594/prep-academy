@@ -61,7 +61,7 @@ import {
   Users,
   ShieldAlert,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import NotificationBell from "@/components/NotificationBell";
 import TrialBanner from "@/components/TrialBanner";
@@ -197,13 +197,18 @@ export const Layout = () => {
   const [editFormData, setEditFormData] = useState(null);
   const [saving, setSaving] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const unreadRef = useRef(0);
 
   useEffect(() => {
     if (!token) return;
     const fetch = async () => {
       try {
         const res = await axios.get(`${API}/messaging/unread-count`, { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 });
-        setUnreadMessages(res.data.total_unread || 0);
+        const count = res.data.total_unread || 0;
+        if (count !== unreadRef.current) {
+          unreadRef.current = count;
+          setUnreadMessages(count);
+        }
       } catch { /* silent */ }
     };
     fetch();

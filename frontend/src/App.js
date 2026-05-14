@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
@@ -107,10 +107,14 @@ const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
+  const userRef = useRef(null);
+
+  // Keep ref in sync so checkAuth can read latest user without depending on object reference
+  userRef.current = user;
 
   const checkAuth = useCallback(async () => {
     if (token) {
-      if (user) {
+      if (userRef.current) {
         setLoading(false);
         return;
       }
@@ -126,7 +130,7 @@ const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
-  }, [token, user]);
+  }, [token]);
 
   useEffect(() => {
     checkAuth();
@@ -207,8 +211,10 @@ const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const ctxValue = useMemo(() => ({ user, token, loading, login, register, logout }), [user, token, loading]);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={ctxValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -219,11 +225,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return null;
   }
 
   if (!user) {

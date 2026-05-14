@@ -141,7 +141,8 @@ code, .font-mono {
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
 }
 
 .glass-card:hover {
@@ -204,9 +205,10 @@ code, .font-mono {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    will-change: transform;
 }
 
 .specialty-card::before {
@@ -241,8 +243,9 @@ code, .font-mono {
     background: hsl(var(--card));
     border: 2px solid hsl(var(--border));
     border-radius: 0.75rem;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
+    will-change: transform;
 }
 
 .choice-btn:hover:not(:disabled) {
@@ -276,9 +279,10 @@ code, .font-mono {
     border-radius: var(--radius);
     padding: 1.5rem;
     text-align: center;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    will-change: transform;
 }
 
 .stat-card::after {
@@ -314,7 +318,8 @@ code, .font-mono {
     color: hsl(228 35% 6%);
     font-weight: 600;
     border: none;
-    transition: all 0.25s ease;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    will-change: transform;
 }
 
 .btn-elite:hover {
@@ -442,7 +447,8 @@ code, .font-mono {
 
 .btn-gold-glow {
     position: relative;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    will-change: transform;
 }
 
 .btn-gold-glow:hover {
@@ -472,9 +478,10 @@ code, .font-mono {
     background: rgba(201, 168, 76, 0.02);
     border: 1px solid rgba(201, 168, 76, 0.08);
     border-radius: 1rem;
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    will-change: transform;
 }
 
 .card-premium::before {
@@ -503,9 +510,10 @@ code, .font-mono {
     background: rgba(30, 58, 138, 0.04);
     border: 1px solid rgba(30, 58, 138, 0.1);
     border-radius: 1rem;
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    will-change: transform;
 }
 
 .card-premium-alt::before {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API, useAuth } from "@/App";
@@ -91,39 +91,46 @@ export default function HomePage() {
       toast.success("Anfrage gesendet");
     } catch (err) {
       const detail = err.response?.data?.detail || "Fehler beim Senden";
-      toast.error(detail);
+      if (detail && detail.includes("ausstehende Anfrage")) {
+        toast.success("Anfrage bereits gesendet");
+      } else {
+        toast.error(detail);
+      }
     } finally {
       setRequestingAccess(false);
     }
   };
 
-  // Filter specialties based on selected exam
-  const filteredSpecialties = specialties.filter(s => {
-    if (!selectedExam) return true;
-    const exam = examTypes.find(e => e.id === selectedExam);
-    if (!exam) return true;
-    if (exam.specialty) return s.id === exam.specialty;
-    if (exam.location) {
-      const cityCount = s.city_counts?.[exam.location] || 0;
-      return cityCount > 0;
-    }
-    return true;
-  }).map(s => {
-    const exam = examTypes.find(e => e.id === selectedExam);
-    if (!exam) return s;
-    if (exam.location) {
-      return { ...s, question_count: s.city_counts?.[exam.location] || 0 };
-    }
-    return s;
-  });
+  // Memoize filtered specialties to avoid recalculation on unrelated re-renders
+  const filteredSpecialties = useMemo(() => {
+    return specialties.filter(s => {
+      if (!selectedExam) return true;
+      const exam = examTypes.find(e => e.id === selectedExam);
+      if (!exam) return true;
+      if (exam.specialty) return s.id === exam.specialty;
+      if (exam.location) {
+        const cityCount = s.city_counts?.[exam.location] || 0;
+        return cityCount > 0;
+      }
+      return true;
+    }).map(s => {
+      const exam = examTypes.find(e => e.id === selectedExam);
+      if (!exam) return s;
+      if (exam.location) {
+        return { ...s, question_count: s.city_counts?.[exam.location] || 0 };
+      }
+      return s;
+    });
+  }, [specialties, examTypes, selectedExam]);
 
-  const totalQ = filteredSpecialties.reduce((sum, sp) => sum + (sp.question_count || 0), 0);
-  const totalAvailableQuestions = specialties.reduce((sum, sp) => sum + (sp.question_count || 0), 0);
-  const activeSpecialtyCount = specialties.filter(sp => (sp.question_count || 0) > 0).length;
-  const displayNumber = (value) => {
+  const totalQ = useMemo(() => filteredSpecialties.reduce((sum, sp) => sum + (sp.question_count || 0), 0), [filteredSpecialties]);
+  const totalAvailableQuestions = useMemo(() => specialties.reduce((sum, sp) => sum + (sp.question_count || 0), 0), [specialties]);
+  const activeSpecialtyCount = useMemo(() => specialties.filter(sp => (sp.question_count || 0) > 0).length, [specialties]);
+
+  const displayNumber = useCallback((value) => {
     if (loading) return "...";
     return value > 0 ? value.toLocaleString("de-DE") : "Live";
-  };
+  }, [loading]);
 
   return (
     <div style={{ background: '#06081a', color: '#e8e0d0' }}>
@@ -436,7 +443,7 @@ export default function HomePage() {
             </div>
           ) : loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(9)].map((_, i) => <div key={i} className="h-24 rounded-xl animate-pulse" style={{ background: 'rgba(201,168,76,0.03)' }} />)}
+              {[...Array(6)].map((_, i) => <div key={i} className="min-h-[116px] rounded-xl animate-pulse" style={{ background: 'rgba(201,168,76,0.03)' }} />)}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -122,7 +122,7 @@ export default function AdminAccessRequestsTab({ token }) {
                   <td className="py-3 px-2 text-muted-foreground">{r._user?.email || "—"}</td>
                   <td className="py-3 px-2">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/5 text-xs font-medium">
-                      {r.feature_pack === "advanced_features" ? "Erweiterte Funktionen" : r.feature_pack}
+                      {r.feature_pack === "advanced_features" ? "Erweiterte Funktionen" : r.feature_pack || r.feature_label || r.feature || "—"}
                     </span>
                   </td>
                   <td className="py-3 px-2">{badge(r.status)}</td>

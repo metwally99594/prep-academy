@@ -322,7 +322,7 @@ function UserDetailModal({ userId, token, onClose, onPermissionChange }) {
                 <div className="space-y-1.5">
                   {detail.access_requests.map(r => (
                     <div key={r.id} className="flex items-center gap-2 text-xs rounded-lg border border-border px-3 py-2">
-                      <span className="flex-1 text-muted-foreground">{r.feature_label}</span>
+                      <span className="flex-1 text-muted-foreground">{r.feature_label || (r.feature_pack === "advanced_features" ? "Erweiterte Funktionen" : r.feature_pack) || r.feature || "—"}</span>
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
                         r.status === "approved" ? "bg-emerald-500/15 text-emerald-400" :
                         r.status === "rejected" ? "bg-red-500/15 text-red-400" :
@@ -506,7 +506,7 @@ export default function AdminAnalyticsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     {req.user_name}
-                    <span className="text-xs text-muted-foreground">→ {req.feature_label}</span>
+                    <span className="text-xs text-muted-foreground">→ {req.feature_label || (req.feature_pack === "advanced_features" ? "Erweiterte Funktionen" : req.feature_pack) || req.feature || "—"}</span>
                   </div>
                   {req.user_message && (
                     <p className="text-xs text-muted-foreground truncate">{req.user_message}</p>
