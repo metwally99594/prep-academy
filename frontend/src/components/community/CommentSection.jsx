@@ -1,10 +1,11 @@
 import { useState, useCallback, useMemo } from "react";
 import axios from "axios";
 import { API } from "@/App";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CommentItem } from "./CommentItem";
+import { EmptyState } from "@/components/ui/empty-state";
 
 function buildTree(comments) {
   const byId = {};
@@ -149,9 +150,11 @@ export function CommentSection({ postId, token, userId, userName, initialComment
       {/* Comment tree */}
       <div className="space-y-4 mb-5 min-h-0">
         {tree.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Noch keine Kommentare — schreiben Sie den ersten!
-          </p>
+          <EmptyState
+            icon={MessageSquare}
+            title="Noch keine Kommentare"
+            description="Schreiben Sie den ersten Kommentar!"
+          />
         ) : (
           tree.map(comment => (
             <div key={comment.id} className="space-y-3">

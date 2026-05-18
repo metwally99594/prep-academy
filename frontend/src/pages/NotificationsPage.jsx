@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { API, useAuth } from "@/App";
-import { Bell, Check, Loader2, AlertCircle } from "lucide-react";
+import { Bell, Check, Loader2, AlertCircle, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationGroup } from "@/components/notifications/NotificationGroup";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function NotificationsPage() {
   const { token } = useAuth();
@@ -144,10 +145,7 @@ export default function NotificationsPage() {
           ))}
         </div>
       ) : notifications.length === 0 ? (
-        <div className="text-center py-16">
-          <Bell className="w-12 h-12 mx-auto mb-3 text-muted-foreground/20" />
-          <p className="text-sm text-muted-foreground">Keine Benachrichtigungen</p>
-        </div>
+        <EmptyState icon={Inbox} title="Keine Benachrichtigungen" />
       ) : (
         <>
           <NotificationGroup notifications={notifications} />

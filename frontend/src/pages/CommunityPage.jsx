@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/App";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, MessageSquare } from "lucide-react";
 import { useFeed } from "@/hooks/useFeed";
 import { useCommunityFilters } from "@/hooks/useCommunityFilters";
 import { PostCard } from "@/components/community/PostCard";
@@ -10,6 +10,7 @@ import { InfiniteScrollSentinel } from "@/components/community/InfiniteScrollSen
 import { CommunityHeader } from "@/components/community/CommunityHeader";
 import { FeedFilterBar } from "@/components/community/FeedFilterBar";
 import { NewPostModal } from "@/components/community/NewPostModal";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function CommunityPage() {
   const navigate = useNavigate();
@@ -71,16 +72,16 @@ export default function CommunityPage() {
         {loading && posts.length === 0 ? (
           Array.from({ length: 5 }).map((_, i) => <PostCardSkeleton key={i} />)
         ) : posts.length === 0 && !loading ? (
-          <div className="text-center py-16 space-y-2">
-            <p className="text-sm text-muted-foreground">
-              {hasActiveFilters ? "Keine Beiträge für diese Filter" : "Noch keine Beiträge"}
-            </p>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="text-xs text-primary hover:underline">
+          <EmptyState
+            icon={MessageSquare}
+            title={hasActiveFilters ? "Keine Beiträge für diese Filter" : "Noch keine Beiträge"}
+            description={hasActiveFilters ? "Versuchen Sie andere Filter oder erstellen Sie einen neuen Beitrag." : "Seien Sie der Erste, der einen Beitrag erstellt!"}
+            action={hasActiveFilters ? (
+              <button onClick={clearFilters} className="text-xs text-primary hover:underline font-medium">
                 Filter zurücksetzen
               </button>
-            )}
-          </div>
+            ) : undefined}
+          />
         ) : (
           // Keep old posts visible (faded) while filter changes load
           <div className={loading ? "opacity-60 pointer-events-none transition-opacity duration-150" : "transition-opacity duration-150"}>

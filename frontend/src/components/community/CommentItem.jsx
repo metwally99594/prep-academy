@@ -137,7 +137,7 @@ export const CommentItem = memo(function CommentItem({
                 <button
                   onClick={handleEditStart}
                   disabled={editing}
-                  className="p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+                  className="p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
                   aria-label="Kommentar bearbeiten"
                 >
                   <Pencil className="w-3 h-3" />

@@ -1,28 +1,18 @@
-import { cn } from "@/lib/utils";
+import { Inbox } from "lucide-react";
 
-export function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-  className,
-}) {
+export function EmptyState({ icon: Icon = Inbox, title, description, action }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center py-12 px-4 text-center", className)}>
-      {Icon && (
-        <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
-          <Icon className="w-6 h-6 text-muted-foreground/50" />
+    <div className="text-center py-16">
+      <div className="flex justify-center mb-4">
+        <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center">
+          <Icon className="w-6 h-6 text-muted-foreground/40" />
         </div>
-      )}
-      {title && (
-        <p className="text-sm font-semibold text-foreground mb-1">{title}</p>
-      )}
+      </div>
+      <p className="text-sm font-medium text-foreground/80 mb-1">{title}</p>
       {description && (
-        <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">{description}</p>
+        <p className="text-xs text-muted-foreground/60 mb-4 max-w-xs mx-auto">{description}</p>
       )}
-      {action && (
-        <div className="mt-4">{action}</div>
-      )}
+      {action && action}
     </div>
   );
 }

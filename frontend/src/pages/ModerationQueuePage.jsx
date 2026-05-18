@@ -7,6 +7,7 @@ import { useModerationQueue } from "@/hooks/useModerationQueue";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { ModerationQueueItem } from "@/components/moderation/ModerationQueueItem";
 import { InfiniteScrollSentinel } from "@/components/community/InfiniteScrollSentinel";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const TABS = [
   { key: "pending",  label: "Ausstehend",  reviewed: false },
@@ -219,10 +220,7 @@ export default function ModerationQueuePage() {
         audit.loading ? (
           <AuditSkeleton />
         ) : audit.items.length === 0 ? (
-          <div className="text-center py-16">
-            <ClipboardList className="w-12 h-12 mx-auto mb-3 text-muted-foreground/20" />
-            <p className="text-sm text-muted-foreground">Keine Audit-Einträge</p>
-          </div>
+          <EmptyState icon={ClipboardList} title="Keine Audit-Einträge" />
         ) : (
           <>
             <div className="space-y-2">
@@ -275,12 +273,10 @@ export default function ModerationQueuePage() {
           {loading ? (
             <QueueSkeleton />
           ) : items.length === 0 ? (
-            <div className="text-center py-16">
-              <ShieldAlert className="w-12 h-12 mx-auto mb-3 text-muted-foreground/20" />
-              <p className="text-sm text-muted-foreground">
-                {tab === "pending" ? "Keine ausstehenden Einträge" : "Keine überprüften Einträge"}
-              </p>
-            </div>
+            <EmptyState
+              icon={ShieldAlert}
+              title={tab === "pending" ? "Keine ausstehenden Einträge" : "Keine überprüften Einträge"}
+            />
           ) : (
             <div className="space-y-3">
               {items.map((item, idx) => (
