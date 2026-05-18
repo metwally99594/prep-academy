@@ -261,7 +261,7 @@ class AIModerationResult:
 # ── Report threshold helpers ──
 
 REPORT_HIDE_THRESHOLD = 5
-REPORT_QUEUE_THRESHOLD = 3
+REPORT_QUEUE_THRESHOLD = 1
 REPORT_RATE_WINDOW = 3600  # 1 hour
 REPORT_RATE_THRESHOLD = 3  # 3 reports in 1 hour
 
