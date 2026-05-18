@@ -16,7 +16,7 @@ export function useAuditLog(_token) {
     try {
       const res = await apiClient.get(
         "/community/moderation/audit?page_size=20",
-        { timeout: 12000 },
+        { timeout: 45000 },
       );
       setItems(res.data.items || []);
       cursorRef.current = res.data.next_cursor || null;
