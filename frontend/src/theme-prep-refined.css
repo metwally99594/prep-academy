@@ -1,471 +1,1119 @@
-/* ═══════════════════════════════════════════
-     GOLD & NAVY THEME – Refined Utility Classes
-     ═══════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════
+   PREP ACADEMY — REFINED UTILITY THEME
+   ════════════════════════════════════════════════════════════════════
+   
+   استخدام الملف:
+   ضيف السطر ده في src/index.js (بعد import './index.css'):
+       import './theme-prep-refined.css';
+   
+   - كل الـ utilities هنا متوافقة مع Day + Night mode تلقائياً
+   - تستخدم الـ HSL tokens المعرفة في :root و .dark
+   - مفيش hardcoded colors (إلا في النجوم الزخرفية على الـ hero)
+   
+   ════════════════════════════════════════════════════════════════════ */
 
-  /* ─── BUTTONS ─── */
 
-  .btn-gold {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.5rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    border-radius: 9999px;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: all 0.2s ease;
+/* ═══════════════════════════════════════════════════════════════
+   1. GOLD ACCENT SYSTEM — نظام الذهبي الجديد
+   ═══════════════════════════════════════════════════════════════ */
+
+/* الذهبي الأساسي — text + bg + border */
+.text-gold        { color: hsl(var(--gold)); }
+.text-gold-soft   { color: hsl(var(--gold-soft)); }
+.text-gold-deep   { color: hsl(var(--gold-deep)); }
+
+.bg-gold          { background-color: hsl(var(--gold)); }
+.bg-gold-soft     { background-color: hsl(var(--gold-soft) / 0.15); }
+.bg-gold-deep     { background-color: hsl(var(--gold-deep)); }
+
+.border-gold      { border-color: hsl(var(--gold)); }
+.border-gold-soft { border-color: hsl(var(--gold) / 0.3); }
+
+/* نص ذهبي بتدرج (يستخدم في العناوين الفاخرة مثل "Academy") */
+.text-gradient-gold-refined {
+    background: linear-gradient(
+        90deg,
+        hsl(var(--gold)) 0%,
+        hsl(var(--gold-soft)) 50%,
+        hsl(var(--gold)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+}
+
+/* نص ثنائي (أبيض -> ذهبي) — للـ "Prep Academy" في الـ hero */
+.text-gradient-dual {
+    background: linear-gradient(
+        135deg,
+        hsl(var(--foreground)) 0%,
+        hsl(var(--foreground)) 40%,
+        hsl(var(--gold)) 60%,
+        hsl(var(--gold-soft)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   2. GOLD GRADIENT BUTTONS — الأزرار الذهبية الجديدة
+   ═══════════════════════════════════════════════════════════════ */
+
+/* الزر الأساسي الفاخر — للأزرار الرئيسية مثل "Zum Dashboard" */
+.btn-gold {
+    background: linear-gradient(
+        135deg,
+        hsl(var(--gold-soft)) 0%,
+        hsl(var(--gold)) 50%,
+        hsl(var(--gold-deep)) 100%
+    );
     color: hsl(var(--gold-foreground));
-    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-deep)));
-    box-shadow: 0 4px 14px hsl(43 49% 49% / 0.35);
-  }
-  .btn-gold:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px hsl(43 49% 49% / 0.45);
-  }
-  .btn-gold:active {
-    transform: translateY(0);
-  }
-  .btn-gold:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .btn-gold-outline {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.5rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    border-radius: 9999px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: hsl(var(--gold));
-    background: transparent;
-    border: 1.5px solid hsl(var(--gold));
-  }
-  .btn-gold-outline:hover {
-    background: hsl(var(--gold) / 0.1);
-    transform: translateY(-1px);
-  }
-  .btn-gold-outline:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .btn-gold-ghost {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    border-radius: 9999px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: hsl(var(--gold));
-    background: transparent;
+    font-weight: 700;
+    letter-spacing: 0.02em;
     border: none;
-  }
-  .btn-gold-ghost:hover {
-    background: hsl(var(--gold) / 0.08);
-  }
-
-  /* ─── TEXT / TYPOGRAPHY ─── */
-
-  .text-gold {
-    color: hsl(var(--gold));
-  }
-  .text-gold-soft {
-    color: hsl(var(--gold-soft));
-  }
-  .text-gold-deep {
-    color: hsl(var(--gold-deep));
-  }
-
-  .text-gradient-gold-refined {
-    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-soft)));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .text-gradient-dual {
-    background: linear-gradient(135deg, hsl(var(--gold)) 0%, hsl(var(--gold-soft)) 40%, hsl(var(--primary)) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  /* ─── CARDS ─── */
-
-  .specialty-card-refined {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
-    box-shadow: var(--shadow-card);
-    transition: all 0.25s ease;
+    box-shadow: var(--shadow-gold);
+    position: relative;
     overflow: hidden;
-  }
-  .specialty-card-refined:hover {
-    border-color: hsl(var(--gold) / 0.3);
-    box-shadow: 0 0 0 1px hsl(var(--gold) / 0.15), var(--shadow-md);
-    transform: translateY(-2px);
-  }
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        filter 0.25s ease;
+}
 
-  .ai-tool-card {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
+/* بريق متحرك عند الـ hover */
+.btn-gold::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        hsl(0 0% 100% / 0.35),
+        transparent
+    );
+    transition: left 0.7s ease;
+}
+
+.btn-gold:hover::before {
+    left: 100%;
+}
+
+.btn-gold:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow-gold);
+    filter: brightness(1.08);
+}
+
+.btn-gold:active {
+    transform: translateY(0);
+    filter: brightness(0.95);
+}
+
+.btn-gold:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    filter: grayscale(0.4);
+}
+
+/* النسخة الـ outline — للأزرار الثانوية */
+.btn-gold-outline {
+    background: transparent;
+    color: hsl(var(--gold));
+    font-weight: 600;
+    border: 1.5px solid hsl(var(--gold) / 0.5);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-card);
     transition: all 0.25s ease;
     position: relative;
-  }
-  .ai-tool-card:hover {
-    border-color: hsl(var(--primary) / 0.3);
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.15), var(--shadow-md);
-    transform: translateY(-2px);
-  }
+}
 
-  .card-navy-gold {
+.btn-gold-outline:hover {
+    background: hsl(var(--gold) / 0.08);
+    border-color: hsl(var(--gold));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px hsl(var(--gold) / 0.18);
+}
+
+/* النسخة الـ ghost — أزرار شفافة */
+.btn-gold-ghost {
+    background: hsl(var(--gold) / 0.1);
+    color: hsl(var(--gold));
+    font-weight: 600;
+    border: 1px solid hsl(var(--gold) / 0.2);
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+}
+
+.btn-gold-ghost:hover {
+    background: hsl(var(--gold) / 0.18);
+    border-color: hsl(var(--gold) / 0.4);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   3. HERO BACKGROUND — خلفية الـ Hero المحسّنة
+   ═══════════════════════════════════════════════════════════════ */
+
+/* الخلفية المتدرجة للـ hero — تشتغل في الوضعين */
+.hero-medical-refined {
+    background:
+        radial-gradient(
+            ellipse 60% 70% at 75% 50%,
+            hsl(217 91% 60% / 0.18) 0%,
+            transparent 60%
+        ),
+        linear-gradient(
+            135deg,
+            hsl(var(--navy-deep)) 0%,
+            hsl(var(--navy-mid)) 50%,
+            hsl(var(--navy-surface)) 100%
+        );
+    position: relative;
+    overflow: hidden;
+}
+
+/* النسخة الـ light mode — أفتح لكن بنفس الفايب */
+:root:not(.dark) .hero-medical-refined {
+    background:
+        radial-gradient(
+            ellipse 60% 70% at 75% 50%,
+            hsl(217 91% 60% / 0.08) 0%,
+            transparent 60%
+        ),
+        linear-gradient(
+            135deg,
+            hsl(210 40% 98%) 0%,
+            hsl(214 32% 94%) 50%,
+            hsl(217 32% 88%) 100%
+        );
+}
+
+/* النجوم الزخرفية على الـ hero — pseudo-element */
+.hero-medical-refined::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(circle at 12% 15%, hsl(var(--gold) / 0.4) 1px, transparent 1.5px),
+        radial-gradient(circle at 28% 8%, hsl(217 91% 67% / 0.4) 1px, transparent 1.5px),
+        radial-gradient(circle at 45% 20%, hsl(var(--gold) / 0.3) 0.8px, transparent 1.3px),
+        radial-gradient(circle at 68% 12%, hsl(217 91% 67% / 0.4) 1px, transparent 1.5px),
+        radial-gradient(circle at 88% 18%, hsl(var(--gold) / 0.4) 1.2px, transparent 1.7px),
+        radial-gradient(circle at 18% 60%, hsl(217 91% 67% / 0.3) 0.8px, transparent 1.3px),
+        radial-gradient(circle at 35% 78%, hsl(var(--gold) / 0.4) 1px, transparent 1.5px),
+        radial-gradient(circle at 75% 70%, hsl(217 91% 67% / 0.4) 1px, transparent 1.5px),
+        radial-gradient(circle at 92% 85%, hsl(var(--gold) / 0.3) 1px, transparent 1.5px);
+    background-size: 800px 800px;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    opacity: 1;
+    z-index: 1;
+}
+
+:root:not(.dark) .hero-medical-refined::before {
+    opacity: 0.5;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   4. GLOW EFFECTS — توهجات (للـ icons والـ orbs)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* توهج أزرق دائري (خلف SVG الدماغ في الـ hero) */
+.glow-orb-blue {
+    position: relative;
+}
+
+.glow-orb-blue::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        hsl(217 91% 60% / 0.35) 0%,
+        hsl(217 91% 60% / 0.15) 40%,
+        transparent 70%
+    );
+    z-index: -1;
+    pointer-events: none;
+    filter: blur(40px);
+}
+
+/* توهج ذهبي (للـ CTA buttons أو icons مميزة) */
+.glow-orb-gold {
+    position: relative;
+}
+
+.glow-orb-gold::after {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        hsl(var(--gold) / 0.3) 0%,
+        hsl(var(--gold) / 0.1) 50%,
+        transparent 80%
+    );
+    z-index: -1;
+    pointer-events: none;
+    filter: blur(30px);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   5. NAVY SURFACES — أسطح كحلية ثابتة (لا تتغير في Day mode)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* للأقسام اللي بتفضل dark دايماً (premium sections, AI tools) */
+.surface-navy {
+    background: hsl(var(--navy-mid));
+    color: hsl(210 40% 98%);
+    border: 1px solid hsl(var(--navy-border));
+    border-radius: var(--radius);
+}
+
+.surface-navy-elevated {
+    background: linear-gradient(
+        135deg,
+        hsl(var(--navy-surface)) 0%,
+        hsl(var(--navy-mid)) 100%
+    );
+    color: hsl(210 40% 98%);
+    border: 1px solid hsl(var(--navy-border));
+    border-radius: var(--radius);
+    box-shadow: 0 4px 24px rgb(0 0 0 / 0.3);
+}
+
+/* navy card — كرت كحلي مع ذهبي على الـ hover */
+.card-navy-gold {
     background: hsl(var(--navy-mid));
     border: 1px solid hsl(var(--navy-border));
     border-radius: var(--radius);
-    box-shadow: var(--shadow-card);
-    transition: all 0.25s ease;
+    padding: 1.5rem;
+    transition:
+        transform 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
     position: relative;
     overflow: hidden;
-  }
-  .card-navy-gold::before {
+}
+
+.card-navy-gold::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold-soft)));
-  }
-  .card-navy-gold:hover {
-    border-color: hsl(var(--gold) / 0.3);
-    box-shadow: var(--shadow-glow-gold);
-    transform: translateY(-2px);
-  }
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        hsl(var(--gold)),
+        transparent
+    );
+    transform: scaleX(0);
+    transition: transform 0.4s ease;
+}
 
-  .surface-navy {
-    background: hsl(var(--navy-surface));
-    border: 1px solid hsl(var(--navy-border));
-    border-radius: var(--radius);
-  }
+.card-navy-gold:hover {
+    transform: translateY(-4px);
+    border-color: hsl(var(--gold) / 0.5);
+    box-shadow: 0 12px 36px rgb(0 0 0 / 0.45);
+}
 
-  .float-card {
-    animation: float 4s ease-in-out infinite;
-  }
+.card-navy-gold:hover::before {
+    transform: scaleX(1);
+}
 
-  /* ─── QUIZ ─── */
 
-  .choice-refined {
+/* ═══════════════════════════════════════════════════════════════
+   6. SECTION LABEL — التسميات الصغيرة "01 / FACHGEBIETE"
+   ═══════════════════════════════════════════════════════════════ */
+
+.section-label-refined {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.section-label-refined .label-number {
+    color: hsl(var(--gold));
+    font-weight: 600;
+}
+
+.section-label-refined .label-line {
+    width: 32px;
+    height: 1px;
+    background: hsl(var(--gold) / 0.4);
+}
+
+.section-label-refined .label-text {
+    color: hsl(var(--muted-foreground));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   7. STATS DISPLAY — أرقام الإحصائيات الفخمة
+   ═══════════════════════════════════════════════════════════════ */
+
+.stat-number-refined {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: clamp(1.75rem, 3vw, 2.5rem);
+    font-weight: 900;
+    background: linear-gradient(
+        135deg,
+        hsl(var(--gold)) 0%,
+        hsl(var(--gold-soft)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.stat-label-refined {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+.stat-divider {
+    width: 1px;
+    height: 36px;
+    background: hsl(var(--border));
+    margin: 0 1rem;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   8. QUIZ CHOICES — خيارات الأسئلة المحسّنة
+   ═══════════════════════════════════════════════════════════════ */
+
+.choice-refined {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    padding: 1rem 1.25rem;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
     background: hsl(var(--card));
     border: 1.5px solid hsl(var(--border));
     border-radius: var(--radius);
     cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: left;
-    font-size: 0.9375rem;
-    line-height: 1.5rem;
-    color: hsl(var(--foreground));
-  }
-  .choice-refined:hover {
-    border-color: hsl(var(--gold) / 0.4);
-    background: hsl(var(--gold) / 0.03);
-  }
-  .choice-refined.selected {
-    border-color: hsl(var(--gold));
-    background: hsl(var(--gold) / 0.06);
-    box-shadow: 0 0 0 2px hsl(var(--gold) / 0.15);
-  }
-  .choice-refined.correct {
-    border-color: hsl(var(--success));
-    background: hsl(var(--success) / 0.06);
-    box-shadow: 0 0 0 2px hsl(var(--success) / 0.15);
-  }
-  .choice-refined.incorrect {
-    border-color: hsl(var(--destructive));
-    background: hsl(var(--destructive) / 0.06);
-    box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.15);
-  }
-  .choice-refined:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease,
+        transform 0.15s ease,
+        box-shadow 0.2s ease;
+}
 
-  .timer-pill {
-    display: inline-flex;
+.choice-refined:hover:not(:disabled):not(.selected):not(.correct):not(.incorrect) {
+    border-color: hsl(var(--gold) / 0.5);
+    background: hsl(var(--gold) / 0.04);
+    transform: translateX(-2px); /* تحرك RTL = يميناً، LTR = يساراً */
+}
+
+.choice-refined .choice-letter {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.875rem;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    background: hsl(var(--navy-mid));
-    color: hsl(var(--gold-soft));
-    border: 1px solid hsl(var(--gold) / 0.2);
-  }
-
-  .progress-refined {
-    height: 0.5rem;
-    border-radius: 9999px;
-    background: hsl(var(--muted));
-    overflow: hidden;
-  }
-  .progress-refined > div {
-    height: 100%;
-    border-radius: 9999px;
-    background: linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold-soft)));
-    transition: width 0.4s ease;
-  }
-
-  /* ─── BADGES ─── */
-
-  .badge-gold {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1875rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    background: hsl(var(--gold) / 0.12);
-    color: hsl(var(--gold));
-    border: 1px solid hsl(var(--gold) / 0.2);
-  }
-
-  .badge-gold-soft {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1875rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    background: hsl(var(--gold-soft) / 0.12);
-    color: hsl(var(--gold-soft));
-    border: 1px solid hsl(var(--gold-soft) / 0.2);
-  }
-
-  .badge-success {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1875rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    background: hsl(var(--success) / 0.12);
-    color: hsl(var(--success));
-    border: 1px solid hsl(var(--success) / 0.2);
-  }
-
-  .badge-danger {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1875rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    background: hsl(var(--destructive) / 0.12);
-    color: hsl(var(--destructive));
-    border: 1px solid hsl(var(--destructive) / 0.2);
-  }
-
-  .badge-info {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1875rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    background: hsl(var(--info) / 0.12);
-    color: hsl(var(--info));
-    border: 1px solid hsl(var(--info) / 0.2);
-  }
-
-  .badge-dot {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.1875rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    background: hsl(var(--muted));
+    justify-content: center;
+    border-radius: 6px;
+    background: transparent;
+    border: 1.5px solid hsl(var(--border));
+    font-weight: 700;
+    font-size: 0.875rem;
     color: hsl(var(--muted-foreground));
-  }
-  .badge-dot::before {
-    content: '';
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    background: currentColor;
-    flex-shrink: 0;
-  }
+    transition: all 0.2s ease;
+}
 
-  /* ─── LAYOUT / LANDING ─── */
+.choice-refined.selected {
+    border-color: hsl(var(--gold));
+    background: hsl(var(--gold) / 0.08);
+    box-shadow: var(--shadow-glow-gold);
+}
 
-  .hero-medical-refined {
-    position: relative;
-    background: hsl(var(--background));
-    overflow: hidden;
-  }
-  .hero-medical-refined::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 6rem;
-    background: linear-gradient(to top, hsl(var(--background)), transparent);
-    pointer-events: none;
-  }
-
-  .section-label-refined {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: hsl(var(--gold));
-  }
-  .section-label-refined::before {
-    content: '';
-    width: 1.5rem;
-    height: 1.5px;
+.choice-refined.selected .choice-letter {
     background: hsl(var(--gold));
-    flex-shrink: 0;
-  }
+    border-color: hsl(var(--gold));
+    color: hsl(var(--gold-foreground));
+}
 
-  .stat-number-refined {
-    font-size: 2.5rem;
-    font-weight: 800;
-    line-height: 1;
-    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-soft)));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+.choice-refined.correct {
+    border-color: hsl(var(--success));
+    background: hsl(var(--success) / 0.08);
+    box-shadow: 0 0 0 3px hsl(var(--success) / 0.18);
+}
 
-  .nav-link-refined {
-    position: relative;
+.choice-refined.correct .choice-letter {
+    background: hsl(var(--success));
+    border-color: hsl(var(--success));
+    color: hsl(var(--success-foreground));
+}
+
+.choice-refined.incorrect {
+    border-color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.07);
+    box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.15);
+}
+
+.choice-refined.incorrect .choice-letter {
+    background: hsl(var(--destructive));
+    border-color: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   9. TIMER / PROGRESS — مؤقت الـ quiz + progress
+   ═══════════════════════════════════════════════════════════════ */
+
+.timer-pill {
     display: inline-flex;
     align-items: center;
+    gap: 12px;
+    padding: 0.5rem 0.875rem;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+}
+
+.timer-pill .timer-label {
+    font-size: 0.65rem;
+    color: hsl(var(--muted-foreground));
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+.timer-pill .timer-value {
+    font-family: 'Georgia', serif;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: hsl(var(--gold));
+    line-height: 1;
+}
+
+/* progress bar فاخر */
+.progress-refined {
+    width: 100%;
+    height: 6px;
+    background: hsl(var(--secondary));
+    border-radius: 100px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-refined .progress-fill {
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        hsl(var(--gold)),
+        hsl(var(--gold-soft))
+    );
+    border-radius: 100px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 12px hsl(var(--gold) / 0.5);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   10. BADGES — شارات مصغرة (NEW, Premium, إلخ)
+   ═══════════════════════════════════════════════════════════════ */
+
+.badge-gold {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    background: hsl(var(--gold));
+    color: hsl(var(--gold-foreground));
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 100px;
+    line-height: 1.4;
+}
+
+.badge-gold-soft {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    background: hsl(var(--gold) / 0.15);
+    color: hsl(var(--gold));
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 100px;
+    line-height: 1.4;
+}
+
+.badge-success {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    background: hsl(var(--success) / 0.15);
+    color: hsl(var(--success));
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 100px;
+    line-height: 1.4;
+}
+
+.badge-danger {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    background: hsl(var(--destructive) / 0.15);
+    color: hsl(var(--destructive));
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 100px;
+    line-height: 1.4;
+}
+
+.badge-info {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    background: hsl(var(--info) / 0.15);
+    color: hsl(var(--info));
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 100px;
+    line-height: 1.4;
+}
+
+/* النقطة المتحركة في الـ badges (مثل "LIVE", "ONLINE") */
+.badge-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: currentColor;
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.5; transform: scale(1.3); }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   11. DICOM URGENCY BANNERS — banners التقارير الطبية
+   ═══════════════════════════════════════════════════════════════ */
+
+.urgency-banner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius);
+    border: 1px solid;
+    position: relative;
+}
+
+.urgency-banner .urgency-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 1.25rem;
+}
+
+.urgency-banner.urgency-high {
+    background: hsl(var(--destructive) / 0.08);
+    border-color: hsl(var(--destructive) / 0.4);
+    color: hsl(var(--destructive));
+}
+
+.urgency-banner.urgency-high .urgency-icon {
+    background: hsl(var(--destructive) / 0.2);
+}
+
+.urgency-banner.urgency-medium {
+    background: hsl(var(--warning) / 0.08);
+    border-color: hsl(var(--warning) / 0.4);
+    color: hsl(var(--warning));
+}
+
+.urgency-banner.urgency-medium .urgency-icon {
+    background: hsl(var(--warning) / 0.2);
+}
+
+.urgency-banner.urgency-low {
+    background: hsl(var(--success) / 0.08);
+    border-color: hsl(var(--success) / 0.4);
+    color: hsl(var(--success));
+}
+
+.urgency-banner.urgency-low .urgency-icon {
+    background: hsl(var(--success) / 0.2);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   12. FLOATING INFO CARDS — كروت معلومات صغيرة عائمة
+   (للـ feature cards حول الـ brain SVG في الـ hero)
+   ═══════════════════════════════════════════════════════════════ */
+
+.float-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    animation: float 4s ease-in-out infinite;
+}
+
+.float-card .float-icon-wrap {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: hsl(var(--gold) / 0.15);
+    color: hsl(var(--gold));
+}
+
+.float-card .float-icon-wrap.info {
+    background: hsl(var(--info) / 0.15);
+    color: hsl(var(--info));
+}
+
+.float-card .float-icon-wrap.success {
+    background: hsl(var(--success) / 0.15);
+    color: hsl(var(--success));
+}
+
+.float-card .float-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    line-height: 1.2;
+}
+
+.float-card .float-subtitle {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.3;
+}
+
+.float-card.float-delay-1 { animation-delay: 0s; }
+.float-card.float-delay-2 { animation-delay: 1.5s; }
+.float-card.float-delay-3 { animation-delay: 3s; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   13. SCROLL INDICATOR — مؤشر التمرير في أسفل الـ hero
+   ═══════════════════════════════════════════════════════════════ */
+
+.scroll-indicator {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.625rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    z-index: 2;
+}
+
+.scroll-indicator .scroll-line {
+    width: 1px;
+    height: 36px;
+    background: linear-gradient(
+        to bottom,
+        hsl(var(--gold)) 0%,
+        transparent 100%
+    );
+    animation: scroll-line-anim 2s ease-in-out infinite;
+}
+
+@keyframes scroll-line-anim {
+    0%   { transform: scaleY(0); transform-origin: top; opacity: 1; }
+    50%  { transform: scaleY(1); transform-origin: top; opacity: 1; }
+    51%  { transform-origin: bottom; }
+    100% { transform: scaleY(0); transform-origin: bottom; opacity: 0; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   14. NAV ENHANCEMENT — تحسين شريط التنقل
+   ═══════════════════════════════════════════════════════════════ */
+
+/* underline ذهبي تحت الـ nav link النشط */
+.nav-link-refined {
+    position: relative;
     padding: 0.5rem 0;
+    color: hsl(var(--muted-foreground));
     font-size: 0.875rem;
     font-weight: 500;
-    color: hsl(var(--muted-foreground));
     transition: color 0.2s ease;
-    text-decoration: none;
-  }
-  .nav-link-refined::after {
+}
+
+.nav-link-refined::after {
     content: '';
     position: absolute;
-    bottom: 0;
+    bottom: -2px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: hsl(var(--gold));
+    transition:
+        width 0.3s ease,
+        left 0.3s ease;
+}
+
+.nav-link-refined:hover {
+    color: hsl(var(--foreground));
+}
+
+.nav-link-refined:hover::after,
+.nav-link-refined.active::after {
+    width: 24px;
+    left: calc(50% - 12px);
+}
+
+.nav-link-refined.active {
+    color: hsl(var(--foreground));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   15. LOGO REFINED — تحسين الـ logo
+   ═══════════════════════════════════════════════════════════════ */
+
+.logo-refined {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    text-decoration: none;
+}
+
+.logo-refined .logo-mark {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid hsl(var(--gold));
+    border-radius: 8px;
+    color: hsl(var(--gold));
+    font-family: 'Georgia', serif;
+    font-size: 1.125rem;
+    font-weight: 900;
+    transition: transform 0.4s ease;
+}
+
+.logo-refined:hover .logo-mark {
+    transform: rotate(360deg);
+}
+
+.logo-refined .logo-text-wrap {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+}
+
+.logo-refined .logo-name {
+    font-family: 'Georgia', serif;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.02em;
+}
+
+.logo-refined .logo-subtitle {
+    font-size: 0.625rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: hsl(var(--gold));
+    margin-top: 2px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   16. SPECIALTY CARD — كروت التخصصات الطبية
+   ═══════════════════════════════════════════════════════════════ */
+
+.specialty-card-refined {
+    position: relative;
+    padding: 1.25rem;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    transition:
+        transform 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.specialty-card-refined::before {
+    content: '';
+    position: absolute;
+    top: 0;
     left: 0;
     right: 0;
     height: 2px;
     background: hsl(var(--gold));
     transform: scaleX(0);
-    transition: transform 0.2s ease;
-  }
-  .nav-link-refined:hover {
-    color: hsl(var(--gold));
-  }
-  .nav-link-refined:hover::after {
-    transform: scaleX(1);
-  }
-  .nav-link-refined.active {
-    color: hsl(var(--gold));
-  }
-  .nav-link-refined.active::after {
-    transform: scaleX(1);
-  }
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
 
-  .logo-refined {
+.specialty-card-refined:hover {
+    transform: translateY(-4px);
+    border-color: hsl(var(--gold) / 0.4);
+    box-shadow: var(--shadow-lg);
+}
+
+.specialty-card-refined:hover::before {
+    transform: scaleX(1);
+}
+
+.specialty-card-refined .specialty-icon {
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
-    gap: 0.625rem;
-    font-size: 1.375rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    justify-content: center;
+    background: hsl(var(--gold) / 0.12);
+    color: hsl(var(--gold));
+    border-radius: 10px;
+    font-size: 1.125rem;
+    margin-bottom: 0.875rem;
+    transition: all 0.3s ease;
+}
+
+.specialty-card-refined:hover .specialty-icon {
+    background: hsl(var(--gold) / 0.2);
+    transform: scale(1.05);
+}
+
+.specialty-card-refined .specialty-name {
+    font-family: 'Georgia', serif;
+    font-size: 1rem;
+    font-weight: 700;
     color: hsl(var(--foreground));
-    text-decoration: none;
-  }
-  .logo-refined span {
-    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-soft)));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+    margin-bottom: 0.25rem;
+    line-height: 1.3;
+}
 
-  .scroll-indicator {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.375rem;
-    color: hsl(var(--muted-foreground));
+.specialty-card-refined .specialty-desc {
     font-size: 0.75rem;
-    animation: float 3s ease-in-out infinite;
-  }
-  .scroll-indicator .mouse {
-    width: 1.5rem;
-    height: 2.5rem;
-    border: 1.5px solid currentColor;
-    border-radius: 9999px;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+}
+
+.specialty-card-refined .specialty-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.specialty-card-refined .specialty-count {
+    padding: 0.25rem 0.625rem;
+    background: hsl(var(--gold) / 0.12);
+    color: hsl(var(--gold));
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 100px;
+}
+
+.specialty-card-refined .specialty-arrow {
+    color: hsl(var(--gold));
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.specialty-card-refined:hover .specialty-arrow {
+    transform: translateX(-4px); /* RTL */
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   17. AI TOOL CARDS — كروت الأدوات الذكية الكبيرة
+   ═══════════════════════════════════════════════════════════════ */
+
+.ai-tool-card {
     position: relative;
-  }
-  .scroll-indicator .mouse::after {
-    content: '';
+    padding: 1.5rem;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: calc(var(--radius) + 4px);
+    transition: all 0.3s ease;
+    overflow: hidden;
+    height: 100%;
+}
+
+.ai-tool-card.featured {
+    border-color: hsl(var(--gold) / 0.5);
+    border-width: 1.5px;
+}
+
+.ai-tool-card:hover {
+    transform: translateY(-6px);
+    border-color: hsl(var(--gold) / 0.5);
+    box-shadow: var(--shadow-xl);
+}
+
+.ai-tool-card .tool-badge {
     position: absolute;
-    top: 0.375rem;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0.25rem;
-    height: 0.5rem;
-    border-radius: 9999px;
-    background: currentColor;
-    animation: scrollPulse 2s ease-in-out infinite;
-  }
+    top: 1rem;
+    right: 1rem;
+}
 
-  @keyframes scrollPulse {
-    0%, 100% { top: 0.375rem; opacity: 1; }
-    50% { top: 0.75rem; opacity: 0.3; }
-  }
+.ai-tool-card .tool-icon-wrap {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+}
 
-  .glow-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    pointer-events: none;
-    opacity: 0.12;
-  }
-  .glow-orb.gold {
-    background: hsl(var(--gold));
-  }
-  .glow-orb.blue {
-    background: hsl(var(--primary));
-  }
-  .glow-orb.purple {
-    background: hsl(267 84% 65%);
-  }
+.ai-tool-card .tool-icon-wrap.icon-info {
+    background: hsl(var(--info) / 0.15);
+    color: hsl(var(--info));
+}
 
+.ai-tool-card .tool-icon-wrap.icon-gold {
+    background: hsl(var(--gold) / 0.15);
+    color: hsl(var(--gold));
+}
+
+.ai-tool-card .tool-icon-wrap.icon-success {
+    background: hsl(var(--success) / 0.15);
+    color: hsl(var(--success));
+}
+
+.ai-tool-card .tool-title {
+    font-family: 'Georgia', serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin-bottom: 0.75rem;
+    line-height: 1.3;
+}
+
+.ai-tool-card .tool-description {
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.6;
+    margin-bottom: 1.25rem;
+}
+
+.ai-tool-card .tool-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid hsl(var(--border));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   18. RTL SUPPORT — دعم العربية
+   ═══════════════════════════════════════════════════════════════ */
+
+[dir="rtl"] .specialty-card-refined:hover .specialty-arrow {
+    transform: translateX(4px); /* العكس في RTL */
+}
+
+[dir="rtl"] .choice-refined:hover:not(:disabled):not(.selected):not(.correct):not(.incorrect) {
+    transform: translateX(2px);
+}
+
+[dir="rtl"] .badge-dot {
+    margin-right: 0;
+    margin-left: 6px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   19. ACCESSIBILITY — وضع تقليل الحركة
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+    .btn-gold::before,
+    .scroll-indicator .scroll-line,
+    .badge-dot,
+    .float-card {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .btn-gold:hover,
+    .specialty-card-refined:hover,
+    .ai-tool-card:hover,
+    .card-navy-gold:hover {
+        transform: none;
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   20. FOCUS STATES — تحسين الـ focus للـ accessibility
+   ═══════════════════════════════════════════════════════════════ */
+
+.btn-gold:focus-visible,
+.btn-gold-outline:focus-visible,
+.btn-gold-ghost:focus-visible {
+    outline: 2px solid hsl(var(--gold));
+    outline-offset: 3px;
+}
+
+.choice-refined:focus-visible {
+    outline: 2px solid hsl(var(--gold));
+    outline-offset: 2px;
+}
+
+.specialty-card-refined:focus-visible,
+.ai-tool-card:focus-visible {
+    outline: 2px solid hsl(var(--gold));
+    outline-offset: 4px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   END OF FILE — كل الكلاسات جاهزة للاستخدام
+   ═══════════════════════════════════════════════════════════════ */
