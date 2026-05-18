@@ -1,0 +1,5 @@
+{
+  "buildCommand": "CI=false craco build",
+  "outputDirectory": "build",
+  "framework": "create-react-app"
+}
