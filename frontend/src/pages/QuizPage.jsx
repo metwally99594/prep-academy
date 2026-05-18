@@ -775,7 +775,7 @@ export default function QuizPage() {
           <div className="text-xs text-muted-foreground font-mono">
             FORTSCHRITT: {answeredCount}/{questions.length}
           </div>
-          <Progress value={(answeredCount / questions.length) * 100} className="h-1.5" />
+          <Progress value={(answeredCount / questions.length) * 100} className="h-1.5" style={{ background: 'hsl(var(--muted))' }} />
 
           {/* Specialty name */}
           <div className="text-sm font-semibold" style={{ color: '#3b82f6' }}>
@@ -845,8 +845,8 @@ export default function QuizPage() {
 
           <div className="flex items-center gap-3">
             {isExamMode && !(currentAnswer?.submitted) && (
-              <div className={`flex items-center gap-1 px-3 py-1 rounded-lg font-mono text-sm ${timeLeft <= 10 ? 'bg-red-500/20 text-red-600' : 'bg-muted text-foreground'}`}>
-                <Clock className="w-4 h-4" /><span>{timeLeft}s</span>
+              <div className={`timer-pill ${timeLeft <= 10 ? '!bg-red-500/20 !text-red-600 !border-red-500/30' : ''}`}>
+                <Clock className="w-3.5 h-3.5" /><span>{timeLeft}s</span>
               </div>
             )}
             <Button variant="ghost" size="icon" onClick={toggleFavorite} className={isFavorite ? "text-red-500" : ""} data-testid="favorite-btn">
@@ -914,12 +914,12 @@ export default function QuizPage() {
             <div className="space-y-3">
               {(currentQuestion?.choices || []).map((choice, index) => (
                 <button key={choice.id} onClick={() => toggleChoice(choice.id)} disabled={showResult}
-                  className={`choice-btn w-full text-left p-4 rounded-xl flex items-center gap-4 ${getChoiceClass(choice)}`}
+                  className={`choice-refined ${getChoiceClass(choice)}`}
                   data-testid={`choice-${index}`}>
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
                     getChoiceClass(choice) === "correct" ? "bg-emerald-500 text-white border-emerald-500"
                     : getChoiceClass(choice) === "incorrect" ? "bg-red-500 text-white border-red-500"
-                    : selectedChoices.includes(choice.id) ? "border-[#3b82f6] text-[#3b82f6]" : "border-muted-foreground/30 text-muted-foreground"
+                    : selectedChoices.includes(choice.id) ? "border-gold text-gold" : "border-muted-foreground/30 text-muted-foreground"
                   }`}>
                     {getChoiceClass(choice) === "correct" ? <Check className="w-4 h-4" />
                     : getChoiceClass(choice) === "incorrect" ? <X className="w-4 h-4" />

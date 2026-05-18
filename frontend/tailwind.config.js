@@ -18,6 +18,8 @@ module.exports = {
   			'lg': 'var(--shadow-lg)',
   			'xl': 'var(--shadow-xl)',
   			'glow': 'var(--shadow-glow)',
+  			'glow-gold': 'var(--shadow-glow-gold)',
+  			'gold': 'var(--shadow-gold)',
   		},
   		colors: {
   			background: 'hsl(var(--background))',
@@ -49,6 +51,30 @@ module.exports = {
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
+  			},
+  			gold: {
+  				DEFAULT: 'hsl(var(--gold))',
+  				soft: 'hsl(var(--gold-soft))',
+  				deep: 'hsl(var(--gold-deep))',
+  				foreground: 'hsl(var(--gold-foreground))',
+  			},
+  			navy: {
+  				deep: 'hsl(var(--navy-deep))',
+  				mid: 'hsl(var(--navy-mid))',
+  				surface: 'hsl(var(--navy-surface))',
+  				border: 'hsl(var(--navy-border))',
+  			},
+  			success: {
+  				DEFAULT: 'hsl(var(--success))',
+  				foreground: 'hsl(var(--success-foreground))'
+  			},
+  			warning: {
+  				DEFAULT: 'hsl(var(--warning))',
+  				foreground: 'hsl(var(--warning-foreground))'
+  			},
+  			info: {
+  				DEFAULT: 'hsl(var(--info))',
+  				foreground: 'hsl(var(--info-foreground))'
   			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',

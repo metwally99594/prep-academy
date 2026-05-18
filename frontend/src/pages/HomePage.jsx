@@ -37,11 +37,10 @@ const SplashOverlay = ({ onDone }) => {
   );
 };
 
-/* Section label */
 const SectionLabel = ({ number, text }) => (
   <div className="flex items-center gap-3 mb-6">
-    <span className="text-xs font-mono tracking-widest text-primary">{number}</span>
-    <div className="w-12 h-px bg-primary/30" />
+    <span className="section-label-refined">{number}</span>
+    <div className="w-12 h-px bg-gold/30" />
     <span className="text-xs tracking-[0.2em] uppercase text-white/40">{text}</span>
   </div>
 );
@@ -215,7 +214,7 @@ export default function HomePage() {
               data-testid="hero-title"
               style={{ fontFamily: "'Playfair Display', serif", letterSpacing: '-0.02em' }}>
               <span className="text-white">Prep</span>
-              <span className="ml-3 sm:ml-4 text-[#3b82f6]">Academy</span>
+              <span className="ml-3 sm:ml-4 text-gradient-gold-refined">Academy</span>
             </h1>
 
             <p className="text-base sm:text-lg tracking-[0.18em] uppercase font-light mb-6 text-white/65">KLAR. PRÄZISE. KI-GESTÜTZT.</p>
@@ -236,23 +235,23 @@ export default function HomePage() {
             {!user ? (
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link to="/guest-quiz">
-                  <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold rounded-xl bg-white hover:bg-white/95 transition-all hover:-translate-y-0.5 border-0" style={{ color: '#1e40af' }} data-testid="hero-guest-btn">
+                  <button className="btn-gold text-base px-10 py-3.5" data-testid="hero-guest-btn">
                     Kostenlos testen
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
                 </Link>
                 <Link to="/register">
-                  <Button size="lg" variant="outline" className="gap-2 px-8 h-14 text-base font-semibold rounded-xl border-white/40 text-white hover:bg-white/10 hover:text-white" data-testid="hero-register-btn">
+                  <button className="btn-gold-outline text-base px-8 py-3.5" data-testid="hero-register-btn">
                     Konto erstellen
-                  </Button>
+                  </button>
                 </Link>
               </div>
             ) : (
               <Link to="/dashboard">
-                <Button size="lg" className="gap-2 px-10 h-14 text-base font-semibold rounded-xl bg-white hover:bg-white/95 transition-all hover:-translate-y-0.5 border-0" style={{ color: '#1e40af' }}>
+                <button className="btn-gold text-base px-10 py-3.5">
                   Zum Dashboard
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
               </Link>
             )}
           </div>
@@ -604,7 +603,7 @@ export default function HomePage() {
                 ))}
               </ul>
               <button onClick={requestAdvancedAccess} disabled={requestingAccess}
-                className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50 btn-medical">
+                className="btn-gold w-full py-3 text-sm">
                 {requestingAccess ? "Wird gesendet..." : "Zugang anfragen"}
               </button>
             </div>
@@ -641,17 +640,17 @@ export default function HomePage() {
 
           {!user ? (
             <Link to="/register">
-              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-medical" data-testid="cta-register-btn">
+              <button className="btn-gold text-lg px-12 py-4 uppercase tracking-wider" data-testid="cta-register-btn">
                 Jetzt Starten
-                <ArrowRight className="w-4 h-4" />
-              </Button>
+                <ArrowRight className="w-5 h-5" />
+              </button>
             </Link>
           ) : (
             <Link to="/dashboard">
-              <Button size="lg" className="gap-3 px-12 h-14 text-base font-semibold border-0 rounded-none tracking-wider uppercase btn-medical">
+              <button className="btn-gold text-lg px-12 py-4 uppercase tracking-wider">
                 Zum Dashboard
-                <ArrowRight className="w-4 h-4" />
-              </Button>
+                <ArrowRight className="w-5 h-5" />
+              </button>
             </Link>
           )}
         </div>
