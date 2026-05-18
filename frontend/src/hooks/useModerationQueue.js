@@ -24,7 +24,7 @@ export function useModerationQueue(_token) {
     try {
       const res = await apiClient.get(
         `/community/moderation/queue?${buildQuery(reviewed, severity)}`,
-        { timeout: 12000 },
+        { timeout: 45000 },
       );
       setItems(res.data.items || []);
       cursorRef.current = res.data.next_cursor || null;
@@ -45,7 +45,7 @@ export function useModerationQueue(_token) {
       if (severity) p.set("severity", severity);
       const res = await apiClient.get(
         `/community/moderation/queue?${p}`,
-        { timeout: 12000 },
+        { timeout: 45000 },
       );
       setItems(prev => [...prev, ...(res.data.items || [])]);
       cursorRef.current = res.data.next_cursor || null;
@@ -66,7 +66,7 @@ export function useModerationQueue(_token) {
           action,
           ...(note ? { reason: note } : {}),
         },
-        { timeout: 10000 },
+        { timeout: 45000 },
       );
     } catch (e) {
       setItems(prev => [item, ...prev]);

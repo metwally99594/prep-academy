@@ -2,10 +2,11 @@ import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { PostHeader } from "./PostHeader";
 import { PostActions } from "./PostActions";
-import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Loader2, Flag } from "lucide-react";
 import apiClient from "@/lib/api";
 import { toast } from "sonner";
 import { TRANSITIONS } from "@/lib/theme";
+import ReportModal from "./ReportModal";
 
 function stripMarkdown(text = "") {
   return text
@@ -51,6 +52,7 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -101,58 +103,69 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
             type={post.type}
             tags={allTags}
           />
-          {isAuthor && (
-            <div className="relative shrink-0" ref={menuRef}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-                className="p-1.5 rounded-lg hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors duration-150 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                aria-label="Mehr"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-8 z-20 w-40 rounded-xl border border-border/50 bg-card shadow-xl overflow-hidden animate-fade-in">
-                  {confirmDelete ? (
-                    <div className="p-3 space-y-2">
-                      <p className="text-xs font-medium">Wirklich löschen?</p>
-                      <div className="flex gap-1.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-                          disabled={deleting}
-                          className="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 font-medium"
-                        >
-                          {deleting ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "Löschen"}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
-                          className="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-muted hover:bg-accent/50 font-medium"
-                        >
-                          Abbrechen
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+              className="p-1.5 rounded-lg hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors duration-150 opacity-0 group-hover:opacity-100 focus:opacity-100"
+              aria-label="Mehr"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-8 z-20 w-40 rounded-xl border border-border/50 bg-card shadow-xl overflow-hidden animate-fade-in">
+                {confirmDelete ? (
+                  <div className="p-3 space-y-2">
+                    <p className="text-xs font-medium">Wirklich löschen?</p>
+                    <div className="flex gap-1.5">
                       <button
-                        onClick={(e) => { e.stopPropagation(); navigate(`/community/${post.id}`); setMenuOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-accent/50 transition-colors text-left font-medium"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                        disabled={deleting}
+                        className="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 font-medium"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
-                        Bearbeiten
+                        {deleting ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "Löschen"}
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+                        className="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-muted hover:bg-accent/50 font-medium"
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {isAuthor && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/community/${post.id}`); setMenuOpen(false); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-accent/50 transition-colors text-left font-medium"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Bearbeiten
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-accent/50 transition-colors text-left text-destructive font-medium"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Löschen
+                        </button>
+                      </>
+                    )}
+                    {!isAuthor && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setReportOpen(true); setMenuOpen(false); }}
                         className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-accent/50 transition-colors text-left text-destructive font-medium"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Löschen
+                        <Flag className="w-3.5 h-3.5" />
+                        Melden
                       </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-1">
@@ -180,6 +193,13 @@ export const PostCard = memo(function PostCard({ post: initialPost, token, userI
           compact
         />
       </div>
+      {reportOpen && (
+        <ReportModal
+          targetId={post.id}
+          targetType="post"
+          onClose={() => setReportOpen(false)}
+        />
+      )}
     </article>
   );
 });

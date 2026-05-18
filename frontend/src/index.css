@@ -4,77 +4,122 @@
 
 @layer base {
     :root {
-        /* Medical Professional — Light Theme */
-        --background: 210 40% 98%;          /* #f8fafc clinical light */
-        --foreground: 222 47% 11%;          /* #0f172a deep navy */
-        --card: 0 0% 100%;                  /* #ffffff clean white */
+        /* ─ DAY MODE — Clinical Professional ─ */
+        --background: 210 40% 98%;          /* #f8fafc Clinical White */
+        --foreground: 222 47% 11%;          /* #0f172a Deep Navy text */
+        --card: 0 0% 100%;                  /* #ffffff Pure White */
         --card-foreground: 222 47% 11%;
         --popover: 0 0% 100%;
         --popover-foreground: 222 47% 11%;
-        --primary: 217 91% 60%;             /* #3b82f6 medical blue */
+
+        --primary: 217 91% 60%;             /* #3b82f6 Medical Blue */
         --primary-foreground: 0 0% 100%;
+
         --secondary: 210 40% 96%;           /* light blue-gray surface */
         --secondary-foreground: 222 47% 11%;
+
         --muted: 210 40% 96%;
-        --muted-foreground: 215 16% 47%;    /* #64748b slate */
-        --accent: 188 94% 43%;              /* #06b6d4 medical teal */
+        --muted-foreground: 215 16% 47%;    /* #64748b Slate */
+
+        /* ✨ Gold accent بدلاً من Teal */
+        --accent: 43 49% 49%;               /* #b89740 Deep Gold */
         --accent-foreground: 0 0% 100%;
-        --destructive: 0 72% 51%;
+
+        --destructive: 0 72% 51%;           /* #dc2626 */
         --destructive-foreground: 0 0% 100%;
-        --success: 160 68% 36%;
+        --success: 160 84% 31%;             /* #059669 deeper green */
         --success-foreground: 0 0% 100%;
-        --warning: 38 88% 48%;
+        --warning: 32 95% 44%;              /* #d97706 deeper amber */
         --warning-foreground: 0 0% 100%;
+        --info: 189 94% 36%;                /* #0891b2 deeper cyan */
+        --info-foreground: 0 0% 100%;
+
         --border: 214 32% 91%;              /* #e2e8f0 */
         --input: 214 32% 91%;
         --ring: 217 91% 60%;
 
+        /* ✨ Gold tokens */
+        --gold: 43 49% 49%;                 /* #b89740 day */
+        --gold-soft: 43 80% 75%;            /* #ead084 day */
+        --gold-deep: 43 50% 35%;            /* #8a7030 day */
+        --gold-foreground: 0 0% 100%;
+
+        /* ✨ Navy surface tokens */
+        --navy-deep: 230 60% 6%;            /* #06081a */
+        --navy-mid: 222 47% 9%;             /* #0a1628 */
+        --navy-surface: 222 47% 17%;        /* #142447 */
+        --navy-border: 217 49% 25%;         /* #1e3a5f */
+
         --chart-1: 217 91% 60%;
-        --chart-2: 188 94% 43%;
-        --chart-3: 160 68% 36%;
+        --chart-2: 43 49% 49%;              /* gold */
+        --chart-3: 160 84% 31%;
         --chart-4: 0 72% 51%;
         --chart-5: 267 84% 65%;
 
         --radius: 0.75rem;
 
         --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.05);
-        --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+        --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.1),  0 2px 4px -2px rgb(0 0 0 / 0.06);
         --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.05);
         --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.04);
         --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-        --shadow-glow: 0 0 0 3px hsl(217 91% 60% / 0.15), 0 4px 20px hsl(217 91% 60% / 0.12);
+
+        --shadow-glow:      0 0 0 3px hsl(217 91% 60% / 0.15),  0 4px 20px hsl(217 91% 60% / 0.12);
+        --shadow-glow-gold: 0 0 0 3px hsl(43 49% 49% / 0.18),  0 6px 24px hsl(43 49% 49% / 0.22);
+        --shadow-gold:      0 8px 28px hsl(43 49% 49% / 0.32);
     }
 
     .dark {
-        /* Medical Professional — Dark (Night Mode) */
-        --background: 222 47% 6%;           /* #080d1a deep navy */
-        --foreground: 210 40% 96%;
-        --card: 222 47% 9%;                 /* #0f1829 dark card */
-        --card-foreground: 210 40% 96%;
-        --popover: 222 47% 9%;
-        --popover-foreground: 210 40% 96%;
-        --primary: 217 91% 65%;             /* #60a5fa lighter blue */
-        --primary-foreground: 222 47% 6%;
-        --secondary: 222 47% 13%;
-        --secondary-foreground: 210 40% 96%;
-        --muted: 222 47% 13%;
-        --muted-foreground: 215 20% 55%;
-        --accent: 188 84% 52%;              /* #22d3ee lighter teal */
-        --accent-foreground: 222 47% 6%;
-        --destructive: 0 62% 52%;
-        --destructive-foreground: 0 0% 100%;
-        --success: 160 60% 45%;
-        --success-foreground: 0 0% 100%;
-        --warning: 38 80% 52%;
-        --warning-foreground: 0 0% 100%;
-        --border: 222 47% 17%;
-        --input: 222 47% 17%;
-        --ring: 217 91% 65%;
+        /* ─ NIGHT MODE — Royal Navy + Matte Gold ─ */
+        --background: 230 60% 6%;           /* #06081a Deep Space */
+        --foreground: 210 40% 98%;          /* #f8fafc Ivory text */
+        --card: 222 47% 11%;                /* #0f1829 Navy Card */
+        --card-foreground: 210 40% 98%;
+        --popover: 222 47% 11%;
+        --popover-foreground: 210 40% 98%;
 
-        --chart-1: 217 91% 65%;
-        --chart-2: 188 84% 52%;
-        --chart-3: 160 60% 45%;
-        --chart-4: 0 62% 52%;
+        --primary: 217 91% 67%;             /* #60a5fa Sky Blue */
+        --primary-foreground: 230 60% 6%;
+
+        --secondary: 222 47% 17%;           /* #142447 Navy Tide */
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 222 47% 17%;
+        --muted-foreground: 215 20% 65%;    /* #94a3b8 Light Slate */
+
+        /* ✨ Gold accent */
+        --accent: 44 56% 54%;               /* #c9a84c Matte Gold */
+        --accent-foreground: 230 60% 6%;
+
+        --destructive: 0 84% 60%;           /* #ef4444 */
+        --destructive-foreground: 0 0% 100%;
+        --success: 160 84% 39%;             /* #10b981 */
+        --success-foreground: 0 0% 100%;
+        --warning: 38 92% 50%;              /* #f59e0b */
+        --warning-foreground: 230 60% 6%;
+        --info: 189 94% 43%;                /* #06b6d4 */
+        --info-foreground: 0 0% 100%;
+
+        --border: 217 49% 25%;              /* #1e3a5f Steel Blue */
+        --input: 217 49% 25%;
+        --ring: 217 91% 67%;
+
+        /* ✨ Gold tokens */
+        --gold: 44 56% 54%;                 /* #c9a84c Matte Gold */
+        --gold-soft: 44 67% 73%;            /* #e8d089 Pale Gold */
+        --gold-deep: 44 56% 40%;            /* #a08538 Gold Deep */
+        --gold-foreground: 230 60% 6%;      /* dark text on gold */
+
+        /* ✨ Navy tokens */
+        --navy-deep: 230 60% 6%;            /* #06081a */
+        --navy-mid: 222 47% 9%;             /* #0a1628 */
+        --navy-surface: 222 47% 17%;        /* #142447 */
+        --navy-border: 217 49% 25%;         /* #1e3a5f */
+
+        --chart-1: 217 91% 67%;
+        --chart-2: 44 56% 54%;              /* gold */
+        --chart-3: 160 84% 39%;
+        --chart-4: 0 84% 60%;
         --chart-5: 267 84% 70%;
 
         --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.35);
@@ -82,7 +127,10 @@
         --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.55), 0 4px 6px -4px rgb(0 0 0 / 0.35);
         --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.65), 0 8px 10px -6px rgb(0 0 0 / 0.45);
         --shadow-card: 0 4px 24px rgb(0 0 0 / 0.4);
-        --shadow-glow: 0 0 0 3px hsl(217 91% 65% / 0.15), 0 4px 20px hsl(217 91% 65% / 0.12);
+
+        --shadow-glow:      0 0 0 3px hsl(217 91% 67% / 0.18),  0 6px 22px hsl(217 91% 67% / 0.18);
+        --shadow-glow-gold: 0 0 0 3px hsl(44 56% 54% / 0.25),   0 8px 28px hsl(44 56% 54% / 0.30);
+        --shadow-gold:      0 10px 36px hsl(44 56% 54% / 0.40);
     }
 }
 
