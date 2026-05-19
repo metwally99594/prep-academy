@@ -573,15 +573,14 @@ async def get_moderation_queue(
         if reviewed is not None:
             query["reviewed"] = reviewed
 
-        items = await db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(length=page_size)
+        cursor = db.community_moderation_queue.find(query)
+        items = await cursor.to_list(length=page_size)
         total = await db.community_moderation_queue.count_documents(query)
 
-        return {"items": items, "total": total, "page": page, "page_size": page_size}
-    except BaseException:
-        import traceback, sys
-        tb = traceback.format_exc()
-        print("CRASH", tb, file=sys.stderr)
-        return {"crash": True, "traceback": tb}
+        return {"items": [str(i.get("_id")) for i in items], "total": total, "page": page, "page_size": page_size}
+    except Exception:
+        import traceback
+        return {"crash": True, "traceback": traceback.format_exc()}
 
 
 @router.post("/community/moderation/action")
