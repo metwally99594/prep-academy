@@ -559,8 +559,14 @@ async def create_report(body: CommunityReport, user: dict = Depends(get_current_
 
 
 @router.get("/community/modq")
-async def get_moderation_queue(admin: dict = Depends(get_admin_user)):
-    return {"ok": True}
+async def get_moderation_queue(
+    severity: Optional[str] = Query(None),
+    reviewed: Optional[bool] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    admin: dict = Depends(get_admin_user),
+):
+    return {"ok": True, "params": {"severity": severity, "reviewed": reviewed, "page": page, "page_size": page_size}}
 
 
 @router.post("/community/moderation/action")
