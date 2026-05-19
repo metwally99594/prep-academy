@@ -567,48 +567,7 @@ async def get_moderation_queue(
     cursor: Optional[str] = Query(None),
     admin: dict = Depends(get_admin_user),
 ):
-    try:
-        _timer = Timer()
-        cid = get_correlation_id() or "-"
-        query: dict = {}
-        if severity:
-            query["severity"] = severity
-        if reviewed is not None:
-            query["reviewed"] = reviewed
-
-        with _timer:
-            use_cursor = cursor is not None and cursor != ""
-
-            paginated = await paginate_moderation_queue(
-                db=db, query=query, page=page, page_size=page_size,
-                cursor=cursor, use_cursor=use_cursor,
-            )
-
-            enriched = await enrich_moderation_queue_items(
-                items=paginated["items"], db=db, get_user_name=get_user_name,
-            )
-
-            result = {
-                "items": enriched if enriched else paginated["items"],
-                "total": paginated["total"],
-                "page": paginated["page"],
-                "page_size": paginated["page_size"],
-                "next_cursor": paginated["next_cursor"],
-            }
-
-        logger.info("mod_queue=listed severity=%s reviewed=%s items=%d duration_ms=%.1f correlation_id=%s",
-                    severity or "all", reviewed if reviewed is not None else "all", paginated["total"], _timer.ms, cid)
-        return result
-    except Exception as e:
-        _cid = get_correlation_id() or "-"
-        logger.error("mod_queue=error severity=%s reviewed=%s error=%s correlation_id=%s",
-                     severity, reviewed, str(e), _cid)
-        import traceback
-        detail = str(e)
-        tb = traceback.format_exc()
-        if tb:
-            logger.error("mod_queue=traceback\n%s", tb)
-        raise HTTPException(status_code=500, detail=f"Internal error: {detail}")
+    return {"status": "ok", "admin_id": admin.get("id")}
 
 
 @router.post("/community/moderation/action")
