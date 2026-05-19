@@ -566,7 +566,28 @@ async def get_moderation_queue(
     page_size: int = Query(20, ge=1, le=100),
     admin: dict = Depends(get_admin_user),
 ):
-    return {"ok": True, "params": {"severity": severity, "reviewed": reviewed, "page": page, "page_size": page_size}}
+    query: dict = {}
+    if severity:
+        query["severity"] = severity
+    if reviewed is not None:
+        query["reviewed"] = reviewed
+
+    paginated = await paginate_moderation_queue(
+        db=db, query=query, page=page, page_size=page_size,
+    )
+
+    enriched = await enrich_moderation_queue_items(
+        items=paginated["items"], db=db, get_user_name=get_user_name,
+    )
+
+    result = {
+        "items": enriched if enriched else paginated["items"],
+        "total": paginated["total"],
+        "page": paginated["page"],
+        "page_size": paginated["page_size"],
+        "next_cursor": paginated["next_cursor"],
+    }
+    return result
 
 
 @router.post("/community/moderation/action")
