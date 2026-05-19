@@ -566,28 +566,38 @@ async def get_moderation_queue(
     page_size: int = Query(20, ge=1, le=100),
     admin: dict = Depends(get_admin_user),
 ):
-    query: dict = {}
-    if severity:
-        query["severity"] = severity
-    if reviewed is not None:
-        query["reviewed"] = reviewed
+    try:
+        from services.community_pagination import paginate_moderation_queue
+        from services.community_serializers import enrich_moderation_queue_items
+        from services.community_service import get_user_name
 
-    paginated = await paginate_moderation_queue(
-        db=db, query=query, page=page, page_size=page_size,
-    )
+        query: dict = {}
+        if severity:
+            query["severity"] = severity
+        if reviewed is not None:
+            query["reviewed"] = reviewed
 
-    enriched = await enrich_moderation_queue_items(
-        items=paginated["items"], db=db, get_user_name=get_user_name,
-    )
+        paginated = await paginate_moderation_queue(
+            db=db, query=query, page=page, page_size=page_size,
+        )
 
-    result = {
-        "items": enriched if enriched else paginated["items"],
-        "total": paginated["total"],
-        "page": paginated["page"],
-        "page_size": paginated["page_size"],
-        "next_cursor": paginated["next_cursor"],
-    }
-    return result
+        enriched = await enrich_moderation_queue_items(
+            items=paginated["items"], db=db, get_user_name=get_user_name,
+        )
+
+        result = {
+            "items": enriched if enriched else paginated["items"],
+            "total": paginated["total"],
+            "page": paginated["page"],
+            "page_size": paginated["page_size"],
+            "next_cursor": paginated["next_cursor"],
+        }
+        return result
+    except BaseException:
+        import traceback, sys
+        tb = traceback.format_exc()
+        print("CRASH", tb, file=sys.stderr)
+        return {"crash": True, "traceback": tb}
 
 
 @router.post("/community/moderation/action")
