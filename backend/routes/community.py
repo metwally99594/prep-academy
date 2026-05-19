@@ -558,16 +558,28 @@ async def create_report(body: CommunityReport, user: dict = Depends(get_current_
 # ── Moderation (admin) ──
 
 
-@router.get("/community/moderation/queue")
+@router.get("/community/moderation-queue")
 async def get_moderation_queue(
     severity: Optional[str] = Query(None),
     reviewed: Optional[bool] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    cursor: Optional[str] = Query(None),
     admin: dict = Depends(get_admin_user),
 ):
-    return {"status": "ok", "admin_id": admin.get("id")}
+    try:
+        paginated = []
+        total = 0
+        query: dict = {}
+        if severity:
+            query["severity"] = severity
+        if reviewed is not None:
+            query["reviewed"] = reviewed
+        paginated = await db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(length=page_size)
+        total = await db.community_moderation_queue.count_documents(query)
+        return {"items": paginated, "total": total, "page": page, "page_size": page_size, "next_cursor": None}
+    except BaseException:
+        import traceback
+        return {"crash": True, "traceback": traceback.format_exc()}
 
 
 @router.post("/community/moderation/action")

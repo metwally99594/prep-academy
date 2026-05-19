@@ -23,7 +23,7 @@ export function useModerationQueue(_token) {
     cursorRef.current = null;
     try {
       const res = await apiClient.get(
-        `/community/moderation/queue?${buildQuery(reviewed, severity)}`,
+        `/community/moderation-queue?${buildQuery(reviewed, severity)}`,
         { timeout: 45000 },
       );
       setItems(res.data.items || []);
@@ -44,7 +44,7 @@ export function useModerationQueue(_token) {
       p.set("reviewed", String(reviewed));
       if (severity) p.set("severity", severity);
       const res = await apiClient.get(
-        `/community/moderation/queue?${p}`,
+        `/community/moderation-queue?${p}`,
         { timeout: 45000 },
       );
       setItems(prev => [...prev, ...(res.data.items || [])]);
