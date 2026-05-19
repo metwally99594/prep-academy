@@ -566,21 +566,18 @@ async def get_moderation_queue(
     page_size: int = Query(20, ge=1, le=100),
     admin: dict = Depends(get_admin_user),
 ):
-    try:
-        query: dict = {}
-        if severity:
-            query["severity"] = severity
-        if reviewed is not None:
-            query["reviewed"] = reviewed
+    query: dict = {}
+    if severity:
+        query["severity"] = severity
+    if reviewed is not None:
+        query["reviewed"] = reviewed
 
-        cursor = db.community_moderation_queue.find(query)
-        items = await cursor.to_list(length=page_size)
-        total = await db.community_moderation_queue.count_documents(query)
+    total = await db.community_moderation_queue.count_documents(query)
+    items = []
+    async for doc in db.community_moderation_queue.find(query).limit(page_size):
+        items.append(doc)
 
-        return {"items": [str(i.get("_id")) for i in items], "total": total, "page": page, "page_size": page_size}
-    except Exception:
-        import traceback
-        return {"crash": True, "traceback": traceback.format_exc()}
+    return {"items": [str(i.get("_id")) for i in items], "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/community/moderation/action")
