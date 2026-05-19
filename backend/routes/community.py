@@ -574,20 +574,8 @@ async def get_moderation_queue(
 
     total = await db.community_moderation_queue.count_documents(query)
     items = []
-    async for doc in db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size):
-        if "target_id" in doc:
-            coll = db.community_posts if doc.get("target_type") == "post" else db.community_comments
-            target = None
-            async for t in coll.find({"id": doc["target_id"]}).limit(1):
-                target = t
-            if target:
-                preview = target.get("title") or target.get("content", "")
-                doc["target_preview"] = preview[:200]
-                author_id = target.get("author_id")
-                if author_id:
-                    async for u in db.users.find({"id": author_id}, {"name": 1}).limit(1):
-                        doc["target_author_name"] = u.get("name", "Unknown")
-        items.append(doc)
+    async for doc in db.community_moderation_queue.find(query).limit(page_size):
+        items.append(str(doc.get("_id")))
 
     return {"items": items, "total": total, "page": page, "page_size": page_size, "next_cursor": None}
 
