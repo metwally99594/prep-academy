@@ -574,10 +574,21 @@ async def get_moderation_queue(
 
     total = await db.community_moderation_queue.count_documents(query)
     items = []
-    async for doc in db.community_moderation_queue.find(query).limit(page_size):
+    async for doc in db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size):
         items.append(doc)
 
-    return {"items": [str(i.get("_id")) for i in items], "total": total, "page": page, "page_size": page_size}
+    enriched = await enrich_moderation_queue_items(
+        items=items, db=db, get_user_name=get_user_name,
+    )
+
+    result = {
+        "items": enriched if enriched else items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "next_cursor": None,
+    }
+    return result
 
 
 @router.post("/community/moderation/action")
