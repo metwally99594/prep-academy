@@ -567,32 +567,13 @@ async def get_moderation_queue(
     admin: dict = Depends(get_admin_user),
 ):
     try:
-        from services.community_pagination import paginate_moderation_queue
-        from services.community_serializers import enrich_moderation_queue_items
-        from services.community_service import get_user_name
-
         query: dict = {}
         if severity:
             query["severity"] = severity
         if reviewed is not None:
             query["reviewed"] = reviewed
-
-        paginated = await paginate_moderation_queue(
-            db=db, query=query, page=page, page_size=page_size,
-        )
-
-        enriched = await enrich_moderation_queue_items(
-            items=paginated["items"], db=db, get_user_name=get_user_name,
-        )
-
-        result = {
-            "items": enriched if enriched else paginated["items"],
-            "total": paginated["total"],
-            "page": paginated["page"],
-            "page_size": paginated["page_size"],
-            "next_cursor": paginated["next_cursor"],
-        }
-        return result
+        count = await db.community_moderation_queue.count_documents(query)
+        return {"count": count}
     except BaseException:
         import traceback, sys
         tb = traceback.format_exc()
