@@ -114,7 +114,7 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
                     "X-Title": "PrepAcademy Daily Podcast",
                 },
                 json={
-                    "model": "inclusionai/ling-2.6-1t:free",
+                    "model": "openrouter/free",
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
