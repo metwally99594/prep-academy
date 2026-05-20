@@ -573,7 +573,8 @@ async def get_moderation_queue(
         query["reviewed"] = reviewed
 
     all_docs = []
-    async for doc in db.community_moderation_queue.find(query):
+    async for doc in db.community_moderation_queue.find(query).limit(1000):
+        doc["_id"] = str(doc["_id"])
         all_docs.append(doc)
     all_docs.sort(key=lambda d: d.get("created_at", ""), reverse=True)
     total = len(all_docs)
@@ -587,6 +588,7 @@ async def get_moderation_queue(
         if doc.get("target_id"):
             coll = db.community_posts if doc.get("target_type") == "post" else db.community_comments
             async for target in coll.find({"id": doc["target_id"]}, {"content": 1, "title": 1, "author_id": 1}).limit(1):
+                target["_id"] = str(target["_id"])
                 preview_field = target.get("title") or target.get("content", "")
                 target_preview = preview_field[:200]
                 target_author_id = target.get("author_id")
