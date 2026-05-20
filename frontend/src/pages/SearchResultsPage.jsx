@@ -313,7 +313,7 @@ export default function SearchResultsPage() {
             </Button>
           </div>
 
-          <h2 className="text-xl font-semibold mb-6" data-testid="search-question-text">
+          <h2 className="question-text" data-testid="search-question-text">
             {highlightKeyword(currentQuestion?.question_text_de || currentQuestion?.question_text)}
           </h2>
 
@@ -327,24 +327,16 @@ export default function SearchResultsPage() {
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="answers-container">
             {(currentQuestion?.choices || []).map((choice, index) => (
               <button
                 key={choice.id}
                 onClick={() => toggleChoice(choice.id)}
                 disabled={showResult}
-                className={`choice-btn w-full text-left p-4 rounded-xl flex items-center gap-4 ${getChoiceClass(choice)}`}
+                className={`answer-option ${getChoiceClass(choice)}`}
                 data-testid={`search-choice-${index}`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium flex-shrink-0 ${
-                  getChoiceClass(choice) === "correct" 
-                    ? "bg-green-500 text-white"
-                    : getChoiceClass(choice) === "incorrect"
-                    ? "bg-red-500 text-white"
-                    : selectedChoices.includes(choice.id)
-                    ? "bg-primary text-white"
-                    : "bg-muted text-muted-foreground"
-                }`}>
+                <div className="answer-circle">
                   {getChoiceClass(choice) === "correct" ? (
                     <Check className="w-4 h-4" />
                   ) : getChoiceClass(choice) === "incorrect" ? (
@@ -353,7 +345,7 @@ export default function SearchResultsPage() {
                     String.fromCharCode(65 + index)
                   )}
                 </div>
-                <p className="font-medium">{highlightKeyword(choice.text_de || choice.text)}</p>
+                <p className="answer-text">{highlightKeyword(choice.text_de || choice.text)}</p>
               </button>
             ))}
           </div>

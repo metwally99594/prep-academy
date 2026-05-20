@@ -425,7 +425,7 @@ export default function QuizPage() {
   const toggleChoice = (choiceId) => {
     if (showResult) return;
     const qType = currentQuestion?.question_type || 'single_choice';
-    const isMulti = qType === 'multi_select' || (currentQuestion?.choices?.filter(c => c.is_correct === true).length || 1) > 1;
+    const isMulti = qType === 'multi_select' || (currentQuestion?.choices?.filter(c => c.is_correct === true)?.length || 1) > 1;
     if (isMulti) {
       setSelectedChoices(prev => prev.includes(choiceId) ? prev.filter(id => id !== choiceId) : [...prev, choiceId]);
     } else {
@@ -453,9 +453,18 @@ export default function QuizPage() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       const payload = { question_id: currentQuestion.id };
-      if (isDragDrop) payload.drag_drop_answer = dragDropAnswer;
-      else if (isLuckentext) payload.blank_answer = blankAnswer;
-      else payload.selected_choice_ids = selectedChoices;
+      if (isDragDrop) {
+        payload.drag_drop_answer = dragDropAnswer;
+      } else if (isLuckentext) {
+        try {
+          const parsed = JSON.parse(blankAnswer);
+          const sorted = Object.keys(parsed).sort((a, b) => parseInt(a) - parseInt(b)).map(k => parsed[k] || "");
+          payload.blank_answers = sorted;
+          payload.blank_answer = sorted[0] || "";
+        } catch {
+          payload.blank_answer = blankAnswer;
+        }
+      } else payload.selected_choice_ids = selectedChoices;
 
       const response = await axios.post(`${API}/questions/${currentQuestion.id}/answer`, payload, { headers });
       setResult(response.data);
@@ -582,7 +591,7 @@ export default function QuizPage() {
 
   // Counts
   const answeredCount = Object.values(answers).filter(a => a.submitted).length;
-  const correctCount = currentQuestion?.choices?.filter(c => c.is_correct === true).length || 1;
+  const correctCount = currentQuestion?.choices?.filter(c => c.is_correct === true)?.length || 1;
   const wrongAnswers = Object.entries(answers).filter(([, a]) => a.submitted && !a.correct && !a.skipped);
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -858,10 +867,10 @@ export default function QuizPage() {
           </div>
         </div>
 
-        {/* Question Card */}
-        <div className="glass-card rounded-2xl p-6 md:p-8 mb-4">
+          {/* Question Card */}
+        <div className="quiz-card mb-4">
           <div className="flex items-center gap-2 mb-4 flex-wrap">
-            {currentQuestion?.year && <span className="px-3 py-1 text-xs rounded-lg font-medium" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>{currentQuestion.year}</span>}
+            {currentQuestion?.year && <span className="quiz-year-badge">{currentQuestion.year}</span>}
             {currentQuestion?.tags?.map(t => <span key={t} className="px-2 py-0.5 bg-muted text-xs rounded-md text-muted-foreground">{t}</span>)}
             {correctCount > 1 && <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs rounded-lg font-medium">{correctCount} richtige</span>}
             <button
@@ -876,10 +885,12 @@ export default function QuizPage() {
             </button>
           </div>
 
-          <h2 className="text-lg md:text-xl font-semibold mb-6 leading-relaxed select-text" data-testid="question-text"
-            onMouseUp={handleTextSelect}
-            dangerouslySetInnerHTML={{ __html: renderHighlightedText(currentQuestion?.question_text_de || currentQuestion?.question_text || "") }}
-          />
+          {currentQuestion?.question_type !== 'luckentext' && (
+            <h2 className="question-text select-text" data-testid="question-text"
+              onMouseUp={handleTextSelect}
+              dangerouslySetInnerHTML={{ __html: renderHighlightedText(currentQuestion?.question_text_de || currentQuestion?.question_text || "") }}
+            />
+          )}
 
           {currentQuestion?.image_base64 && (
             <div className="mb-6"><img src={currentQuestion.image_base64} alt="Question" className="question-image mx-auto" /></div>
@@ -911,24 +922,50 @@ export default function QuizPage() {
               result={result}
             />
           ) : (
-            <div className="space-y-3">
+            <div className="answers-container">
               {(currentQuestion?.choices || []).map((choice, index) => (
                 <button key={choice.id} onClick={() => toggleChoice(choice.id)} disabled={showResult}
-                  className={`choice-refined ${getChoiceClass(choice)}`}
+                  className={`answer-option ${getChoiceClass(choice)}`}
                   data-testid={`choice-${index}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
-                    getChoiceClass(choice) === "correct" ? "bg-emerald-500 text-white border-emerald-500"
-                    : getChoiceClass(choice) === "incorrect" ? "bg-red-500 text-white border-red-500"
-                    : selectedChoices.includes(choice.id) ? "border-gold text-gold" : "border-muted-foreground/30 text-muted-foreground"
-                  }`}>
+                  <div className="answer-circle">
                     {getChoiceClass(choice) === "correct" ? <Check className="w-4 h-4" />
                     : getChoiceClass(choice) === "incorrect" ? <X className="w-4 h-4" />
                     : String.fromCharCode(65 + index)}
                   </div>
-                  <p className="flex-1 font-medium select-text" onMouseUp={handleTextSelect}
+                  <p className="answer-text select-text" onMouseUp={handleTextSelect}
                     dangerouslySetInnerHTML={{ __html: renderHighlightedText(choice.text_de || choice.text || "") }} />
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Inline result feedback */}
+          {showResult && result && (
+            <div className={`quiz-feedback ${result.is_correct ? 'correct' : 'incorrect'}`}>
+              {result.is_correct
+                ? <Check className="quiz-feedback-icon" />
+                : <X className="quiz-feedback-icon" />
+              }
+              <div className="quiz-feedback-text">
+                {result.is_correct
+                  ? <strong>✓ Richtig!</strong>
+                  : (
+                    <>✗ Falsch. Richtige Antwort: <strong>
+                      {(() => {
+                        if (currentQuestion?.blank_answers?.length) {
+                          return currentQuestion.blank_answers.join(', ');
+                        }
+                        if (!result?.correct_choice_ids?.length) return '';
+                        const correctChoices = (currentQuestion?.choices || []).filter(c => result.correct_choice_ids.includes(c.id));
+                        return correctChoices.map(c => {
+                          const idx = (currentQuestion?.choices || []).indexOf(c);
+                          return `${String.fromCharCode(65 + idx)}) ${c.text_de || c.text || ''}`;
+                        }).join(', ');
+                      })()}
+                    </strong></>
+                  )
+                }
+              </div>
             </div>
           )}
         </div>

@@ -126,6 +126,7 @@ const emptyQuestion = {
   drag_drop_categories: [],
   blank_text: "",
   blank_answers: [],
+  blanks: [],
 };
 
 function ImportQuestionsTab({ token, onImportComplete }) {

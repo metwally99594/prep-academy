@@ -11,7 +11,7 @@ export default function MultiSelect({ question, submitted, selectedChoices, onTo
   };
 
   return (
-    <div className="space-y-3">
+    <div className="answers-container">
       <p className="text-xs font-medium" style={{ color: '#3b82f6' }}>
         Mehrere Antworten möglich – alle richtigen auswählen
       </p>
@@ -23,25 +23,16 @@ export default function MultiSelect({ question, submitted, selectedChoices, onTo
             key={choice.id}
             onClick={() => onToggle(choice.id)}
             disabled={submitted}
-            className={`choice-btn w-full text-left p-4 rounded-xl flex items-center gap-4 ${
-              status === 'correct' ? 'correct' :
-              status === 'incorrect' ? 'incorrect' :
-              isSelected ? 'selected' : ''
-            }`}
+            className={`answer-option ${status}`}
             data-testid={`choice-${index}`}
           >
-            <div className={`w-9 h-9 rounded flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
-              status === 'correct' ? 'bg-emerald-500 text-white border-emerald-500' :
-              status === 'incorrect' ? 'bg-red-500 text-white border-red-500' :
-              isSelected ? 'border-[#3b82f6] bg-[#3b82f6]/20 text-[#3b82f6]' :
-              'border-muted-foreground/30 text-muted-foreground'
-            }`}>
+            <div className="answer-circle">
               {status === 'correct' ? <Check className="w-4 h-4" /> :
                status === 'incorrect' ? <X className="w-4 h-4" /> :
                isSelected ? <Check className="w-4 h-4" /> :
                String.fromCharCode(65 + index)}
             </div>
-            <p className="flex-1 font-medium select-text">{choice.text_de || choice.text}</p>
+            <p className="answer-text select-text">{choice.text_de || choice.text}</p>
           </button>
         );
       })}

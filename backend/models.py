@@ -57,6 +57,7 @@ class QuestionCreate(BaseModel):
     drag_drop_categories: Optional[List[DragDropCategory]] = None
     blank_text: Optional[str] = None
     blank_answers: Optional[List[str]] = None
+    blanks: Optional[List[dict]] = None
 
 class QuestionUpdate(BaseModel):
     specialty_id: Optional[str] = None
@@ -74,6 +75,7 @@ class QuestionUpdate(BaseModel):
     drag_drop_categories: Optional[List[DragDropCategory]] = None
     blank_text: Optional[str] = None
     blank_answers: Optional[List[str]] = None
+    blanks: Optional[List[dict]] = None
 
 class QuestionResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -96,12 +98,14 @@ class QuestionResponse(BaseModel):
     drag_drop_categories: Optional[List[dict]] = None
     blank_text: Optional[str] = None
     blank_answers: Optional[List[str]] = None
+    blanks: Optional[List[dict]] = None
 
 class AnswerSubmit(BaseModel):
     question_id: str
     selected_choice_ids: Optional[List[str]] = []
     drag_drop_answer: Optional[Dict[str, str]] = None
     blank_answer: Optional[str] = None
+    blank_answers: Optional[List[str]] = None
 
 class AnswerResult(BaseModel):
     is_correct: bool
