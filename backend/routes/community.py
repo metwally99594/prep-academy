@@ -572,10 +572,15 @@ async def get_moderation_queue(
     if reviewed is not None:
         query["reviewed"] = reviewed
 
-    total = await db.community_moderation_queue.count_documents(query)
+    all_docs = []
+    async for doc in db.community_moderation_queue.find(query):
+        all_docs.append(doc)
+    all_docs.sort(key=lambda d: d.get("created_at", ""), reverse=True)
+    total = len(all_docs)
+    paged = all_docs[(page - 1) * page_size: page * page_size]
 
     items = []
-    async for doc in db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size):
+    for doc in paged:
         target_preview = None
         target_author_id = None
         target_author_name = None
