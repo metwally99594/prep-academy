@@ -572,20 +572,30 @@ async def get_moderation_queue(
     if reviewed is not None:
         query["reviewed"] = reviewed
 
-    paginated = await paginate_moderation_queue(
-        db=db, query=query, page=page, page_size=page_size,
-    )
+    total = await db.community_moderation_queue.count_documents(query)
 
-    enriched = await enrich_moderation_queue_items(
-        items=paginated["items"], db=db, get_user_name=get_user_name,
-    )
+    items = []
+    async for doc in db.community_moderation_queue.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size):
+        target_preview = None
+        target_author_id = None
+        target_author_name = None
+        if doc.get("target_id"):
+            coll = db.community_posts if doc.get("target_type") == "post" else db.community_comments
+            async for target in coll.find({"id": doc["target_id"]}, {"content": 1, "title": 1, "author_id": 1}).limit(1):
+                preview_field = target.get("title") or target.get("content", "")
+                target_preview = preview_field[:200]
+                target_author_id = target.get("author_id")
+                if target_author_id:
+                    async for user_doc in db.users.find({"id": target_author_id}, {"name": 1}).limit(1):
+                        target_author_name = user_doc.get("name", "Unknown")
+        items.append({**doc, "target_preview": target_preview, "target_author_id": target_author_id, "target_author_name": target_author_name})
 
     return {
-        "items": enriched if enriched else paginated["items"],
-        "total": paginated["total"],
-        "page": paginated["page"],
-        "page_size": paginated["page_size"],
-        "next_cursor": paginated["next_cursor"],
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "next_cursor": None,
     }
 
 
