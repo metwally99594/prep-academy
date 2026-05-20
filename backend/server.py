@@ -974,7 +974,7 @@ async def get_simulation_questions(city: str = "vienna", user: dict = Depends(ge
                          "choices_de": 1, "correct_answers": 1,
                          "explanation_de": 1, "exam_location": 1, "image_base64": 1,
                          "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
-                         "blank_text": 1, "blank_answers": 1, "tags": 1}}
+                         "blank_text": 1, "blank_answers": 1, "blanks": 1, "tags": 1}}
         ]
         questions = await db.questions.aggregate(pipeline).to_list(target)
         all_questions.extend(questions)
@@ -1036,7 +1036,7 @@ async def get_quiz_questions(
         "choices": 1, "choices_de": 1, "correct_answers": 1,
         "explanation_de": 1, "exam_location": 1, "image_base64": 1,
         "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
-        "blank_text": 1, "blank_answers": 1, "tags": 1,
+        "blank_text": 1, "blank_answers": 1, "blanks": 1, "tags": 1,
     }
 
     if mode == "study":
@@ -1312,7 +1312,31 @@ async def submit_answer(question_id: str, answer: AnswerSubmit, user: dict = Dep
         else:
             is_correct = False
     elif question_type == "luckentext":
-        if answer.blank_answer:
+        blanks_data = question.get("blanks", [])
+        if answer.blank_answers and len(answer.blank_answers) > 0:
+            if blanks_data and len(blanks_data) > 0:
+                correct_count = 0
+                for i, b in enumerate(blanks_data):
+                    if i >= len(answer.blank_answers):
+                        break
+                    user_ans = (answer.blank_answers[i] or "").strip().lower()
+                    if b.get("type") == "text":
+                        accepted = b.get("acceptedAnswers") or (b.get("answer") and [b["answer"]]) or []
+                        if user_ans and any(user_ans == a.strip().lower() for a in accepted if a):
+                            correct_count += 1
+                    else:
+                        for opt in b.get("options", []):
+                            if opt.get("text","").strip().lower() == user_ans and opt.get("correct"):
+                                correct_count += 1
+                                break
+                is_correct = correct_count == len(blanks_data)
+            else:
+                correct_blanks = question.get("blank_answers", [])
+                is_correct = all(
+                    (answer.blank_answers[i] or "").strip().lower() == (correct_blanks[i] or "").strip().lower()
+                    for i in range(min(len(answer.blank_answers), len(correct_blanks)))
+                ) if correct_blanks else False
+        elif answer.blank_answer:
             correct_blanks = question.get("blank_answers", [])
             is_correct = any(answer.blank_answer.strip().lower() == b.strip().lower() for b in correct_blanks)
         else:

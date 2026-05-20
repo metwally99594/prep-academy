@@ -36,6 +36,18 @@ class ErrorBoundary extends React.Component {
                 Hinweis: Bitte deaktivieren Sie die automatische Seitenübersetzung, da sie Probleme verursachen kann.
               </span>
             </p>
+            {this.state.error && (
+              <details className="mb-4 text-left bg-red-50 dark:bg-red-950/30 rounded-lg p-3 overflow-auto max-h-40">
+                <summary className="text-sm font-medium text-red-600 dark:text-red-400 cursor-pointer">
+                  Fehlerdetails
+                </summary>
+                <pre className="mt-2 text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap break-all">
+                  {this.state.error.message}
+                  {'\n\n'}
+                  {this.state.error.stack?.split('\n').slice(1, 6).join('\n')}
+                </pre>
+              </details>
+            )}
             <Button onClick={this.handleReload} className="gap-2">
               <RefreshCcw className="w-4 h-4" />
               Seite neu laden

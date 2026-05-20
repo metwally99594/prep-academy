@@ -550,15 +550,15 @@ export default function ExamSimulationPage() {
           </div>
 
           {/* Question Card */}
-          <div className="glass-card rounded-2xl p-6 md:p-8 mb-4">
+          <div className="quiz-card mb-4">
             <div className="flex items-center gap-2 mb-4">
-              {currentQuestion?.year && <span className="px-3 py-1 text-xs rounded-lg font-medium" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>{currentQuestion.year}</span>}
+              {currentQuestion?.year && <span className="quiz-year-badge">{currentQuestion.year}</span>}
               {currentQuestion.choices.filter(c => c.is_correct).length > 1 && (
                 <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs rounded-lg font-medium">Mehrfachauswahl</span>
               )}
             </div>
 
-            <p className="text-lg md:text-xl font-semibold mb-6 leading-relaxed" data-testid="sim-question-text">
+            <p className="question-text" data-testid="sim-question-text">
               {currentQuestion.question_text_de || currentQuestion.question_text}
             </p>
 
@@ -567,19 +567,17 @@ export default function ExamSimulationPage() {
             )}
 
             {/* Choices */}
-            <div className="space-y-3">
+            <div className="answers-container">
               {(currentQuestion?.choices || []).map((choice, idx) => {
                 const isSelected = (answers[currentQuestion.id] || []).includes(choice.id);
                 return (
                   <button key={choice.id} onClick={() => selectAnswer(choice.id)}
-                    className={`choice-btn w-full text-left p-4 rounded-xl flex items-center gap-4 ${isSelected ? 'selected' : ''}`}
+                    className={`answer-option ${isSelected ? 'selected' : ''}`}
                     data-testid={`sim-choice-${idx}`}>
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 border-2 ${
-                      isSelected ? 'border-[#3b82f6] text-[#3b82f6]' : 'border-muted-foreground/30 text-muted-foreground'
-                    }`}>
+                    <div className="answer-circle">
                       {String.fromCharCode(65 + idx)}
                     </div>
-                    <p className="flex-1 font-medium">{choice.text_de || choice.text}</p>
+                    <p className="answer-text">{choice.text_de || choice.text}</p>
                   </button>
                 );
               })}
