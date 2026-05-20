@@ -4,13 +4,14 @@ import { Check, Trash2, ChevronDown } from "lucide-react";
 const makeId = () => Math.random().toString(36).slice(2, 9);
 
 function parseBlanks(question) {
+  const blankText = typeof question?.blank_text === 'string' ? question.blank_text : "";
   if (question?.blanks && Array.isArray(question.blanks) && question.blanks.length > 0) {
+    let idx = 0;
     return {
-      sentence: typeof question.blank_text === 'string' ? question.blank_text : "",
+      sentence: blankText.replace(/___/g, () => `[${++idx}]`),
       blanks: question.blanks,
     };
   }
-  const blankText = typeof question?.blank_text === 'string' ? question.blank_text : "";
   const blankAnswers = Array.isArray(question?.blank_answers) ? question.blank_answers : [];
   if (blankAnswers.length > 0) {
     let idx = 0;
