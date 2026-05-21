@@ -25,11 +25,13 @@ export default function DailyPodcastPage() {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showScript, setShowScript] = useState(false);
+  const [showCustomScript, setShowCustomScript] = useState(false);
   const audioRef = useRef(null);
 
   const [customPodcasts, setCustomPodcasts] = useState([]);
   const [customAudio, setCustomAudio] = useState(null);
   const [customPlaying, setCustomPlaying] = useState(null);
+  const [customScript, setCustomScript] = useState(null);
 
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -79,9 +81,10 @@ export default function DailyPodcastPage() {
       const audio = new Audio(`data:audio/mp3;base64,${res.data.audio_base64}`);
       setCustomAudio(audio);
       setCustomPlaying(item.id);
+      setCustomScript(res.data.script || null);
       audio.play();
-      audio.onended = () => setCustomPlaying(null);
-    } catch { setCustomPlaying(null); }
+      audio.onended = () => { setCustomPlaying(null); setCustomScript(null); };
+    } catch { setCustomPlaying(null); setCustomScript(null); }
   };
 
   const togglePlay = () => {
@@ -240,17 +243,29 @@ export default function DailyPodcastPage() {
             ) : (
               <div className="space-y-2">
                 {customPodcasts.map(item => (
-                  <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-amber-500/40 transition-all">
-                    <button onClick={() => playCustom(item)}
-                      className="h-9 w-9 rounded-full flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 shrink-0 transition-all">
-                      {customPlaying === item.id ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{item.title}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {new Date(item.created_at).toLocaleDateString('de-DE')} · {item.specialty} · {item.language?.toUpperCase()}
+                  <div key={item.id}>
+                    <div className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-amber-500/40 transition-all">
+                      <button onClick={() => playCustom(item)}
+                        className="h-9 w-9 rounded-full flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 shrink-0 transition-all">
+                        {customPlaying === item.id ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{item.title}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {new Date(item.created_at).toLocaleDateString('de-DE')} · {item.specialty} · {item.language?.toUpperCase()}
+                        </div>
                       </div>
+                      {customPlaying === item.id && customScript && (
+                        <button onClick={() => setShowCustomScript(s => !s)} className="text-xs text-amber-500 hover:text-amber-400 shrink-0">
+                          {showCustomScript ? "Ausblenden" : "Skript"}
+                        </button>
+                      )}
                     </div>
+                    {customPlaying === item.id && showCustomScript && customScript && (
+                      <pre className="mt-2 p-3 bg-muted/50 rounded-lg text-xs overflow-auto max-h-60 whitespace-pre-wrap font-sans leading-relaxed ml-2 mr-2">
+                        {customScript}
+                      </pre>
+                    )}
                   </div>
                 ))}
               </div>
