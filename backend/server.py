@@ -1894,8 +1894,56 @@ async def _fetch_wikipedia_topic(query: str, lang: str = "de") -> Optional[dict]
     except Exception:
         return None
 
+async def _fetch_pubmed_articles(query: str, limit: int = 3) -> list:
+    """Search PubMed (36M+ biomedical papers) via NIH E-utilities API — free, no key needed"""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as cl:
+            search_r = await cl.get(
+                "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
+                params={"db": "pubmed", "term": query, "retmode": "json", "retmax": limit, "sort": "relevance"},
+            )
+            id_list = search_r.json().get("esearchresult", {}).get("idlist", [])
+            if not id_list:
+                return []
+            summary_r = await cl.get(
+                "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi",
+                params={"db": "pubmed", "id": ",".join(id_list), "retmode": "json"},
+            )
+            papers = summary_r.json().get("result", {})
+            articles = []
+            for pmid in id_list:
+                p = papers.get(pmid)
+                if not p:
+                    continue
+                title = p.get("title", "")
+                source = p.get("source", "")
+                authors = ", ".join(a.get("name", "") for a in p.get("authors", [])[:3])
+                pubdate = p.get("pubdate", "") or p.get("epubdate", "")
+                articles.append({
+                    "title": title, "title_en": title, "summary": "",
+                    "content_en": "", "category": "research", "source": "pubmed",
+                    "language": "en", "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                    "pmid": pmid, "journal": source, "authors": authors, "pubdate": pubdate,
+                })
+            for art in articles:
+                try:
+                    fetch_r = await cl.get(
+                        "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+                        params={"db": "pubmed", "id": art["pmid"], "retmode": "text", "rettype": "abstract"},
+                    )
+                    abstract = fetch_r.text.strip()
+                    if abstract and not abstract.startswith("<"):
+                        art["summary"] = abstract[:2000]
+                        art["content_en"] = abstract[:2000]
+                except Exception:
+                    pass
+            return articles
+    except Exception:
+        return []
+
 async def _search_medical_knowledge(query: str, limit: int = 5) -> list:
-    """Search cached medical knowledge, fetch from Wikipedia if missing"""
+    """Search cached medical knowledge, fetch from Wikipedia + PubMed if missing"""
     await _ensure_medical_knowledge_indexes()
     results = []
     # Try text search first
@@ -1918,7 +1966,7 @@ async def _search_medical_knowledge(query: str, limit: int = 5) -> list:
             ).limit(limit).to_list(limit)
         except Exception:
             pass
-    # If still no results, fetch from Wikipedia and cache
+    # If still no results, fetch from Wikipedia + PubMed and cache
     if not results:
         for lang in ["de", "en"]:
             doc = await _fetch_wikipedia_topic(query, lang)
@@ -1932,6 +1980,22 @@ async def _search_medical_knowledge(query: str, limit: int = 5) -> list:
                 except Exception:
                     pass
                 results.append(doc)
+                if len(results) >= limit:
+                    break
+    # If we still need more, query PubMed
+    if len(results) < limit:
+        pubmed_articles = await _fetch_pubmed_articles(query, limit=limit)
+        for article in pubmed_articles:
+            if article.get("pmid") and not any(r.get("pmid") == article["pmid"] for r in results):
+                try:
+                    await db.medical_knowledge.update_one(
+                        {"pmid": article["pmid"]},
+                        {"$set": article},
+                        upsert=True,
+                    )
+                except Exception:
+                    pass
+                results.append(article)
                 if len(results) >= limit:
                     break
     return results[:limit]
@@ -2224,27 +2288,35 @@ async def ai_tutor(request: AITutorRequest, user: dict = Depends(get_current_use
                 context_parts.append(f"📝 Prüfungsfrage {idx}:\n{q_text}\n{choices_str}\n✅ Richtig: {correct_str}\n📖 Erklärung: {expl}")
             else:
                 context_parts.append(f"📝 Prüfungsfrage {idx}:\n{q_text}\n{choices_str}\n✅ Richtig: {correct_str}")
-        # Medical knowledge
-        for idx, k in enumerate(relevant_knowledge[:3], 1):
+        # Medical knowledge (Wikipedia + PubMed)
+        for idx, k in enumerate(relevant_knowledge[:4], 1):
             title = k.get("title", "")
-            summary = k.get("summary", "")[:1500]
-            category = k.get("category", "medical")
-            if summary:
+            summary = k.get("summary", "")[:1200]
+            source = k.get("source", "unknown")
+            if not summary:
+                continue
+            if source == "pubmed":
+                journal = k.get("journal", "")
+                pubdate = k.get("pubdate", "")
+                context_parts.append(f"🔬 PubMed-Studie {idx}:\n{title}\n{summary}\nQuelle: {journal} ({pubdate})")
+            else:
+                category = k.get("category", "medical")
                 context_parts.append(f"📚 Medizinisches Wissen {idx} ({category}):\n{title}\n{summary}")
         context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen zu diesem Thema gefunden."
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
 
-WISSENSBASIS (Prüfungsfragen + medizinisches Nachschlagewerk):
+WISSENSBASIS (Prüfungsfragen + Wikipedia + PubMed):
 {context_str}
 
 REGELN:
-1. Nutze Prüfungsfragen UND das medizinische Wissen als Grundlage
+1. Nutze Prüfungsfragen, Wikipedia UND PubMed-Studien als Grundlage
 2. Verknüpfe Konzepte mit Prüfungsrelevanz — sag dem Studenten was wichtig ist
 3. Erkläre klar mit klinischen Beispielen, differentialdiagnostisch wenn sinnvoll
 4. Bei Medikamenten: nenne Wirkstoff, Dosierung (wenn relevant), Nebenwirkungen
-5. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert
-6. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen"""
+5. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert, evidenzbasiert
+6. Wenn du PubMed-Studien zitierst, nenne Journal und Jahr
+7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen"""
         response = await _or_text(system_message, request.user_message, max_tokens=1000, model_key=request.model)
         images = await _search_medical_images(request.user_message)
         return {"response": response, "images": images, "model": request.model, "language": request.language,
