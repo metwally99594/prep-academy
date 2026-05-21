@@ -27,6 +27,7 @@ export default function LerntoolsPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingId, setPlayingId] = useState(null);
   const [speed, setSpeed] = useState(1);
+  const [audioCache, setAudioCache] = useState({});
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function LerntoolsPage() {
         headers: { Authorization: `Bearer ${token}` },
       }).then(r => setHistory(r.data.items || [])).catch(() => {});
     }
+    return () => { audioRef.current?.pause(); };
   }, [token]);
 
   const generate = async () => {
@@ -65,17 +67,15 @@ export default function LerntoolsPage() {
   };
 
   const fetchAndPlay = async (item) => {
-    if (item.audio_base64) {
-      audioRef.current.src = `data:audio/mp3;base64,${item.audio_base64}`;
-      await audioRef.current.play();
-      return;
+    let b64 = item.audio_base64 || audioCache[item.id];
+    if (!b64) {
+      const res = await axios.get(`${API}/podcast/custom/${item.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      b64 = res.data.audio_base64;
+      setAudioCache(prev => ({ ...prev, [item.id]: b64 }));
     }
-    const res = await axios.get(`${API}/podcast/custom/${item.id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    item.audio_base64 = res.data.audio_base64;
-    item.script = res.data.script;
-    audioRef.current.src = `data:audio/mp3;base64,${item.audio_base64}`;
+    audioRef.current.src = `data:audio/mp3;base64,${b64}`;
     await audioRef.current.play();
   };
 

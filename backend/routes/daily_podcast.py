@@ -40,6 +40,13 @@ PODCAST_SPEAKERS = {
 }
 
 SUPPORTED_LANGS = ["de", "en", "ar", "ru", "uk"]
+SPECIALTIES_POOL = [
+    "Chirurgie", "Innere Medizin", "HNO", "Ophthalmologie",
+    "Dermatologie", "Gynäkologie", "Neurologie", "Notfallmedizin",
+    "Pädiatrie", "Psychiatrie", "Kardiologie", "Pneumologie",
+    "Gastroenterologie", "Nephrologie", "Orthopädie", "Urologie",
+    "Endokrinologie", "Hämatologie", "Infektiologie", "Rheumatologie",
+]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
