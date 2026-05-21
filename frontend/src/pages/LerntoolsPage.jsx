@@ -60,21 +60,21 @@ export default function LerntoolsPage() {
   };
 
   const togglePlay = (item) => {
-    if (playingId === item.id) {
-      if (isPlaying) {
-        audioRef.current?.pause();
-        setIsPlaying(false);
-      } else {
-        audioRef.current?.play();
+    if (playingId === item.id && isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      return;
+    }
+    if (audioRef.current) {
+      audioRef.current.src = `data:audio/mp3;base64,${item.audio_base64}`;
+      audioRef.current.play().then(() => {
+        setPlayingId(item.id);
         setIsPlaying(true);
-      }
-    } else {
-      setPlayingId(item.id);
-      setIsPlaying(true);
+      }).catch(() => {});
     }
   };
 
-  const onEnded = () => setIsPlaying(false);
+  const onEnded = () => { setIsPlaying(false); setPlayingId(null); };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -135,7 +135,6 @@ export default function LerntoolsPage() {
               <p className="text-sm" style={{ color: '#8899aa' }}>{result.language?.toUpperCase()} · {result.audio_size > 1000 ? `${(result.audio_size / 1024).toFixed(0)} KB` : `${result.audio_size} B`}</p>
             </div>
           </div>
-          <audio ref={audioRef} src={`data:audio/mp3;base64,${result.audio_base64}`} onEnded={onEnded} />
         </div>
       )}
 
@@ -157,9 +156,7 @@ export default function LerntoolsPage() {
                   <p className="text-sm font-medium truncate" style={{ color: '#d4d4d8' }}>{item.title || "Custom Case"}</p>
                   <p className="text-xs" style={{ color: '#8899aa' }}>{item.language?.toUpperCase()} · {new Date(item.created_at).toLocaleDateString()}</p>
                 </div>
-                {playingId === item.id && (
-                  <audio src={`data:audio/mp3;base64,${item.audio_base64}`} onEnded={onEnded} autoPlay />
-                )}
+                
               </div>
             ))}
           </div>
@@ -170,6 +167,7 @@ export default function LerntoolsPage() {
         <Headphones className="w-8 h-8" />
         <p className="text-sm">Verwandeln Sie Ihre klinischen Fälle in Lernpodcasts</p>
       </div>
+      <audio ref={audioRef} onEnded={onEnded} />
     </div>
   );
 }
