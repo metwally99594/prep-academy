@@ -39,57 +39,6 @@ PODCAST_SPEAKERS = {
     "uk": ("uk-UA-PolinaNeural", "uk-UA-OstapNeural"),
 }
 
-LANG_INSTR = {
-    "de": {
-        "system": "Du bist ein Podcast-Autor für Medizinstudenten. Schreibe nur auf Deutsch.",
-        "tags": "[Moderator] und [Experte]",
-        "intro": "Willkommen zum heutigen 5-Minuten-Medical-Case",
-    },
-    "en": {
-        "system": "You are a podcast writer for medical students. Reply only in English.",
-        "tags": "[Host] and [Expert]",
-        "intro": "Welcome to today's 5-minute medical case",
-    },
-    "ar": {
-        "system": "أنت كاتب بودكاست لطلاب الطب. اكتب باللغة العربية فقط.",
-        "tags": "[المقدم] و [الخبير]",
-        "intro": "أهلاً بكم في حالة اليوم الطبية في 5 دقائق",
-    },
-    "ru": {
-        "system": "Вы — сценарист подкастов для студентов-медиков. Отвечайте только на русском.",
-        "tags": "[Ведущий] и [Эксперт]",
-        "intro": "Добро пожаловать в сегодняшний 5-минутный медицинский случай",
-    },
-    "uk": {
-        "system": "Ви — сценарист подкастів для студентів-медиків. Відповідайте тільки українською.",
-        "tags": "[Ведучий] та [Експерт]",
-        "intro": "Ласкаво просимо до сьогоднішнього 5-хвилинного медичного випадку",
-    },
-}
-
-SPECIALTIES_POOL = [
-    "Kardiologie / Cardiology",
-    "Neurologie / Neurology",
-    "Chirurgie / Surgery",
-    "Innere Medizin / Internal Medicine",
-    "Notfallmedizin / Emergency Medicine",
-    "Pädiatrie / Pediatrics",
-    "Gynäkologie / Gynecology",
-    "Psychiatrie / Psychiatry",
-    "Endokrinologie / Endocrinology",
-    "Pneumologie / Pulmonology",
-    "Gastroenterologie / Gastroenterology",
-    "Nephrologie / Nephrology",
-    "Hämatologie / Hematology",
-    "Dermatologie / Dermatology",
-    "Orthopädie / Orthopedics",
-    "Urologie / Urology",
-    "HNO / ENT",
-    "Augenheilkunde / Ophthalmology",
-    "Infektiologie / Infectious Diseases",
-    "Onkologie / Oncology",
-]
-
 SUPPORTED_LANGS = ["de", "en", "ar", "ru", "uk"]
 
 
@@ -97,43 +46,193 @@ SUPPORTED_LANGS = ["de", "en", "ar", "ru", "uk"]
 # Generation pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
+FREE_MODELS = [
+    "openrouter/free",
+    "meta-llama/llama-4-maverick:free",
+    "google/gemini-2.0-flash-exp:free",
+    "nvidia/nemotron-3-super:free",
+]
+
+LANG_PROMPTS = {
+    "de": {
+        "system": "Du bist ein erfahrener Mediziner und Podcast-Autor für Prüfungsvorbereitung. Antworte NUR auf Deutsch.",
+        "tags": "[Moderator] und [Experte]",
+        "intro": "Willkommen zur heutigen 5-Minuten-Prüfungsvorbereitung",
+        "mcq_prompt": lambda d: f"""Erstelle ein 5-Minuten-Lernpodcast-Skript, das diese REALE Prüfungsfrage in eine klinische Fallgeschichte verwandelt:
+
+═══════════════════════════════════════════════
+ECHTE PRÜFUNGSFRAGE ({d['city']}, {d['year']}, {d['specialty']}):
+
+{d['question_text']}
+
+Antwortmöglichkeiten:
+{d['choices_block']}
+
+Richtige Antwort: {d['correct_letter']}) {d['correct_text']}
+═══════════════════════════════════════════════
+
+Format:
+- Verwende [Moderator] und [Experte] als Sprecher-Tags
+- [Moderator] beginnt mit: "Willkommen zur heutigen 5-Minuten-Prüfungsvorbereitung. Heute ein Fall aus der {d['specialty']}, basierend auf einer {d['year']}er Prüfungsfrage aus {d['city']}."
+- [Experte] präsentiert dann einen REALISTISCHEN Patientenfall, der zur obigen Frage passt (Anamnese, Symptome, Befunde)
+- [Moderator] stellt die Prüfungsfrage am Ende und nennt die 5 Antworten
+- [Experte] erklärt warum {d['correct_letter']} richtig ist und warum die anderen falsch sind
+- Schließt mit Take-Home Messages
+- Mindestens 8 Sprecher-Wechsel, lebendig, max 3500 Zeichen, kein Markdown""",
+        "topic_prompt": lambda spec: f"Schreibe ein 5-Minuten-Podcast-Skript zu **{spec}**. Verwende [Moderator] und [Experte]. Realistischer klinischer Fall mit Differenzialdiagnose, Diagnostik, Therapie. Mindestens 8 Wechsel, max 3500 Zeichen.",
+    },
+    "en": {
+        "system": "You are an experienced physician and exam-prep podcast writer. Reply ONLY in English.",
+        "tags": "[Host] and [Expert]",
+        "intro": "Welcome to today's 5-minute exam prep",
+        "mcq_prompt": lambda d: f"""Create a 5-minute learning podcast script that turns this REAL exam question into a clinical case story:
+
+═══════════════════════════════════════════════
+REAL EXAM QUESTION ({d['city']}, {d['year']}, {d['specialty']}):
+
+{d['question_text']}
+
+Choices:
+{d['choices_block']}
+
+Correct answer: {d['correct_letter']}) {d['correct_text']}
+═══════════════════════════════════════════════
+
+Format:
+- Use [Host] and [Expert] as speaker tags
+- [Host] starts: "Welcome to today's 5-minute exam prep. A {d['specialty']} case based on a {d['year']} exam question from {d['city']}."
+- [Expert] presents a REALISTIC patient case that matches the question (history, symptoms, findings)
+- [Host] presents the exam question with all 5 choices at the end
+- [Expert] explains why {d['correct_letter']} is correct and why the others are wrong
+- End with take-home messages
+- Min 8 speaker turns, lively, max 3500 chars, no markdown""",
+        "topic_prompt": lambda spec: f"Write a 5-minute podcast script on **{spec}**. Use [Host] and [Expert]. Realistic clinical case with differential, diagnostics, therapy. Min 8 turns, max 3500 chars.",
+    },
+    "ar": {
+        "system": "أنت طبيب خبير وكاتب بودكاست لإعداد الامتحانات. اكتب فقط باللغة العربية.",
+        "tags": "[المقدم] و [الخبير]",
+        "intro": "أهلاً بكم في إعداد امتحان اليوم في 5 دقائق",
+        "mcq_prompt": lambda d: f"""أنشئ سيناريو بودكاست تعليمي مدته 5 دقائق يحول هذا السؤال الامتحاني الحقيقي إلى قصة سريرية:
+
+═══════════════════════════════════════════════
+سؤال امتحاني حقيقي ({d['city']}, {d['year']}, {d['specialty']}):
+
+{d['question_text']}
+
+الخيارات:
+{d['choices_block']}
+
+الإجابة الصحيحة: {d['correct_letter']}) {d['correct_text']}
+═══════════════════════════════════════════════
+
+التنسيق:
+- استخدم [المقدم] و [الخبير] كعلامات للمتحدثين
+- [المقدم] يبدأ: "أهلاً بكم في إعداد امتحان اليوم في 5 دقائق. حالة من {d['specialty']} مبنية على سؤال امتحاني عام {d['year']} من {d['city']}."
+- [الخبير] يقدم حالة مريض واقعية تتوافق مع السؤال
+- [المقدم] يعرض السؤال الامتحاني والخيارات الخمسة
+- [الخبير] يشرح لماذا {d['correct_letter']} صحيح وغيرها خطأ
+- نهاية برسائل أساسية
+- 8 تبادلات على الأقل، حيوي، 3500 حرف كحد أقصى، بدون Markdown""",
+        "topic_prompt": lambda spec: f"اكتب سيناريو بودكاست 5 دقائق عن **{spec}**. استخدم [المقدم] و [الخبير]. حالة سريرية واقعية مع تشخيص تفريقي وعلاج. على الأقل 8 تبادلات، 3500 حرف كحد أقصى.",
+    },
+    "ru": {
+        "system": "Вы — опытный врач и сценарист подкастов для подготовки к экзаменам. Отвечайте ТОЛЬКО на русском.",
+        "tags": "[Ведущий] и [Эксперт]",
+        "intro": "Добро пожаловать в 5-минутную подготовку к экзамену",
+        "mcq_prompt": lambda d: f"""Создайте сценарий 5-минутного учебного подкаста, превращающий этот РЕАЛЬНЫЙ экзаменационный вопрос в клинический случай:
+
+═══════════════════════════════════════════════
+РЕАЛЬНЫЙ ЭКЗАМЕНАЦИОННЫЙ ВОПРОС ({d['city']}, {d['year']}, {d['specialty']}):
+
+{d['question_text']}
+
+Варианты:
+{d['choices_block']}
+
+Правильный ответ: {d['correct_letter']}) {d['correct_text']}
+═══════════════════════════════════════════════
+
+Формат:
+- Используйте [Ведущий] и [Эксперт] как теги спикеров
+- [Ведущий] начинает: "Добро пожаловать в 5-минутную подготовку к экзамену. Сегодня случай из {d['specialty']}, основанный на экзаменационном вопросе {d['year']} года из {d['city']}."
+- [Эксперт] представляет реалистичный клинический случай
+- [Ведущий] озвучивает экзаменационный вопрос и 5 вариантов
+- [Эксперт] объясняет, почему {d['correct_letter']} правильно
+- Завершите главными выводами
+- Мин 8 обменов, живо, макс 3500 символов, без markdown""",
+        "topic_prompt": lambda spec: f"Напишите сценарий 5-минутного подкаста о **{spec}**. Используйте [Ведущий] и [Эксперт]. Реалистический клинический случай с дифдиагнозом, диагностикой и терапией. Мин 8 обменов, макс 3500 символов.",
+    },
+    "uk": {
+        "system": "Ви — досвідчений лікар і сценарист подкастів з підготовки до іспитів. Відповідайте ТІЛЬКИ українською.",
+        "tags": "[Ведучий] та [Експерт]",
+        "intro": "Ласкаво просимо до 5-хвилинної підготовки до іспиту",
+        "mcq_prompt": lambda d: f"""Створіть сценарій 5-хвилинного навчального подкасту, що перетворює це РЕАЛЬНЕ екзаменаційне питання на клінічний випадок:
+
+═══════════════════════════════════════════════
+РЕАЛЬНЕ ЕКЗАМЕНАЦІЙНЕ ПИТАННЯ ({d['city']}, {d['year']}, {d['specialty']}):
+
+{d['question_text']}
+
+Варіанти:
+{d['choices_block']}
+
+Правильна відповідь: {d['correct_letter']}) {d['correct_text']}
+═══════════════════════════════════════════════
+
+Формат:
+- Використовуйте [Ведучий] та [Експерт] як теги
+- [Ведучий] починає: "Ласкаво просимо до 5-хвилинної підготовки до іспиту. Сьогодні випадок з {d['specialty']}, заснований на питанні {d['year']} року з {d['city']}."
+- [Експерт] представляє реалістичний клінічний випадок
+- [Ведучий] озвучує екзаменаційне питання та 5 варіантів
+- [Експерт] пояснює, чому {d['correct_letter']} правильно
+- Завершіть основними висновками
+- Мін 8 обмінів, живо, макс 3500 символів, без markdown""",
+        "topic_prompt": lambda spec: f"Напишіть сценарій 5-хвилинного подкасту про **{spec}**. Використовуйте [Ведучий] та [Експерт]. Реалістичний клінічний випадок з диференційною діагностикою. Мін 8 обмінів, макс 3500 символів.",
+    },
+}
+
 async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[str]:
-    """Call Ling 1T via OpenRouter (free, strong multilingual: de/en/ar/ru/uk). Returns text or None."""
+    """Call multiple free OpenRouter models in sequence until one works."""
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
         logger.error("OPENROUTER_API_KEY not set — cannot generate podcast")
         return None
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            r = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {or_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://mcq-medical-prep.academy",
-                    "X-Title": "PrepAcademy Daily Podcast",
-                },
-                json={
-                    "model": "openrouter/free",
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    "max_tokens": max_tokens,
-                    "temperature": 0.7,
-                },
-            )
-            data = r.json()
-            if "error" in data:
-                logger.error(f"OpenRouter API error: {data['error']}")
-                return None
-            if "choices" in data and data["choices"]:
-                content = data["choices"][0]["message"]["content"] or ""
-                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-                return content if content else None
-            logger.error(f"OpenRouter unexpected response (no choices): {str(data)[:300]}")
-    except Exception as e:
-        logger.warning(f"Ling call failed: {e}")
+
+    for model in FREE_MODELS:
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {or_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://mcq-medical-prep.academy",
+                        "X-Title": "PrepAcademy Daily Podcast",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        "max_tokens": max_tokens,
+                        "temperature": 0.7,
+                    },
+                )
+                data = r.json()
+                if "error" in data:
+                    logger.warning(f"OpenRouter model {model} error: {data['error']}")
+                    continue
+                if "choices" in data and data["choices"]:
+                    content = data["choices"][0]["message"]["content"] or ""
+                    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+                    if content:
+                        return content
+                logger.warning(f"OpenRouter model {model} no content: {str(data)[:200]}")
+        except Exception as e:
+            logger.warning(f"OpenRouter model {model} failed: {e}")
+
+    logger.error("All OpenRouter free models failed — cannot generate podcast")
     return None
 
 
@@ -290,134 +389,6 @@ async def generate_daily_podcast(db, language: str, specialty: str = None, force
         source_mode = "random"
         logger.info(f"No MCQ available, falling back to random topic: {specialty}")
 
-    # 2. Build language-specific prompts that turn the MCQ into a podcast case
-    LANG_PROMPTS = {
-        "de": {
-            "system": "Du bist ein erfahrener Mediziner und Podcast-Autor für Prüfungsvorbereitung. Antworte NUR auf Deutsch.",
-            "mcq_prompt": lambda d: f"""Erstelle ein 5-Minuten-Lernpodcast-Skript, das diese REALE Prüfungsfrage in eine klinische Fallgeschichte verwandelt:
-
-═══════════════════════════════════════════════
-ECHTE PRÜFUNGSFRAGE ({d['city']}, {d['year']}, {d['specialty']}):
-
-{d['question_text']}
-
-Antwortmöglichkeiten:
-{d['choices_block']}
-
-Richtige Antwort: {d['correct_letter']}) {d['correct_text']}
-═══════════════════════════════════════════════
-
-Format:
-- Verwende [Moderator] und [Experte] als Sprecher-Tags
-- [Moderator] beginnt mit: "Willkommen zur heutigen 5-Minuten-Prüfungsvorbereitung. Heute ein Fall aus der {d['specialty']}, basierend auf einer {d['year']}er Prüfungsfrage aus {d['city']}."
-- [Experte] präsentiert dann einen REALISTISCHEN Patientenfall, der zur obigen Frage passt (Anamnese, Symptome, Befunde)
-- [Moderator] stellt die Prüfungsfrage am Ende und nennt die 5 Antworten
-- [Experte] erklärt warum {d['correct_letter']} richtig ist und warum die anderen falsch sind
-- Schließt mit Take-Home Messages
-- Mindestens 8 Sprecher-Wechsel, lebendig, max 3500 Zeichen, kein Markdown""",
-            "topic_prompt": lambda spec: f"Schreibe ein 5-Minuten-Podcast-Skript zu **{spec}**. Verwende [Moderator] und [Experte]. Realistischer klinischer Fall mit Differenzialdiagnose, Diagnostik, Therapie. Mindestens 8 Wechsel, max 3500 Zeichen.",
-        },
-        "en": {
-            "system": "You are an experienced physician and exam-prep podcast writer. Reply ONLY in English.",
-            "mcq_prompt": lambda d: f"""Create a 5-minute learning podcast script that turns this REAL exam question into a clinical case story:
-
-═══════════════════════════════════════════════
-REAL EXAM QUESTION ({d['city']}, {d['year']}, {d['specialty']}):
-
-{d['question_text']}
-
-Choices:
-{d['choices_block']}
-
-Correct answer: {d['correct_letter']}) {d['correct_text']}
-═══════════════════════════════════════════════
-
-Format:
-- Use [Host] and [Expert] as speaker tags
-- [Host] starts: "Welcome to today's 5-minute exam prep. A {d['specialty']} case based on a {d['year']} exam question from {d['city']}."
-- [Expert] presents a REALISTIC patient case that matches the question (history, symptoms, findings)
-- [Host] presents the exam question with all 5 choices at the end
-- [Expert] explains why {d['correct_letter']} is correct and why the others are wrong
-- End with take-home messages
-- Min 8 speaker turns, lively, max 3500 chars, no markdown""",
-            "topic_prompt": lambda spec: f"Write a 5-minute podcast script on **{spec}**. Use [Host] and [Expert]. Realistic clinical case with differential, diagnostics, therapy. Min 8 turns, max 3500 chars.",
-        },
-        "ar": {
-            "system": "أنت طبيب خبير وكاتب بودكاست لإعداد الامتحانات. اكتب فقط باللغة العربية.",
-            "mcq_prompt": lambda d: f"""أنشئ سيناريو بودكاست تعليمي مدته 5 دقائق يحول هذا السؤال الامتحاني الحقيقي إلى قصة سريرية:
-
-═══════════════════════════════════════════════
-سؤال امتحاني حقيقي ({d['city']}, {d['year']}, {d['specialty']}):
-
-{d['question_text']}
-
-الخيارات:
-{d['choices_block']}
-
-الإجابة الصحيحة: {d['correct_letter']}) {d['correct_text']}
-═══════════════════════════════════════════════
-
-التنسيق:
-- استخدم [المقدم] و [الخبير] كعلامات للمتحدثين
-- [المقدم] يبدأ: "أهلاً بكم في إعداد امتحان اليوم في 5 دقائق. حالة من {d['specialty']} مبنية على سؤال امتحاني عام {d['year']} من {d['city']}."
-- [الخبير] يقدم حالة مريض واقعية تتوافق مع السؤال
-- [المقدم] يعرض السؤال الامتحاني والخيارات الخمسة
-- [الخبير] يشرح لماذا {d['correct_letter']} صحيح وغيرها خطأ
-- نهاية برسائل أساسية
-- 8 تبادلات على الأقل، حيوي، 3500 حرف كحد أقصى، بدون Markdown""",
-            "topic_prompt": lambda spec: f"اكتب سيناريو بودكاست 5 دقائق عن **{spec}**. استخدم [المقدم] و [الخبير]. حالة سريرية واقعية مع تشخيص تفريقي وعلاج. على الأقل 8 تبادلات، 3500 حرف كحد أقصى.",
-        },
-        "ru": {
-            "system": "Вы — опытный врач и сценарист подкастов для подготовки к экзаменам. Отвечайте ТОЛЬКО на русском.",
-            "mcq_prompt": lambda d: f"""Создайте сценарий 5-минутного учебного подкаста, превращающий этот РЕАЛЬНЫЙ экзаменационный вопрос в клинический случай:
-
-═══════════════════════════════════════════════
-РЕАЛЬНЫЙ ЭКЗАМЕНАЦИОННЫЙ ВОПРОС ({d['city']}, {d['year']}, {d['specialty']}):
-
-{d['question_text']}
-
-Варианты:
-{d['choices_block']}
-
-Правильный ответ: {d['correct_letter']}) {d['correct_text']}
-═══════════════════════════════════════════════
-
-Формат:
-- Используйте [Ведущий] и [Эксперт] как теги спикеров
-- [Ведущий] начинает: "Добро пожаловать в 5-минутную подготовку к экзамену. Сегодня случай из {d['specialty']}, основанный на экзаменационном вопросе {d['year']} года из {d['city']}."
-- [Эксперт] представляет реалистичный клинический случай
-- [Ведущий] озвучивает экзаменационный вопрос и 5 вариантов
-- [Эксперт] объясняет, почему {d['correct_letter']} правильно
-- Завершите главными выводами
-- Мин 8 обменов, живо, макс 3500 символов, без markdown""",
-            "topic_prompt": lambda spec: f"Напишите сценарий 5-минутного подкаста о **{spec}**. Используйте [Ведущий] и [Эксперт]. Реалистический клинический случай с дифдиагнозом, диагностикой и терапией. Мин 8 обменов, макс 3500 символов.",
-        },
-        "uk": {
-            "system": "Ви — досвідчений лікар і сценарист подкастів з підготовки до іспитів. Відповідайте ТІЛЬКИ українською.",
-            "mcq_prompt": lambda d: f"""Створіть сценарій 5-хвилинного навчального подкасту, що перетворює це РЕАЛЬНЕ екзаменаційне питання на клінічний випадок:
-
-═══════════════════════════════════════════════
-РЕАЛЬНЕ ЕКЗАМЕНАЦІЙНЕ ПИТАННЯ ({d['city']}, {d['year']}, {d['specialty']}):
-
-{d['question_text']}
-
-Варіанти:
-{d['choices_block']}
-
-Правильна відповідь: {d['correct_letter']}) {d['correct_text']}
-═══════════════════════════════════════════════
-
-Формат:
-- Використовуйте [Ведучий] та [Експерт] як теги
-- [Ведучий] починає: "Ласкаво просимо до 5-хвилинної підготовки до іспиту. Сьогодні випадок з {d['specialty']}, заснований на питанні {d['year']} року з {d['city']}."
-- [Експерт] представляє реалістичний клінічний випадок
-- [Ведучий] озвучує екзаменаційне питання та 5 варіантів
-- [Експерт] пояснює, чому {d['correct_letter']} правильно
-- Завершіть основними висновками
-- Мін 8 обмінів, живо, макс 3500 символів, без markdown""",
-            "topic_prompt": lambda spec: f"Напишіть сценарій 5-хвилинного подкасту про **{spec}**. Використовуйте [Ведучий] та [Експерт]. Реалістичний клінічний випадок з диференційною діагностикою. Мін 8 обмінів, макс 3500 символів.",
-        },
-    }
     plang = (language or "de").lower()
     p = LANG_PROMPTS.get(plang, LANG_PROMPTS["de"])
 
