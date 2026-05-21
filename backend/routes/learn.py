@@ -185,6 +185,29 @@ async def _synthesize_podcast(script: str, preset: str = "austrian", language: s
     return base64.b64encode(b"".join(audio_chunks)).decode("ascii") if audio_chunks else ""
 
 
+class MindMapRequest(BaseModel):
+    notebook_id: Optional[str] = None
+    chunk_index: Optional[int] = None
+    specialty_id: Optional[str] = None
+    topic: Optional[str] = None
+    language: str = "de"
+    model: str = "gpt-4o"
+
+class AudioRequest(BaseModel):
+    notebook_id: Optional[str] = None
+    chunk_index: Optional[int] = None
+    specialty_id: Optional[str] = None
+    topic: Optional[str] = None
+    language: str = "de"
+    voice: str = "nova"
+
+class SourceChatRequest(BaseModel):
+    notebook_id: str
+    message: str
+    language: str = "de"
+    model: str = "gpt-4o"
+
+
 MODEL_MAP = {
     "gpt-4o": ("openai", "gpt-4o"),
     "claude-sonnet": ("anthropic", "claude-sonnet-4-5-20250929"),
