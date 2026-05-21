@@ -2054,9 +2054,9 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         raise HTTPException(status_code=503, detail="AI nicht verfügbar — OPENROUTER_API_KEY fehlt")
 
     if model_key == "metsu":
-        async def _call_model(m: str) -> tuple:
+        async def _call_model(m: str, t: float = 60.0) -> tuple:
             try:
-                async with httpx.AsyncClient(timeout=60.0) as cl:
+                async with httpx.AsyncClient(timeout=t) as cl:
                     r = await cl.post(
                         "https://openrouter.ai/api/v1/chat/completions",
                         headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
@@ -2071,7 +2071,7 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
             except Exception:
                 pass
             return (m, "")
-        results = await asyncio.gather(*[_call_model(m) for m in METSU_MODELS], return_exceptions=True)
+        results = await asyncio.gather(*[_call_model(m, 30.0) for m in METSU_MODELS], return_exceptions=True)
         scored = []
         for r in results:
             if isinstance(r, tuple) and r[1]:
@@ -2088,19 +2088,11 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
             scored.sort(key=lambda x: x[0], reverse=True)
             logger.info(f"metsu ensemble: best={scored[0][1]} score={scored[0][0]} total={len(scored)}")
             return scored[0][2]
-        for m in ["deepseek/deepseek-v4-flash:free", "meta-llama/llama-3.3-70b-instruct:free"]:
+        for m in ["deepseek/deepseek-v4-flash:free", "meta-llama/llama-3.3-70b-instruct:free", "openai/gpt-oss-120b:free"]:
             try:
-                async with httpx.AsyncClient(timeout=90.0) as cl:
-                    r = await cl.post(
-                        "https://openrouter.ai/api/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
-                                 "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
-                        json={"model": m, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
-                              "max_tokens": max_tokens, "temperature": 0.4},
-                    )
-                    d = r.json()
-                    if "choices" in d and d["choices"]:
-                        return _re.sub(r"<think>.*?</think>", "", (d["choices"][0]["message"]["content"] or ""), flags=_re.DOTALL).strip()
+                result = await _call_model(m, 60.0)
+                if result and result[1]:
+                    return result[1]
             except Exception:
                 continue
         raise HTTPException(status_code=503, detail="Alle metsu-Modelle fehlgeschlagen")
