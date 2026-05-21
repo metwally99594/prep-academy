@@ -2088,7 +2088,7 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
             scored.sort(key=lambda x: x[0], reverse=True)
             logger.info(f"metsu ensemble: best={scored[0][1]} score={scored[0][0]} total={len(scored)}")
             return scored[0][2]
-        for m in ["deepseek/deepseek-chat:free", "google/gemini-2.0-flash-exp:free"]:
+        for m in ["deepseek/deepseek-v4-flash:free", "meta-llama/llama-3.3-70b-instruct:free"]:
             try:
                 async with httpx.AsyncClient(timeout=90.0) as cl:
                     r = await cl.post(
