@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
-  Sparkles, Loader2, Play, Pause, Headphones, Globe, Clock, FileText,
+  Sparkles, Loader2, Play, Pause, Headphones, Globe, Clock, FileText, Gauge,
 } from "lucide-react";
 
 const LANGS = [
@@ -26,6 +26,7 @@ export default function LerntoolsPage() {
   const [history, setHistory] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingId, setPlayingId] = useState(null);
+  const [speed, setSpeed] = useState(1);
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -92,6 +93,11 @@ export default function LerntoolsPage() {
     }
   };
 
+  const changeSpeed = (s) => {
+    setSpeed(s);
+    if (audioRef.current) audioRef.current.playbackRate = s;
+  };
+
   const onEnded = () => { setIsPlaying(false); setPlayingId(null); };
 
   return (
@@ -152,6 +158,20 @@ export default function LerntoolsPage() {
             <div className="flex-1">
               <p className="text-sm" style={{ color: '#8899aa' }}>{result.language?.toUpperCase()} · {result.audio_size > 1000 ? `${(result.audio_size / 1024).toFixed(0)} KB` : `${result.audio_size} B`}</p>
             </div>
+            <div className="flex items-center gap-1">
+              <Gauge className="w-4 h-4" style={{ color: '#8899aa' }} />
+              {[0.75, 1, 1.25, 1.5, 2].map(s => (
+                <button key={s} onClick={() => changeSpeed(s)}
+                  className="px-2 py-0.5 rounded text-xs font-medium transition-colors"
+                  style={{
+                    background: speed === s ? '#10b981' : 'transparent',
+                    color: speed === s ? '#06081a' : '#8899aa',
+                    border: '1px solid rgba(16,185,129,0.2)',
+                  }}>
+                  {s}x
+                </button>
+              ))}
+            </div>
           </div>
           {result.script && (
             <details className="mt-4">
@@ -166,9 +186,25 @@ export default function LerntoolsPage() {
 
       {history.length > 0 && (
         <div>
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2" style={{ color: '#d4d4d8' }}>
-            <Clock className="w-4 h-4" style={{ color: '#10b981' }} /> Meine Podcasts
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg flex items-center gap-2" style={{ color: '#d4d4d8' }}>
+              <Clock className="w-4 h-4" style={{ color: '#10b981' }} /> Meine Podcasts
+            </h3>
+            <div className="flex items-center gap-1">
+              <Gauge className="w-4 h-4" style={{ color: '#8899aa' }} />
+              {[0.75, 1, 1.25, 1.5, 2].map(s => (
+                <button key={s} onClick={() => changeSpeed(s)}
+                  className="px-2 py-0.5 rounded text-xs font-medium transition-colors"
+                  style={{
+                    background: speed === s ? '#10b981' : 'transparent',
+                    color: speed === s ? '#06081a' : '#8899aa',
+                    border: '1px solid rgba(16,185,129,0.2)',
+                  }}>
+                  {s}x
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-2">
             {history.map(item => (
               <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg"
