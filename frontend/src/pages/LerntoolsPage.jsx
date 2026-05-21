@@ -47,16 +47,35 @@ export default function LerntoolsPage() {
         language,
       }, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 120000,
+        timeout: 300000,
       });
-      setResult(res.data);
-      setHistory(prev => [res.data, ...prev]);
+      const data = res.data;
+      setResult(data);
+      const { audio_base64, script, ...meta } = data;
+      setHistory(prev => [meta, ...prev]);
       toast.success("Podcast erstellt!");
     } catch (e) {
-      toast.error(e.response?.data?.detail || e.message || "Fehler bei der Generierung");
+      const msg = e.response?.data?.detail || e.message || "Fehler bei der Generierung";
+      toast.error(msg);
+      if (e.code === "ECONNABORTED") toast.error("Zeitüberschreitung. Der Server braucht länger — bitte erneut versuchen.");
     } finally {
       setGenerating(false);
     }
+  };
+
+  const fetchAndPlay = async (item) => {
+    if (item.audio_base64) {
+      audioRef.current.src = `data:audio/mp3;base64,${item.audio_base64}`;
+      await audioRef.current.play();
+      return;
+    }
+    const res = await axios.get(`${API}/podcast/custom/${item.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    item.audio_base64 = res.data.audio_base64;
+    item.script = res.data.script;
+    audioRef.current.src = `data:audio/mp3;base64,${item.audio_base64}`;
+    await audioRef.current.play();
   };
 
   const togglePlay = (item) => {
@@ -66,8 +85,7 @@ export default function LerntoolsPage() {
       return;
     }
     if (audioRef.current) {
-      audioRef.current.src = `data:audio/mp3;base64,${item.audio_base64}`;
-      audioRef.current.play().then(() => {
+      fetchAndPlay(item).then(() => {
         setPlayingId(item.id);
         setIsPlaying(true);
       }).catch(() => {});
