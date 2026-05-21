@@ -229,18 +229,22 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
                         "temperature": 0.7,
                     },
                 )
+                logger.info(f"OpenRouter {model} status={r.status_code}")
+                if r.status_code != 200:
+                    logger.warning(f"OpenRouter {model} non-200: {r.text[:300]}")
+                    continue
                 data = r.json()
                 if "error" in data:
                     logger.warning(f"OpenRouter model {model} error: {data['error']}")
                     continue
                 if "choices" in data and data["choices"]:
-                    content = data["choices"][0]["message"]["content"] or ""
+                    content = data["choices"][0]["message"].get("content") or ""
                     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
                     if content:
                         return content
-                logger.warning(f"OpenRouter model {model} no content: {str(data)[:200]}")
+                logger.warning(f"OpenRouter model {model} no content: {str(data)[:300]}")
         except Exception as e:
-            logger.warning(f"OpenRouter model {model} failed: {e}")
+            logger.warning(f"OpenRouter model {model} exception: {e}")
 
     logger.error("All OpenRouter free models failed — cannot generate podcast")
     return None
