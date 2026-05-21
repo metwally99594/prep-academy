@@ -459,12 +459,21 @@ export const Layout = () => {
                       <span className="hidden lg:inline">Blog</span>
                     </Button>
                   </Link>
-                  <Link to="/lerntools">
-                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="lerntools-nav-btn">
+                  {user.podcast_enabled || user.is_admin ? (
+                    <Link to="/lerntools">
+                      <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="lerntools-nav-btn">
+                        <Brain className="w-4 h-4" />
+                        <span className="hidden lg:inline">Lerntools</span>
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0 opacity-50" data-testid="lerntools-nav-btn"
+                      onClick={() => setLockedModal("Lerntools")}>
                       <Brain className="w-4 h-4" />
                       <span className="hidden lg:inline">Lerntools</span>
+                      <Lock className="w-3 h-3 opacity-60" />
                     </Button>
-                  </Link>
+                  )}
                   <Link to="/messages" className="relative">
                     <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0 relative" data-testid="messages-nav-btn">
                       <MessageSquare className="w-4 h-4" />

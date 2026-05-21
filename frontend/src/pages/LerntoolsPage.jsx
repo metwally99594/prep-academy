@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
-  Sparkles, Loader2, Play, Pause, Headphones, Globe, Clock, FileText, Gauge,
+  Sparkles, Loader2, Play, Pause, Headphones, Globe, Clock, FileText, Gauge, Lock,
 } from "lucide-react";
 
 const LANGS = [
@@ -17,7 +17,7 @@ const LANGS = [
 ];
 
 export default function LerntoolsPage() {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const [caseText, setCaseText] = useState("");
   const [title, setTitle] = useState("");
   const [language, setLanguage] = useState("de");
@@ -122,6 +122,16 @@ export default function LerntoolsPage() {
   };
 
   const onEnded = () => { setIsPlaying(false); setPlayingId(null); };
+
+  if (!user?.podcast_enabled && !user?.is_admin) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+        <Lock className="w-12 h-12 mx-auto mb-4" style={{ color: '#8899aa' }} />
+        <h2 className="text-xl font-semibold mb-2" style={{ color: '#d4d4d8' }}>Zugriff gesperrt</h2>
+        <p style={{ color: '#8899aa' }}>Podcast-Generator ist nicht freigeschaltet. Kontaktieren Sie den Administrator.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
