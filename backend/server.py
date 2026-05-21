@@ -1759,10 +1759,10 @@ MODEL_MAP = {
 }
 
 METSU_MODELS = [
-    "deepseek/deepseek-chat:free",
-    "google/gemini-2.0-flash-exp:free",
-    "meta-llama/llama-4-maverick:free",
-    "microsoft/phi-3.5-mini-128k-instruct:free",
+    "deepseek/deepseek-v4-flash:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
 ]
 
 MEDICAL_WIKI_CATEGORIES = [
@@ -2044,9 +2044,9 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
     models = {
         "gpt-4o": "openai/gpt-4o",
         "claude-sonnet": "anthropic/claude-sonnet-4-5-20250929",
-        "gemini-flash": "google/gemini-2.0-flash-exp:free",
+        "gemini-flash": "google/gemma-4-31b-it:free",
     }
-    or_model = models.get(model_key, "openai/gpt-oss-120b:free")
+    or_model = models.get(model_key, "meta-llama/llama-3.3-70b-instruct:free")
     try:
         async with httpx.AsyncClient(timeout=55.0) as client:
             r = await client.post(
