@@ -2192,7 +2192,8 @@ Aktuelle Frage: {q_text}
 Antwortmöglichkeiten:\n{all_choices}
 Richtige Antworten: {', '.join(correct_choices)}
 {f"Offizielle Erklärung: {expl}" if expl else ""}
-Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei freundlich und ermutigend."""
+Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei freundlich und ermutigend.
+Hinweis: Nach meiner Antwort werden medizinische Bilder von Wikimedia Commons angezeigt — ich kann im Text darauf verweisen."""
         response = await _or_text(system_message, request.user_message, max_tokens=800, model_key=request.model)
         images = await _search_medical_images(request.user_message)
         return {"response": response, "images": images, "model": request.model, "language": request.language}
@@ -2308,7 +2309,8 @@ REGELN:
 4. Bei Medikamenten: nenne Wirkstoff, Dosierung (wenn relevant), Nebenwirkungen
 5. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert, evidenzbasiert
 6. Wenn du PubMed-Studien zitierst, nenne Journal und Jahr
-7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen"""
+7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen
+8. Der Benutzer sieht nach deiner Antwort medizinische Bilder von Wikimedia Commons. Du kannst im Text darauf hinweisen, z.B. "siehe Abbildung unten" oder "die Bilder unten zeigen..."."""
         response = await _or_text(system_message, request.user_message, max_tokens=1000, model_key=request.model)
         images = await _search_medical_images(request.user_message)
         return {"response": response, "images": images, "model": request.model, "language": request.language,
