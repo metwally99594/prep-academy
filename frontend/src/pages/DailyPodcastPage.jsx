@@ -27,6 +27,10 @@ export default function DailyPodcastPage() {
   const [showScript, setShowScript] = useState(false);
   const audioRef = useRef(null);
 
+  const [customPodcasts, setCustomPodcasts] = useState([]);
+  const [customAudio, setCustomAudio] = useState(null);
+  const [customPlaying, setCustomPlaying] = useState(null);
+
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
   useEffect(() => { localStorage.setItem("podcast_lang", language); }, [language]);
@@ -54,7 +58,27 @@ export default function DailyPodcastPage() {
     } catch { setList([]); }
   };
 
-  useEffect(() => { loadDaily(); loadList(); /* eslint-disable-next-line */ }, [language]);
+  const loadCustom = async () => {
+    try {
+      const res = await axios.get(`${API}/podcast/custom?limit=10`, { headers });
+      setCustomPodcasts(res.data.items || []);
+    } catch { setCustomPodcasts([]); }
+  };
+
+  useEffect(() => { loadDaily(); loadList(); loadCustom(); /* eslint-disable-next-line */ }, [language]);
+
+  const playCustom = async (item) => {
+    if (customPlaying === item.id) { customAudio?.pause(); setCustomPlaying(null); return; }
+    try {
+      const res = await axios.get(`${API}/podcast/custom/${item.id}`, { headers });
+      if (customAudio) customAudio.pause();
+      const audio = new Audio(`data:audio/mp3;base64,${res.data.audio_base64}`);
+      setCustomAudio(audio);
+      setCustomPlaying(item.id);
+      audio.play();
+      audio.onended = () => setCustomPlaying(null);
+    } catch { setCustomPlaying(null); }
+  };
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -196,6 +220,32 @@ export default function DailyPodcastPage() {
                     <div className="text-xs text-muted-foreground mb-1">{new Date(item.created_at).toLocaleDateString('de-DE')} · {item.specialty}</div>
                     <div className="font-medium text-sm">{item.title}</div>
                   </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Custom Podcasts */}
+          {customPodcasts.length > 0 && (
+            <Card className="p-6 border-amber-500/30 bg-gradient-to-br from-amber-500/[0.03] to-transparent">
+              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" /> Custom Podcasts
+              </h3>
+              <p className="text-xs text-muted-foreground mb-4">Von der Admin erstellte Folgen basierend auf individuellen Fällen</p>
+              <div className="space-y-2">
+                {customPodcasts.map(item => (
+                  <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-amber-500/40 transition-all">
+                    <button onClick={() => playCustom(item)}
+                      className="h-9 w-9 rounded-full flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 shrink-0 transition-all">
+                      {customPlaying === item.id ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{item.title}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {new Date(item.created_at).toLocaleDateString('de-DE')} · {item.specialty} · {item.language?.toUpperCase()}
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             </Card>

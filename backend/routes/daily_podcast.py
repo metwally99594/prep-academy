@@ -575,4 +575,87 @@ def make_router(db, get_current_user):
         slim["audio_size"] = doc.get("audio_size", 0)
         return slim
 
+    class CustomRequest(BaseModel):
+        language: str = "de"
+        case_text: str = ""
+        title: Optional[str] = None
+
+    @router.post("/admin/custom")
+    async def admin_custom_podcast(req: CustomRequest, user: dict = Depends(get_current_user)):
+        """Admin generates a podcast from a custom medical case description."""
+        if not user.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin only")
+        if not req.case_text.strip():
+            raise HTTPException(status_code=400, detail="Case text is required")
+        language = req.language if req.language in SUPPORTED_LANGS else "de"
+        plang = LANG_PROMPTS.get(language, LANG_PROMPTS["de"])
+
+        custom_prompt = f"""Turn this medical case description into a 5-minute podcast script using the specified format.
+
+Medical case:
+{req.case_text}
+
+Format:
+- Use {plang['tags']} as speaker tags
+- {plang['intro']}
+- Present the case as a realistic clinical scenario (history, symptoms, findings, diagnosis, treatment)
+- Include differential diagnosis and key clinical reasoning
+- End with take-home messages
+- Min 8 speaker turns, lively, max 3500 chars, no markdown"""
+
+        script = await _llm_qwen(plang["system"], custom_prompt, max_tokens=2400)
+        if not script:
+            raise HTTPException(status_code=500, detail="Script generation failed")
+
+        audio_b64 = await _synthesize_podcast(script, language)
+        if not audio_b64:
+            raise HTTPException(status_code=500, detail="Audio synthesis failed")
+
+        title = req.title or "Custom Case"
+
+        doc = {
+            "id": str(uuid.uuid4()),
+            "date": datetime.now(timezone.utc).date().isoformat(),
+            "language": language,
+            "specialty": "Custom",
+            "title": title[:120],
+            "summary": req.case_text[:500],
+            "script": script,
+            "audio_base64": audio_b64,
+            "audio_size": len(audio_b64),
+            "source_mode": "custom",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.custom_podcasts.insert_one(doc)
+        logger.info(f"✅ Custom podcast [{language}]: {title} ({len(audio_b64) / 1024:.0f} KB)")
+
+        # Return audio for admin who just generated it
+        doc["audio_size"] = doc.pop("audio_size", len(doc.get("audio_base64", "")))
+        return doc
+
+    @router.get("/custom")
+    async def list_custom_podcasts(language: Optional[str] = None, limit: int = 20, user: dict = Depends(get_current_user)):
+        """List custom podcasts, optionally filtered by language."""
+        await _check_podcast_access(user)
+        query = {}
+        if language and language in SUPPORTED_LANGS:
+            query["language"] = language
+        cursor = db.custom_podcasts.find(
+            query,
+            {"_id": 0, "audio_base64": 0, "script": 0},
+        ).sort("created_at", -1).limit(min(limit, 50))
+        items = []
+        async for d in cursor:
+            items.append(d)
+        return {"items": items}
+
+    @router.get("/custom/{podcast_id}")
+    async def get_custom_podcast(podcast_id: str, user: dict = Depends(get_current_user)):
+        """Get a single custom podcast with full audio."""
+        await _check_podcast_access(user)
+        doc = await db.custom_podcasts.find_one({"id": podcast_id}, {"_id": 0})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Podcast not found")
+        return doc
+
     return router

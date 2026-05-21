@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API } from "@/App";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Calendar, Headphones, Trash2, Play } from "lucide-react";
+import { Loader2, RefreshCw, Calendar, Headphones, Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -21,6 +21,14 @@ export default function AdminPodcastTab({ token }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewAudio, setPreviewAudio] = useState(null);
+
+  const [customCase, setCustomCase] = useState("");
+  const [customLang, setCustomLang] = useState("de");
+  const [customTitle, setCustomTitle] = useState("");
+  const [customBusy, setCustomBusy] = useState(false);
+  const [customResult, setCustomResult] = useState(null);
+  const [customPodcasts, setCustomPodcasts] = useState([]);
+  const audioRef = useRef(null);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -45,7 +53,33 @@ export default function AdminPodcastTab({ token }) {
     setLoading(false);
   };
 
-  useEffect(() => { loadStatus(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { loadStatus(); loadCustomPodcasts(); /* eslint-disable-next-line */ }, []);
+
+  const loadCustomPodcasts = async () => {
+    try {
+      const res = await axios.get(`${API}/podcast/custom?limit=20`, { headers });
+      setCustomPodcasts(res.data.items || []);
+    } catch {}
+  };
+
+  const generateCustom = async () => {
+    if (!customCase.trim()) { toast.error("Bitte Fallbeschreibung eingeben"); return; }
+    setCustomBusy(true);
+    setCustomResult(null);
+    try {
+      const res = await axios.post(`${API}/podcast/admin/custom`,
+        { language: customLang, case_text: customCase, title: customTitle.trim() || undefined },
+        { headers, timeout: 180000 }
+      );
+      toast.success(`✅ Podcast "${res.data.title}" generiert`);
+      setCustomResult(res.data);
+      await loadCustomPodcasts();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Generierung fehlgeschlagen");
+    } finally {
+      setCustomBusy(false);
+    }
+  };
 
   const generate = async (langId) => {
     setGenerating(prev => ({ ...prev, [langId]: true }));
@@ -128,6 +162,61 @@ export default function AdminPodcastTab({ token }) {
               </div>
             );
           })}
+        </div>
+      </Card>
+
+      {/* Custom Case Podcast */}
+      <Card className="p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              Custom Case → Podcast
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Gib eine medizinische Fallbeschreibung ein und generiere daraus einen Podcast.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Sprache</label>
+            <select value={customLang} onChange={e => setCustomLang(e.target.value)}
+              className="w-full mt-1 p-2 rounded-lg border border-border bg-background text-sm">
+              {LANGS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Titel (optional)</label>
+            <input value={customTitle} onChange={e => setCustomTitle(e.target.value)}
+              placeholder="z.B. Fall: Akute Pankreatitis"
+              className="w-full mt-1 p-2 rounded-lg border border-border bg-background text-sm" />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Fallbeschreibung</label>
+            <textarea value={customCase} onChange={e => setCustomCase(e.target.value)}
+              placeholder="Beschreibe den medizinischen Fall (Symptome, Diagnostik, Therapie, Differentialdiagnosen...)"
+              rows={5}
+              className="w-full mt-1 p-3 rounded-lg border border-border bg-background text-sm resize-y" />
+          </div>
+
+          <Button onClick={generateCustom} disabled={customBusy || !customCase.trim()}
+            className="bg-amber-500 hover:bg-amber-600 text-amber-950 w-full gap-2">
+            {customBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {customBusy ? "Generiere..." : "Podcast generieren"}
+          </Button>
+
+          {customResult && customResult.audio_base64 && (
+            <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+              <div className="text-xs text-emerald-400 mb-1">✅ Generiert: {customResult.title}</div>
+              <div className="text-[11px] text-muted-foreground mb-2">{customResult.language?.toUpperCase()} · {customResult.specialty}</div>
+              <audio controls className="w-full h-8"
+                src={`data:audio/mp3;base64,${customResult.audio_base64}`} />
+            </div>
+          )}
         </div>
       </Card>
 
