@@ -143,7 +143,7 @@ export default function LerntoolsPage() {
       {result && (
         <div className="rounded-2xl p-6 mb-8" style={{ background: '#0f1a3a', border: '1px solid rgba(16,185,129,0.2)' }}>
           <h3 className="font-semibold text-lg mb-3" style={{ color: '#d4d4d8' }}>{result.title}</h3>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 mb-4">
             <button onClick={() => togglePlay(result)}
               className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
               style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}>
@@ -153,6 +153,14 @@ export default function LerntoolsPage() {
               <p className="text-sm" style={{ color: '#8899aa' }}>{result.language?.toUpperCase()} · {result.audio_size > 1000 ? `${(result.audio_size / 1024).toFixed(0)} KB` : `${result.audio_size} B`}</p>
             </div>
           </div>
+          {result.script && (
+            <details className="mt-4">
+              <summary className="text-sm font-medium cursor-pointer" style={{ color: '#10b981' }}>Skript anzeigen</summary>
+              <div className="mt-3 text-sm leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto rounded-lg p-4" style={{ background: '#06081a', color: '#d4d4d8', border: '1px solid rgba(16,185,129,0.1)' }}>
+                {result.script}
+              </div>
+            </details>
+          )}
         </div>
       )}
 
