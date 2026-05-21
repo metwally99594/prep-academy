@@ -1717,9 +1717,8 @@ MODEL_MAP = {
 METSU_MODELS = [
     "deepseek/deepseek-chat:free",
     "qwen/qwen3-235b-a22b-2507:free",
-    "qwen/qwen-2.5-72b-instruct:free",
-    "internlm/internlm3-8b-instruct:free",
-    "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
+    "google/gemini-2.0-flash-exp:free",
+    "meta-llama/llama-4-maverick:free",
 ]
 
 LANG_PROMPTS = {
@@ -1741,24 +1740,41 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         raise HTTPException(status_code=503, detail="AI nicht verfügbar — OPENROUTER_API_KEY fehlt")
 
     if model_key == "metsu":
-        for or_model in METSU_MODELS:
+        async def _call_model(m: str) -> tuple:
             try:
-                async with httpx.AsyncClient(timeout=55.0) as client:
-                    r = await client.post(
+                async with httpx.AsyncClient(timeout=25.0) as cl:
+                    r = await cl.post(
                         "https://openrouter.ai/api/v1/chat/completions",
                         headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
                                  "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
-                        json={"model": or_model,
-                              "messages": [{"role": "system", "content": system_msg},
-                                            {"role": "user", "content": user_msg}],
+                        json={"model": m, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
                               "max_tokens": max_tokens, "temperature": 0.4},
                     )
                     d = r.json()
                     if "choices" in d and d["choices"]:
-                        content = d["choices"][0]["message"]["content"] or ""
-                        return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+                        c = _re.sub(r"<think>.*?</think>", "", (d["choices"][0]["message"]["content"] or ""), flags=_re.DOTALL).strip()
+                        return (m, c)
             except Exception:
-                continue
+                pass
+            return (m, "")
+
+        results = await asyncio.gather(*[_call_model(m) for m in METSU_MODELS], return_exceptions=True)
+        scored = []
+        for r in results:
+            if isinstance(r, tuple) and r[1]:
+                model_name, text = r
+                score = len(text)
+                refusals = ["i cannot", "i'm sorry", "i don't have", "unable to", "i am an ai", "cannot answer", "i apologize", "not appropriate"]
+                for rf in refusals:
+                    if rf in text.lower():
+                        score -= 200
+                if len(text) < 50:
+                    score -= 100
+                scored.append((score, model_name, text))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        if scored:
+            logger.info(f"metsu ensemble: best={scored[0][1]} score={scored[0][0]} total={len(scored)}")
+            return scored[0][2]
         raise HTTPException(status_code=503, detail="Alle metsu-Modelle fehlgeschlagen")
 
     models = {

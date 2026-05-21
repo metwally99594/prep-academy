@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import uuid, os, json
 from datetime import datetime, timezone
+import asyncio
 try:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 except ImportError:
@@ -48,22 +49,40 @@ async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500, mode
         return ""
 
     if model_key == "metsu":
-        for or_model in METSU_MODELS:
+        async def _call_model(m: str) -> tuple:
             try:
-                async with httpx.AsyncClient(timeout=55.0) as client:
-                    r = await client.post(
+                async with httpx.AsyncClient(timeout=25.0) as cl:
+                    r = await cl.post(
                         "https://openrouter.ai/api/v1/chat/completions",
                         headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
                                  "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy Learn"},
-                        json={"model": or_model, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
+                        json={"model": m, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
                               "max_tokens": max_tokens, "temperature": 0.4},
                     )
                     d = r.json()
                     if "choices" in d and d["choices"]:
-                        content = d["choices"][0]["message"]["content"] or ""
-                        return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+                        c = _re.sub(r"<think>.*?</think>", "", (d["choices"][0]["message"]["content"] or ""), flags=_re.DOTALL).strip()
+                        return (m, c)
             except Exception:
-                continue
+                pass
+            return (m, "")
+        results = await asyncio.gather(*[_call_model(m) for m in METSU_MODELS], return_exceptions=True)
+        scored = []
+        for r in results:
+            if isinstance(r, tuple) and r[1]:
+                model_name, text = r
+                score = len(text)
+                refusals = ["i cannot", "i'm sorry", "i don't have", "unable to", "i am an ai", "cannot answer", "i apologize", "not appropriate"]
+                for rf in refusals:
+                    if rf in text.lower():
+                        score -= 200
+                if len(text) < 50:
+                    score -= 100
+                scored.append((score, model_name, text))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        if scored:
+            logger.info(f"metsu ensemble: best={scored[0][1]} score={scored[0][0]} total={len(scored)}")
+            return scored[0][2]
         return ""
 
     models = {
@@ -164,6 +183,21 @@ async def _synthesize_podcast(script: str, preset: str = "austrian", language: s
             if ck["type"] == "audio":
                 audio_chunks.append(ck["data"])
     return base64.b64encode(b"".join(audio_chunks)).decode("ascii") if audio_chunks else ""
+
+
+MODEL_MAP = {
+    "gpt-4o": ("openai", "gpt-4o"),
+    "claude-sonnet": ("anthropic", "claude-sonnet-4-5-20250929"),
+    "gemini-flash": ("gemini", "gemini-3-flash-preview"),
+    "metsu": ("openrouter", "metsu"),
+}
+
+METSU_MODELS = [
+    "deepseek/deepseek-chat:free",
+    "qwen/qwen3-235b-a22b-2507:free",
+    "google/gemini-2.0-flash-exp:free",
+    "meta-llama/llama-4-maverick:free",
+]
 
 
 class AudioTTSRequest(BaseModel):
