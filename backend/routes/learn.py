@@ -51,7 +51,7 @@ async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500, mode
     if model_key == "metsu":
         async def _call_model(m: str) -> tuple:
             try:
-                async with httpx.AsyncClient(timeout=25.0) as cl:
+                async with httpx.AsyncClient(timeout=60.0) as cl:
                     r = await cl.post(
                         "https://openrouter.ai/api/v1/chat/completions",
                         headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
@@ -83,6 +83,22 @@ async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500, mode
         if scored:
             logger.info(f"metsu ensemble: best={scored[0][1]} score={scored[0][0]} total={len(scored)}")
             return scored[0][2]
+                return ""
+        for m in ["deepseek/deepseek-chat:free", "google/gemini-2.0-flash-exp:free"]:
+            try:
+                async with httpx.AsyncClient(timeout=90.0) as cl:
+                    r = await cl.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                                 "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy Learn"},
+                        json={"model": m, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
+                              "max_tokens": max_tokens, "temperature": 0.4},
+                    )
+                    d = r.json()
+                    if "choices" in d and d["choices"]:
+                        return _re.sub(r"<think>.*?</think>", "", (d["choices"][0]["message"]["content"] or ""), flags=_re.DOTALL).strip()
+            except Exception:
+                continue
         return ""
 
     models = {
@@ -217,9 +233,9 @@ MODEL_MAP = {
 
 METSU_MODELS = [
     "deepseek/deepseek-chat:free",
-    "qwen/qwen3-235b-a22b-2507:free",
     "google/gemini-2.0-flash-exp:free",
     "meta-llama/llama-4-maverick:free",
+    "microsoft/phi-3.5-mini-128k-instruct:free",
 ]
 
 

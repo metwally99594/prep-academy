@@ -93,7 +93,7 @@ export default function AIChat({ question, isOpen, onClose }) {
         model: selectedModel,
         language: selectedLang,
         context: messages.map(m => `${m.role}: ${m.content}`).join('\n'),
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      }, { headers: { Authorization: `Bearer ${token}` }, timeout: 300000 });
 
       const images = response.data.images || [];
       setMessages(prev => [...prev, { role: "assistant", content: response.data.response, model: selectedModel, images }]);
