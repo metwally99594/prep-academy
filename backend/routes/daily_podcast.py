@@ -600,8 +600,7 @@ Format:
         await db.custom_podcasts.insert_one(doc)
         logger.info(f"✅ Custom podcast [{language}]: {title} ({len(audio_b64) / 1024:.0f} KB)")
 
-        # Return audio for admin who just generated it
-        doc["audio_size"] = doc.pop("audio_size", len(doc.get("audio_base64", "")))
+        doc.pop("_id", None)
         return doc
 
     @router.get("/custom")
