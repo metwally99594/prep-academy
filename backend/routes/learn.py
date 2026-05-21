@@ -40,452 +40,71 @@ from auth import get_current_user
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
 
-async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500) -> str:
-    """Text-only LLM call via OpenRouter (DeepSeek Chat V3 free tier)."""
-    import re as _re
+async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500, model_key: str = None) -> str:
+    """Text-only LLM call via OpenRouter — respects model_key for model selection."""
+    import re as _re, httpx
     or_key = os.environ.get("OPENROUTER_API_KEY")
-    if or_key:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=55.0) as client:
-                r = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {or_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://mcq-medical-prep.academy",
-                        "X-Title": "PrepAcademy Learn",
-                    },
-                    json={
-                        "model": "openai/gpt-oss-120b:free",
-                        "messages": [
-                            {"role": "system", "content": system_msg},
-                            {"role": "user", "content": user_msg},
-                        ],
-                        "max_tokens": max_tokens,
-                        "temperature": 0.4,
-                    },
-                )
-                d = r.json()
-                if "error" in d:
-                    logger.warning(f"OpenRouter error: {d['error']}")
-                elif "choices" in d and d["choices"]:
-                    content = d["choices"][0]["message"]["content"] or ""
-                    return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
-                else:
-                    logger.warning(f"OpenRouter no choices: {str(d)[:200]}")
-        except Exception as e:
-            logger.warning(f"OpenRouter _llm_text failed: {e}")
+    if not or_key:
+        return ""
 
-    raise HTTPException(status_code=503, detail="AI nicht verfügbar — bitte OpenRouter API-Key prüfen")
+    if model_key == "metsu":
+        for or_model in METSU_MODELS:
+            try:
+                async with httpx.AsyncClient(timeout=55.0) as client:
+                    r = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                                 "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy Learn"},
+                        json={"model": or_model, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
+                              "max_tokens": max_tokens, "temperature": 0.4},
+                    )
+                    d = r.json()
+                    if "choices" in d and d["choices"]:
+                        content = d["choices"][0]["message"]["content"] or ""
+                        return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+            except Exception:
+                continue
+        return ""
 
-
-# ═══════ MODELS ═══════
-
-class StudyGuideRequest(BaseModel):
-    notebook_id: Optional[str] = None
-    chunk_index: Optional[int] = None
-    specialty_id: Optional[str] = None
-    topic: Optional[str] = None
-    language: str = "de"
-    model: str = "gpt-4o"
-
-class FlashcardRequest(BaseModel):
-    notebook_id: Optional[str] = None
-    chunk_index: Optional[int] = None
-    specialty_id: Optional[str] = None
-    topic: Optional[str] = None
-    count: int = 10
-    language: str = "de"
-    model: str = "gpt-4o"
-
-class MindMapRequest(BaseModel):
-    notebook_id: Optional[str] = None
-    chunk_index: Optional[int] = None
-    specialty_id: Optional[str] = None
-    topic: Optional[str] = None
-    language: str = "de"
-    model: str = "gpt-4o"
-
-class AudioRequest(BaseModel):
-    notebook_id: Optional[str] = None
-    chunk_index: Optional[int] = None
-    specialty_id: Optional[str] = None
-    topic: Optional[str] = None
-    language: str = "de"
-    voice: str = "nova"
-
-class SourceChatRequest(BaseModel):
-    notebook_id: str
-    message: str
-    language: str = "de"
-    model: str = "gpt-4o"
-
-
-MODEL_MAP = {
-    "gpt-4o": ("openai", "gpt-4o"),
-    "claude-sonnet": ("anthropic", "claude-sonnet-4-5-20250929"),
-    "gemini-flash": ("gemini", "gemini-3-flash-preview"),
-}
-
-LANG_MAP = {
-    "de": "Antworte auf Deutsch. Verwende medizinische Fachbegriffe auf Deutsch.",
-    "en": "Answer in English. Use medical terminology.",
-    "ar": "أجب بالعربية مع ذكر المصطلحات الألمانية بين قوسين.",
-    "ru": "Отвечайте на русском. Используйте немецкую терминологию в скобках.",
-    "uk": "Відповідайте українською. Вказуйте німецьку термінологію в дужках.",
-}
-
-
-async def _get_questions_context(specialty_id: str = None, topic: str = None, limit: int = 30):
-    """Get questions as context for AI"""
-    query = {}
-    if specialty_id:
-        query["specialty_id"] = specialty_id
-    if topic:
-        query["$or"] = [
-            {"question_text_de": {"$regex": topic, "$options": "i"}},
-            {"question_text": {"$regex": topic, "$options": "i"}},
-        ]
-    
-    questions = []
-    cursor = db.questions.find(query, {"_id": 0, "question_text_de": 1, "question_text": 1, "choices": 1, "choices_de": 1, "explanation_de": 1, "explanation": 1, "year": 1})
-    async for q in cursor:
-        questions.append(q)
-        if len(questions) >= limit:
-            break
-    
-    # Format context
-    ctx_parts = []
-    for i, q in enumerate(questions):
-        text = q.get("question_text_de") or q.get("question_text", "")
-        choices = q.get("choices") or q.get("choices_de") or []
-        correct = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
-        expl = q.get("explanation_de") or q.get("explanation", "")
-        ctx_parts.append(f"Q{i+1}: {text}\nAntwort: {', '.join(correct)}\n{f'Erklärung: {expl}' if expl else ''}")
-    
-    return "\n\n".join(ctx_parts), len(questions)
-
-
-async def _get_notebook_context(notebook_id: str, user_id: str, chunk_index: int = None) -> tuple:
-    """Get notebook PDF text content, optionally a specific chunk"""
-    nb = await db.pdf_notebooks.find_one({"id": notebook_id, "user_id": user_id}, {"_id": 0, "text": 1, "filename": 1, "chunks": 1})
-    if not nb:
-        return "", ""
-    if chunk_index is not None and "chunks" in nb:
-        chunks = nb.get("chunks", [])
-        if 0 <= chunk_index < len(chunks):
-            return chunks[chunk_index]["text"][:40000], f"{nb.get('filename', 'Dokument')} - {chunks[chunk_index].get('title', f'Abschnitt {chunk_index+1}')}"
-    return nb.get("text", "")[:40000], nb.get("filename", "Dokument")
-
-
-async def _get_context(req, user_id: str):
-    """Get context from notebook (with chunk support) or questions"""
-    if hasattr(req, 'notebook_id') and req.notebook_id:
-        chunk_idx = getattr(req, 'chunk_index', None)
-        text, filename = await _get_notebook_context(req.notebook_id, user_id, chunk_idx)
-        if text:
-            return text, filename, "notebook"
-    if req.specialty_id or req.topic:
-        ctx, count = await _get_questions_context(req.specialty_id, req.topic)
-        label = req.topic or req.specialty_id or "Medizin"
-        if count > 0:
-            return ctx, label, "questions"
-    ctx, count = await _get_questions_context(limit=15)
-    return ctx, "Medizin", "questions"
-
-
-# ═══════ JOB HELPERS ═══════
-
-async def _start_job(user_id: str, job_type: str) -> str:
-    job_id = str(uuid.uuid4())
-    await db.learn_jobs.insert_one({
-        "id": job_id, "user_id": user_id, "type": job_type,
-        "status": "pending", "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-    return job_id
-
-async def _finish_job(job_id: str, result: dict):
-    await db.learn_jobs.update_one(
-        {"id": job_id},
-        {"$set": {"status": "done", "result": result, "updated_at": datetime.now(timezone.utc).isoformat()}},
-    )
-
-async def _fail_job(job_id: str, error: str):
-    await db.learn_jobs.update_one(
-        {"id": job_id},
-        {"$set": {"status": "error", "error": error, "updated_at": datetime.now(timezone.utc).isoformat()}},
-    )
-
-@router.get("/job/{job_id}")
-async def get_learn_job(job_id: str, user: dict = Depends(get_current_user)):
-    job = await db.learn_jobs.find_one({"id": job_id, "user_id": user["id"]}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job nicht gefunden")
-    return {"status": job["status"], "result": job.get("result"), "error": job.get("error")}
-
-
-# ═══════ 1. STUDY GUIDE ═══════
-
-async def _bg_study_guide(job_id: str, context: str, label: str, language: str):
+    models = {
+        "gpt-4o": "openai/gpt-4o",
+        "claude-sonnet": "anthropic/claude-sonnet-4-5-20250929",
+        "gemini-flash": "google/gemini-2.0-flash-exp:free",
+    }
+    or_model = models.get(model_key, "openai/gpt-oss-120b:free")
     try:
-        lang = LANG_MAP.get(language, LANG_MAP["de"])
-        system_msg = f"Du bist ein medizinischer Dozent. Erstelle einen strukturierten Lernleitfaden.\n{lang}"
-        prompt = f"""Erstelle einen Lernleitfaden für: {label}
-
-Basierend auf folgendem Inhalt:
-{context}
-
-Struktur:
-1. **Übersicht** - Wichtigste Konzepte
-2. **Kernthemen** - Detaillierte Erklärungen
-3. **Häufige Fallstricke** - Was oft falsch gemacht wird
-4. **Zusammenfassung** - Wichtigste Punkte
-5. **Prüfungstipps** - Strategien"""
-        response = await _llm_text(system_msg, prompt, max_tokens=800)
-        await _finish_job(job_id, {"content": response})
+        async with httpx.AsyncClient(timeout=55.0) as client:
+            r = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {or_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://mcq-medical-prep.academy",
+                    "X-Title": "PrepAcademy Learn",
+                },
+                json={
+                    "model": or_model,
+                    "messages": [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": 0.4,
+                },
+            )
+            d = r.json()
+            if "error" in d:
+                logger.warning(f"OpenRouter error: {d['error']}")
+            elif "choices" in d and d["choices"]:
+                content = d["choices"][0]["message"]["content"] or ""
+                return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
     except Exception as e:
-        await _fail_job(job_id, str(e))
-
-@router.post("/study-guide")
-async def generate_study_guide(req: StudyGuideRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    context, label, _ = await _get_context(req, user["id"])
-    if not context:
-        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-    job_id = await _start_job(user["id"], "study-guide")
-    background_tasks.add_task(_bg_study_guide, job_id, context[:4000], label, req.language)
-    return {"job_id": job_id, "status": "pending"}
-
-
-# ═══════ 2. FLASHCARDS ═══════
-
-async def _bg_flashcards(job_id: str, context: str, label: str, language: str, count: int):
-    try:
-        lang = LANG_MAP.get(language, LANG_MAP["de"])
-        system_msg = f"Du erstellst Lernkarten (Flashcards) aus medizinischen Inhalten.\n{lang}\nAntworte NUR als valides JSON-Array."
-        prompt = f"""Erstelle genau {count} Lernkarten basierend auf: {label}
-
-Inhalt:
-{context}
-
-Format als JSON-Array:
-[
-  {{"front": "Frage/Begriff", "back": "Antwort/Erklärung", "difficulty": "easy|medium|hard"}},
-  ...
-]
-
-Nur das JSON-Array ausgeben, nichts anderes."""
-        response = await _llm_text(system_msg, prompt, max_tokens=800)
-        try:
-            clean = response.strip()
-            if clean.startswith("```"):
-                clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-            cards = json.loads(clean)
-        except (json.JSONDecodeError, IndexError):
-            cards = [{"front": "Fehler beim Generieren", "back": response[:200], "difficulty": "medium"}]
-        await _finish_job(job_id, {"cards": cards, "count": len(cards)})
-    except Exception as e:
-        await _fail_job(job_id, str(e))
-
-@router.post("/flashcards")
-async def generate_flashcards(req: FlashcardRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    context, label, _ = await _get_context(req, user["id"])
-    if not context:
-        raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
-    job_id = await _start_job(user["id"], "flashcards")
-    background_tasks.add_task(_bg_flashcards, job_id, context[:4000], label, req.language, req.count)
-    return {"job_id": job_id, "status": "pending"}
-
-
-@router.get("/flashcards")
-async def get_flashcard_decks(user: dict = Depends(get_current_user)):
-    decks = []
-    async for d in db.flashcard_decks.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).limit(20):
-        decks.append(d)
-    return decks
-
-
-# ═══════ 3. AUDIO OVERVIEW (2 steps to avoid timeout) ═══════
-
-# Per-language podcast prompts — used by audio-script background job
-_AUDIO_LANG_PROMPTS = {
-    "de": {
-        "system": "Du bist ein professioneller Podcast-Autor für medizinische Bildung. Antworte NUR auf Deutsch. Erstelle ein Zwei-Sprecher-Podcast-Skript zwischen [Moderator] und [Experte]. Min 6 Wechsel, max 3000 Zeichen, kein Markdown.",
-        "user": lambda label, kp: f"Thema: \"{label}\"\n\nInhalt:\n{kp}\n\nErstelle einen lebendigen Podcast-Dialog auf Deutsch.\n[Moderator] ...\n[Experte] ...\n(mindestens 6 Wechsel, klinische Beispiele, max 3000 Zeichen)",
-    },
-    "en": {
-        "system": "You are a professional podcast writer for medical education. Reply ONLY in English. Create a two-speaker podcast script between [Host] and [Expert]. Min 6 turns, max 3000 chars, no markdown.",
-        "user": lambda label, kp: f"Topic: \"{label}\"\n\nContent:\n{kp}\n\nCreate a lively podcast dialogue in English.\n[Host] ...\n[Expert] ...\n(at least 6 turns, clinical examples, max 3000 chars)",
-    },
-    "ar": {
-        "system": "أنت كاتب بودكاست محترف للتعليم الطبي. اكتب فقط باللغة العربية. أنشئ سيناريو بودكاست بمتحدثين [المقدم] و [الخبير]. على الأقل 6 تبادلات، 3000 حرف كحد أقصى، بدون Markdown.",
-        "user": lambda label, kp: f"الموضوع: \"{label}\"\n\nالمحتوى:\n{kp}\n\nأنشئ حواراً حياً بالعربية.\n[المقدم] ...\n[الخبير] ...\n(6 تبادلات على الأقل، أمثلة سريرية، 3000 حرف)",
-    },
-    "ru": {
-        "system": "Вы — профессиональный сценарист медицинского подкаста. Отвечайте ТОЛЬКО на русском. Создайте сценарий подкаста с двумя спикерами [Ведущий] и [Эксперт]. Минимум 6 обменов, макс 3000 символов, без Markdown.",
-        "user": lambda label, kp: f"Тема: \"{label}\"\n\nСодержание:\n{kp}\n\nСоздайте живой диалог на русском.\n[Ведущий] ...\n[Эксперт] ...\n(минимум 6 обменов, клинические примеры, макс 3000 символов)",
-    },
-    "uk": {
-        "system": "Ви — професійний сценарист медичного подкасту. Відповідайте ТІЛЬКИ українською. Створіть сценарій подкасту з двома спікерами [Ведучий] та [Експерт]. Мінімум 6 обмінів, макс 3000 символів, без Markdown.",
-        "user": lambda label, kp: f"Тема: \"{label}\"\n\nЗміст:\n{kp}\n\nСтворіть живий діалог українською.\n[Ведучий] ...\n[Експерт] ...\n(мінімум 6 обмінів, клінічні приклади, макс 3000 символів)",
-    },
-}
-
-async def _bg_audio_script(job_id: str, user_id: str, nb_id: str, language: str, voice: str, context_fallback: str, label: str):
-    try:
-        plang = (language or "de").lower()
-        prompts = _AUDIO_LANG_PROMPTS.get(plang, _AUDIO_LANG_PROMPTS["de"])
-        content = ""
-
-        if nb_id:
-            nb = await db.pdf_notebooks.find_one({"id": nb_id, "user_id": user_id}, {"_id": 0})
-            if nb:
-                label = nb.get("filename", "Dokument")
-                chunks = nb.get("chunks", [])
-                if chunks:
-                    # Take first 4000 chars from each of the first 3 chunks
-                    parts = []
-                    for c in chunks[:3]:
-                        parts.append(c.get("text", "")[:1300])
-                    content = "\n\n".join(parts)
-                else:
-                    content = nb.get("text", "")[:4000]
-
-        if not content:
-            content = context_fallback[:4000]
-
-        if not content:
-            await _fail_job(job_id, "Keine Inhalte gefunden")
-            return
-
-        script = await _llm_text(prompts["system"], prompts["user"](label, content), max_tokens=800)
-
-        audio_id = str(uuid.uuid4())
-        await db.audio_overviews.insert_one({
-            "id": audio_id, "user_id": user_id, "script": script,
-            "language": language, "voice": voice, "notebook_id": nb_id,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-        await _finish_job(job_id, {"id": audio_id, "script": script, "voice": voice})
-    except Exception as e:
-        await _fail_job(job_id, str(e))
-
-@router.post("/audio-script")
-async def generate_audio_script(req: AudioRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    """Step 1: Generate podcast script as a background job to avoid 60s timeout."""
-    context_fallback = ""
-    label = "Medizin"
-    if not req.notebook_id:
-        context_fallback, label, _ = await _get_context(req, user["id"])
-    job_id = await _start_job(user["id"], "audio-script")
-    background_tasks.add_task(_bg_audio_script, job_id, user["id"], req.notebook_id or "", req.language, req.voice, context_fallback, label)
-    return {"job_id": job_id, "status": "pending"}
-
-
-# ═══════ Quick TTS (for Quiz "read aloud" feature) ═══════
-
-class QuickTTSRequest(BaseModel):
-    text: str
-    language: str = "de"
-    voice: Optional[str] = None  # e.g. "de-AT-IngridNeural", or None to auto-pick
-
-# Per-language single-voice default (warm female)
-LANG_DEFAULT_VOICE = {
-    "de": "de-AT-IngridNeural",     # Austrian female
-    "en": "en-US-AvaNeural",
-    "ar": "ar-EG-SalmaNeural",
-    "ru": "ru-RU-SvetlanaNeural",
-    "uk": "uk-UA-PolinaNeural",
-}
-
-@router.post("/tts/speak")
-async def quick_tts(req: QuickTTSRequest, user: dict = Depends(get_current_user)):
-    """Fast single-voice TTS for short text (quiz questions, explanations). FREE via Edge TTS."""
-    text = (req.text or "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Kein Text")
-    if len(text) > 4000:
-        text = text[:4000]
-    voice = req.voice or LANG_DEFAULT_VOICE.get((req.language or "de").lower(), "de-AT-IngridNeural")
-    try:
-        import base64, edge_tts
-        comm = edge_tts.Communicate(text=text, voice=voice, rate="-3%")
-        chunks = []
-        async for ck in comm.stream():
-            if ck["type"] == "audio":
-                chunks.append(ck["data"])
-        if not chunks:
-            raise HTTPException(status_code=500, detail="TTS leer")
-        return {"audio_base64": base64.b64encode(b"".join(chunks)).decode("ascii"), "voice": voice}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Quick TTS error: {e}")
-        raise HTTPException(status_code=500, detail=f"TTS fehlgeschlagen: {str(e)}")
-
-
-# ═══════ Edge TTS (Microsoft Neural Voices) — FREE, no API key needed ═══════
-
-# Map of voice presets — uses Microsoft Edge TTS for German speakers
-# 2-speaker presets for podcast: Moderator (female) + Experte (male)
-EDGE_VOICES = {
-    # Direct mapping for legacy "voice" param
-    "nova":     "de-DE-KatjaNeural",       # warm female (was OpenAI nova)
-    "shimmer":  "de-DE-AmalaNeural",       # young female
-    "alloy":    "de-DE-SeraphinaMultilingualNeural",  # multilingual female
-    "echo":     "de-DE-ConradNeural",      # mature male
-    "fable":    "de-AT-JonasNeural",       # Austrian male (PERFECT for Prep Academy!)
-    "onyx":     "de-DE-KillianNeural",     # deep male
-    # Also accept locale codes directly
-    "de-AT-IngridNeural": "de-AT-IngridNeural",
-    "de-AT-JonasNeural":  "de-AT-JonasNeural",
-    "de-DE-KatjaNeural":  "de-DE-KatjaNeural",
-    "de-DE-ConradNeural": "de-DE-ConradNeural",
-}
-
-# 2-speaker presets — (moderator_voice, experte_voice) per language
-# Default to Austrian voices for German (PrepAcademy is Austrian-focused)
-PODCAST_SPEAKERS = {
-    # German variants (default for "de")
-    "austrian": ("de-AT-IngridNeural", "de-AT-JonasNeural"),       # 🇦🇹
-    "german":   ("de-DE-KatjaNeural",  "de-DE-ConradNeural"),      # 🇩🇪
-    "warm":     ("de-DE-AmalaNeural",  "de-DE-KillianNeural"),
-    # English
-    "english":     ("en-US-AvaNeural",  "en-US-AndrewNeural"),     # 🇺🇸
-    "british":     ("en-GB-SoniaNeural","en-GB-RyanNeural"),       # 🇬🇧
-    # Arabic
-    "arabic":      ("ar-EG-SalmaNeural","ar-EG-ShakirNeural"),     # 🇪🇬
-    "arabic_gulf": ("ar-SA-ZariyahNeural","ar-SA-HamedNeural"),    # 🇸🇦
-    # Russian
-    "russian":     ("ru-RU-SvetlanaNeural","ru-RU-DmitryNeural"),  # 🇷🇺
-    # Ukrainian
-    "ukrainian":   ("uk-UA-PolinaNeural","uk-UA-OstapNeural"),     # 🇺🇦
-}
-
-# Default preset for each language
-LANG_PRESET_DEFAULT = {
-    "de": "austrian",
-    "en": "english",
-    "ar": "arabic",
-    "ru": "russian",
-    "uk": "ukrainian",
-}
-
-# Speaker tag patterns per language — used when LLM responds in that language
-SPEAKER_TAGS = {
-    "de": {"moderator": ["moderator", "sprecher 1", "speaker 1"], "experte": ["experte", "expertin", "sprecher 2", "speaker 2"]},
-    "en": {"moderator": ["host", "moderator", "speaker 1", "interviewer"], "experte": ["expert", "guest", "speaker 2", "doctor"]},
-    "ar": {"moderator": ["مقدم", "المقدم", "المذيع", "moderator"], "experte": ["خبير", "الخبير", "الطبيب", "expert"]},
-    "ru": {"moderator": ["ведущий", "ведущая", "модератор", "moderator"], "experte": ["эксперт", "врач", "expert"]},
-    "uk": {"moderator": ["ведучий", "ведуча", "модератор"], "experte": ["експерт", "лікар"]},
-}
-
+        logger.error(f"OpenRouter LLM call failed: {e}")
+    logger.error("OpenRouter LLM call failed — no response")
+    return ""
 
 async def _synthesize_edge_tts(text: str, voice: str) -> str:
-    """Generate base64-encoded MP3 audio using Microsoft Edge TTS (free)."""
-    import edge_tts, base64
-    if not text.strip():
-        return ""
+    import base64, edge_tts
     edge_voice = EDGE_VOICES.get(voice, voice if voice.startswith("de-") else "de-DE-KatjaNeural")
     communicate = edge_tts.Communicate(text=text[:8000], voice=edge_voice, rate="-5%", pitch="+0Hz")
     chunks = []
@@ -678,7 +297,7 @@ Halte es unter 2500 Zeichen. Kein Markdown."""
 
 # ═══════ 4. MIND MAP ═══════
 
-async def _bg_mind_map(job_id: str, context: str, label: str, language: str):
+async def _bg_mind_map(job_id: str, context: str, label: str, language: str, model_key: str = None):
     try:
         lang = LANG_MAP.get(language, LANG_MAP["de"])
         system_msg = f"Du erstellst eine Mind Map als JSON-Struktur.\n{lang}\nAntworte NUR als valides JSON."
@@ -704,7 +323,7 @@ JSON-Format:
 
 4-6 Hauptzweige, je 2-4 Unterpunkte. Farben: #c9a84c, #3b82f6, #10b981, #f59e0b, #ef4444, #8b5cf6.
 Nur JSON."""
-        response = await _llm_text(system_msg, prompt, max_tokens=800)
+        response = await _llm_text(system_msg, prompt, max_tokens=800, model_key=model_key)
         try:
             clean = response.strip()
             if clean.startswith("```"):
@@ -722,7 +341,7 @@ async def generate_mind_map(req: MindMapRequest, background_tasks: BackgroundTas
     if not context:
         raise HTTPException(status_code=404, detail="Keine Inhalte gefunden")
     job_id = await _start_job(user["id"], "mind-map")
-    background_tasks.add_task(_bg_mind_map, job_id, context[:4000], label, req.language)
+    background_tasks.add_task(_bg_mind_map, job_id, context[:4000], label, req.language, model_key=req.model)
     return {"job_id": job_id, "status": "pending"}
 
 
@@ -755,7 +374,7 @@ Wenn die Quellen keine Antwort enthalten, sage das ehrlich.
 QUELLEN:
 {sources_text}"""
 
-    response = await _llm_text(system_msg, req.message, max_tokens=1500)
+    response = await _llm_text(system_msg, req.message, max_tokens=1500, model_key=req.model)
 
     import re
     citations = list(set(re.findall(r'\[Quelle \d+[^\]]*\]', response)))

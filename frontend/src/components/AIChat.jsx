@@ -12,6 +12,7 @@ const MODELS = [
   { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI", color: "#10a37f" },
   { id: "claude-sonnet", name: "Claude Sonnet", provider: "Anthropic", color: "#cc785c" },
   { id: "gemini-flash", name: "Gemini Flash", provider: "Google", color: "#4285f4" },
+  { id: "metsu", name: "Metsu", provider: "DeepSeek • Qwen • InternLM", color: "#f59e0b" },
 ];
 
 const LANGUAGES = [

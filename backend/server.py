@@ -1711,7 +1711,16 @@ MODEL_MAP = {
     "gpt-4o": ("openai", "gpt-4o"),
     "claude-sonnet": ("anthropic", "claude-sonnet-4-5-20250929"),
     "gemini-flash": ("gemini", "gemini-3-flash-preview"),
+    "metsu": ("openrouter", "metsu"),
 }
+
+METSU_MODELS = [
+    "deepseek/deepseek-chat:free",
+    "qwen/qwen3-235b-a22b-2507:free",
+    "qwen/qwen-2.5-72b-instruct:free",
+    "internlm/internlm3-8b-instruct:free",
+    "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
+]
 
 LANG_PROMPTS = {
     "de": "Antworte auf Deutsch. Verwende medizinische Fachbegriffe auf Deutsch.",
@@ -1724,20 +1733,47 @@ LANG_PROMPTS = {
 def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
-async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000) -> str:
-    """OpenRouter text call — free tier, strips <think> blocks."""
-    import re as _re, httpx
-    _TEXT_MODEL = "openai/gpt-oss-120b:free"
+async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
+    """OpenRouter text call — respects model_key, strips <think> blocks. If model_key is 'metsu', falls back through Chinese open-source models."""
+    import re as _re, httpx, random
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
         raise HTTPException(status_code=503, detail="AI nicht verfügbar — OPENROUTER_API_KEY fehlt")
+
+    if model_key == "metsu":
+        for or_model in METSU_MODELS:
+            try:
+                async with httpx.AsyncClient(timeout=55.0) as client:
+                    r = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                                 "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+                        json={"model": or_model,
+                              "messages": [{"role": "system", "content": system_msg},
+                                            {"role": "user", "content": user_msg}],
+                              "max_tokens": max_tokens, "temperature": 0.4},
+                    )
+                    d = r.json()
+                    if "choices" in d and d["choices"]:
+                        content = d["choices"][0]["message"]["content"] or ""
+                        return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+            except Exception:
+                continue
+        raise HTTPException(status_code=503, detail="Alle metsu-Modelle fehlgeschlagen")
+
+    models = {
+        "gpt-4o": "openai/gpt-4o",
+        "claude-sonnet": "anthropic/claude-sonnet-4-5-20250929",
+        "gemini-flash": "google/gemini-2.0-flash-exp:free",
+    }
+    or_model = models.get(model_key, "openai/gpt-oss-120b:free")
     try:
         async with httpx.AsyncClient(timeout=55.0) as client:
             r = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
                          "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
-                json={"model": _TEXT_MODEL,
+                json={"model": or_model,
                       "messages": [{"role": "system", "content": system_msg},
                                     {"role": "user", "content": user_msg}],
                       "max_tokens": max_tokens, "temperature": 0.4},
@@ -1746,13 +1782,14 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000) -> st
             if "choices" in d and d["choices"]:
                 content = d["choices"][0]["message"]["content"] or ""
                 return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
-            _record_model_failure(_TEXT_MODEL)
+            _record_model_failure(or_model)
             raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
     except HTTPException:
         raise
     except Exception as e:
-        _record_model_failure(_TEXT_MODEL)
+        _record_model_failure(or_model)
         raise HTTPException(status_code=503, detail=f"AI-Verbindungsfehler: {str(e)[:200]}")
+
 
 @api_router.get("/ai/models")
 async def get_ai_models():
@@ -1760,6 +1797,7 @@ async def get_ai_models():
         {"id": "gpt-4o", "name": "GPT-4o", "provider": "OpenAI", "icon": "openai", "color": "#10a37f"},
         {"id": "claude-sonnet", "name": "Claude Sonnet", "provider": "Anthropic", "icon": "anthropic", "color": "#cc785c"},
         {"id": "gemini-flash", "name": "Gemini Flash", "provider": "Google", "icon": "gemini", "color": "#4285f4"},
+        {"id": "metsu", "name": "Metsu", "provider": "DeepSeek • Qwen • InternLM", "icon": "metsu", "color": "#f59e0b"},
     ]
 
 @api_router.get("/ai/languages")
@@ -1790,7 +1828,7 @@ Richtige Antworten: {', '.join(correct_choices)}
 {f"Studentenfrage: {request.user_question}" if request.user_question else ""}
 
 Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wichtig sind."""
-        response = await _or_text(system_msg, prompt, max_tokens=800)
+        response = await _or_text(system_msg, prompt, max_tokens=800, model_key=request.model)
         return {"explanation": response, "model": request.model, "language": request.language}
     except HTTPException:
         raise
@@ -1819,7 +1857,7 @@ Antwortmöglichkeiten:\n{all_choices}
 Richtige Antworten: {', '.join(correct_choices)}
 {f"Offizielle Erklärung: {expl}" if expl else ""}
 Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei freundlich und ermutigend."""
-        response = await _or_text(system_message, request.user_message, max_tokens=800)
+        response = await _or_text(system_message, request.user_message, max_tokens=800, model_key=request.model)
         return {"response": response, "model": request.model, "language": request.language}
     except HTTPException:
         raise
