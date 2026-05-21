@@ -628,4 +628,61 @@ Format:
         doc.pop("_id", None)
         return doc
 
+    class UserCustomRequest(BaseModel):
+        language: str = "de"
+        case_text: str = ""
+        title: Optional[str] = None
+
+    @router.post("/generate")
+    async def user_generate_podcast(req: UserCustomRequest, user: dict = Depends(get_current_user)):
+        """Subscribed user generates a podcast from a custom medical case."""
+        await _check_podcast_access(user)
+        if not req.case_text.strip():
+            raise HTTPException(status_code=400, detail="Case text is required")
+        language = req.language if req.language in SUPPORTED_LANGS else "de"
+        plang = LANG_PROMPTS.get(language, LANG_PROMPTS["de"])
+
+        custom_prompt = f"""Turn this medical case description into a 5-minute podcast script using the specified format.
+
+Medical case:
+{req.case_text}
+
+Format:
+- Use {plang['tags']} as speaker tags
+- {plang['intro']}
+- Present the case as a realistic clinical scenario (history, symptoms, findings, diagnosis, treatment)
+- Include differential diagnosis and key clinical reasoning
+- End with take-home messages
+- Min 8 speaker turns, lively, max 3500 chars, no markdown"""
+
+        script = await _llm_qwen(plang["system"], custom_prompt, max_tokens=2400)
+        if not script:
+            raise HTTPException(status_code=500, detail="Script generation failed")
+
+        audio_b64 = await _synthesize_podcast(script, language)
+        if not audio_b64:
+            raise HTTPException(status_code=500, detail="Audio synthesis failed")
+
+        title = req.title or "Custom Case"
+
+        doc = {
+            "id": str(uuid.uuid4()),
+            "date": datetime.now(timezone.utc).date().isoformat(),
+            "language": language,
+            "specialty": "Custom",
+            "title": title[:120],
+            "summary": req.case_text[:500],
+            "script": script,
+            "audio_base64": audio_b64,
+            "audio_size": len(audio_b64),
+            "source_mode": "user_generated",
+            "user_id": user["id"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.custom_podcasts.insert_one(doc)
+        logger.info(f"✅ User podcast [{language}]: {title} ({len(audio_b64) / 1024:.0f} KB) by user {user['id']}")
+
+        doc.pop("_id", None)
+        return doc
+
     return router
