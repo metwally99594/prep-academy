@@ -77,7 +77,7 @@ export default function LerntoolsPage() {
   const onEnded = () => setIsPlaying(false);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 page-enter">
+    <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="text-center mb-10">
         <h1 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: "'Playfair Display', serif", color: '#d4d4d8' }}>
           <span style={{ color: '#10b981' }}>Podcast</span> Generator
