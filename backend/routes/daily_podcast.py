@@ -521,6 +521,31 @@ def make_router(db, get_current_user):
             items.append(d)
         return {"items": items}
 
+    @router.get("/custom")
+    async def list_custom_podcasts(language: Optional[str] = None, limit: int = 20, user: dict = Depends(get_current_user)):
+        """List custom podcasts, optionally filtered by language."""
+        await _check_podcast_access(user)
+        query = {}
+        if language and language in SUPPORTED_LANGS:
+            query["language"] = language
+        cursor = db.custom_podcasts.find(
+            query,
+            {"_id": 0, "audio_base64": 0, "script": 0},
+        ).sort("created_at", -1).limit(min(limit, 50))
+        items = []
+        async for d in cursor:
+            items.append(d)
+        return {"items": items}
+
+    @router.get("/custom/{podcast_id}")
+    async def get_custom_podcast(podcast_id: str, user: dict = Depends(get_current_user)):
+        """Get a single custom podcast with full audio."""
+        await _check_podcast_access(user)
+        doc = await db.custom_podcasts.find_one({"id": podcast_id}, {"_id": 0})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Podcast not found")
+        return doc
+
     @router.get("/{podcast_id}")
     async def get_podcast(podcast_id: str, user: dict = Depends(get_current_user)):
         await _check_podcast_access(user)
@@ -601,31 +626,6 @@ Format:
         logger.info(f"✅ Custom podcast [{language}]: {title} ({len(audio_b64) / 1024:.0f} KB)")
 
         doc.pop("_id", None)
-        return doc
-
-    @router.get("/custom")
-    async def list_custom_podcasts(language: Optional[str] = None, limit: int = 20, user: dict = Depends(get_current_user)):
-        """List custom podcasts, optionally filtered by language."""
-        await _check_podcast_access(user)
-        query = {}
-        if language and language in SUPPORTED_LANGS:
-            query["language"] = language
-        cursor = db.custom_podcasts.find(
-            query,
-            {"_id": 0, "audio_base64": 0, "script": 0},
-        ).sort("created_at", -1).limit(min(limit, 50))
-        items = []
-        async for d in cursor:
-            items.append(d)
-        return {"items": items}
-
-    @router.get("/custom/{podcast_id}")
-    async def get_custom_podcast(podcast_id: str, user: dict = Depends(get_current_user)):
-        """Get a single custom podcast with full audio."""
-        await _check_podcast_access(user)
-        doc = await db.custom_podcasts.find_one({"id": podcast_id}, {"_id": 0})
-        if not doc:
-            raise HTTPException(status_code=404, detail="Podcast not found")
         return doc
 
     return router

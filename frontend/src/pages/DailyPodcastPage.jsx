@@ -61,8 +61,12 @@ export default function DailyPodcastPage() {
   const loadCustom = async () => {
     try {
       const res = await axios.get(`${API}/podcast/custom?limit=10`, { headers });
+      console.log("custom podcasts:", res.data);
       setCustomPodcasts(res.data.items || []);
-    } catch { setCustomPodcasts([]); }
+    } catch (e) {
+      console.error("loadCustom failed:", e?.response?.status, e?.message);
+      setCustomPodcasts([]);
+    }
   };
 
   useEffect(() => { loadDaily(); loadList(); loadCustom(); /* eslint-disable-next-line */ }, [language]);
@@ -226,12 +230,14 @@ export default function DailyPodcastPage() {
           )}
 
           {/* Custom Podcasts */}
-          {customPodcasts.length > 0 && (
-            <Card className="p-6 border-amber-500/30 bg-gradient-to-br from-amber-500/[0.03] to-transparent">
-              <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" /> Custom Podcasts
-              </h3>
-              <p className="text-xs text-muted-foreground mb-4">Von der Admin erstellte Folgen basierend auf individuellen Fällen</p>
+          <Card className="p-6 border-amber-500/30 bg-gradient-to-br from-amber-500/[0.03] to-transparent">
+            <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" /> Custom Podcasts
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">Von der Admin erstellte Folgen basierend auf individuellen Fällen</p>
+            {customPodcasts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Noch keine Custom-Podcasts vorhanden.</p>
+            ) : (
               <div className="space-y-2">
                 {customPodcasts.map(item => (
                   <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-amber-500/40 transition-all">
@@ -248,8 +254,8 @@ export default function DailyPodcastPage() {
                   </div>
                 ))}
               </div>
-            </Card>
-          )}
+            )}
+          </Card>
         </>
       )}
 
