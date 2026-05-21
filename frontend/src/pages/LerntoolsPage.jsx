@@ -50,7 +50,7 @@ export default function LerntoolsPage() {
         language,
       }, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 300000,
+        timeout: 600000,
       });
       const data = res.data;
       setResult(data);

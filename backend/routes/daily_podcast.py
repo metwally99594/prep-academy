@@ -58,6 +58,9 @@ FREE_MODELS = [
     "meta-llama/llama-4-maverick:free",
     "google/gemini-2.0-flash-exp:free",
     "nvidia/nemotron-3-super:free",
+    "deepseek/deepseek-chat:free",
+    "mistralai/mistral-small-24b-instruct-2501:free",
+    "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
 ]
 
 LANG_PROMPTS = {
@@ -207,7 +210,7 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
 
     for model in FREE_MODELS:
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 r = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
