@@ -1765,6 +1765,177 @@ METSU_MODELS = [
     "microsoft/phi-3.5-mini-128k-instruct:free",
 ]
 
+MEDICAL_WIKI_CATEGORIES = [
+    "disease", "symptom", "treatment", "medication", "anatomy",
+    "diagnostic_method", "medical_procedure", "medical_specialty",
+    "pathology", "pharmacology", "physiology", "surgery",
+]
+
+async def _ensure_medical_knowledge_indexes():
+    """Create indexes for medical_knowledge collection"""
+    try:
+        existing = await db.medical_knowledge.index_information()
+        if "title_text_content_text" not in existing:
+            await db.medical_knowledge.create_index([("title", "text"), ("content", "text")])
+        if "title_1" not in existing:
+            await db.medical_knowledge.create_index("title")
+        if "category_1" not in existing:
+            await db.medical_knowledge.create_index("category")
+    except Exception:
+        pass
+
+async def _fetch_wikipedia_topic(query: str, lang: str = "de") -> Optional[dict]:
+    """Fetch a medical topic from Wikipedia, returns structured data"""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as cl:
+            # Search for the topic
+            search_r = await cl.get(
+                "https://{}.wikipedia.org/w/api.php".format(lang),
+                params={
+                    "action": "query", "list": "search",
+                    "srsearch": query + " (Medizin)",
+                    "srlimit": 3, "format": "json",
+                },
+            )
+            sr = search_r.json()
+            pages = sr.get("query", {}).get("search", [])
+            if not pages:
+                # Try without (Medizin) suffix
+                search_r = await cl.get(
+                    "https://{}.wikipedia.org/w/api.php".format(lang),
+                    params={
+                        "action": "query", "list": "search",
+                        "srsearch": query, "srlimit": 3, "format": "json",
+                    },
+                )
+                pages = search_r.json().get("query", {}).get("search", [])
+            if not pages:
+                return None
+            page_title = pages[0]["title"]
+            # Get full page content
+            content_r = await cl.get(
+                "https://{}.wikipedia.org/w/api.php".format(lang),
+                params={
+                    "action": "query", "prop": "extracts|pageprops|categories",
+                    "exintro": True, "explaintext": True, "exlimit": 1,
+                    "titles": page_title, "format": "json",
+                    "ppprop": "wikibase_item",
+                    "cllimit": 10, "clcategories": "Kategorie:Medizin|Kategorie:Krankheit|Kategorie:Arzneimittel|Kategorie:Anatomie",
+                },
+            )
+            cr = content_r.json()
+            pages_data = cr.get("query", {}).get("pages", {})
+            if not pages_data:
+                return None
+            page_id = next(iter(pages_data))
+            page = pages_data[page_id]
+            extract = page.get("extract", "")
+            if len(extract) < 50:
+                return None
+            # Determine category from page props / categories
+            cat = "medical"
+            cats = page.get("categories", [])
+            cat_map = {
+                "Kategorie:Krankheit": "disease",
+                "Kategorie:Arzneimittel": "medication",
+                "Kategorie:Anatomie": "anatomy",
+                "Kategorie:Diagnostik": "diagnostic_method",
+                "Kategorie:Behandlung": "treatment",
+                "Kategorie:Chirurgie": "surgery",
+                "Kategorie:Pharmakologie": "pharmacology",
+                "Kategorie:Physiologie": "physiology",
+                "Kategorie:Pathologie": "pathology",
+            }
+            for c in cats:
+                title = c.get("title", "")
+                if title in cat_map:
+                    cat = cat_map[title]
+                    break
+            # Get English version if available
+            en_title = None
+            en_extract = ""
+            pp = page.get("pageprops", {})
+            wikibase = pp.get("wikibase_item") if pp else None
+            if wikibase:
+                try:
+                    wb_r = await cl.get(
+                        "https://www.wikidata.org/wiki/Special:EntityData/{}.json".format(wikibase)
+                    )
+                    wb_data = wb_r.json()
+                    en_label = wb_data.get("entities", {}).get(wikibase, {}).get("labels", {}).get("en", {}).get("value")
+                    if en_label:
+                        en_title = en_label
+                        # Fetch English extract
+                        en_r = await cl.get(
+                            "https://en.wikipedia.org/w/api.php",
+                            params={
+                                "action": "query", "prop": "extracts",
+                                "exintro": True, "explaintext": True,
+                                "titles": en_label, "format": "json",
+                            },
+                        )
+                        en_data = en_r.json()
+                        for epid in en_data.get("query", {}).get("pages", {}).values():
+                            en_extract = epid.get("extract", "")
+                            break
+                except Exception:
+                    pass
+            return {
+                "title": page_title,
+                "title_en": en_title or "",
+                "summary": extract[:2000],
+                "content_en": en_extract[:2000],
+                "category": cat,
+                "source": "wikipedia",
+                "language": lang,
+                "url": "https://{}.wikipedia.org/wiki/{}".format(lang, page_title.replace(" ", "_")),
+            }
+    except Exception:
+        return None
+
+async def _search_medical_knowledge(query: str, limit: int = 5) -> list:
+    """Search cached medical knowledge, fetch from Wikipedia if missing"""
+    await _ensure_medical_knowledge_indexes()
+    results = []
+    # Try text search first
+    try:
+        cursor = db.medical_knowledge.find(
+            {"$text": {"$search": query}},
+            {"_id": 0, "score": {"$meta": "textScore"}},
+        ).sort([("score", {"$meta": "textScore"})]).limit(limit)
+        results = await cursor.to_list(limit)
+    except Exception:
+        pass
+    if not results:
+        # Fallback: regex search on title
+        import re as _re
+        escaped = _re.escape(query[:50])
+        try:
+            results = await db.medical_knowledge.find(
+                {"title": {"$regex": escaped, "$options": "i"}},
+                {"_id": 0},
+            ).limit(limit).to_list(limit)
+        except Exception:
+            pass
+    # If still no results, fetch from Wikipedia and cache
+    if not results:
+        for lang in ["de", "en"]:
+            doc = await _fetch_wikipedia_topic(query, lang)
+            if doc:
+                try:
+                    await db.medical_knowledge.update_one(
+                        {"title": doc["title"], "language": doc["language"]},
+                        {"$set": doc},
+                        upsert=True,
+                    )
+                except Exception:
+                    pass
+                results.append(doc)
+                if len(results) >= limit:
+                    break
+    return results[:limit]
+
 LANG_PROMPTS = {
     "de": "Antworte auf Deutsch. Verwende medizinische Fachbegriffe auf Deutsch.",
     "en": "Answer in English. Use medical terminology in English.",
@@ -1976,14 +2147,70 @@ Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei f
         raise HTTPException(status_code=500, detail="Failed to get AI response")
 
 
+@api_router.post("/admin/seed-medical-knowledge")
+async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
+    """Pre-seed medical knowledge base with common MedAT topics from Wikipedia"""
+    import asyncio
+    top_topics = [
+        "Herzinsuffizienz", "Diabetes mellitus", "Asthma bronchiale", "COPD",
+        "Myokardinfarkt", "Schlaganfall", "Hypertonie", "Niereninsuffizienz",
+        "Leberzirrhose", "Pneumonie", "Lungenembolie", "Appendizitis",
+        "Cholezystitis", "Pankreatitis", "Magenkarzinom", "Bronchialkarzinom",
+        "Mammakarzinom", "Prostatakarzinom", "Schilddrüsenkarzinom", "HIV",
+        "Hepatitis", "Tuberkulose", "Meningitis", "Epilepsie",
+        "Parkinson-Krankheit", "Multiple Sklerose", "Depression", "Schizophrenie",
+        "Osteoporose", "Arthrose", "Rheumatoide Arthritis", "Gicht",
+        "Anämie", "Hämophilie", "Leukämie", "Lymphom",
+        "Nierensteine", "Harnwegsinfekt", "Glomerulonephritis", "Prostatahyperplasie",
+        "Glaukom", "Katarakt", "Otitis media", "Sinusitis",
+        "Herzklappenerkrankungen", "Vorhofflimmern", "Perikarditis", "Endokarditis",
+        "Ileus", "Hernie", "Hämorrhoiden", "Varizen",
+        "Thrombose", "Aneurysma", "Arteriosklerose", "Raynaud-Syndrom",
+        "Koronare Herzkrankheit", "Herzrhythmusstörungen", "Kardiomyopathie", "Lungenödem",
+        "Pleuritis", "Pneumothorax", "Lungenfibrose", "Sarkoidose",
+        "Gastritis", "Ulcus ventriculi", "Colitis ulcerosa", "Morbus Crohn",
+        "Divertikulitis", "Pankreaskarzinom", "Kolonkarzinom", "Rektumkarzinom",
+        "Nebenschilddrüse", "Morbus Cushing", "Morbus Addison", "Akromegalie",
+        "Systemischer Lupus erythematodes", "Vaskulitis", "Sklerodermie", "Sjögren-Syndrom",
+        "Migräne", "Spannungskopfschmerz", "Cluster-Kopfschmerz", "Demenz",
+        "Alkoholkrankheit", "Drogenabhängigkeit", "Angststörung", "Zwangsstörung",
+        "Adipositas", "Metabolisches Syndrom", "Osteomyelitis", "Septische Arthritis",
+        "Vitaminmangel", "Elektrolytstörungen", "Säure-Basen-Haushalt", "Infektionskrankheiten",
+    ]
+    seeded, skipped = 0, 0
+    for i in range(0, len(top_topics), 5):
+        batch = top_topics[i:i + 5]
+        tasks = [_fetch_wikipedia_topic(t, "de") for t in batch]
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for topic, result in zip(batch, batch_results):
+            if isinstance(result, dict) and result:
+                try:
+                    existing = await db.medical_knowledge.find_one({"title": result["title"]})
+                    if existing:
+                        skipped += 1
+                    else:
+                        await db.medical_knowledge.insert_one(result)
+                        seeded += 1
+                except Exception:
+                    skipped += 1
+            else:
+                skipped += 1
+        await asyncio.sleep(0.5)
+    return {"seeded": seeded, "skipped": skipped, "total": len(top_topics)}
+
 @api_router.post("/ai/tutor")
 async def ai_tutor(request: AITutorRequest, user: dict = Depends(get_current_user)):
-    """Medical AI tutor with RAG — searches 3112 exam questions for context, then answers"""
+    """Medical AI tutor with RAG — searches 3112 exam questions + Wikipedia medical knowledge"""
     try:
         lang_instruction = LANG_PROMPTS.get(request.language, LANG_PROMPTS["de"])
-        relevant = await _search_questions_internal(request.user_message, limit=5)
+        # Search both sources in parallel
+        relevant_questions, relevant_knowledge = await asyncio.gather(
+            _search_questions_internal(request.user_message, limit=3),
+            _search_medical_knowledge(request.user_message, limit=3),
+        )
         context_parts = []
-        for idx, q in enumerate(relevant[:5], 1):
+        # Exam questions
+        for idx, q in enumerate(relevant_questions[:3], 1):
             q_text = q.get("question_text_de") or q.get("question_text", "")
             choices = q.get("choices") or q.get("choices_de") or []
             correct = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
@@ -1994,26 +2221,34 @@ async def ai_tutor(request: AITutorRequest, user: dict = Depends(get_current_use
             )
             correct_str = ", ".join(correct)
             if expl:
-                context_parts.append(f"Quelle {idx}:\nFrage: {q_text}\n{choices_str}\nRichtig: {correct_str}\nErklärung: {expl}")
+                context_parts.append(f"📝 Prüfungsfrage {idx}:\n{q_text}\n{choices_str}\n✅ Richtig: {correct_str}\n📖 Erklärung: {expl}")
             else:
-                context_parts.append(f"Quelle {idx}:\nFrage: {q_text}\n{choices_str}\nRichtig: {correct_str}")
-        context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Prüfungsfragen zu diesem Thema gefunden."
+                context_parts.append(f"📝 Prüfungsfrage {idx}:\n{q_text}\n{choices_str}\n✅ Richtig: {correct_str}")
+        # Medical knowledge
+        for idx, k in enumerate(relevant_knowledge[:3], 1):
+            title = k.get("title", "")
+            summary = k.get("summary", "")[:1500]
+            category = k.get("category", "medical")
+            if summary:
+                context_parts.append(f"📚 Medizinisches Wissen {idx} ({category}):\n{title}\n{summary}")
+        context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen zu diesem Thema gefunden."
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
 
-RELEVANTE PRÜFUNGSFRAGEN AUS DER DATENBANK:
+WISSENSBASIS (Prüfungsfragen + medizinisches Nachschlagewerk):
 {context_str}
 
 REGELN:
-1. Nutze die Prüfungsfragen als Wissensbasis — beziehe dich auf sie, wenn relevant
-2. Erkläre medizinische Konzepte klar, mit klinischen Beispielen
-3. Wenn der Benutzer eine bestimmte Krankheit, Behandlung oder Diagnose fragt — verknüpfe es mit Prüfungsrelevanz
-4. Sei präzise und akademisch, aber freundlich
-5. Bei Unsicherheit: sage es ehrlich, nenne Alternativen"""
+1. Nutze Prüfungsfragen UND das medizinische Wissen als Grundlage
+2. Verknüpfe Konzepte mit Prüfungsrelevanz — sag dem Studenten was wichtig ist
+3. Erkläre klar mit klinischen Beispielen, differentialdiagnostisch wenn sinnvoll
+4. Bei Medikamenten: nenne Wirkstoff, Dosierung (wenn relevant), Nebenwirkungen
+5. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert
+6. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen"""
         response = await _or_text(system_message, request.user_message, max_tokens=1000, model_key=request.model)
         images = await _search_medical_images(request.user_message)
         return {"response": response, "images": images, "model": request.model, "language": request.language,
-                "sources": len(relevant)}
+                "sources_questions": len(relevant_questions), "sources_knowledge": len(relevant_knowledge)}
     except HTTPException:
         raise
     except Exception as e:
