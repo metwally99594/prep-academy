@@ -32,7 +32,7 @@ export default function LerntoolsPage() {
 
   useEffect(() => {
     if (token) {
-      axios.get(`${API}/podcast/custom?limit=20`, {
+      axios.get(`${API}/podcast/custom?mine=true&limit=20`, {
         headers: { Authorization: `Bearer ${token}` },
       }).then(r => setHistory(r.data.items || [])).catch(() => {});
     }

@@ -529,10 +529,12 @@ def make_router(db, get_current_user):
         return {"items": items}
 
     @router.get("/custom")
-    async def list_custom_podcasts(language: Optional[str] = None, limit: int = 20, user: dict = Depends(get_current_user)):
-        """List custom podcasts, optionally filtered by language."""
+    async def list_custom_podcasts(language: Optional[str] = None, limit: int = 20, mine: bool = False, user: dict = Depends(get_current_user)):
+        """List custom podcasts. Use ?mine=true to filter by current user."""
         await _check_podcast_access(user)
         query = {}
+        if mine:
+            query["user_id"] = user["id"]
         if language and language in SUPPORTED_LANGS:
             query["language"] = language
         cursor = db.custom_podcasts.find(
