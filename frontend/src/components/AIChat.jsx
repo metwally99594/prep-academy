@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import axios from "axios";
 import { API, useAuth } from "@/App";
 import { 
-  Sparkles, Send, X, Loader2, Bot, User, ChevronDown, Globe,
+  Sparkles, Send, X, Loader2, Bot, User, ChevronDown, Globe, BookOpen,
 } from "lucide-react";
 
 const MODELS = [
@@ -36,19 +36,29 @@ export default function AIChat({ question, isOpen, onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("gpt-4o");
+  const [selectedModel, setSelectedModel] = useState("metsu");
   const [selectedLang, setSelectedLang] = useState("de");
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const { token } = useAuth();
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const isTutor = !question;
 
   const currentModel = MODELS.find(m => m.id === selectedModel) || MODELS[0];
   const currentLang = LANGUAGES.find(l => l.id === selectedLang) || LANGUAGES[0];
 
   useEffect(() => {
-    if (isOpen && question) {
+    if (!isOpen) return;
+    if (isTutor) {
+      const greetings = {
+        de: "👨‍⚕️ Hallo! Ich bin Ihr medizinischer KI-Tutor mit Zugriff auf 3.112 Prüfungsfragen.\n\nStellen Sie mir jede beliebige medizinische Frage — ich suche in der Prüfungsdatenbank und gebe Ihnen eine fundierte Antwort, verknüpft mit den offiziellen Erklärungen.",
+        en: "👨‍⚕️ Hello! I'm your medical AI tutor with access to 3,112 exam questions.\n\nAsk me any medical question — I'll search the exam database and give you a well-founded answer linked to official explanations.",
+        ar: "👨‍⚕️ مرحباً! أنا معلمك الطبي الذكي مع إمكانية الوصول إلى 3,112 سؤال امتحان.\n\nاسألني أي سؤال طبي — سأبحث في قاعدة بيانات الامتحانات وأعطيك إجابة مدعومة بالشروحات الرسمية.",
+        ru: "👨‍⚕️ Здравствуйте! Я ваш медицинский ИИ-репетитор с доступом к 3,112 экзаменационным вопросам.\n\nЗадайте любой медицинский вопрос — я найду в базе экзаменов и дам ответ, подкреплённый официальными объяснениями.",
+      };
+      setMessages([{ role: "assistant", content: greetings[selectedLang] || greetings.de }]);
+    } else if (question) {
       const questionText = question.question_text_de || question.question_text;
       const greetings = {
         de: `Hallo! Ich bin Ihr medizinischer KI-Assistent.\n\nIch helfe Ihnen gerne bei dieser Frage:\n\n"${questionText}"\n\nStellen Sie mir eine Frage zu diesem Thema!`,
@@ -57,13 +67,21 @@ export default function AIChat({ question, isOpen, onClose }) {
         ru: `Здравствуйте! Я ваш медицинский ИИ-ассистент.\n\nЯ помогу вам с этим вопросом:\n\n"${questionText}"\n\nЗадайте мне вопрос по этой теме!`,
       };
       setMessages([{ role: "assistant", content: greetings[selectedLang] || greetings.de }]);
-      setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isOpen, question]); // eslint-disable-line
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, [isOpen, question, isTutor]); // eslint-disable-line
 
-  // Update greeting when language changes
   useEffect(() => {
-    if (isOpen && question && messages.length === 1 && messages[0].role === "assistant") {
+    if (!isOpen || !messages.length) return;
+    if (isTutor && messages.length === 1 && messages[0].role === "assistant") {
+      const greetings = {
+        de: "👨‍⚕️ Hallo! Ich bin Ihr medizinischer KI-Tutor mit Zugriff auf 3.112 Prüfungsfragen.\n\nStellen Sie mir jede beliebige medizinische Frage — ich suche in der Prüfungsdatenbank und gebe Ihnen eine fundierte Antwort, verknüpft mit den offiziellen Erklärungen.",
+        en: "👨‍⚕️ Hello! I'm your medical AI tutor with access to 3,112 exam questions.\n\nAsk me any medical question — I'll search the exam database and give you a well-founded answer linked to official explanations.",
+        ar: "👨‍⚕️ مرحباً! أنا معلمك الطبي الذكي مع إمكانية الوصول إلى 3,112 سؤال امتحان.\n\nاسألني أي سؤال طبي — سأبحث في قاعدة بيانات الامتحانات وأعطيك إجابة مدعومة بالشروحات الرسمية.",
+        ru: "👨‍⚕️ Здравствуйте! Я ваш медицинский ИИ-репетитор с доступом к 3,112 экзаменационным вопросам.\n\nЗадайте любой медицинский вопрос — я найду в базе экзаменов и дам ответ, подкреплённый официальными объяснениями.",
+      };
+      setMessages([{ role: "assistant", content: greetings[selectedLang] || greetings.de }]);
+    } else if (!isTutor && question && messages.length === 1 && messages[0].role === "assistant") {
       const questionText = question.question_text_de || question.question_text;
       const greetings = {
         de: `Hallo! Ich bin Ihr medizinischer KI-Assistent.\n\nIch helfe Ihnen gerne bei dieser Frage:\n\n"${questionText}"\n\nStellen Sie mir eine Frage zu diesem Thema!`,
@@ -87,13 +105,19 @@ export default function AIChat({ question, isOpen, onClose }) {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API}/ai/chat`, {
+      const endpoint = isTutor ? `${API}/ai/tutor` : `${API}/ai/chat`;
+      const payload = isTutor ? {
+        user_message: userMessage,
+        model: selectedModel,
+        language: selectedLang,
+      } : {
         question_id: question.id,
         user_message: userMessage,
         model: selectedModel,
         language: selectedLang,
         context: messages.map(m => `${m.role}: ${m.content}`).join('\n'),
-      }, { headers: { Authorization: `Bearer ${token}` }, timeout: 300000 });
+      };
+      const response = await axios.post(endpoint, payload, { headers: { Authorization: `Bearer ${token}` }, timeout: 300000 });
 
       const images = response.data.images || [];
       setMessages(prev => [...prev, { role: "assistant", content: response.data.response, model: selectedModel, images }]);
@@ -123,11 +147,11 @@ export default function AIChat({ question, isOpen, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(59, 130, 246, 0.03)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.1)' }}>
-              <Sparkles className="w-5 h-5" style={{ color: '#3b82f6' }} />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: isTutor ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.1)' }}>
+              {isTutor ? <BookOpen className="w-5 h-5" style={{ color: '#f59e0b' }} /> : <Sparkles className="w-5 h-5" style={{ color: '#3b82f6' }} />}
             </div>
             <div>
-              <h3 className="font-semibold text-white text-sm">Medizinischer KI-Assistent</h3>
+              <h3 className="font-semibold text-white text-sm">{isTutor ? "Medizinischer KI-Tutor" : "Medizinischer KI-Assistent"}</h3>
               <div className="flex items-center gap-2">
                 {/* Model Picker */}
                 <div className="relative">

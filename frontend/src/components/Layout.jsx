@@ -65,6 +65,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import NotificationBell from "@/components/NotificationBell";
 import TrialBanner from "@/components/TrialBanner";
+import AIChat from "@/components/AIChat";
 
 const SPECIALTIES = [
   { id: "surgery", name: "Chirurgie" },
@@ -197,6 +198,7 @@ export const Layout = () => {
   const [editFormData, setEditFormData] = useState(null);
   const [saving, setSaving] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [tutorOpen, setTutorOpen] = useState(false);
   const unreadRef = useRef(0);
 
   useEffect(() => {
@@ -491,6 +493,11 @@ export const Layout = () => {
                       <span className="hidden lg:inline">Community</span>
                     </Button>
                   </Link>
+                  <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="tutor-nav-btn"
+                    onClick={() => setTutorOpen(true)}>
+                    <GraduationCap className="w-4 h-4" style={{ color: '#f59e0b' }} />
+                    <span className="hidden lg:inline" style={{ color: '#f59e0b' }}>Tutor</span>
+                  </Button>
                   {user.is_admin && (
                     <>
                       <Link to="/admin">
@@ -1023,6 +1030,9 @@ export const Layout = () => {
 
       {/* Locked feature modal */}
       {lockedModal && <LockedFeatureModal feature={lockedModal} onClose={() => setLockedModal(null)} token={token} />}
+
+      {/* AI Tutor modal — global free chat */}
+      <AIChat question={null} isOpen={tutorOpen} onClose={() => setTutorOpen(false)} />
 
       {/* Trial banner */}
       <TrialBanner />

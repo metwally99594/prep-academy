@@ -26,7 +26,7 @@ from models import (
     UserCreate, UserLogin, UserResponse, GoogleAuthCallback,
     QuestionChoice, QuestionCreate, QuestionUpdate, QuestionResponse,
     AnswerSubmit, AnswerResult, FavoriteCreate, StatsResponse,
-    AIExplainRequest, AIChatRequest, CustomQuizRequest, SpecialtyResponse,
+    AIExplainRequest, AIChatRequest, AITutorRequest, CustomQuizRequest, SpecialtyResponse,
     NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest,
     AccessRequestCreate, AccessRequestUpdate, ContactRequestCreate,
 )
@@ -852,21 +852,65 @@ async def get_questions(
     return questions
 
 @api_router.get("/questions/search/text")
+async def _search_questions_internal(q: str, limit: int = 50):
+    """Internal search — no dependency injection, usable from other endpoints"""
+    if not q or len(q) < 2:
+        return []
+    
+    import re as _re
+    
+    if q.strip().isdigit() and len(q.strip()) == 4:
+        return await db.questions.find({"year": int(q.strip())}, {"_id": 0}).limit(limit).to_list(limit)
+    
+    city_map = {
+        "wien": "vienna", "vienna": "vienna", "فيينا": "vienna",
+        "innsbruck": "innsbruck", "إنسبروك": "innsbruck",
+        "andere": "andere",
+    }
+    if q.strip().lower() in city_map:
+        return await db.questions.find({"exam_location": city_map[q.strip().lower()]}, {"_id": 0}).limit(limit).to_list(limit)
+    
+    cleaned = _re.sub(r'^[\s]*(?:\d+[\.\)\:]|[a-zA-Z][\.\)]|Frage\s*\d+[\.\:\)]?)\s*', '', q.strip())
+    if not cleaned:
+        cleaned = q.strip()
+    cleaned = _re.sub(r'[^\w\sÄäÖöÜüß]', ' ', cleaned)
+    cleaned = _re.sub(r'\s+', ' ', cleaned).strip()
+    if len(cleaned) < 2:
+        return []
+    tokens = [t for t in cleaned.split() if len(t) >= 3]
+    if not tokens:
+        tokens = [cleaned]
+    token_pattern = "".join(f"(?=.*{_re.escape(t)})" for t in tokens[:8])
+    fuzzy_regex = f"^{token_pattern}" if token_pattern else _re.escape(cleaned)
+    text_fields = ["question_text_de", "question_text", "explanation_de"]
+    search_conditions = [{field: {"$regex": fuzzy_regex, "$options": "is"}} for field in text_fields]
+    search_conditions.append({"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}})
+    search_conditions.append({"choices.text": {"$regex": fuzzy_regex, "$options": "is"}})
+    escaped_q = _re.escape(q.strip())
+    search_conditions.append({"specialty_id": {"$regex": escaped_q, "$options": "i"}})
+    questions = await db.questions.find({"$or": search_conditions}, {"_id": 0}).limit(limit).to_list(limit)
+    if len(questions) < 3 and len(tokens) > 1:
+        or_conditions = []
+        for t in tokens[:6]:
+            t_escaped = _re.escape(t)
+            or_conditions.append({"question_text_de": {"$regex": t_escaped, "$options": "i"}})
+            or_conditions.append({"question_text": {"$regex": t_escaped, "$options": "i"}})
+            or_conditions.append({"choices.text_de": {"$regex": t_escaped, "$options": "i"}})
+        existing_ids = {q["id"] for q in questions}
+        fallback = await db.questions.find(
+            {"$or": or_conditions, "id": {"$nin": list(existing_ids)}},
+            {"_id": 0}
+        ).limit(limit - len(questions)).to_list(limit - len(questions))
+        questions.extend(fallback)
+    return questions
+
 async def search_questions(
     q: str,
     limit: int = 50,
     user: dict = Depends(get_current_user),
 ):
     """Smart search: works with punctuation, numbering, partial text, full questions"""
-    if not q or len(q) < 2:
-        return []
-    
-    import re as _re
-    
-    # Check if query is a year
-    if q.strip().isdigit() and len(q.strip()) == 4:
-        questions = await db.questions.find({"year": int(q.strip())}, {"_id": 0}).limit(limit).to_list(limit)
-        return questions
+    return await _search_questions_internal(q, limit)
     
     # City aliases
     city_map = {
@@ -1929,6 +1973,51 @@ Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei f
         raise
     except Exception as e:
         logger.error(f"AI chat error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get AI response")
+
+
+@api_router.post("/ai/tutor")
+async def ai_tutor(request: AITutorRequest, user: dict = Depends(get_current_user)):
+    """Medical AI tutor with RAG — searches 3112 exam questions for context, then answers"""
+    try:
+        lang_instruction = LANG_PROMPTS.get(request.language, LANG_PROMPTS["de"])
+        relevant = await _search_questions_internal(request.user_message, limit=5)
+        context_parts = []
+        for idx, q in enumerate(relevant[:5], 1):
+            q_text = q.get("question_text_de") or q.get("question_text", "")
+            choices = q.get("choices") or q.get("choices_de") or []
+            correct = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
+            expl = q.get("explanation_de") or q.get("explanation", "")
+            choices_str = "\n".join(
+                f'  - {c.get("text_de") or c.get("text", "")} {"✓" if c.get("is_correct") else ""}'
+                for c in choices[:6]
+            )
+            correct_str = ", ".join(correct)
+            if expl:
+                context_parts.append(f"Quelle {idx}:\nFrage: {q_text}\n{choices_str}\nRichtig: {correct_str}\nErklärung: {expl}")
+            else:
+                context_parts.append(f"Quelle {idx}:\nFrage: {q_text}\n{choices_str}\nRichtig: {correct_str}")
+        context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Prüfungsfragen zu diesem Thema gefunden."
+        system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
+{lang_instruction}
+
+RELEVANTE PRÜFUNGSFRAGEN AUS DER DATENBANK:
+{context_str}
+
+REGELN:
+1. Nutze die Prüfungsfragen als Wissensbasis — beziehe dich auf sie, wenn relevant
+2. Erkläre medizinische Konzepte klar, mit klinischen Beispielen
+3. Wenn der Benutzer eine bestimmte Krankheit, Behandlung oder Diagnose fragt — verknüpfe es mit Prüfungsrelevanz
+4. Sei präzise und akademisch, aber freundlich
+5. Bei Unsicherheit: sage es ehrlich, nenne Alternativen"""
+        response = await _or_text(system_message, request.user_message, max_tokens=1000, model_key=request.model)
+        images = await _search_medical_images(request.user_message)
+        return {"response": response, "images": images, "model": request.model, "language": request.language,
+                "sources": len(relevant)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"AI tutor error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get AI response")
 
 

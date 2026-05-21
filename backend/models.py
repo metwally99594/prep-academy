@@ -141,6 +141,11 @@ class AIChatRequest(BaseModel):
     model: Optional[str] = "gpt-4o"
     language: Optional[str] = "de"
 
+class AITutorRequest(BaseModel):
+    user_message: str
+    model: Optional[str] = "metsu"
+    language: Optional[str] = "de"
+
 class CustomQuizRequest(BaseModel):
     specialties: List[str] = []
     text_search: Optional[str] = None
