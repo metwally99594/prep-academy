@@ -1732,6 +1732,41 @@ LANG_PROMPTS = {
 def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
+async def _search_medical_images(query: str, limit: int = 3) -> list:
+    """Search Wikimedia Commons for medical/educational images related to a query."""
+    import httpx
+    try:
+        search_terms = []
+        for kw in ["diagram", "anatomy", "medical", "pathology", "illustration"]:
+            search_terms.append(f"{query} {kw}")
+            if len(search_terms) >= 2:
+                break
+        seen = set()
+        results = []
+        for term in search_terms:
+            async with httpx.AsyncClient(timeout=10.0) as cl:
+                r = await cl.get(
+                    "https://commons.wikimedia.org/w/api.php",
+                    params={
+                        "action": "query", "list": "search",
+                        "srsearch": term, "srnamespace": "6",
+                        "format": "json", "srlimit": str(limit),
+                    },
+                )
+                data = r.json()
+                for item in data.get("query", {}).get("search", []):
+                    title = item.get("title", "").replace("File:", "")
+                    if title.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".gif")) and title not in seen:
+                        seen.add(title)
+                        thumb = f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=300"
+                        results.append({"title": title, "thumbnail": thumb, "url": f"https://commons.wikimedia.org/wiki/File:{title}"})
+                        if len(results) >= limit:
+                            return results
+        return results
+    except Exception:
+        return []
+
+
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
     """OpenRouter text call — respects model_key, strips <think> blocks. If model_key is 'metsu', falls back through Chinese open-source models."""
     import re as _re, httpx, random
@@ -1874,7 +1909,8 @@ Richtige Antworten: {', '.join(correct_choices)}
 {f"Offizielle Erklärung: {expl}" if expl else ""}
 Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei freundlich und ermutigend."""
         response = await _or_text(system_message, request.user_message, max_tokens=800, model_key=request.model)
-        return {"response": response, "model": request.model, "language": request.language}
+        images = await _search_medical_images(request.user_message)
+        return {"response": response, "images": images, "model": request.model, "language": request.language}
     except HTTPException:
         raise
     except Exception as e:

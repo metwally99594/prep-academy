@@ -95,7 +95,8 @@ export default function AIChat({ question, isOpen, onClose }) {
         context: messages.map(m => `${m.role}: ${m.content}`).join('\n'),
       }, { headers: { Authorization: `Bearer ${token}` } });
 
-      setMessages(prev => [...prev, { role: "assistant", content: response.data.response, model: selectedModel }]);
+      const images = response.data.images || [];
+      setMessages(prev => [...prev, { role: "assistant", content: response.data.response, model: selectedModel, images }]);
     } catch (error) {
       console.error("AI chat error:", error);
       const errorMsgs = {
@@ -207,6 +208,19 @@ export default function AIChat({ question, isOpen, onClose }) {
                   message.role === "user" ? "rounded-tr-sm text-white/90" : "rounded-tl-sm text-white/80"
                 }`} style={{ background: message.role === "user" ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
                   <p className="whitespace-pre-wrap" style={{ direction: selectedLang === 'ar' ? 'rtl' : 'ltr' }}>{message.content}</p>
+                  {message.images && message.images.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                      {message.images.map((img, i) => (
+                        <a key={i} href={img.url} target="_blank" rel="noopener noreferrer"
+                          className="block rounded-lg overflow-hidden border transition-opacity hover:opacity-80"
+                          style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}>
+                          <img src={img.thumbnail} alt={img.title} loading="lazy"
+                            className="w-full h-full object-cover"
+                            onError={e => { e.target.style.display = 'none'; }} />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
