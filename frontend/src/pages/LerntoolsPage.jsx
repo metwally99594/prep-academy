@@ -28,6 +28,8 @@ export default function LerntoolsPage() {
   const [playingId, setPlayingId] = useState(null);
   const [speed, setSpeed] = useState(1);
   const [audioCache, setAudioCache] = useState({});
+  const [scriptCache, setScriptCache] = useState({});
+  const [showScriptForId, setShowScriptForId] = useState(null);
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -66,6 +68,15 @@ export default function LerntoolsPage() {
     }
   };
 
+  const fetchFull = async (item) => {
+    if (audioCache[item.id] && scriptCache[item.id]) return;
+    const res = await axios.get(`${API}/podcast/custom/${item.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setAudioCache(prev => ({ ...prev, [item.id]: res.data.audio_base64 }));
+    setScriptCache(prev => ({ ...prev, [item.id]: res.data.script }));
+  };
+
   const fetchAndPlay = async (item) => {
     let b64 = item.audio_base64 || audioCache[item.id];
     if (!b64) {
@@ -74,6 +85,7 @@ export default function LerntoolsPage() {
       });
       b64 = res.data.audio_base64;
       setAudioCache(prev => ({ ...prev, [item.id]: b64 }));
+      setScriptCache(prev => ({ ...prev, [item.id]: res.data.script }));
     }
     audioRef.current.src = `data:audio/mp3;base64,${b64}`;
     await audioRef.current.play();
@@ -96,6 +108,17 @@ export default function LerntoolsPage() {
   const changeSpeed = (s) => {
     setSpeed(s);
     if (audioRef.current) audioRef.current.playbackRate = s;
+  };
+
+  const toggleScript = async (item) => {
+    if (showScriptForId === item.id) { setShowScriptForId(null); return; }
+    if (!scriptCache[item.id]) {
+      const res = await axios.get(`${API}/podcast/custom/${item.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setScriptCache(prev => ({ ...prev, [item.id]: res.data.script }));
+    }
+    setShowScriptForId(item.id);
   };
 
   const onEnded = () => { setIsPlaying(false); setPlayingId(null); };
@@ -207,18 +230,33 @@ export default function LerntoolsPage() {
           </div>
           <div className="space-y-2">
             {history.map(item => (
-              <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg"
-                style={{ background: '#0f1a3a', border: '1px solid rgba(16,185,129,0.08)' }}>
-                <button onClick={() => togglePlay(item)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}>
-                  {playingId === item.id && isPlaying ? <Pause className="w-4 h-4 text-[#06081a]" /> : <Play className="w-4 h-4 text-[#06081a] ml-0.5" />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: '#d4d4d8' }}>{item.title || "Custom Case"}</p>
-                  <p className="text-xs" style={{ color: '#8899aa' }}>{item.language?.toUpperCase()} · {new Date(item.created_at).toLocaleDateString()}</p>
+              <div key={item.id}>
+                <div className="flex items-center gap-3 p-3 rounded-lg"
+                  style={{ background: '#0f1a3a', border: '1px solid rgba(16,185,129,0.08)' }}>
+                  <button onClick={() => togglePlay(item)}
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}>
+                    {playingId === item.id && isPlaying ? <Pause className="w-4 h-4 text-[#06081a]" /> : <Play className="w-4 h-4 text-[#06081a] ml-0.5" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: '#d4d4d8' }}>{item.title || "Custom Case"}</p>
+                    <p className="text-xs" style={{ color: '#8899aa' }}>{item.language?.toUpperCase()} · {new Date(item.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <button onClick={() => toggleScript(item)}
+                    className="text-xs shrink-0 px-2 py-1 rounded transition-colors"
+                    style={{
+                      color: showScriptForId === item.id ? '#10b981' : '#8899aa',
+                      border: '1px solid rgba(16,185,129,0.2)',
+                    }}>
+                    {showScriptForId === item.id ? "Ausblenden" : "Skript"}
+                  </button>
                 </div>
-                
+                {showScriptForId === item.id && scriptCache[item.id] && (
+                  <div className="mt-2 mb-2 ml-12 mr-2 text-sm leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto rounded-lg p-3"
+                    style={{ background: '#06081a', color: '#d4d4d8', border: '1px solid rgba(16,185,129,0.1)' }}>
+                    {scriptCache[item.id]}
+                  </div>
+                )}
               </div>
             ))}
           </div>
