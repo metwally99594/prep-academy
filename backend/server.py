@@ -2633,6 +2633,70 @@ async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
     return {"seeded": seeded, "skipped": skipped, "total": len(top_topics)}
 
 
+@api_router.get("/admin/debug/openrouter-test")
+async def debug_openrouter_test(user: dict = Depends(get_admin_user)):
+    """Quick health check for OpenRouter connectivity"""
+    import time, httpx
+    or_key = os.environ.get("OPENROUTER_API_KEY")
+    if not or_key:
+        return {"ok": False, "error": "OPENROUTER_API_KEY not set"}
+
+    test_models = [
+        "google/gemma-4-31b-it:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+    ]
+
+    results = []
+    for model in test_models:
+        start = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {or_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://mcq-medical-prep.academy",
+                        "X-Title": "PrepAcademy",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "user", "content": "Say 'ok' in one word."}
+                        ],
+                        "max_tokens": 10,
+                        "temperature": 0.1,
+                    },
+                )
+                latency = time.time() - start
+                d = r.json()
+                if r.status_code == 200 and "choices" in d:
+                    results.append({
+                        "model": model,
+                        "ok": True,
+                        "latency_ms": round(latency * 1000),
+                        "response": d["choices"][0]["message"]["content"][:50],
+                    })
+                else:
+                    results.append({
+                        "model": model,
+                        "ok": False,
+                        "latency_ms": round(latency * 1000),
+                        "status_code": r.status_code,
+                        "error": str(d)[:200],
+                    })
+        except Exception as e:
+            latency = time.time() - start
+            results.append({
+                "model": model,
+                "ok": False,
+                "latency_ms": round(latency * 1000),
+                "error": str(e)[:200],
+            })
+
+    return {"results": results, "key_set": bool(or_key), "key_prefix": or_key[:8] + "..." if or_key else None}
+
+
 @api_router.post("/admin/questions/cleanup-surgery-only")
 async def admin_cleanup_surgery_only(
     dry_run: bool = Query(True, description="If true, only report counts without deleting"),

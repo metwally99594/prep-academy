@@ -1,0 +1,482 @@
+[
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welcher der folgenden Befunde ist das Leitsymptom einer akuten Appendizitis?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Schmerzen im rechten Unterbauch", "is_correct": true},
+      {"text": "Schmerzen im linken Oberbauch", "is_correct": false},
+      {"text": "Diffuse Oberbauchschmerzen", "is_correct": false},
+      {"text": "Ausstrahlung in den Rücken", "is_correct": false},
+      {"text": "Schmerzen im rechten Oberbauch", "is_correct": false}
+    ],
+    "explanation_de": "Die akute Appendizitis zeigt typischerweise initial periumbilikale Schmerzen, die nach einigen Stunden in den rechten Unterbauch (McBurney-Punkt) wandern.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["appendizitis", "akut abdomen", "leitsymptom"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die häufigste Ursache eines mechanischen Ileus?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Postoperative Adhäsionen", "is_correct": true},
+      {"text": "Hernien", "is_correct": false},
+      {"text": "Tumore", "is_correct": false},
+      {"text": "Koprostase", "is_correct": false},
+      {"text": "Invagination", "is_correct": false}
+    ],
+    "explanation_de": "Postoperative Adhäsionen sind die häufigste Ursache eines Dünndarmileus. Bei Dickdarmileus sind Tumore und Divertikulitis häufiger.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["ileus", "adhäsionen", "akut abdomen"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welcher Röntgenbefund ist typisch für einen Spannungspneumothorax?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Mediastinalverlagerung zur Gegenseite", "is_correct": true},
+      {"text": "Mediastinalverlagerung zur ipsilateralen Seite", "is_correct": false},
+      {"text": "Beidseitiger Pneumothorax", "is_correct": false},
+      {"text": "Keine Veränderung des Mediastinums", "is_correct": false},
+      {"text": "Hydro-pneumothorax mit Spiegel", "is_correct": false}
+    ],
+    "explanation_de": "Beim Spannungspneumothorax kommt es durch den Ventilmechanismus zu einer zunehmenden Drucksteigerung im Pleuraspalt mit Verlagerung des Mediastinums zur Gegenseite, was eine akute Lebensgefahr darstellt.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["pneumothorax", "thorax", "trauma"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welches ist die sensitivste und spezifischste diagnostische Methode bei akuter Cholezystitis?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Sonographie", "is_correct": true},
+      {"text": "CT-Abdomen", "is_correct": false},
+      {"text": "MRCP", "is_correct": false},
+      {"text": "ERC", "is_correct": false},
+      {"text": "Röntgen Abdomen", "is_correct": false}
+    ],
+    "explanation_de": "Die Sonographie ist die Methode der Wahl bei V.a. akute Cholezystitis (Murphy-Zeichen sonographisch nachweisbar), sensitiver und spezifischer als CT.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["cholezystitis", "sonographie", "gallengang"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die häufigste Komplikation nach einer Leistenhernienoperation?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Rezidiv", "is_correct": false},
+      {"text": "Wundinfektion", "is_correct": false},
+      {"text": "Chronischer Leistenschmerz", "is_correct": true},
+      {"text": "Hämatom", "is_correct": false},
+      {"text": "Hodenatrophie", "is_correct": false}
+    ],
+    "explanation_de": "Chronische Leistenschmerzen treten bei ca. 10-15% der Patienten auf und sind damit die häufigste Komplikation, insbesondere nach Mesh-Implantation.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["hernie", "leiste", "komplikationen"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welcher Bruch ist am häufigsten inkarzeriert?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Schenkelhernie", "is_correct": true},
+      {"text": "Direkte Leistenhernie", "is_correct": false},
+      {"text": "Indirekte Leistenhernie", "is_correct": false},
+      {"text": "Nabelhernie", "is_correct": false},
+      {"text": "Hiatushernie", "is_correct": false}
+    ],
+    "explanation_de": "Die Schenkelhernie hat das höchste Inkarserationsrisiko (ca. 40%), da der Bruchpfortendurchmesser klein und die Ränder scharf sind.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["hernie", "inkarzeration", "notfall"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welche der folgenden Frakturen betrifft typischerweise das distale Radiusende bei Sturz auf die ausgestreckte Hand?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Colles-Fraktur", "is_correct": true},
+      {"text": "Smith-Fraktur", "is_correct": false},
+      {"text": "Barton-Fraktur", "is_correct": false},
+      {"text": "Chauffeur-Fraktur", "is_correct": false},
+      {"text": "Galeazzi-Fraktur", "is_correct": false}
+    ],
+    "explanation_de": "Die Colles-Fraktur ist die häufigste Fraktur des Erwachsenen. Sie entsteht durch Sturz auf die dorsalflektierte Hand und zeigt eine dorsale Dislokation des distalen Radiusfragments („Fourchette-Stellung").",
+    "year": null,
+    "exam_location": null,
+    "tags": ["fraktur", "radius", "trauma"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die typische Komplikation eines nicht erkannten Kompartmentsyndroms?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Volkmann-Kontraktur", "is_correct": true},
+      {"text": "Fettembolie", "is_correct": false},
+      {"text": "Osteomyelitis", "is_correct": false},
+      {"text": "Pseudarthrose", "is_correct": false},
+      {"text": "CRPS", "is_correct": false}
+    ],
+    "explanation_de": "Die Volkmann-Kontraktur ist die irreversible Folge eines unbehandelten Kompartmentsyndroms durch ischämische Muskelnekrose und Fibrose, besonders am Unterarm.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["kompartmentsyndrom", "volkmann", "notfall"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welche Wundheilungsstörung tritt typischerweise bei Vitamin-C-Mangel auf?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Gestörte Kollagensynthese", "is_correct": true},
+      {"text": "Verminderte Epithelisierung", "is_correct": false},
+      {"text": "Übermäßige Granulation", "is_correct": false},
+      {"text": "Keloidbildung", "is_correct": false},
+      {"text": "Wunddehiszenz durch Infektion", "is_correct": false}
+    ],
+    "explanation_de": "Vitamin C ist essentiell für die Kollagensynthese (Hydroxylierung von Prolin und Lysin). Mangel führt zu gestörter Wundheilung, Zahnfleischbluten und petechialen Blutungen.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["wundheilung", "vitamin", "ernährung"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welcher Parameter ist am besten geeignet, um die Schwere einer akuten Pankreatitis zu beurteilen?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "CRP", "is_correct": false},
+      {"text": "CT-Schweregrad (CTSI)", "is_correct": true},
+      {"text": "Lipase", "is_correct": false},
+      {"text": "Amylase", "is_correct": false},
+      {"text": "Leukozyten", "is_correct": false}
+    ],
+    "explanation_de": "Der CT Severity Index (CTSI) kombiniert Parenchymnekrose und peripankreatische Inflammation und ist der beste Prädiktor für den Schweregrad einer akuten Pankreatitis.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["pankreatitis", "ct", "schweregrad"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die häufigste Ursache einer akuten Pankreatitis?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Gallensteine", "is_correct": true},
+      {"text": "Alkohol", "is_correct": false},
+      {"text": "Medikamente", "is_correct": false},
+      {"text": "Hypertriglyzeridämie", "is_correct": false},
+      {"text": "Trauma", "is_correct": false}
+    ],
+    "explanation_de": "Gallensteine sind mit ca. 40-50% die häufigste Ursache einer akuten Pankreatitis, gefolgt von Alkohol (ca. 20-30%).",
+    "year": null,
+    "exam_location": null,
+    "tags": ["pankreatitis", "gallensteine", "ätologie"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welches Zeichen ist pathognomonisch für eine Sigmadivertikulitis im CT?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Wandverdickung mit perikolischer Fettgewebsinfiltration", "is_correct": true},
+      {"text": "Dilatation des gesamten Kolons", "is_correct": false},
+      {"text": "Kontrastmittelaussparung im Sigma", "is_correct": false},
+      {"text": "Luft im Portalsystem", "is_correct": false},
+      {"text": "Aszites und Peritonealknötchen", "is_correct": false}
+    ],
+    "explanation_de": "Eine Wandverdickung des Sigmas mit perikolischer Fettgewebsinfiltration und Nachweis von Divertikeln ist der typische CT-Befund einer akuten Divertikulitis.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["divertikulitis", "sigma", "ct"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welcher Tumor ist der häufigste maligne Tumor der Leber?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Hepatozelluläres Karzinom (HCC)", "is_correct": true},
+      {"text": "Cholangiozelluläres Karzinom (CCC)", "is_correct": false},
+      {"text": "Lebermetastase eines kolorektalen Karzinoms", "is_correct": false},
+      {"text": "Hämangiosarkom", "is_correct": false},
+      {"text": "Hepatoblastom", "is_correct": false}
+    ],
+    "explanation_de": "Das hepatozelluläre Karzinom ist der häufigste primäre maligne Lebertumor. Lebermetastasen sind insgesamt häufiger, aber sekundär.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["leber", "hcc", "tumor"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Wie viele Prozent der Körperoberfläche sind bei einer Verbrennung des gesamten rechten Arms betroffen (nach der Neunerregel nach Wallace)?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "9%", "is_correct": true},
+      {"text": "18%", "is_correct": false},
+      {"text": "4,5%", "is_correct": false},
+      {"text": "12%", "is_correct": false},
+      {"text": "6%", "is_correct": false}
+    ],
+    "explanation_de": "Nach der Neunerregel (Rule of Nines) entspricht der gesamte Arm 9% der Körperoberfläche (vorne 4,5%, hinten 4,5%).",
+    "year": null,
+    "exam_location": null,
+    "tags": ["verbrennung", "neunerregel", "trauma"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welcher Eingriff ist die Standardtherapie des Magenkarzinoms?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Totale Gastrektomie mit D2-Lymphadenektomie", "is_correct": false},
+      {"text": "Subt totale Gastrektomie mit D2-Lymphadenektomie", "is_correct": true},
+      {"text": "Endoskopische Mukosaresektion", "is_correct": false},
+      {"text": "Whipple-Operation", "is_correct": false},
+      {"text": "Magenbypass", "is_correct": false}
+    ],
+    "explanation_de": "Die subtotale Gastrektomie mit D2-Lymphadenektomie ist die Standardtherapie bei distalem Magenkarzinom. Die totale Gastrektomie ist bei proximalen oder diffusen Karzinomen indiziert.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["magenkarzinom", "gastrektomie", "tumor"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die häufigste benigne Neubildung der weiblichen Brust?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Fibroadenom", "is_correct": true},
+      {"text": "Papillom", "is_correct": false},
+      {"text": "Lipom", "is_correct": false},
+      {"text": "Phylloides-Tumor", "is_correct": false},
+      {"text": "Mastopathie", "is_correct": false}
+    ],
+    "explanation_de": "Das Fibroadenom ist der häufigste benigne Brusttumor bei jungen Frauen (20-30 Jahre). Es ist hormonabhängig und zeigt typische Sonomorphologie.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["mamma", "fibroadenom", "benigne"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die erste Maßnahme bei einem offenen Pneumothorax?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Steriler Okklusivverband", "is_correct": true},
+      {"text": "Sofortige Intubation", "is_correct": false},
+      {"text": "Thoraxdrainage", "is_correct": false},
+      {"text": "Beatmung mit PEEP", "is_correct": false},
+      {"text": "Sauerstoffgabe 15L/min", "is_correct": false}
+    ],
+    "explanation_de": "Die erste Maßnahme beim offenen Pneumothorax ist der sterile Okklusivverband („Drei-Seiten-Verband"), der ein Eindringen von Luft in den Pleuraspalt verhindert.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["pneumothorax", "notfall", "thoraxdrainage"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welches ist das häufigste Karzinom des Gastrointestinaltrakts?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Kolorektales Karzinom", "is_correct": true},
+      {"text": "Magenkarzinom", "is_correct": false},
+      {"text": "Pankreaskarzinom", "is_correct": false},
+      {"text": "Ösophaguskarzinom", "is_correct": false},
+      {"text": "Dünndarmkarzinom", "is_correct": false}
+    ],
+    "explanation_de": "Das kolorektale Karzinom ist das häufigste Malignom des Gastrointestinaltrakts und das dritthäufigste Karzinom insgesamt. Die Inzidenz steigt mit dem Alter.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["kolorektal", "karzinom", "tumor"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die häufigste Lokalisation einer arteriellen Embolie?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Femoralisbifurkation", "is_correct": true},
+      {"text": "Aortenbifurkation", "is_correct": false},
+      {"text": "Poplitealarterie", "is_correct": false},
+      {"text": "Brachialarterie", "is_correct": false},
+      {"text": "Karotisbifurkation", "is_correct": false}
+    ],
+    "explanation_de": "Die Femoralisbifurkation ist mit ca. 35-50% die häufigste Lokalisation einer arteriellen Embolie, gefolgt von der Aortenbifurkation und der Poplitealarterie.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["embolie", "arteriell", "gefäßchirurgie"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welche Klassifikation wird für das Mammakarzinom-Staging verwendet?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "TNM-Klassifikation", "is_correct": true},
+      {"text": "Dukes-Klassifikation", "is_correct": false},
+      {"text": "Child-Pugh-Klassifikation", "is_correct": false},
+      {"text": "ASA-Klassifikation", "is_correct": false},
+      {"text": "Glasgow-Coma-Scale", "is_correct": false}
+    ],
+    "explanation_de": "Die TNM-Klassifikation (Tumor, Nodes, Metastases) ist das internationale Standard-Staging-System für das Mammakarzinom und die meisten soliden Tumore.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["mammakarzinom", "tnm", "staging"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welche Untersuchung ist die Methode der Wahl zur Diagnose einer tiefen Beinvenenthrombose?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Kompressionssonographie", "is_correct": true},
+      {"text": "Phlebographie", "is_correct": false},
+      {"text": "D-Dimer-Test", "is_correct": false},
+      {"text": "MR-Venographie", "is_correct": false},
+      {"text": "Duplexsonographie", "is_correct": false}
+    ],
+    "explanation_de": "Die Kompressionssonographie ist die Methode der Wahl (nicht-invasiv, hoch sensitiv). Der D-Dimer-Test hat hohe Sensitivität aber geringe Spezifität.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["thrombose", "tvp", "diagnostik"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die häufigste Ursache eines akuten Abdomens bei älteren Patienten?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Akute Cholezystitis", "is_correct": false},
+      {"text": "Akute Appendizitis", "is_correct": false},
+      {"text": "Mesenterialischämie", "is_correct": false},
+      {"text": "Akute Divertikulitis", "is_correct": true},
+      {"text": "Perforiertes Ulkus", "is_correct": false}
+    ],
+    "explanation_de": "Die akute Divertikulitis ist bei älteren Patienten die häufigste Ursache eines akuten Abdomens, während die Appendizitis bei jüngeren Patienten dominiert.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["divertikulitis", "alterspatient", "akut abdomen"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die definitive Therapie eines inkarzerierten Leistenbruchs?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Notfall-Operation mit Bruchlückenverschluss", "is_correct": true},
+      {"text": "Manuelle Reposition unter Analgesie", "is_correct": false},
+      {"text": "Konservative Therapie mit Leistenbandage", "is_correct": false},
+      {"text": "Antibiotische Therapie", "is_correct": false},
+      {"text": "Perkutane Drainage", "is_correct": false}
+    ],
+    "explanation_de": "Bei inkarzerierter Hernie besteht Strangulationsgefahr mit Darmischämie. Die Notfall-OP mit Reposition und Bruchlückenverschluss (mit oder ohne Mesh) ist die definitive Therapie.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["hernie", "inkarzeration", "notfall-op"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welches Karzinom ist am häufigsten mit einer Helicobacter-pylori-Infektion assoziiert?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Magenkarzinom", "is_correct": true},
+      {"text": "Kolorektales Karzinom", "is_correct": false},
+      {"text": "Pankreaskarzinom", "is_correct": false},
+      {"text": "Leberzellkarzinom", "is_correct": false},
+      {"text": "MALT-Lymphom", "is_correct": false}
+    ],
+    "explanation_de": "H. pylori ist ein Klasse-1-Karzinogen für das Magenkarzinom. Es ist auch mit dem MALT-Lymphom assoziiert, aber das Magenkarzinom ist insgesamt häufiger.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["hpylori", "magenkarzinom", "tumor"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welche der folgenden Verletzungen ist am häufigsten mit einer Leberverletzung kombiniert?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Milzruptur", "is_correct": false},
+      {"text": "Nierenverletzung", "is_correct": false},
+      {"text": "Rippenfraktur", "is_correct": true},
+      {"text": "Beckenfraktur", "is_correct": false},
+      {"text": "Wirbelfraktur", "is_correct": false}
+    ],
+    "explanation_de": "Rippenfrakturen (insbesondere 7-10) sind die häufigste Begleitverletzung bei Leberverletzungen, da die Leber direkt unter dem rechten Rippenbogen liegt.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["leber", "trauma", "rippenfraktur"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welches ist das charakteristische Zeichen einer Peritonitis in der klinischen Untersuchung?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Loslassschmerz", "is_correct": true},
+      {"text": "Druckschmerz", "is_correct": false},
+      {"text": "Klopfschmerz", "is_correct": false},
+      {"text": "Spontanschmerz", "is_correct": false},
+      {"text": "Ausstrahlender Schmerz", "is_correct": false}
+    ],
+    "explanation_de": "Der Loslassschmerz (Blumberg-Zeichen) ist das klinische Leitsymptom der Peritonitis. Er zeigt eine gereizte und entzündete Peritonealoberfläche an.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["peritonitis", "klinische-untersuchung", "akut abdomen"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welche Schmerzlokalisation ist typisch für eine akute Cholezystitis?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Rechter Oberbauch mit Ausstrahlung in die rechte Schulter", "is_correct": true},
+      {"text": "Linker Oberbauch mit Ausstrahlung in den Rücken", "is_correct": false},
+      {"text": "Rechter Unterbauch", "is_correct": false},
+      {"text": "Periumbilikal", "is_correct": false},
+      {"text": "Diffus mit Übelkeit", "is_correct": false}
+    ],
+    "explanation_de": "Der Schmerz bei Cholezystitis liegt typischerweise im rechten Oberbauch mit Ausstrahlung in die rechte Schulter (phrenicus-Phänomen) und/oder den Rücken.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["cholezystitis", "schmerz", "gallengang"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was versteht man unter dem Begleitzirkulation genannten Phänomen bei einem Verschlussikterus?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Erweiterung der intrahepatischen Gallengänge proximal des Verschlusses", "is_correct": true},
+      {"text": "Umgehungskreislauf über die Leberkapsel", "is_correct": false},
+      {"text": "Portokavale Anastomosen", "is_correct": false},
+      {"text": "Erweiterung der Pfortader", "is_correct": false},
+      {"text": "Bildung von Gallensteinen", "is_correct": false}
+    ],
+    "explanation_de": "Die Begleitzirkulation bezeichnet die Erweiterung der intrahepatischen Gallengänge proximal einer Stenose/Verschluss. Dies ist sonographisch und im MRCP nachweisbar.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["ikterus", "gallengang", "verschluss"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Welches ist der häufigste Erreger postoperativer Wundinfektionen?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Staphylococcus aureus", "is_correct": true},
+      {"text": "Escherichia coli", "is_correct": false},
+      {"text": "Pseudomonas aeruginosa", "is_correct": false},
+      {"text": "Enterococcus faecalis", "is_correct": false},
+      {"text": "Klebsiella pneumoniae", "is_correct": false}
+    ],
+    "explanation_de": "Staphylococcus aureus (einschließlich MRSA) ist der häufigste Erreger postoperativer Wundinfektionen. E. coli ist der häufigste Erreger bei intraabdominellen Infektionen.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["wundinfektion", "erreger", "postoperativ"]
+  },
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist die wichtigste Sofortmaßnahme bei einer schweren oberen gastrointestinalen Blutung?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"text": "Notfall-Ösophagogastroduodenoskopie (ÖGD)", "is_correct": true},
+      {"text": "Volumenersatz mit kristalloiden Lösungen", "is_correct": false},
+      {"text": "Transfusion von Erythrozytenkonzentraten", "is_correct": false},
+      {"text": "Sengstaken-Blakemore-Sonde", "is_correct": false},
+      {"text": "Protonenpumpenhemmer intravenös", "is_correct": false}
+    ],
+    "explanation_de": "Bei einer schweren oberen GI-Blutung ist die Notfall-ÖGD die wichtigste Maßnahme, da sie sowohl diagnostisch als auch therapeutisch (Clip, Unterspritzung, Ligatur) ist.",
+    "year": null,
+    "exam_location": null,
+    "tags": ["gi-blutung", "oed", "notfall"]
+  }
+]
