@@ -274,13 +274,12 @@ async def _background_db_sync():
     except Exception as e:
         logger.error(f"Background migration error: {e}")
     
-    # Auto-seed questions from JSON file
+    # Auto-seed questions from JSON file (only on fresh DB)
     try:
         seed_file = os.path.join(os.path.dirname(__file__), "seed_questions.json")
         if os.path.exists(seed_file):
             current_count = await db.questions.count_documents({})
-            SEED_TOTAL = 2345
-            if current_count < SEED_TOTAL:
+            if current_count == 0:
                 import json as json_lib
                 with open(seed_file, 'r', encoding='utf-8') as f:
                     seed_questions = json_lib.load(f)
