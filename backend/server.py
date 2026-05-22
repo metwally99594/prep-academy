@@ -2248,7 +2248,9 @@ def _search_image_db(query: str, limit: int = 4) -> list:
     for _, e in scored:
         if e["thumbnail"] not in seen:
             seen.add(e["thumbnail"])
-            result.append({k: v for k, v in e.items() if k != "keywords"})
+            item = {k: v for k, v in e.items() if k != "keywords"}
+            item["_source"] = "local_db"
+            result.append(item)
             if len(result) >= limit:
                 break
     return result
@@ -2273,7 +2275,7 @@ async def _search_openverse(query: str, limit: int = 4) -> list:
                 title = item.get("title", "") or "Medical image"
                 landing = item.get("foreign_landing_url", "")
                 if img_url and any(img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".gif", ".svg"]):
-                    results.append({"title": title, "thumbnail": thumb, "url": landing or img_url})
+                    results.append({"title": title, "thumbnail": thumb, "url": landing or img_url, "_source": "openverse"})
             return results[:limit]
     except Exception:
         return []
@@ -2301,7 +2303,7 @@ async def _search_wikimedia(query: str, limit: int = 4) -> list:
                     title = item.get("title", "").replace("File:", "")
                     if title.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".gif")) and title not in seen:
                         seen.add(title)
-                        results.append({"title": title, "thumbnail": f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=300", "url": f"https://commons.wikimedia.org/wiki/File:{title}"})
+                        results.append({"title": title, "thumbnail": f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=300", "url": f"https://commons.wikimedia.org/wiki/File:{title}", "_source": "wikimedia"})
                         if len(results) >= limit:
                             return results
     except Exception:
@@ -2331,7 +2333,7 @@ async def _search_wikipedia_pageimage(query: str, limit: int = 3) -> list:
                         thumb = page.get("thumbnail", {}).get("source", "")
                         if thumb and thumb not in seen:
                             seen.add(thumb)
-                            results.append({"title": f"{title} ({lang})", "thumbnail": thumb, "url": f"https://{lang}.wikipedia.org/wiki/{title.replace(' ', '_')}"})
+                            results.append({"title": f"{title} ({lang})", "thumbnail": thumb, "url": f"https://{lang}.wikipedia.org/wiki/{title.replace(' ', '_')}", "_source": "wikipedia"})
                             if len(results) >= limit:
                                 return results
         except Exception:
@@ -2340,10 +2342,26 @@ async def _search_wikipedia_pageimage(query: str, limit: int = 3) -> list:
 
 
 async def _search_medical_images(query: str, limit: int = 3) -> list:
-    """3-tier search: local DB (instant, guaranteed) → Openverse + Wikimedia (parallel)."""
+    """3-tier search: local DB (instant, guaranteed) → Openverse + Wikimedia + Wikipedia (parallel)."""
+    import time, hashlib
+    start = time.time()
+    q_key = hashlib.md5(query.encode()).hexdigest()[:12]
+
+    # Try cache first
+    try:
+        cached = await db.image_cache.find_one({"q": q_key})
+        if cached and cached.get("results"):
+            return cached["results"][:limit]
+    except Exception:
+        pass
+
     db_results = _search_image_db(query, limit)
     results = list(db_results)
     if len(results) >= limit:
+        try:
+            await db.image_cache.update_one({"q": q_key}, {"$set": {"results": results, "ts": time.time()}}, upsert=True)
+        except Exception:
+            pass
         return results[:limit]
 
     seen = {e["thumbnail"]: True for e in results}
@@ -2363,12 +2381,33 @@ async def _search_medical_images(query: str, limit: int = 3) -> list:
                         seen[key] = True
                         results.append(item)
                         if len(results) >= limit:
-                            return results[:limit]
+                            break
             except Exception:
                 pass
-    if results:
-        return results[:limit]
-    return db_results[:limit] or [{"title": "Medical diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"}]
+    if len(results) < limit:
+        needed = limit - len(results)
+        for entry in MEDICAL_IMAGES[:needed + 2]:
+            if len(results) >= limit:
+                break
+            item = {"title": entry["title"], "thumbnail": entry["thumbnail"], "url": entry["url"], "_source": "fallback"}
+            if item["thumbnail"] not in seen:
+                seen[item["thumbnail"]] = True
+                results.append(item)
+
+    latency = int((time.time() - start) * 1000)
+    try:
+        await db.image_search_log.insert_one({
+            "query": query, "q_key": q_key, "results": len(results),
+            "sources": list(set(r.get("_source", "?") for r in results)),
+            "latency_ms": latency, "ts": time.time()
+        })
+    except Exception:
+        pass
+    try:
+        await db.image_cache.update_one({"q": q_key}, {"$set": {"results": results, "ts": time.time()}}, upsert=True)
+    except Exception:
+        pass
+    return results[:limit]
 
 
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
