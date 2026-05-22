@@ -2409,8 +2409,9 @@ def _fire_and_forget(coro):
 
 async def _or_call_single(*, or_model: str, system_msg: str, user_msg: str, max_tokens: int, or_key: str) -> str:
     """Single OpenRouter call — wrapped by retry_async for resilience."""
-    import re as _re, httpx
-    async with httpx.AsyncClient(timeout=55.0) as client:
+    import re as _re, httpx, time as _time
+    start = _time.time()
+    async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
@@ -2421,9 +2422,13 @@ async def _or_call_single(*, or_model: str, system_msg: str, user_msg: str, max_
                   "max_tokens": max_tokens, "temperature": 0.4},
         )
         d = r.json()
+        latency = _time.time() - start
         if "choices" in d and d["choices"]:
             content = d["choices"][0]["message"]["content"] or ""
-            return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+            result = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+            logger.info(f"[OR] {or_model} ok {round(latency*1000)}ms len={len(result)}")
+            return result
+        logger.warning(f"[OR] {or_model} fail {r.status_code} {round(latency*1000)}ms: {str(d)[:150]}")
         _record_model_failure(or_model)
         raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
 
@@ -2484,7 +2489,7 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         "claude-sonnet": "anthropic/claude-sonnet-4-5-20250929",
         "gemini-flash": "google/gemma-4-31b-it:free",
     }
-    or_model = models.get(model_key, "meta-llama/llama-3.3-70b-instruct:free")
+    or_model = models.get(model_key, "google/gemma-4-31b-it:free")
     or_cfg = RetryConfig(max_attempts=3, base_delay=0.5, max_delay=5.0, jitter=True)
     try:
         result = await retry_async(

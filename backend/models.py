@@ -131,19 +131,19 @@ class StatsResponse(BaseModel):
 class AIExplainRequest(BaseModel):
     question_id: str
     user_question: Optional[str] = None
-    model: Optional[str] = "gpt-4o"
+    model: Optional[str] = "gemini-flash"
     language: Optional[str] = "de"
 
 class AIChatRequest(BaseModel):
     question_id: str
     user_message: str
     context: Optional[str] = None
-    model: Optional[str] = "gpt-4o"
+    model: Optional[str] = "gemini-flash"
     language: Optional[str] = "de"
 
 class AITutorRequest(BaseModel):
     user_message: str
-    model: Optional[str] = "metsu"
+    model: Optional[str] = "gemini-flash"
     language: Optional[str] = "de"
 
 class CustomQuizRequest(BaseModel):
