@@ -374,6 +374,7 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
         "notebook_enabled": True,
         "analyzer_enabled": True,
         "podcast_enabled": True,
+        "ai_enabled": False,
     }
     await db.users.insert_one(user_doc)
     await db.user_stats.insert_one({
@@ -2594,6 +2595,7 @@ async def _increment_ai_quota(user_id: str):
 @api_router.post("/ai/explain")
 @limiter.limit("30/minute;200/hour")
 async def ai_explain(request: Request, body: AIExplainRequest, user: dict = Depends(get_current_user)):
+    await check_ai_access(user)
     await _check_ai_quota(user["id"])
     question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
@@ -2625,6 +2627,7 @@ Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wi
 @limiter.limit("20/minute;200/hour;500/day")
 async def ai_chat(request: Request, body: AIChatRequest, user: dict = Depends(get_current_user)):
     """Interactive AI chat for medical questions - multi-model, multi-language"""
+    await check_ai_access(user)
     await _check_ai_quota(user["id"])
     question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
@@ -3083,6 +3086,7 @@ async def admin_import_history(
 @limiter.limit("10/minute;100/hour;300/day")
 async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(get_current_user)):
     """Medical AI tutor with RAG — searches 3112 exam questions + Wikipedia medical knowledge"""
+    await check_ai_access(user)
     await _check_ai_quota(user["id"])
     try:
         lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
@@ -4354,6 +4358,40 @@ async def toggle_podcast_access(user_id: str, user: dict = Depends(get_current_u
     return {"user_id": user_id, "podcast_enabled": new_val}
 
 
+# ── AI Access ─────────────────────────────────────────────────────
+
+async def check_ai_access(user: dict):
+    """Check if user has AI tutor access (admin always does)."""
+    if user.get("is_admin"):
+        return True
+    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "ai_enabled": 1})
+    if not u or not u.get("ai_enabled"):
+        raise HTTPException(status_code=403, detail="KI-Zugang nicht freigeschaltet. Kontaktieren Sie den Administrator.")
+    return True
+
+
+@api_router.get("/ai/access")
+async def get_ai_access(user: dict = Depends(get_current_user)):
+    try:
+        await check_ai_access(user)
+        return {"access": True}
+    except HTTPException:
+        raise
+
+
+@api_router.post("/admin/ai/toggle/{user_id}")
+async def toggle_ai_access(user_id: str, user: dict = Depends(get_current_user)):
+    """Admin: Enable/disable AI access for a user."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Nur für Administratoren")
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    new_val = not target.get("ai_enabled", False)
+    await db.users.update_one({"id": user_id}, {"$set": {"ai_enabled": new_val}})
+    return {"user_id": user_id, "ai_enabled": new_val}
+
+
 # ── Unified permissions PATCH (for future use) ────────────────────
 
 @api_router.patch("/admin/users/{user_id}/permissions")
@@ -4361,7 +4399,7 @@ async def set_user_permissions(user_id: str, body: dict, user: dict = Depends(ge
     """Admin: Set multiple feature permissions at once."""
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Nur für Administratoren")
-    allowed = {"notebook_enabled", "analyzer_enabled", "podcast_enabled"}
+    allowed = {"notebook_enabled", "analyzer_enabled", "podcast_enabled", "ai_enabled"}
     updates = {k: bool(v) for k, v in body.items() if k in allowed}
     if not updates:
         raise HTTPException(status_code=400, detail="Keine gültigen Felder")

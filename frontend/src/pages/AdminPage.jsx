@@ -715,6 +715,17 @@ export default function AdminPage() {
     }
   };
 
+  const toggleAI = async (userId) => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.post(`${API}/admin/ai/toggle/${userId}`, {}, { headers });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, ai_enabled: res.data.ai_enabled } : u));
+      toast.success(res.data.ai_enabled ? "KI freigeschaltet" : "KI gesperrt");
+    } catch (error) {
+      toast.error("Fehler beim Ändern des KI-Zugangs");
+    }
+  };
+
   const fetchDuplicates = async () => {
     setLoadingDupes(true);
     setSelectedDupes([]);
@@ -1355,6 +1366,7 @@ export default function AdminPage() {
                     <TableHead className="text-center">Notebook</TableHead>
                     <TableHead className="text-center">Analyzer</TableHead>
                     <TableHead className="text-center">Podcast</TableHead>
+                    <TableHead className="text-center">KI</TableHead>
                     <TableHead className="w-24">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1388,7 +1400,10 @@ export default function AdminPage() {
                         {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.analyzer_enabled} onCheckedChange={() => toggleAnalyzer(user.id)} data-testid={`analyzer-toggle-${index}`} />}
                       </TableCell>
                       <TableCell className="text-center">
-                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.podcast_enabled} onCheckedChange={() => togglePodcast(user.id)} data-testid={`podcast-toggle-${index}`} />}
+                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.podcast_enabled} onCheckedChange={() => togglePodcast(user.id)} data-testid={`podcast-toggle-${index}`} />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.ai_enabled} onCheckedChange={() => toggleAI(user.id)} data-testid={`ai-toggle-${index}`} />
                       </TableCell>
                       <TableCell>
                         {!user.is_admin && (

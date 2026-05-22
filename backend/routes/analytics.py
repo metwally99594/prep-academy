@@ -9,11 +9,13 @@ FEATURE_FIELD_MAP = {
     "notebook": "notebook_enabled",
     "analyzer": "analyzer_enabled",
     "podcast":  "podcast_enabled",
+    "ai":       "ai_enabled",
 }
 FEATURE_LABELS = {
     "notebook": "PDF Notebook",
     "analyzer": "Medical Analyzer",
     "podcast":  "Daily Podcast",
+    "ai":       "AI Tutor",
 }
 
 
@@ -105,6 +107,7 @@ def make_analytics_router(db, get_current_user, get_admin_user):
                 "notebook_enabled": u.get("notebook_enabled", False),
                 "analyzer_enabled": u.get("analyzer_enabled", False),
                 "podcast_enabled":  u.get("podcast_enabled",  False),
+                "ai_enabled":       u.get("ai_enabled",       False),
                 "score":            score,
                 "tier":             tier,
                 "total_questions":  total_q,
@@ -174,7 +177,7 @@ def make_analytics_router(db, get_current_user, get_admin_user):
 
         if days_inactive > 14:
             rec = f"Inaktiv seit {days_inactive} Tagen. Erinnerung oder Re-Engagement empfohlen."
-        elif total_q > 200 and acc > 75 and not all([u.get("notebook_enabled"), u.get("analyzer_enabled"), u.get("podcast_enabled")]):
+        elif total_q > 200 and acc > 75 and not all([u.get("notebook_enabled"), u.get("analyzer_enabled"), u.get("podcast_enabled"), u.get("ai_enabled")]):
             rec = f"Engagierter Benutzer ({total_q} Fragen, {acc}% Genauigkeit). Empfehle: Alle Funktionen freischalten."
         elif total_q > 50 and cur_streak >= 5:
             rec = f"Aktiver Lernender ({cur_streak}-Tage-Streak). Guter Kandidat für Premium-Funktionen."
