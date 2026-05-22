@@ -926,6 +926,10 @@ export default function AdminPage() {
             <Headphones className="w-4 h-4" />
             Daily Podcast
           </TabsTrigger>
+          <TabsTrigger value="online" className="gap-2">
+            <Wifi className="w-4 h-4" />
+            Online
+          </TabsTrigger>
           {process.env.REACT_APP_ADVANCED === "true" && (
             <TabsTrigger value="rag" className="gap-2" data-testid="rag-tab">
               <ShieldCheck className="w-4 h-4" />
@@ -1627,6 +1631,57 @@ export default function AdminPage() {
 
         <TabsContent value="podcast">
           <AdminPodcastTab token={token} />
+        </TabsContent>
+
+        <TabsContent value="online">
+          <div className="glass-card rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Wifi className="w-5 h-5 text-emerald-500" />
+                Online-Status
+              </h2>
+              <span className="text-sm text-muted-foreground">
+                {onlineUsers.filter(u => u.is_online).length} online
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">Status</TableHead>
+                    <TableHead>Benutzer</TableHead>
+                    <TableHead>E-Mail</TableHead>
+                    <TableHead>Letzte Aktivit��t</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {onlineUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        Keine Aktivit��tsdaten vorhanden
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    onlineUsers.sort((a, b) => b.is_online - a.is_online).map((u, i) => (
+                      <TableRow key={u.user_id || i}>
+                        <TableCell>
+                          {u.is_online
+                            ? <Wifi className="w-5 h-5 text-emerald-500" />
+                            : <WifiOff className="w-5 h-5 text-muted-foreground/40" />
+                          }
+                        </TableCell>
+                        <TableCell className="font-medium">{u.name || '?'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{u.email || '?'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {u.last_active ? new Date(u.last_active).toLocaleString('de-DE') : '?'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </TabsContent>
 
         {process.env.REACT_APP_ADVANCED === "true" && (
