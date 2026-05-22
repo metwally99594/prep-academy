@@ -2490,26 +2490,43 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         "gemini-flash": "google/gemma-4-31b-it:free",
     }
     or_model = models.get(model_key, "google/gemma-4-31b-it:free")
-    or_cfg = RetryConfig(max_attempts=3, initial_delay=0.5, max_delay=5.0, jitter=True)
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        start = _time.time()
-        r = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
-                     "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
-            json={"model": or_model,
-                  "messages": [{"role": "system", "content": system_msg},
-                                {"role": "user", "content": user_msg}],
-                  "max_tokens": max_tokens, "temperature": 0.4},
-        )
-        latency = _time.time() - start
-        d = r.json()
-        logger.warning(f"[OR-DEBUG] {or_model} {r.status_code} {round(latency*1000)}ms resp={str(d)[:300]}")
-        if "choices" in d and d["choices"]:
-            content = (d["choices"][0].get("message") or {}).get("content") or ""
-            if content.strip():
-                return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
-        raise HTTPException(status_code=503, detail=f"OpenRouter {r.status_code}: {str(d)[:300]}")
+    last_error = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                start = _time.time()
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                             "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+                    json={"model": or_model,
+                          "messages": [{"role": "system", "content": system_msg},
+                                        {"role": "user", "content": user_msg}],
+                          "max_tokens": max_tokens, "temperature": 0.4},
+                )
+                latency = _time.time() - start
+                d = r.json()
+                logger.info(f"[OR] {or_model} {r.status_code} {round(latency*1000)}ms")
+                if r.status_code == 429:
+                    msg = d.get("error", {}).get("message", "Rate limit exceeded")
+                    logger.warning(f"[OR] 429 attempt {attempt+1}/3: {msg}")
+                    last_error = msg
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                if "choices" in d and d["choices"]:
+                    content = (d["choices"][0].get("message") or {}).get("content") or ""
+                    result = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+                    if result:
+                        return result
+                last_error = f"OpenRouter {r.status_code}: {str(d)[:200]}"
+                raise HTTPException(status_code=503, detail=last_error)
+        except HTTPException:
+            raise
+        except Exception as e:
+            last_error = str(e)
+            logger.warning(f"[OR] attempt {attempt+1}/3 failed: {e}")
+            await asyncio.sleep(2 ** attempt)
+    raise HTTPException(status_code=503, detail=f"AI-Versand fehlgeschlagen: {last_error}")
 
 
 @api_router.get("/ai/models")
@@ -2551,14 +2568,12 @@ Richtige Antworten: {', '.join(correct_choices)}
 
 Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wichtig sind."""
         response = await _or_text(system_msg, prompt, max_tokens=800, model_key=body.model)
-        if not response:
-            return {"explanation": None, "model": body.model, "language": body.language, "error": "AI returned empty response"}
         return {"explanation": response, "model": body.model, "language": body.language}
-    except HTTPException as he:
-        return {"explanation": None, "model": body.model, "language": body.language, "error": he.detail}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"AI explain error: {e}")
-        return {"explanation": None, "model": body.model, "language": body.language, "error": str(e)}
+        raise HTTPException(status_code=500, detail="Failed to generate AI explanation")
 
 @api_router.post("/ai/chat")
 @limiter.limit("20/minute;200/hour;500/day")
