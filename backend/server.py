@@ -1,7 +1,7 @@
 import sys, traceback as _tb
 
 try:
-    from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, BackgroundTasks
+    from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, BackgroundTasks, Query
     from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
     from starlette.middleware.cors import CORSMiddleware
     from starlette.middleware.base import BaseHTTPMiddleware
@@ -2625,6 +2625,112 @@ async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
                 skipped += 1
         await asyncio.sleep(0.5)
     return {"seeded": seeded, "skipped": skipped, "total": len(top_topics)}
+
+
+@api_router.post("/admin/questions/cleanup-surgery-only")
+async def admin_cleanup_surgery_only(
+    dry_run: bool = Query(True, description="If true, only report counts without deleting"),
+    confirm: str = Query(None, description="Set to 'I_AM_SURE' to execute"),
+    admin: dict = Depends(get_admin_user),
+):
+    """⚠️ DELETE all non-surgery questions. Protected by: admin auth, feature flag, dry_run default, confirmation token."""
+    if os.environ.get("ENABLE_ADMIN_MAINTENANCE", "").lower() != "true":
+        raise HTTPException(status_code=403, detail="Maintenance mode disabled. Set ENABLE_ADMIN_MAINTENANCE=true")
+    import time
+    start = time.time()
+    backup_id = f"backup_surgery_cleanup_{int(start)}"
+
+    total = await db.questions.count_documents({})
+    surgery_count = await db.questions.count_documents({"specialty_id": "surgery"})
+    non_surgery_count = total - surgery_count
+    specialties_pipeline = [{"$group": {"_id": "$specialty_id", "count": {"$sum": 1}}}]
+    specialties = await db.questions.aggregate(specialties_pipeline).to_list(100)
+    non_surgery_ids = []
+    if non_surgery_count > 0:
+        non_surgery_ids = [
+            q["id"] async for q in db.questions.find(
+                {"specialty_id": {"$ne": "surgery"}}, {"id": 1, "_id": 0}
+            )
+        ]
+    related_counts = {}
+    for coll in ["favorites", "wrong_answers", "notes", "spaced_repetition"]:
+        coll_refs = await db[coll].count_documents({"question_id": {"$in": non_surgery_ids}}) if non_surgery_ids else 0
+        related_counts[coll] = coll_refs
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "total_questions": total,
+            "surgery_questions": surgery_count,
+            "to_delete": non_surgery_count,
+            "remaining_after": surgery_count,
+            "specialties": {s["_id"]: s["count"] for s in specialties},
+            "related_docs_to_delete": related_counts,
+            "message": "Run with dry_run=false&confirm=I_AM_SURE to execute",
+        }
+    if confirm != "I_AM_SURE":
+        raise HTTPException(status_code=400, detail="Set confirm=I_AM_SURE to proceed")
+
+    # Backup full questions collection into a backup document
+    all_questions = await db.questions.find({}, {"_id": 0}).to_list(total)
+    await db.backups.insert_one({
+        "backup_id": backup_id,
+        "type": "full_backup_before_surgery_cleanup",
+        "created_at": start,
+        "count": len(all_questions),
+        "questions": all_questions,
+    })
+
+    # Delete non-surgery questions
+    delete_result = await db.questions.delete_many({"specialty_id": {"$ne": "surgery"}})
+    deleted = delete_result.deleted_count
+
+    # Cleanup related collections
+    deleted_related = {}
+    for coll in ["favorites", "wrong_answers", "notes", "spaced_repetition"]:
+        if non_surgery_ids:
+            r = await db[coll].delete_many({"question_id": {"$in": non_surgery_ids}})
+            deleted_related[coll] = r.deleted_count
+        else:
+            deleted_related[coll] = 0
+
+    # Recalculate user_stats: zero out removed specialties
+    all_remaining_ids = [q["id"] async for q in db.questions.find({}, {"id": 1, "_id": 0})]
+    remaining_set = set(all_remaining_ids)
+    async for stat in db.user_stats.find({}):
+        updates = {}
+        if "by_specialty" in stat:
+            for sp in list(stat["by_specialty"].keys()):
+                if sp != "surgery":
+                    updates[f"by_specialty.{sp}"] = {"total": 0, "correct": 0}
+        if updates:
+            await db.user_stats.update_one({"_id": stat["_id"]}, {"$set": updates})
+
+    # Audit log
+    await db.audit_logs.insert_one({
+        "action": "admin_cleanup_surgery_only",
+        "actor_id": admin.get("id"),
+        "actor_email": admin.get("email"),
+        "target_type": "system",
+        "details": {
+            "deleted_questions": deleted,
+            "remaining_questions": surgery_count,
+            "deleted_related": deleted_related,
+            "backup_id": backup_id,
+        },
+        "created_at": start,
+    })
+
+    duration_ms = int((time.time() - start) * 1000)
+    return {
+        "deleted_questions": deleted,
+        "remaining_questions": surgery_count,
+        "deleted_related_docs": deleted_related,
+        "backup_id": backup_id,
+        "duration_ms": duration_ms,
+        "message": "Cleanup complete. Only surgery questions remain.",
+    }
+
 
 @api_router.post("/ai/tutor")
 @limiter.limit("10/minute;100/hour;300/day")
