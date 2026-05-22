@@ -41,6 +41,7 @@ from models import (
     AIExplainRequest, AIChatRequest, AITutorRequest, CustomQuizRequest, SpecialtyResponse,
     NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest,
     AccessRequestCreate, AccessRequestUpdate, ContactRequestCreate,
+    QuestionImportItem, QuestionImportRequest, ValidationError, QuestionImportLog,
 )
 from auth import (
     hash_password, verify_password, create_token,
@@ -2744,6 +2745,155 @@ async def admin_cleanup_surgery_only(
         return await asyncio.wait_for(_execute_cleanup(), timeout=120.0)
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Cleanup timed out after 120s — check MongoDB load or run again")
+
+
+# ── Question Management System (QMS) ──
+
+import re as _qms_re, hashlib as _qms_h, json as _qms_j
+
+def _normalize_question_text(text: str) -> str:
+    """Normalize for duplicate detection: lowercase, strip, collapse whitespace, remove punctuation."""
+    t = text.lower().strip()
+    t = _qms_re.sub(r'[^\w\säöüßÄÖÜ]', '', t)
+    t = _qms_re.sub(r'\s+', ' ', t)
+    return t.strip()
+
+def _question_hash(text: str) -> str:
+    return _qms_h.sha256(_normalize_question_text(text).encode()).hexdigest()
+
+def _validate_question(item: QuestionImportItem, index: int) -> list:
+    errors = []
+    if not item.specialty_id or not item.specialty_id.strip():
+        errors.append({"index": index, "field": "specialty_id", "message": "specialty_id is required"})
+    if not item.question_text_de or not item.question_text_de.strip():
+        errors.append({"index": index, "field": "question_text_de", "message": "question_text_de is required"})
+    if not item.choices_de or len(item.choices_de) < 2:
+        errors.append({"index": index, "field": "choices_de", "message": "At least 2 choices are required"})
+    else:
+        choice_ids = []
+        has_correct = False
+        for ci, c in enumerate(item.choices_de):
+            cid = c.get("id", "")
+            if cid in choice_ids:
+                errors.append({"index": index, "field": f"choices_de[{ci}].id", "message": f"Duplicate choice ID: {cid}"})
+            choice_ids.append(cid)
+            if c.get("is_correct"):
+                has_correct = True
+        if not has_correct:
+            errors.append({"index": index, "field": "choices_de", "message": "At least one correct answer required"})
+    if item.explanation_de is not None and not item.explanation_de.strip():
+        errors.append({"index": index, "field": "explanation_de", "message": "Explanation cannot be empty string (omit if not needed)"})
+    if item.question_text_de and len(item.question_text_de.strip()) < 5:
+        errors.append({"index": index, "field": "question_text_de", "message": "Question text too short (min 5 chars)"})
+    return errors
+
+@api_router.post("/admin/questions/validate")
+async def admin_validate_questions(
+    body: QuestionImportRequest,
+    admin: dict = Depends(get_admin_user),
+):
+    """Validate an array of questions without importing. Returns per-item errors."""
+    all_errors = []
+    seen_hashes = set()
+    for i, q in enumerate(body.questions):
+        errors = _validate_question(q, i)
+        if not errors:
+            h = _question_hash(q.question_text_de)
+            if h in seen_hashes:
+                errors.append({"index": i, "field": "question_text_de", "message": "Duplicate within this batch"})
+            seen_hashes.add(h)
+            existing = await db.questions.find_one({"_question_hash": h}, {"id": 1})
+            if existing:
+                errors.append({"index": i, "field": "question_text_de", "message": f"Duplicate of existing question (id: {existing['id']})"})
+        all_errors.extend(errors)
+    return {
+        "valid": len(all_errors) == 0,
+        "total": len(body.questions),
+        "valid_count": len(body.questions) - len({e["index"] for e in all_errors}),
+        "error_count": len({e["index"] for e in all_errors}),
+        "errors": all_errors,
+    }
+
+@api_router.post("/admin/questions/import")
+async def admin_import_questions(
+    body: QuestionImportRequest,
+    admin: dict = Depends(get_admin_user),
+):
+    """Bulk import questions with validation + duplicate detection."""
+    import time, uuid
+    start = time.time()
+    all_errors = []
+    imported = []
+    skipped = 0
+    seen_hashes = set()
+
+    for i, q in enumerate(body.questions):
+        errors = _validate_question(q, i)
+        if errors:
+            all_errors.extend(errors)
+            continue
+        h = _question_hash(q.question_text_de)
+        if h in seen_hashes:
+            all_errors.append({"index": i, "field": "question_text_de", "message": "Duplicate within this batch"})
+            skipped += 1
+            continue
+        seen_hashes.add(h)
+        existing = await db.questions.find_one({"_question_hash": h}, {"id": 1})
+        if existing:
+            all_errors.append({"index": i, "field": "question_text_de", "message": f"Duplicate of existing question (id: {existing['id']})"})
+            skipped += 1
+            continue
+        doc = {
+            "id": str(uuid.uuid4()),
+            "specialty_id": q.specialty_id.strip(),
+            "question_text_de": q.question_text_de.strip(),
+            "question_type": q.question_type or "mcq",
+            "choices_de": q.choices_de,
+            "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
+            "year": q.year,
+            "exam_location": q.exam_location,
+            "tags": q.tags or [],
+            "_question_hash": h,
+            "created_at": time.time(),
+        }
+        imported.append(doc)
+
+    if imported:
+        await db.questions.insert_many(imported, ordered=False)
+
+    duration_ms = int((time.time() - start) * 1000)
+    log_entry = {
+        "id": str(uuid.uuid4()),
+        "admin_email": admin.get("email"),
+        "filename": body.filename or "paste",
+        "imported_count": len(imported),
+        "skipped_duplicates": skipped,
+        "validation_errors": len({e["index"] for e in all_errors}),
+        "errors": all_errors,
+        "created_at": start,
+        "duration_ms": duration_ms,
+    }
+    await db.question_import_logs.insert_one(log_entry)
+
+    return {
+        "imported": len(imported),
+        "skipped_duplicates": skipped,
+        "validation_errors": len({e["index"] for e in all_errors}),
+        "errors": all_errors[:50],
+        "duration_ms": duration_ms,
+        "import_log_id": log_entry["id"],
+    }
+
+@api_router.get("/admin/questions/import-history")
+async def admin_import_history(
+    limit: int = Query(20, ge=1, le=100),
+    admin: dict = Depends(get_admin_user),
+):
+    """View recent import logs."""
+    logs = await db.question_import_logs.find(
+        {}, {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    return {"logs": logs, "total": len(logs)}
 
 
 @api_router.post("/ai/tutor")

@@ -130,10 +130,49 @@ const emptyQuestion = {
 };
 
 function ImportQuestionsTab({ token, onImportComplete }) {
+  const [mode, setMode] = useState("file");
   const [file, setFile] = useState(null);
+  const [pasteJson, setPasteJson] = useState("");
+  const [parsedQuestions, setParsedQuestions] = useState(null);
   const [preview, setPreview] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [result, setResult] = useState(null);
+  const [validationResult, setValidationResult] = useState(null);
+  const [history, setHistory] = useState(null);
+
+  useEffect(() => {
+    axios.get(`${API}/admin/questions/import-history?limit=10`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(r => setHistory(r.data.logs)).catch(() => {});
+  }, [token, result]);
+
+  const parseQuestions = (data) => {
+    if (!Array.isArray(data)) {
+      toast.error("JSON muss ein Array von Fragen sein");
+      return null;
+    }
+    const items = data.map(q => ({
+      specialty_id: q.specialty_id || q.fach || q.specialty || "",
+      question_text_de: q.question_text_de || q.question_text || q.question || q.frage || q.text || "",
+      question_type: q.question_type || "mcq",
+      choices_de: q.choices_de || q.choices || [],
+      explanation_de: q.explanation_de || q.explanation || null,
+      year: q.year || null,
+      exam_location: q.exam_location || null,
+      tags: q.tags || [],
+    }));
+    const specs = {};
+    items.forEach(q => {
+      const sid = q.specialty_id || "unknown";
+      specs[sid] = (specs[sid] || 0) + 1;
+    });
+    setParsedQuestions(items);
+    setPreview({ total: items.length, specialties: specs, sample: items.slice(0, 3) });
+    setResult(null);
+    setValidationResult(null);
+    return items;
+  };
 
   const handleFileSelect = (e) => {
     const f = e.target.files[0];
@@ -143,22 +182,11 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       return;
     }
     setFile(f);
-    setResult(null);
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        if (Array.isArray(data)) {
-          const specs = {};
-          data.forEach(q => {
-            const sid = (q.specialty_id || q.fach || q.specialty || 'unknown').toLowerCase().trim();
-            specs[sid] = (specs[sid] || 0) + 1;
-          });
-          setPreview({ total: data.length, specialties: specs, sample: data.slice(0, 3) });
-        } else {
-          toast.error("JSON muss eine Liste von Fragen sein");
-          setFile(null);
-        }
+        parseQuestions(data);
       } catch {
         toast.error("Ungültige JSON-Datei");
         setFile(null);
@@ -167,206 +195,219 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     reader.readAsText(f);
   };
 
-  const handleImport = async () => {
-    if (!file) return;
-    setImporting(true);
-    setResult(null);
+  const handlePaste = () => {
+    if (!pasteJson.trim()) { toast.error("Bitte JSON einfügen"); return; }
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.post(`${API}/admin/import-questions`, formData, { headers, timeout: 120000 });
+      const data = JSON.parse(pasteJson);
+      parseQuestions(data);
+    } catch {
+      toast.error("Ungültiges JSON");
+    }
+  };
+
+  const handleValidate = async () => {
+    if (!parsedQuestions || parsedQuestions.length === 0) { toast.error("Keine Fragen zum Validieren"); return; }
+    setValidating(true);
+    try {
+      const res = await axios.post(
+        `${API}/admin/questions/validate`,
+        { questions: parsedQuestions, filename: file?.name || "paste" },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 30000 }
+      );
+      setValidationResult(res.data);
+      if (res.data.valid) {
+        toast.success(`${res.data.valid_count} Fragen gültig ✓`);
+      } else {
+        toast.error(`${res.data.error_count} Fragen haben Fehler`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Validierung fehlgeschlagen");
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!parsedQuestions || parsedQuestions.length === 0) { toast.error("Keine Fragen zum Importieren"); return; }
+    setImporting(true);
+    try {
+      const res = await axios.post(
+        `${API}/admin/questions/import`,
+        { questions: parsedQuestions, filename: file?.name || "paste" },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 120000 }
+      );
       setResult(res.data);
-      toast.success(`${res.data.imported} Fragen erfolgreich importiert!`);
+      toast.success(`${res.data.imported} Fragen importiert!`);
       if (onImportComplete) onImportComplete();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || "Import fehlgeschlagen");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Import fehlgeschlagen");
     } finally {
       setImporting(false);
     }
   };
 
-  const handleClear = () => { setFile(null); setPreview(null); setResult(null); };
+  const handleClear = () => {
+    setFile(null);
+    setPasteJson("");
+    setParsedQuestions(null);
+    setPreview(null);
+    setResult(null);
+    setValidationResult(null);
+  };
 
   return (
-    <div className="glass-card rounded-2xl p-6">
-      <h2 className="text-xl font-semibold mb-2">Fragen importieren</h2>
-      <p className="text-sm text-muted-foreground mb-6">
-        Laden Sie eine JSON-Datei mit Fragen hoch. Doppelte Fragen werden automatisch übersprungen.
-      </p>
-      <details className="mb-6 rounded-xl border border-border overflow-hidden">
-        <summary className="flex items-center justify-between px-4 py-3 bg-muted/40 cursor-pointer select-none hover:bg-muted/70 transition-colors">
-          <span className="text-sm font-semibold">JSON-Format Dokumentation</span>
-          <span className="text-xs text-muted-foreground">▾ aufklappen</span>
-        </summary>
-
-        <div className="p-4 space-y-5">
-
-          {/* MCQ / Multi-Select */}
-          <div>
-            <p className="font-semibold text-sm mb-2">──── JSON-Format (MCQ / Multi-Select) ────</p>
-            <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">{`[
-  {
-    "specialty_id": "surgery",
-    "question_text_de": "Was ist...?",
-    "question_type": "mcq",
-    "choices_de": [
-      {"id": "a", "text": "Antwort A", "is_correct": false},
-      {"id": "b", "text": "Antwort B", "is_correct": true}
-    ],
-    "correct_answers": ["b"],
-    "year": 2024,
-    "exam_location": "vienna",
-    "explanation_de": "Erklärung...",
-    "image_base64": "data:image/png;base64,..."
-  }
-]`}</pre>
-          </div>
-
-          {/* Drag & Drop */}
-          <div>
-            <p className="font-semibold text-sm mb-2">──── JSON-Format (Drag &amp; Drop / Kategorisierung) ────</p>
-            <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">{`{
-  "specialty_id": "internal",
-  "question_type": "drag_drop",
-  "question_text_de": "Ordnen Sie die Symptome zu.",
-  "interactive_data": {
-    "items": [
-      {"id": "i1", "text_de": "Brustschmerz"},
-      {"id": "i2", "text_de": "Schwindel beim Aufstehen"}
-    ],
-    "categories": [
-      {"id": "cat_a", "label_de": "Kardial"},
-      {"id": "cat_b", "label_de": "Harmlos"}
-    ],
-    "correct_mapping": {"i1": "cat_a", "i2": "cat_b"}
-  },
-  "year": 2025,
-  "exam_location": "vienna"
-}`}</pre>
-          </div>
-
-          {/* Fill in the blank */}
-          <div>
-            <p className="font-semibold text-sm mb-2">──── JSON-Format (Lückentext) ────</p>
-            <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">{`{
-  "specialty_id": "internal",
-  "question_type": "fill_blank",
-  "question_text_de": "Beschriften Sie die Herzkammern.",
-  "interactive_data": {
-    "prompt_de": "Tragen Sie den korrekten Begriff ein:",
-    "blanks": [
-      {
-        "id": "b1",
-        "label": "1",
-        "hint_de": "Oben rechts",
-        "correct_answers": ["Rechter Vorhof", "RA"],
-        "case_sensitive": false
-      }
-    ]
-  },
-  "year": 2025,
-  "exam_location": "vienna"
-}`}</pre>
-          </div>
-
-          {/* Erlaubte Werte */}
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm space-y-2">
-            <p className="font-semibold">──── Erlaubte Werte ────</p>
-            <p>
-              <span className="font-medium">Fragetypen:&nbsp;</span>
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">mcq</code>{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">multi_select</code>{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">drag_drop</code>{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">categorize</code>{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">fill_blank</code>
-            </p>
-            <p>
-              <span className="font-medium">Specialty IDs:&nbsp;</span>
-              <span className="text-muted-foreground text-xs">
-                surgery, internal, ophthalmology, dermatology, ent, obgyn, neurology, emergency, pediatrics, psychiatry
-              </span>
-            </p>
-            <p>
-              <span className="font-medium">Orte:&nbsp;</span>
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">vienna</code>{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">innsbruck</code>{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">andere</code>
-            </p>
-          </div>
-
+    <div className="glass-card rounded-2xl p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Fragen importieren</h2>
+          <p className="text-sm text-muted-foreground">
+            JSON importieren, validieren und direkt in MongoDB speichern
+          </p>
         </div>
-      </details>
-      {!file ? (
-        <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-primary/30 rounded-2xl cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-all" data-testid="import-dropzone">
+      </div>
+
+      {/* Mode switcher */}
+      {!parsedQuestions && (
+        <div className="flex gap-3">
+          <Button variant={mode === "file" ? "default" : "outline"} onClick={() => setMode("file")} className="gap-2">
+            <Upload className="w-4 h-4" /> Datei hochladen
+          </Button>
+          <Button variant={mode === "paste" ? "default" : "outline"} onClick={() => setMode("paste")} className="gap-2">
+            <Copy className="w-4 h-4" /> JSON einfügen
+          </Button>
+        </div>
+      )}
+
+      {/* File upload */}
+      {mode === "file" && !parsedQuestions && (
+        <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-primary/30 rounded-2xl cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-all">
           <Upload className="w-10 h-10 text-primary/50 mb-3" />
           <span className="text-sm font-medium text-primary">JSON-Datei auswählen</span>
           <span className="text-xs text-muted-foreground mt-1">oder hierher ziehen</span>
-          <input type="file" accept=".json" className="hidden" onChange={handleFileSelect} data-testid="import-file-input" />
+          <input type="file" accept=".json" className="hidden" onChange={handleFileSelect} />
         </label>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-xl bg-primary/5 border border-primary/20">
-            <div className="flex items-center gap-3">
-              <FileQuestion className="w-8 h-8 text-primary" />
-              <div>
-                <div className="font-medium">{file.name}</div>
-                <div className="text-sm text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</div>
-              </div>
-            </div>
-            <Button variant="ghost" size="icon" onClick={handleClear} data-testid="import-clear-btn">
-              <X className="w-4 h-4" />
-            </Button>
+      )}
+
+      {/* Paste JSON */}
+      {mode === "paste" && !parsedQuestions && (
+        <div className="space-y-3">
+          <Textarea
+            placeholder='[{&quot;specialty_id&quot;: &quot;surgery&quot;, &quot;question_text_de&quot;: &quot;...&quot;, ...}]'
+            className="min-h-[200px] font-mono text-sm"
+            value={pasteJson}
+            onChange={(e) => setPasteJson(e.target.value)}
+          />
+          <Button onClick={handlePaste} className="gap-2 w-full">
+            <Copy className="w-4 h-4" /> Fragen parsen
+          </Button>
+        </div>
+      )}
+
+      {/* Preview */}
+      {preview && !result && (
+        <div className="p-4 rounded-xl bg-muted/50 border border-border">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium">{preview.total} Fragen gefunden</h3>
+            <Button variant="ghost" size="sm" onClick={handleClear}><X className="w-4 h-4" /></Button>
           </div>
-          {preview && !result && (
-            <div className="p-4 rounded-xl bg-muted/50 border border-border">
-              <h3 className="font-medium mb-3">Vorschau: {preview.total} Fragen</h3>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {Object.entries(preview.specialties).map(([id, count]) => (
-                  <span key={id} className="px-2 py-1 rounded-full bg-primary/10 text-xs font-medium">{id}: {count}</span>
-                ))}
-              </div>
-              {preview.sample.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Beispiel-Fragen:</p>
-                  {preview.sample.map((q, i) => (
-                    <div key={i} className="text-xs p-2 rounded-lg bg-background border border-border truncate">
-                      {q.question_text_de || q.question || q.frage || q.text || '(Kein Text)'}
-                    </div>
-                  ))}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {Object.entries(preview.specialties).map(([id, count]) => (
+              <span key={id} className="px-2 py-1 rounded-full bg-primary/10 text-xs font-medium">{id}: {count}</span>
+            ))}
+          </div>
+          {preview.sample.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Beispiel:</p>
+              {preview.sample.map((q, i) => (
+                <div key={i} className="text-xs p-2 rounded-lg bg-background border border-border truncate">
+                  {q.question_text_de || '(Kein Text)'}
                 </div>
-              )}
+              ))}
             </div>
           )}
-          {result && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20" data-testid="import-result">
-              <h3 className="font-medium text-emerald-600 mb-2">Import abgeschlossen!</h3>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div className="text-center p-2 rounded-lg bg-background">
-                  <div className="text-xl font-bold text-emerald-600">{result.imported}</div>
-                  <div className="text-xs text-muted-foreground">Importiert</div>
-                </div>
-                <div className="text-center p-2 rounded-lg bg-background">
-                  <div className="text-xl font-bold text-amber-500">{result.skipped}</div>
-                  <div className="text-xs text-muted-foreground">Übersprungen</div>
-                </div>
-                <div className="text-center p-2 rounded-lg bg-background">
-                  <div className="text-xl font-bold text-primary">{result.total_in_db}</div>
-                  <div className="text-xs text-muted-foreground">Gesamt in DB</div>
-                </div>
+        </div>
+      )}
+
+      {/* Validation errors */}
+      {validationResult && !validationResult.valid && !result && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+          <h3 className="font-medium text-red-600 mb-2">Validierungsfehler ({validationResult.error_count})</h3>
+          <div className="max-h-48 overflow-y-auto space-y-1 text-sm">
+            {validationResult.errors.slice(0, 30).map((e, i) => (
+              <div key={i} className="p-2 rounded bg-red-500/5 text-red-700 text-xs">
+                Frage #{e.index + 1} — <strong>{e.field}</strong>: {e.message}
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Validation passed */}
+      {validationResult && validationResult.valid && !result && (
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+          <h3 className="font-medium text-emerald-600 mb-1">✓ {validationResult.valid_count} Fragen gültig</h3>
+          <p className="text-xs text-muted-foreground">Keine Validierungsfehler</p>
+        </div>
+      )}
+
+      {/* Import result */}
+      {result && (
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+          <h3 className="font-medium text-emerald-600 mb-2">Import abgeschlossen!</h3>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="text-center p-2 rounded-lg bg-background">
+              <div className="text-xl font-bold text-emerald-600">{result.imported}</div>
+              <div className="text-xs text-muted-foreground">Importiert</div>
             </div>
-          )}
-          {!result && (
-            <Button onClick={handleImport} disabled={importing} className="w-full h-12 gap-2" data-testid="import-submit-btn">
-              {importing ? (<><Loader2 className="w-5 h-5 animate-spin" />Importiere {preview?.total || 0} Fragen...</>) : (<><Upload className="w-5 h-5" />{preview?.total || 0} Fragen importieren</>)}
-            </Button>
-          )}
-          {result && (
-            <Button variant="outline" onClick={handleClear} className="w-full gap-2" data-testid="import-another-btn">
-              <Upload className="w-4 h-4" /> Weitere Fragen importieren
-            </Button>
-          )}
+            <div className="text-center p-2 rounded-lg bg-background">
+              <div className="text-xl font-bold text-amber-500">{result.skipped_duplicates}</div>
+              <div className="text-xs text-muted-foreground">Duplikate</div>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-background">
+              <div className="text-xl font-bold text-red-500">{result.validation_errors}</div>
+              <div className="text-xs text-muted-foreground">Fehler</div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Dauer: {result.duration_ms}ms</p>
+        </div>
+      )}
+
+      {/* Actions */}
+      {preview && !result && (
+        <div className="flex gap-3">
+          <Button onClick={handleValidate} disabled={validating} variant="outline" className="flex-1 gap-2">
+            {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+            Validieren
+          </Button>
+          <Button onClick={handleImport} disabled={importing} className="flex-1 gap-2">
+            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {importing ? `Importiere...` : `${preview.total} Fragen importieren`}
+          </Button>
+        </div>
+      )}
+      {result && (
+        <Button variant="outline" onClick={handleClear} className="w-full gap-2">
+          <Upload className="w-4 h-4" /> Weitere Fragen importieren
+        </Button>
+      )}
+
+      {/* Import history */}
+      {history && history.length > 0 && (
+        <div className="border-t border-border pt-4 mt-4">
+          <h3 className="font-medium mb-3">Letzte Importe</h3>
+          <div className="space-y-2 text-sm">
+            {history.map((log, i) => (
+              <div key={log.id || i} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                <div>
+                  <span className="font-medium">{log.filename}</span>
+                  <span className="text-muted-foreground ml-2">
+                    {log.imported_count} importiert, {log.skipped_duplicates} übersprungen
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">{log.duration_ms}ms</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

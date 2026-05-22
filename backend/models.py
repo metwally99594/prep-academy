@@ -371,3 +371,36 @@ class ContactRequestCreate(BaseModel):
     phone: Optional[str] = Field(None, max_length=40)
     message: Optional[str] = Field(None, max_length=1000)
     feature_pack: Optional[str] = "advanced_features"
+
+
+# ── Question Management System (QMS) Models ──
+
+class QuestionImportItem(BaseModel):
+    specialty_id: str
+    question_text_de: str
+    question_type: str = "mcq"
+    choices_de: List[dict]
+    explanation_de: Optional[str] = None
+    year: Optional[int] = None
+    exam_location: Optional[str] = None
+    tags: Optional[List[str]] = []
+
+class QuestionImportRequest(BaseModel):
+    questions: List[QuestionImportItem]
+    filename: Optional[str] = "paste"
+
+class ValidationError(BaseModel):
+    index: int
+    field: str
+    message: str
+
+class QuestionImportLog(BaseModel):
+    id: str
+    admin_email: str
+    filename: str
+    imported_count: int
+    skipped_duplicates: int
+    validation_errors: int
+    errors: List[ValidationError]
+    created_at: float
+    duration_ms: int
