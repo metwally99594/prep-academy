@@ -2012,84 +2012,154 @@ def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
 
-TOPIC_FALLBACKS = {
-    "heart": [
-        {"title": "Heart diagram (anterior view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Heart_diagram-en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg"},
-        {"title": "Heart cross-section", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Diagram_of_the_human_heart_(cropped).svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Diagram_of_the_human_heart_(cropped).svg"},
-        {"title": "Heart wall layers", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0470_HeartWall.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0470_HeartWall.png"},
-        {"title": "Heart electrical conduction", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/ECG_principle_slow.gif?width=300", "url": "https://commons.wikimedia.org/wiki/File:ECG_principle_slow.gif"},
-    ],
-    "brain": [
-        {"title": "Brain anatomy (lateral view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Brain_human_normal_inferior_view_with_labels_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Brain_human_normal_inferior_view_with_labels_en.svg"},
-        {"title": "Brain lobes diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Lobes_of_the_brain_NL.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Lobes_of_the_brain_NL.svg"},
-        {"title": "Brain cross-section", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0906_Brain_CrossSection.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0906_Brain_CrossSection.png"},
-        {"title": "Cranial nerves", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Brain_stem+thalamus+basal_ganglia.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Brain_stem+thalamus+basal_ganglia.png"},
-    ],
-    "lung": [
-        {"title": "Lung anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Respiratory_system_complete_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Respiratory_system_complete_en.svg"},
-        {"title": "Bronchial tree", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Bronchial_tree.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Bronchial_tree.svg"},
-        {"title": "Alveoli structure", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Alveolus_diagram.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Alveolus_diagram.svg"},
-    ],
-    "skeleton": [
-        {"title": "Human skeleton front", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"},
-        {"title": "Human skeleton back", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_back_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_back_en.svg"},
-        {"title": "Skull anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skull_front_views.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skull_front_views.svg"},
-    ],
-    "muscle": [
-        {"title": "Muscular system front", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Muscular_system_front.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Muscular_system_front.svg"},
-        {"title": "Muscular system back", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Muscular_system_back.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Muscular_system_back.svg"},
-    ],
-    "kidney": [
-        {"title": "Kidney anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Kidney_PioM.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Kidney_PioM.svg"},
-        {"title": "Nephron diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Nephron_structure.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Nephron_structure.svg"},
-    ],
-    "eye": [
-        {"title": "Eye anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Schematic_diagram_of_the_human_eye_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Schematic_diagram_of_the_human_eye_en.svg"},
-        {"title": "Retina structure", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Retina_array.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Retina_array.svg"},
-    ],
-    "ear": [
-        {"title": "Ear anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Anatomy_of_the_Human_Ear.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Anatomy_of_the_Human_Ear.svg"},
-        {"title": "Inner ear", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Inner_ear_diagram.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Inner_ear_diagram.svg"},
-    ],
-    "skin": [
-        {"title": "Skin anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Skin_anatomy.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Skin_anatomy.svg"},
-        {"title": "Skin layers", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0353_Integumentary_System.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0353_Integumentary_System.png"},
-    ],
-    "stomach": [
-        {"title": "Stomach anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Stomach_anatomy.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Stomach_anatomy.svg"},
-        {"title": "Digestive system", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Digestive_system_diagram_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Digestive_system_diagram_en.svg"},
-    ],
-    "liver": [
-        {"title": "Liver anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Liver_anatomy.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Liver_anatomy.svg"},
-        {"title": "Liver segments", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Gray1224.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Gray1224.png"},
-    ],
-    "spine": [
-        {"title": "Spine anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Spinal_column_lateral.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Spinal_column_lateral.svg"},
-        {"title": "Vertebra structure", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Vertebra.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Vertebra.svg"},
-    ],
-}
+# ── Medical Image Database (curated, verified Wikimedia Commons) ──
+MEDICAL_IMAGES = []
 
-def _detect_image_topic(query: str) -> str:
+def _img(title, file, kw):
+    MEDICAL_IMAGES.append({
+        "title": title,
+        "thumbnail": f"https://commons.wikimedia.org/wiki/Special:FilePath/{file}?width=300",
+        "url": f"https://commons.wikimedia.org/wiki/File:{file}",
+        "keywords": [k.strip().lower() for k in kw.split(",")],
+    })
+
+# Cardiovascular
+_img("Heart diagram anterior view", "Heart_diagram-en.svg", "heart, herz, قلب, cardiac, kardio")
+_img("Heart cross-section", "Diagram_of_the_human_heart_(cropped).svg", "heart, herz, قلب, atrium, ventricle, klappe")
+_img("Heart wall layers", "Blausen_0470_HeartWall.png", "heart wall, herzwand, جدار, myocard, endocard, pericard")
+_img("Heart electrical conduction", "ECG_principle_slow.gif", "ecg, ekg, conduction, herz, كهربية, قلب, reizleitung")
+_img("Coronary arteries", "Coronary_arteries.svg", "coronary, kranzarterie, تاجي, herzkranz")
+_img("Heart valves", "Heart_valves.svg", "heart valve, herzklappe, صمام")
+
+# Brain / CNS
+_img("Brain anatomy lateral view", "Brain_human_normal_inferior_view_with_labels_en.svg", "brain, hirn, دماغ, مخ, zerebral, cerebral")
+_img("Brain lobes", "Lobes_of_the_brain_NL.svg", "brain lobes, hirnlappen, فص مخ, lobe, cortex")
+_img("Brain cross-section", "Blausen_0906_Brain_CrossSection.png", "brain cross, hirnschnitt, مقطع, basal ganglia, thalamus")
+_img("Cranial nerves", "Brain_stem+thalamus+basal_ganglia.png", "cranial nerve, himnerv, عصب قحفي")
+_img("Neuron structure", "Neuron_Hand-tuned.svg", "neuron, nervenzelle, عصبون, synapse, dendrit, axon")
+_img("Cerebrospinal fluid circulation", "Cerebrospinal_fluid_circulation.png", "csf, liquor, سائل دماغي, ventricle")
+_img("Circle of Willis", "Circle_of_Willis_en.svg", "circle of willis, himn, arterie, دماغي")
+
+# Respiratory
+_img("Respiratory system overview", "Respiratory_system_complete_en.svg", "lung, lunge, رئة, respir, breathing, pulmonary")
+_img("Bronchial tree", "Bronchial_tree.svg", "bronchial, bronchus, شعب, trachea, alveole")
+_img("Alveoli gas exchange", "Alveolus_diagram.svg", "alveole, alveolus, حويصلة, gas exchange, sauerstoff")
+_img("Lung lobes", "Lung_segments.png", "lung lobe, lungenlappen, فص رئوي, segment")
+_img("Pleura", "Pleura.svg", "pleura, pleural, غشاء جنبي, lungenfell")
+
+# Skeleton
+_img("Human skeleton anterior", "Human_skeleton_front_en.svg", "skeleton, skelett, هيكل, عظمي, bone, knochen")
+_img("Human skeleton posterior", "Human_skeleton_back_en.svg", "skeleton back, skelet rückseite")
+_img("Skull anatomy", "Human_skull_front_views.svg", "skull, schädel, جمجمة, cranium")
+_img("Vertebral column", "Spinal_column_lateral.svg", "spine, wirbelsäule, عمود فقري, vertebra")
+_img("Vertebra structure", "Vertebra.svg", "vertebra, فقرة, spinal, knochen")
+_img("Bone structure", "Bone_cross-section.svg", "bone, knochen, عظم, compacta, spongiosa")
+
+# Muscular
+_img("Muscular system anterior", "Muscular_system_front.svg", "muscle, muskel, عضلة, muskulatur")
+_img("Muscular system posterior", "Muscular_system_back.svg", "muscle back, عضلات ظهر")
+_img("Skeletal muscle", "Skeletal_muscle_structure.svg", "skeletal muscle, عضلة هيكلية, myofibril")
+_img("Neuromuscular junction", "Neuromuscular_junction.svg", "neuromuscular, motor endplate, موصل عصبي")
+
+# Kidney / Urinary
+_img("Kidney anatomy", "Kidney_PioM.svg", "kidney, niere, كلية, renal, nephron")
+_img("Nephron structure", "Nephron_structure.svg", "nephron, glomerulus, tubule, كلية, filtration")
+_img("Urinary system", "Urinary_system.svg", "urinary, harn, بول, ureter, bladder")
+_img("Renal blood supply", "Kidney_blood_supply.jpg", "renal artery, شريان كلوي, kidney blood")
+
+# Eye
+_img("Eye anatomy", "Schematic_diagram_of_the_human_eye_en.svg", "eye, auge, عين, okular, sehorgan, œil")
+_img("Retina structure", "Retina_array.svg", "retina, netzhaut, شبكية, rod, cone")
+_img("Lens accommodation", "Eye_lens_accommodation.svg", "lens, linse, عدسة, accommodation, katarakt")
+
+# Ear
+_img("Ear anatomy", "Anatomy_of_the_Human_Ear.svg", "ear, ohr, أذن, cochlea, hör, oreille")
+_img("Inner ear", "Inner_ear_diagram.svg", "inner ear, innenohr, أذن داخلية, vestibul")
+
+# Skin
+_img("Skin anatomy", "Skin_anatomy.svg", "skin, haut, جلد, derma, cutan, epidermis")
+_img("Integumentary system", "Blausen_0353_Integumentary_System.png", "integument, hautorgan, dermis, follicle")
+
+# Gastrointestinal
+_img("Stomach anatomy", "Stomach_anatomy.svg", "stomach, magen, معدة, gastr, bauch")
+_img("Digestive system", "Digestive_system_diagram_en.svg", "digestive, verdauung, هضم, intestin, darm")
+_img("Small intestine", "Small_intestine.svg", "small intestine, dünndarm, أمعاء دقيقة, duodenum")
+_img("Large intestine", "Large_intestine.svg", "large intestine, dickdarm, أمعاء غليظة, colon")
+
+# Liver
+_img("Liver anatomy", "Liver_anatomy.svg", "liver, leber, كبد, hepat, hépatique")
+_img("Liver segments", "Gray1224.png", "liver segment, lebersegment, كبد, couinaud")
+
+# Endocrine
+_img("Endocrine system", "Endocrine_system.svg", "endocrine, endokrin, غدد صماء, hormon")
+_img("Thyroid anatomy", "Thyroid_system.svg", "thyroid, schilddrüse, غدة درقية")
+_img("Pancreas anatomy", "Pancreas_anatomy.svg", "pancreas, pankreas, بنكرياس, insulin, langerhans")
+_img("Adrenal gland", "Adrenal_gland.svg", "adrenal, nebenniere, كظر, adrenalin, kortisol")
+
+# Vascular
+_img("Artery vs vein", "Artery_vein_cross_section.png", "artery, arterie, شريان, vein, vene, وريد, gefäß")
+_img("Capillary bed", "Capillary_bed.svg", "capillary, kapillare, شعيرة, blut")
+_img("Lymphatic system", "Lymphatic_system.svg", "lymph, lymphatisch, لمفاوي, lymphknoten")
+_img("Aorta", "Aorta.svg", "aorta, aort, أبهر, hauptschlagader")
+
+# Reproductive
+_img("Female reproductive system", "Female_reproductive_system.svg", "female, weiblich, أنثى, uterus, ovar, cervix")
+_img("Male reproductive system", "Male_reproductive_system.svg", "male, männlich, ذكر, testis, prostata")
+_img("Fetal development", "Fetal_development_stages.svg", "fetal, föt, جنين, embryo, schwangerschaft")
+
+# Microbiology
+_img("Bacteria cell", "Bacteria_cell_structure.svg", "bacteria, bakterie, بكتيريا, prokaryot, germ")
+_img("Virus structure", "HIV_virus.svg", "virus, فيروس, viral, hiv, virolog")
+_img("Gram stain", "Gram_stain.svg", "gram, gramfärbung, صبغة جرام")
+
+# Genetics
+_img("DNA double helix", "DNA_double_helix.svg", "dna, desoxyribonukleinsäure, حمض نووي, genetik")
+_img("Chromosome structure", "Chromosome.svg", "chromosome, chromosom, كروموسوم, mitosis")
+_img("Protein synthesis", "Protein_synthesis.svg", "protein, تخليق بروتين, translation, transcription")
+
+# Cell biology
+_img("Animal cell", "Animal_cell_structure.svg", "cell, zelle, خلية, zytologie, organelle, membrane")
+_img("Mitosis stages", "Mitosis_stages.svg", "mitosis, mitose, انقسام, zellteilung")
+_img("Meiosis", "Meiosis_stages.svg", "meiosis, meiose, انقسام اختزالي, gamet")
+
+# Hematology
+_img("Blood cell types", "Blood_cells.svg", "blood, blut, دم, erythrozyt, leukozyt, thrombocyt")
+_img("Hematopoiesis", "Hematopoiesis.svg", "hematopoiesis, hämatopoese, تكون الدم, stammzelle")
+_img("Coagulation cascade", "Coagulation_cascade.svg", "coagulation, gerinnung, تخثر, thrombus")
+
+# ENT
+_img("Nasal cavity and sinuses", "Nasal_cavity.svg", "nose, nase, أنف, sinuses, nebenhöhle")
+_img("Pharynx and larynx", "Pharynx_larynx.svg", "pharynx, larynx, بلعوم, حنجرة, kehlkopf")
+_img("Tonsils", "Tonsils.svg", "tonsil, mandel, لوزة, waldeyer")
+
+# Teeth
+_img("Tooth anatomy", "Tooth_anatomy.svg", "tooth, zahn, سن, dentin, enamel, karies")
+_img("Dental arch", "Dental_arch.svg", "dental, zahnbogen, أسنان, incisor, molar")
+
+# Special / imaging
+_img("MRI scanner", "MRI_scanner.svg", "mri, mrt, رنين, kernspin, tomographie")
+_img("X-ray chest normal", "Chest_Xray_PA.svg", "xray, röntgen, أشعة, chest, thorax, radiologie")
+_img("CT scan", "CT_scan.svg", "ct, computertomographie, مقطعي")
+_img("Dermatome map", "Dermatome_map.svg", "dermatome, dermatom, segment, hautfelder")
+_img("Autonomic nervous system", "Autonomic_nervous_system.svg", "autonomic, autonom, sympathetic, parasympathetic")
+_img("Spinal cord cross-section", "Spinal_cord_cross_section.svg", "spinal cord, rückenmark, حبل شوكي, pyramidenbahn")
+_img("Reflex arc", "Reflex_arc.svg", "reflex, reflexbogen, منعكس, monosynaptisch")
+
+def _search_image_db(query: str, limit: int = 4) -> list:
     import re
     q = query.lower()
-    topics = {
-        "heart": ["herz", "heart", "cardiac", "kardio", "قلب", "kardiologie", "koronar", "myokard", "herzkammer", "vorhof", "klappe"],
-        "brain": ["hirn", "brain", "gehirn", "zerebral", "neuron", "cerebr", "دماغ", "مخ", "kopfschmerz", "schädel"],
-        "lung": ["lung", "lunge", "pulmo", "respir", "bronch", "alveol", "رئة", "رئوي", "pneumo"],
-        "skeleton": ["skelett", "skeleton", "knochen", "bone", "skull", "schädel", "wirbel", "هيكل", "عظم"],
-        "muscle": ["muskel", "muscle", "muskulatur", "عضلة", "عضلات"],
-        "kidney": ["niere", "kidney", "renal", "nephr", "كلية", "كلى"],
-        "eye": ["auge", "eye", "okular", "retina", "cornea", "عين", "sehnerv"],
-        "ear": ["ohr", "ear", "cochlea", "hör", "أذن", "اذن"],
-        "skin": ["haut", "skin", "derma", "cutan", "جلد", "epidermis"],
-        "stomach": ["magen", "stomach", "gastr", "bauch", "معدة", "digest"],
-        "liver": ["leber", "liver", "hepat", "كبد"],
-        "spine": ["wirbelsäule", "spine", "spinal", "vertebr", "عمود", "فقري"],
-    }
-    for topic, keywords in topics.items():
-        if any(kw in q for kw in keywords):
-            return topic
-    return "general"
+    tokens = set(re.findall(r'[\wÄäÖöÜüßآ-ي]+', q))
+    scored = []
+    seen = set()
+    for e in MEDICAL_IMAGES:
+        score = sum(1 for kw in e["keywords"] if kw in q or any(kw in t or t in kw for t in tokens))
+        if score > 0 and e["thumbnail"] not in seen:
+            seen.add(e["thumbnail"])
+            scored.append((score, e))
+    scored.sort(key=lambda x: -x[0])
+    return [e for _, e in scored[:limit]]
+
+# ── Openverse (AUTO-FALLBACK, only if DB fails) ──
 
 
 async def _search_openverse(query: str, limit: int = 4) -> list:
@@ -2144,40 +2214,32 @@ async def _search_wikimedia(query: str, limit: int = 4) -> list:
 
 
 async def _search_medical_images(query: str, limit: int = 3) -> list:
-    """Multi-source medical image search: Openverse + Wikimedia + topic fallbacks."""
-    topic = _detect_image_topic(query)
-    wiki_results, openv_results = [], []
+    """3-tier search: local DB (instant, guaranteed) → Openverse + Wikimedia (parallel)."""
+    from_db = _search_image_db(query, limit)
+    if len(from_db) >= limit:
+        return from_db[:limit]
+
+    seen = {e["thumbnail"]: True for e in from_db}
+    results = list(from_db)
     import asyncio
-    wiki_task = asyncio.create_task(_search_wikimedia(query, limit + 1))
-    openv_task = asyncio.create_task(_search_openverse(query, limit + 1))
-    done, _ = await asyncio.wait([wiki_task, openv_task], timeout=12.0)
-    for t in done:
-        try:
-            res = t.result()
-            if t == wiki_task:
-                wiki_results = res
-            else:
-                openv_results = res
-        except Exception:
-            pass
-
-    seen = set()
-    results = []
-    for item in wiki_results + openv_results:
-        key = item.get("thumbnail", "") or item.get("url", "")
-        if key not in seen:
-            seen.add(key)
-            results.append(item)
-        if len(results) >= limit:
-            return results
-
-    if not results:
-        topic = _detect_image_topic(query)
-        if topic in TOPIC_FALLBACKS:
-            results = TOPIC_FALLBACKS[topic][:limit]
-        else:
-            results = [v for vals in TOPIC_FALLBACKS.values() for v in vals][:limit]
-    return results
+    tasks = {
+        "w": asyncio.create_task(_search_wikimedia(query, limit + 2)),
+        "o": asyncio.create_task(_search_openverse(query, limit + 2)),
+    }
+    done, _ = await asyncio.wait(list(tasks.values()), timeout=10.0)
+    for tag, t in tasks.items():
+        if t in done:
+            try:
+                for item in t.result():
+                    key = item.get("thumbnail", "") or item.get("url", "")
+                    if key not in seen:
+                        seen[key] = True
+                        results.append(item)
+                        if len(results) >= limit:
+                            return results[:limit]
+            except Exception:
+                pass
+    return results[:limit] if results else from_db[:limit] or [{"title": "Human anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"}]
 
 
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
