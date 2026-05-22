@@ -2522,6 +2522,13 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
                     if r.status_code == 402:
                         msg = d.get("error", {}).get("message", "Credit limit")
                         logger.warning(f"[OR] 402 {model}: {msg}")
+                        m2 = _re.search(r"can only afford (\d+)", msg)
+                        if m2:
+                            affordable = int(m2.group(1))
+                            if affordable > 10 and max_tokens > affordable:
+                                max_tokens = affordable
+                                logger.info(f"[OR] retrying {model} with max_tokens={affordable}")
+                                continue
                         last_error = msg
                         continue
                     if "choices" in d and d["choices"]:
