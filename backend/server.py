@@ -3100,7 +3100,7 @@ REGELN:
 6. Wenn du PubMed-Studien zitierst, nenne Journal und Jahr
 7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen
 8. Der Benutzer sieht nach deiner Antwort medizinische Bilder von Wikimedia Commons. Du kannst im Text darauf hinweisen, z.B. "siehe Abbildung unten" oder "die Bilder unten zeigen..."."""
-        response = await _or_text(system_message, body.user_message, max_tokens=1000, model_key=body.model)
+        response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
         images = await _search_medical_images(body.user_message)
         return {"response": response, "images": images, "model": body.model, "language": body.language,
                 "sources_questions": len(relevant_questions), "sources_knowledge": len(relevant_knowledge)}
