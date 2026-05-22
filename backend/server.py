@@ -22,6 +22,10 @@ from database import (
     LEVELS, SPECIALTIES, EXAM_LOCATIONS,
     get_level_info, compute_badges
 )
+import sys as _sys
+if not hasattr(db, 'name'):
+    _sys.stderr.write("CRITICAL: db object invalid — check MONGO_URL/DB_NAME env vars\n")
+    _sys.stderr.flush()
 from models import (
     UserCreate, UserLogin, UserResponse, GoogleAuthCallback,
     QuestionChoice, QuestionCreate, QuestionUpdate, QuestionResponse,
