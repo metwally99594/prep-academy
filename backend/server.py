@@ -2923,7 +2923,7 @@ async def admin_import_questions(
         "import_log_id": log_entry["id"],
     }
 
-@api_router.get("/admin/questions/import-history")
+@api_router.get("/admin/import-logs")
 async def admin_import_history(
     limit: int = Query(20, ge=1, le=100),
     admin: dict = Depends(get_admin_user),

@@ -142,7 +142,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   const [history, setHistory] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API}/admin/questions/import-history?limit=10`, {
+    axios.get(`${API}/admin/import-logs?limit=10`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(r => setHistory(r.data.logs)).catch(() => {});
   }, [token, result]);
