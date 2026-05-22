@@ -2671,65 +2671,79 @@ async def admin_cleanup_surgery_only(
     if confirm != "I_AM_SURE":
         raise HTTPException(status_code=400, detail="Set confirm=I_AM_SURE to proceed")
 
-    # Backup full questions collection into a backup document
-    all_questions = await db.questions.find({}, {"_id": 0}).to_list(total)
-    await db.backups.insert_one({
-        "backup_id": backup_id,
-        "type": "full_backup_before_surgery_cleanup",
-        "created_at": start,
-        "count": len(all_questions),
-        "questions": all_questions,
-    })
+    # ── Safeguard 1: Timeout protection ──
+    async def _execute_cleanup():
+        # Safeguard 3a: backup must succeed or abort
+        all_questions = await db.questions.find({}, {"_id": 0}).to_list(total)
+        if not all_questions:
+            raise HTTPException(status_code=500, detail="Backup failed — no questions retrieved from DB, aborting")
+        backup_result = await db.backups.insert_one({
+            "backup_id": backup_id,
+            "type": "full_backup_before_surgery_cleanup",
+            "created_at": start,
+            "count": len(all_questions),
+            "questions": all_questions,
+            # Safeguard 2: rich backup metadata
+            "backup_type": "questions_cleanup",
+            "specialties_before": {s["_id"]: s["count"] for s in specialties},
+            "question_count": total,
+            "created_by": admin.get("email"),
+        })
+        if not backup_result.acknowledged:
+            raise HTTPException(status_code=500, detail="Backup write was not acknowledged by MongoDB, aborting")
 
-    # Delete non-surgery questions
-    delete_result = await db.questions.delete_many({"specialty_id": {"$ne": "surgery"}})
-    deleted = delete_result.deleted_count
+        # Safeguard 3b: delete questions first, then related collections
+        delete_result = await db.questions.delete_many({"specialty_id": {"$ne": "surgery"}})
+        deleted = delete_result.deleted_count
 
-    # Cleanup related collections
-    deleted_related = {}
-    for coll in ["favorites", "wrong_answers", "notes", "spaced_repetition"]:
-        if non_surgery_ids:
-            r = await db[coll].delete_many({"question_id": {"$in": non_surgery_ids}})
-            deleted_related[coll] = r.deleted_count
-        else:
-            deleted_related[coll] = 0
+        # Only now clean up related collections (after questions are safely deleted)
+        deleted_related = {}
+        for coll in ["favorites", "wrong_answers", "notes", "spaced_repetition"]:
+            if non_surgery_ids:
+                r = await db[coll].delete_many({"question_id": {"$in": non_surgery_ids}})
+                deleted_related[coll] = r.deleted_count
+            else:
+                deleted_related[coll] = 0
 
-    # Recalculate user_stats: zero out removed specialties
-    all_remaining_ids = [q["id"] async for q in db.questions.find({}, {"id": 1, "_id": 0})]
-    remaining_set = set(all_remaining_ids)
-    async for stat in db.user_stats.find({}):
-        updates = {}
-        if "by_specialty" in stat:
-            for sp in list(stat["by_specialty"].keys()):
-                if sp != "surgery":
-                    updates[f"by_specialty.{sp}"] = {"total": 0, "correct": 0}
-        if updates:
-            await db.user_stats.update_one({"_id": stat["_id"]}, {"$set": updates})
+        # Recalculate user_stats: zero out removed specialties
+        async for stat in db.user_stats.find({}):
+            updates = {}
+            if "by_specialty" in stat:
+                for sp in list(stat["by_specialty"].keys()):
+                    if sp != "surgery":
+                        updates[f"by_specialty.{sp}"] = {"total": 0, "correct": 0}
+            if updates:
+                await db.user_stats.update_one({"_id": stat["_id"]}, {"$set": updates})
 
-    # Audit log
-    await db.audit_logs.insert_one({
-        "action": "admin_cleanup_surgery_only",
-        "actor_id": admin.get("id"),
-        "actor_email": admin.get("email"),
-        "target_type": "system",
-        "details": {
+        # Audit log
+        await db.audit_logs.insert_one({
+            "action": "admin_cleanup_surgery_only",
+            "actor_id": admin.get("id"),
+            "actor_email": admin.get("email"),
+            "target_type": "system",
+            "details": {
+                "deleted_questions": deleted,
+                "remaining_questions": surgery_count,
+                "deleted_related": deleted_related,
+                "backup_id": backup_id,
+            },
+            "created_at": start,
+        })
+
+        duration_ms = int((time.time() - start) * 1000)
+        return {
             "deleted_questions": deleted,
             "remaining_questions": surgery_count,
-            "deleted_related": deleted_related,
+            "deleted_related_docs": deleted_related,
             "backup_id": backup_id,
-        },
-        "created_at": start,
-    })
+            "duration_ms": duration_ms,
+            "message": "Cleanup complete. Only surgery questions remain.",
+        }
 
-    duration_ms = int((time.time() - start) * 1000)
-    return {
-        "deleted_questions": deleted,
-        "remaining_questions": surgery_count,
-        "deleted_related_docs": deleted_related,
-        "backup_id": backup_id,
-        "duration_ms": duration_ms,
-        "message": "Cleanup complete. Only surgery questions remain.",
-    }
+    try:
+        return await asyncio.wait_for(_execute_cleanup(), timeout=120.0)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Cleanup timed out after 120s — check MongoDB load or run again")
 
 
 @api_router.post("/ai/tutor")
