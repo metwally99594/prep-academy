@@ -1,14 +1,21 @@
 import sys, traceback as _tb
+_sys = sys
+
+_sys.stderr.write("=== CP0: server.py loaded ===\n")
+_sys.stderr.flush()
+
 try:
+    _sys.stderr.write("=== CP1: importing fastapi ===\n")
+    _sys.stderr.flush()
     from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, BackgroundTasks
     from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
     from starlette.middleware.cors import CORSMiddleware
     from starlette.middleware.base import BaseHTTPMiddleware
     from services.community_observability import set_correlation_id, get_correlation_id
-except Exception:
+except BaseException:
     _tb.print_exc()
-    sys.stderr.write("=== FATAL IMPORT ERROR (fastapi/starlette) ===\n")
-    sys.stderr.flush()
+    _sys.stderr.write("=== FATAL ERROR (fastapi import) ===\n")
+    _sys.stderr.flush()
     raise
 from starlette.responses import StreamingResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -25,19 +32,23 @@ import asyncio
 
 # Import shared modules
 try:
+    _sys.stderr.write("=== CP2: importing database ===\n")
+    _sys.stderr.flush()
     from database import (
         db, client, logger, JWT_SECRET, JWT_ALGORITHM,
         LEVELS, SPECIALTIES, EXAM_LOCATIONS,
         get_level_info, compute_badges
     )
-except Exception:
+except BaseException:
     _tb.print_exc()
-    sys.stderr.write("=== FATAL IMPORT ERROR (database) ===\n")
-    sys.stderr.flush()
+    _sys.stderr.write("=== FATAL ERROR (database import) ===\n")
+    _sys.stderr.flush()
     raise
 if not hasattr(db, 'name'):
-    sys.stderr.write("CRITICAL: db object invalid — check MONGO_URL/DB_NAME env vars\n")
-    sys.stderr.flush()
+    _sys.stderr.write("CRITICAL: db object invalid — check MONGO_URL/DB_NAME env vars\n")
+    _sys.stderr.flush()
+_sys.stderr.write("=== CP3: importing models ===\n")
+_sys.stderr.flush()
 from models import (
     UserCreate, UserLogin, UserResponse, GoogleAuthCallback,
     QuestionChoice, QuestionCreate, QuestionUpdate, QuestionResponse,
@@ -46,6 +57,8 @@ from models import (
     NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest,
     AccessRequestCreate, AccessRequestUpdate, ContactRequestCreate,
 )
+_sys.stderr.write("=== CP4: importing auth ===\n")
+_sys.stderr.flush()
 from auth import (
     hash_password, verify_password, create_token,
     get_current_user, get_admin_user, security
