@@ -2490,14 +2490,15 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         "gemini-flash": "google/gemma-4-31b-it:free",
     }
     or_model = models.get(model_key, "google/gemma-4-31b-it:free")
-    or_cfg = RetryConfig(max_attempts=3, base_delay=0.5, max_delay=5.0, jitter=True)
+    or_cfg = RetryConfig(max_attempts=3, initial_delay=0.5, max_delay=5.0, jitter=True)
     try:
         result = await retry_async(
-            _or_call_single,
+            lambda: _or_call_single(
+                or_model=or_model, system_msg=system_msg,
+                user_msg=user_msg, max_tokens=max_tokens,
+                or_key=or_key,
+            ),
             or_cfg,
-            or_model=or_model, system_msg=system_msg,
-            user_msg=user_msg, max_tokens=max_tokens,
-            or_key=or_key,
         )
         return result
     except HTTPException:
