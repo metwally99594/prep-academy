@@ -25,7 +25,8 @@ from auth import get_current_user, get_admin_user
 router = APIRouter(prefix="/api/rag", tags=["rag"])
 
 # ───────────────────────── CONFIG ─────────────────────────
-CHROMA_DIR = os.environ.get("CHROMA_DIR", "/app/backend/.chroma")
+_CHROMA_DEFAULT = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".chroma")
+CHROMA_DIR = os.environ.get("CHROMA_DIR", _CHROMA_DEFAULT)
 COLLECTION_NAME = "medical_kb"
 # Primary embedding model (multilingual, supports DE + AR + EN + RU)
 PRIMARY_EMBED_MODEL = os.environ.get("RAG_EMBED_MODEL", "BAAI/bge-m3")

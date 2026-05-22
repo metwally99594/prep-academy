@@ -6,6 +6,8 @@ try:
     from starlette.middleware.cors import CORSMiddleware
     from starlette.middleware.base import BaseHTTPMiddleware
     from services.community_observability import set_correlation_id, get_correlation_id
+    from services.url_validator import validate_image_url
+    from services.retry_helpers import retry_async, with_retry, RetryConfig
 except BaseException:
     _tb.print_exc()
     raise
@@ -147,6 +149,39 @@ async def _background_db_sync():
         await db.access_requests.create_index([("user_id", 1), ("feature_pack", 1), ("status", 1)])
         await db.access_requests.create_index([("created_at", -1)])
 
+        # Notifications indexes
+        await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+        await db.notifications.create_index([("user_id", 1), ("read", 1), ("created_at", -1)])
+
+        # Spaced repetition indexes
+        await db.spaced_repetition.create_index([("user_id", 1), ("question_id", 1)], unique=True)
+        await db.spaced_repetition.create_index([("user_id", 1), ("next_review", 1)])
+        await db.spaced_repetition.create_index([("user_id", 1), ("last_reviewed", -1)])
+
+        # Billing / payment transactions indexes
+        await db.payment_transactions.create_index("session_id", unique=True)
+        await db.payment_transactions.create_index([("user_id", 1), ("created_at", -1)])
+
+        # Image cache index
+        await db.image_cache.create_index("q", unique=True)
+        await db.image_cache.create_index("ts", expireAfterSeconds=604800)  # TTL: 7 days
+
+        # Image search log TTL
+        await db.image_search_log.create_index("ts", expireAfterSeconds=2592000)  # TTL: 30 days
+
+        # Notebook synthesis index
+        await db.notebook_synthesis.create_index([("user_id", 1), ("notebook_id", 1)])
+
+        # Analyzer jobs indexes
+        await db.analyzer_jobs.create_index("id", unique=True)
+        await db.analyzer_jobs.create_index([("user_id", 1), ("created_at", -1)])
+
+        # Daily podcasts index
+        await db.daily_podcasts.create_index([("date", 1), ("language", 1)])
+
+        # Trial expiry queries
+        await db.users.create_index("trial_ends_at")
+
         logger.info("Background: Indexes created")
     except Exception as e:
         logger.error(f"Background index error: {e}")
@@ -166,7 +201,13 @@ async def _background_db_sync():
 
     try:
         admin_email = os.environ.get("ADMIN_EMAIL", "admin@medical.com")
-        admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+        admin_password = os.environ.get("ADMIN_PASSWORD")
+        if not admin_password:
+            raise RuntimeError("FATAL: ADMIN_PASSWORD env var is required. Set it in Render dashboard.")
+        if admin_password in ("admin123", "admin", "password", "123456"):
+            raise RuntimeError(f"FATAL: ADMIN_PASSWORD is set to a weak/common value. Change it (current: {admin_password[:3]}...).")
+        if len(admin_password) < 12:
+            raise RuntimeError(f"FATAL: ADMIN_PASSWORD too short ({len(admin_password)} chars). Use at least 12.")
         admin = await db.users.find_one({"email": admin_email})
         if not admin:
             admin_user = {
@@ -180,8 +221,6 @@ async def _background_db_sync():
             }
             await db.users.insert_one(admin_user)
             logger.info("Background: Created admin user")
-        if admin_password == "admin123":
-            logger.warning("SECURITY: ADMIN_PASSWORD is using the default value. Change it via environment variable!")
     except Exception as e:
         logger.error(f"Background admin error: {e}")
 
@@ -921,75 +960,7 @@ async def search_questions(
 ):
     """Smart search: works with punctuation, numbering, partial text, full questions"""
     return await _search_questions_internal(q, limit)
-    
-    # City aliases
-    city_map = {
-        "wien": "vienna", "vienna": "vienna", "فيينا": "vienna",
-        "innsbruck": "innsbruck", "إنسبروك": "innsbruck",
-        "andere": "andere",
-    }
-    if q.strip().lower() in city_map:
-        questions = await db.questions.find({"exam_location": city_map[q.strip().lower()]}, {"_id": 0}).limit(limit).to_list(limit)
-        return questions
-    
-    # Strip numbering patterns: "1.", "1)", "a)", "A.", "Frage 5:" etc.
-    cleaned = _re.sub(r'^[\s]*(?:\d+[\.\)\:]|[a-zA-Z][\.\)]|Frage\s*\d+[\.\:\)]?)\s*', '', q.strip())
-    if not cleaned:
-        cleaned = q.strip()
-    
-    # Remove all punctuation except German umlauts and ß, keep spaces
-    cleaned = _re.sub(r'[^\w\sÄäÖöÜüß]', ' ', cleaned)
-    # Collapse whitespace
-    cleaned = _re.sub(r'\s+', ' ', cleaned).strip()
-    
-    if len(cleaned) < 2:
-        return []
-    
-    # Extract meaningful tokens (3+ chars to skip noise like "ist", "der")
-    tokens = [t for t in cleaned.split() if len(t) >= 3]
-    
-    if not tokens:
-        # Fallback: use the cleaned string as-is
-        tokens = [cleaned]
-    
-    # Build regex: all tokens must appear (AND), in any order
-    # Each token is escaped and wrapped in a lookahead
-    token_pattern = "".join(f"(?=.*{_re.escape(t)})" for t in tokens[:8])
-    fuzzy_regex = f"^{token_pattern}" if token_pattern else _re.escape(cleaned)
-    
-    text_fields = ["question_text_de", "question_text", "explanation_de"]
-    search_conditions = []
-    for field in text_fields:
-        search_conditions.append({field: {"$regex": fuzzy_regex, "$options": "is"}})
-    
-    # Also search choices
-    search_conditions.append({"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}})
-    search_conditions.append({"choices.text": {"$regex": fuzzy_regex, "$options": "is"}})
-    
-    # Also try exact escaped match on specialty_id
-    escaped_q = _re.escape(q.strip())
-    search_conditions.append({"specialty_id": {"$regex": escaped_q, "$options": "i"}})
-    
-    query = {"$or": search_conditions}
-    questions = await db.questions.find(query, {"_id": 0}).limit(limit).to_list(limit)
-    
-    # Fallback: if AND search returns too few results, try OR search (any token matches)
-    if len(questions) < 3 and len(tokens) > 1:
-        or_conditions = []
-        for t in tokens[:6]:
-            t_escaped = _re.escape(t)
-            or_conditions.append({"question_text_de": {"$regex": t_escaped, "$options": "i"}})
-            or_conditions.append({"question_text": {"$regex": t_escaped, "$options": "i"}})
-            or_conditions.append({"choices.text_de": {"$regex": t_escaped, "$options": "i"}})
-        
-        existing_ids = {q["id"] for q in questions}
-        fallback = await db.questions.find(
-            {"$or": or_conditions, "id": {"$nin": list(existing_ids)}},
-            {"_id": 0}
-        ).limit(limit - len(questions)).to_list(limit - len(questions))
-        questions.extend(fallback)
-    
-    return questions
+
 
 @api_router.get("/questions/years/list")
 async def get_available_years(specialty_id: Optional[str] = None):
@@ -2368,10 +2339,7 @@ async def _search_medical_images(query: str, limit: int = 3) -> list:
     db_results = _search_image_db(query, limit)
     results = list(db_results)
     if len(results) >= limit:
-        try:
-            await db.image_cache.update_one({"q": q_key}, {"$set": {"results": results, "ts": time.time()}}, upsert=True)
-        except Exception:
-            pass
+        _fire_and_forget(db.image_cache.update_one({"q": q_key}, {"$set": {"results": results, "ts": time.time()}}, upsert=True))
         return results[:limit]
 
     seen = {e["thumbnail"]: True for e in results}
@@ -2405,19 +2373,53 @@ async def _search_medical_images(query: str, limit: int = 3) -> list:
                 results.append(item)
 
     latency = int((time.time() - start) * 1000)
-    try:
-        await db.image_search_log.insert_one({
-            "query": query, "q_key": q_key, "results": len(results),
-            "sources": list(set(r.get("_source", "?") for r in results)),
-            "latency_ms": latency, "ts": time.time()
-        })
-    except Exception:
-        pass
-    try:
-        await db.image_cache.update_one({"q": q_key}, {"$set": {"results": results, "ts": time.time()}}, upsert=True)
-    except Exception:
-        pass
+    _fire_and_forget(db.image_search_log.insert_one({
+        "query": query, "q_key": q_key, "results": len(results),
+        "sources": list(set(r.get("_source", "?") for r in results)),
+        "latency_ms": latency, "ts": time.time()
+    }))
+    # Validate all URLs to prevent SSRF
+    valid_results = []
+    seen_urls = set()
+    for r in results:
+        url = r.get("url", "")
+        thumb = r.get("thumbnail", "")
+        if validate_image_url(url) and validate_image_url(thumb):
+            if url not in seen_urls:
+                seen_urls.add(url)
+                valid_results.append(r)
+        else:
+            logger.warning(f"SSRF blocked image URL: {url[:80]}")
+    results = valid_results
+    _fire_and_forget(db.image_cache.update_one({"q": q_key}, {"$set": {"results": results, "ts": time.time()}}, upsert=True))
     return results[:limit]
+
+
+def _fire_and_forget(coro):
+    """Fire a coroutine in the background — unawaited, errors logged non-blocking."""
+    task = asyncio.ensure_future(coro)
+    task.add_done_callback(lambda t: logger.warning(f"Fire-and-forget error: {t.exception()}") if t.exception() else None)
+
+
+async def _or_call_single(*, or_model: str, system_msg: str, user_msg: str, max_tokens: int, or_key: str) -> str:
+    """Single OpenRouter call — wrapped by retry_async for resilience."""
+    import re as _re, httpx
+    async with httpx.AsyncClient(timeout=55.0) as client:
+        r = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+            json={"model": or_model,
+                  "messages": [{"role": "system", "content": system_msg},
+                                {"role": "user", "content": user_msg}],
+                  "max_tokens": max_tokens, "temperature": 0.4},
+        )
+        d = r.json()
+        if "choices" in d and d["choices"]:
+            content = d["choices"][0]["message"]["content"] or ""
+            return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+        _record_model_failure(or_model)
+        raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
 
 
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
@@ -2477,23 +2479,16 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         "gemini-flash": "google/gemma-4-31b-it:free",
     }
     or_model = models.get(model_key, "meta-llama/llama-3.3-70b-instruct:free")
+    or_cfg = RetryConfig(max_attempts=3, base_delay=0.5, max_delay=5.0, jitter=True)
     try:
-        async with httpx.AsyncClient(timeout=55.0) as client:
-            r = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
-                         "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
-                json={"model": or_model,
-                      "messages": [{"role": "system", "content": system_msg},
-                                    {"role": "user", "content": user_msg}],
-                      "max_tokens": max_tokens, "temperature": 0.4},
-            )
-            d = r.json()
-            if "choices" in d and d["choices"]:
-                content = d["choices"][0]["message"]["content"] or ""
-                return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
-            _record_model_failure(or_model)
-            raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
+        result = await retry_async(
+            _or_call_single,
+            or_cfg,
+            or_model=or_model, system_msg=system_msg,
+            user_msg=user_msg, max_tokens=max_tokens,
+            or_key=or_key,
+        )
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -2520,13 +2515,14 @@ async def get_ai_languages():
     ]
 
 @api_router.post("/ai/explain")
-async def ai_explain(request: AIExplainRequest, user: dict = Depends(get_current_user)):
-    question = await db.questions.find_one({"id": request.question_id}, {"_id": 0})
+@limiter.limit("30/minute;200/hour")
+async def ai_explain(request: Request, body: AIExplainRequest, user: dict = Depends(get_current_user)):
+    question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     
     try:
-        lang_instruction = LANG_PROMPTS.get(request.language, LANG_PROMPTS["de"])
+        lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
         choices = question.get("choices") or question.get("choices_de") or []
         correct_choices = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
         q_text = question.get("question_text_de") or question.get("question_text", "")
@@ -2535,11 +2531,11 @@ async def ai_explain(request: AIExplainRequest, user: dict = Depends(get_current
 
 Richtige Antworten: {', '.join(correct_choices)}
 
-{f"Studentenfrage: {request.user_question}" if request.user_question else ""}
+{body.user_question if body.user_question else ""}
 
 Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wichtig sind."""
-        response = await _or_text(system_msg, prompt, max_tokens=800, model_key=request.model)
-        return {"explanation": response, "model": request.model, "language": request.language}
+        response = await _or_text(system_msg, prompt, max_tokens=800, model_key=body.model)
+        return {"explanation": response, "model": body.model, "language": body.language}
     except HTTPException:
         raise
     except Exception as e:
@@ -2547,14 +2543,15 @@ Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wi
         raise HTTPException(status_code=500, detail="Failed to generate AI explanation")
 
 @api_router.post("/ai/chat")
-async def ai_chat(request: AIChatRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("20/minute;200/hour;500/day")
+async def ai_chat(request: Request, body: AIChatRequest, user: dict = Depends(get_current_user)):
     """Interactive AI chat for medical questions - multi-model, multi-language"""
-    question = await db.questions.find_one({"id": request.question_id}, {"_id": 0})
+    question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     
     try:
-        lang_instruction = LANG_PROMPTS.get(request.language, LANG_PROMPTS["de"])
+        lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
         choices = question.get("choices") or question.get("choices_de") or []
         correct_choices = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
         all_choices = "\n".join([f"- {c.get('text_de') or c.get('text', '')} {'✓' if c.get('is_correct') else ''}" for c in choices])
@@ -2565,12 +2562,12 @@ async def ai_chat(request: AIChatRequest, user: dict = Depends(get_current_user)
 Aktuelle Frage: {q_text}
 Antwortmöglichkeiten:\n{all_choices}
 Richtige Antworten: {', '.join(correct_choices)}
-{f"Offizielle Erklärung: {expl}" if expl else ""}
+{expl if expl else ""}
 Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei freundlich und ermutigend.
 Hinweis: Nach meiner Antwort werden medizinische Bilder von Wikimedia Commons angezeigt — ich kann im Text darauf verweisen."""
-        response = await _or_text(system_message, request.user_message, max_tokens=800, model_key=request.model)
-        images = await _search_medical_images(request.user_message)
-        return {"response": response, "images": images, "model": request.model, "language": request.language}
+        response = await _or_text(system_message, body.user_message, max_tokens=800, model_key=body.model)
+        images = await _search_medical_images(body.user_message)
+        return {"response": response, "images": images, "model": body.model, "language": body.language}
     except HTTPException:
         raise
     except Exception as e:
@@ -2630,14 +2627,15 @@ async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
     return {"seeded": seeded, "skipped": skipped, "total": len(top_topics)}
 
 @api_router.post("/ai/tutor")
-async def ai_tutor(request: AITutorRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute;100/hour;300/day")
+async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(get_current_user)):
     """Medical AI tutor with RAG — searches 3112 exam questions + Wikipedia medical knowledge"""
     try:
-        lang_instruction = LANG_PROMPTS.get(request.language, LANG_PROMPTS["de"])
+        lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
         # Search both sources in parallel
         relevant_questions, relevant_knowledge = await asyncio.gather(
-            _search_questions_internal(request.user_message, limit=3),
-            _search_medical_knowledge(request.user_message, limit=3),
+            _search_questions_internal(body.user_message, limit=3),
+            _search_medical_knowledge(body.user_message, limit=3),
         )
         context_parts = []
         # Exam questions
@@ -2685,9 +2683,9 @@ REGELN:
 6. Wenn du PubMed-Studien zitierst, nenne Journal und Jahr
 7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen
 8. Der Benutzer sieht nach deiner Antwort medizinische Bilder von Wikimedia Commons. Du kannst im Text darauf hinweisen, z.B. "siehe Abbildung unten" oder "die Bilder unten zeigen..."."""
-        response = await _or_text(system_message, request.user_message, max_tokens=1000, model_key=request.model)
-        images = await _search_medical_images(request.user_message)
-        return {"response": response, "images": images, "model": request.model, "language": request.language,
+        response = await _or_text(system_message, body.user_message, max_tokens=1000, model_key=body.model)
+        images = await _search_medical_images(body.user_message)
+        return {"response": response, "images": images, "model": body.model, "language": body.language,
                 "sources_questions": len(relevant_questions), "sources_knowledge": len(relevant_knowledge)}
     except HTTPException:
         raise

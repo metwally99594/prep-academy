@@ -26,6 +26,9 @@ _test_parser.py
 *svc_info.json
 extract_vision_log.txt
 
+# ChromaDB vector store (auto-generated on first RAG request)
+.chroma/
+
 # IDE/editor config
 .claude/
 .vscode/

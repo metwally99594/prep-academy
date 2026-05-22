@@ -12,18 +12,23 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# JWT settings
-_JWT_DEFAULT = 'medical-mcq-secret'
-JWT_SECRET = os.environ.get('JWT_SECRET', _JWT_DEFAULT)
-JWT_ALGORITHM = "HS256"
-if JWT_SECRET == _JWT_DEFAULT:
+# JWT settings — required in production, auto-generated ephemeral secret in dev
+_ENV = os.environ.get('ENV', 'production').lower()
+_JWT_SECRET_ENV = os.environ.get('JWT_SECRET')
+if _JWT_SECRET_ENV:
+    JWT_SECRET = _JWT_SECRET_ENV
+elif _ENV in ('dev', 'development', 'local'):
+    import secrets
+    JWT_SECRET = secrets.token_urlsafe(64)
     import warnings
-    warnings.warn(
-        "JWT_SECRET is using the insecure default value. "
-        "Set JWT_SECRET environment variable in production!",
-        RuntimeWarning,
-        stacklevel=2,
-    )
+    warnings.warn("JWT_SECRET not set — generated ephemeral secret for DEV. Tokens invalidated on restart.", RuntimeWarning)
+else:
+    raise RuntimeError("FATAL: JWT_SECRET environment variable is required in production. Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\"")
+if JWT_SECRET == 'medical-mcq-secret':
+    raise RuntimeError("FATAL: JWT_SECRET is set to the legacy compromised default 'medical-mcq-secret'. Generate a new one.")
+if len(JWT_SECRET) < 32:
+    raise RuntimeError("FATAL: JWT_SECRET is too short. Use at least 32 characters.")
+JWT_ALGORITHM = "HS256"
 
 # Logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
