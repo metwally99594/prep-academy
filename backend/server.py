@@ -275,8 +275,8 @@ async def _background_db_sync():
         logger.error(f"Background migration error: {e}")
     
     # Auto-seed questions from JSON file (only on fresh DB, dev-only)
-    if os.getenv("DISABLE_AUTO_SEED") == "true":
-        logger.info("Auto-seed disabled via DISABLE_AUTO_SEED=true")
+    if os.getenv("ENABLE_AUTO_SEED") != "true":
+        logger.info("Auto-seed disabled by default. Set ENABLE_AUTO_SEED=true to enable.")
     else:
         try:
             seed_file = os.path.join(os.path.dirname(__file__), "dev_seed_questions.json")
