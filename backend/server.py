@@ -2011,38 +2011,126 @@ LANG_PROMPTS = {
 def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
-MEDICAL_IMAGE_FALLBACKS = [
-    {"title": "Heart diagram (anterior view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Heart_diagram-en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg"},
-    {"title": "Heart anatomy (sectional)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Diagram_of_the_human_heart_(cropped).svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Diagram_of_the_human_heart_(cropped).svg"},
-    {"title": "Heart layers", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0470_HeartWall.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0470_HeartWall.png"},
-    {"title": "Human skeleton diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"},
-    {"title": "Brain anatomy (lateral view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Brain_human_normal_inferior_view_with_labels_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Brain_human_normal_inferior_view_with_labels_en.svg"},
-    {"title": "Lung anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Heart_diagram-en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg"},
-]
 
-async def _search_medical_images(query: str, limit: int = 3) -> list:
-    """Search Wikimedia Commons — extracts English/German words for non-Latin queries."""
+TOPIC_FALLBACKS = {
+    "heart": [
+        {"title": "Heart diagram (anterior view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Heart_diagram-en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg"},
+        {"title": "Heart cross-section", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Diagram_of_the_human_heart_(cropped).svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Diagram_of_the_human_heart_(cropped).svg"},
+        {"title": "Heart wall layers", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0470_HeartWall.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0470_HeartWall.png"},
+        {"title": "Heart electrical conduction", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/ECG_principle_slow.gif?width=300", "url": "https://commons.wikimedia.org/wiki/File:ECG_principle_slow.gif"},
+    ],
+    "brain": [
+        {"title": "Brain anatomy (lateral view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Brain_human_normal_inferior_view_with_labels_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Brain_human_normal_inferior_view_with_labels_en.svg"},
+        {"title": "Brain lobes diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Lobes_of_the_brain_NL.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Lobes_of_the_brain_NL.svg"},
+        {"title": "Brain cross-section", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0906_Brain_CrossSection.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0906_Brain_CrossSection.png"},
+        {"title": "Cranial nerves", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Brain_stem+thalamus+basal_ganglia.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Brain_stem+thalamus+basal_ganglia.png"},
+    ],
+    "lung": [
+        {"title": "Lung anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Respiratory_system_complete_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Respiratory_system_complete_en.svg"},
+        {"title": "Bronchial tree", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Bronchial_tree.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Bronchial_tree.svg"},
+        {"title": "Alveoli structure", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Alveolus_diagram.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Alveolus_diagram.svg"},
+    ],
+    "skeleton": [
+        {"title": "Human skeleton front", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"},
+        {"title": "Human skeleton back", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_back_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_back_en.svg"},
+        {"title": "Skull anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skull_front_views.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skull_front_views.svg"},
+    ],
+    "muscle": [
+        {"title": "Muscular system front", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Muscular_system_front.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Muscular_system_front.svg"},
+        {"title": "Muscular system back", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Muscular_system_back.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Muscular_system_back.svg"},
+    ],
+    "kidney": [
+        {"title": "Kidney anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Kidney_PioM.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Kidney_PioM.svg"},
+        {"title": "Nephron diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Nephron_structure.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Nephron_structure.svg"},
+    ],
+    "eye": [
+        {"title": "Eye anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Schematic_diagram_of_the_human_eye_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Schematic_diagram_of_the_human_eye_en.svg"},
+        {"title": "Retina structure", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Retina_array.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Retina_array.svg"},
+    ],
+    "ear": [
+        {"title": "Ear anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Anatomy_of_the_Human_Ear.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Anatomy_of_the_Human_Ear.svg"},
+        {"title": "Inner ear", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Inner_ear_diagram.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Inner_ear_diagram.svg"},
+    ],
+    "skin": [
+        {"title": "Skin anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Skin_anatomy.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Skin_anatomy.svg"},
+        {"title": "Skin layers", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0353_Integumentary_System.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0353_Integumentary_System.png"},
+    ],
+    "stomach": [
+        {"title": "Stomach anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Stomach_anatomy.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Stomach_anatomy.svg"},
+        {"title": "Digestive system", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Digestive_system_diagram_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Digestive_system_diagram_en.svg"},
+    ],
+    "liver": [
+        {"title": "Liver anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Liver_anatomy.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Liver_anatomy.svg"},
+        {"title": "Liver segments", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Gray1224.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Gray1224.png"},
+    ],
+    "spine": [
+        {"title": "Spine anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Spinal_column_lateral.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Spinal_column_lateral.svg"},
+        {"title": "Vertebra structure", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Vertebra.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Vertebra.svg"},
+    ],
+}
+
+def _detect_image_topic(query: str) -> str:
+    import re
+    q = query.lower()
+    topics = {
+        "heart": ["herz", "heart", "cardiac", "kardio", "قلب", "kardiologie", "koronar", "myokard", "herzkammer", "vorhof", "klappe"],
+        "brain": ["hirn", "brain", "gehirn", "zerebral", "neuron", "cerebr", "دماغ", "مخ", "kopfschmerz", "schädel"],
+        "lung": ["lung", "lunge", "pulmo", "respir", "bronch", "alveol", "رئة", "رئوي", "pneumo"],
+        "skeleton": ["skelett", "skeleton", "knochen", "bone", "skull", "schädel", "wirbel", "هيكل", "عظم"],
+        "muscle": ["muskel", "muscle", "muskulatur", "عضلة", "عضلات"],
+        "kidney": ["niere", "kidney", "renal", "nephr", "كلية", "كلى"],
+        "eye": ["auge", "eye", "okular", "retina", "cornea", "عين", "sehnerv"],
+        "ear": ["ohr", "ear", "cochlea", "hör", "أذن", "اذن"],
+        "skin": ["haut", "skin", "derma", "cutan", "جلد", "epidermis"],
+        "stomach": ["magen", "stomach", "gastr", "bauch", "معدة", "digest"],
+        "liver": ["leber", "liver", "hepat", "كبد"],
+        "spine": ["wirbelsäule", "spine", "spinal", "vertebr", "عمود", "فقري"],
+    }
+    for topic, keywords in topics.items():
+        if any(kw in q for kw in keywords):
+            return topic
+    return "general"
+
+
+async def _search_openverse(query: str, limit: int = 4) -> list:
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as cl:
+            r = await cl.get(
+                "https://api.openverse.org/v1/images/",
+                params={"q": f"{query} medical anatomy", "page_size": str(limit), "license": "cc0,by,by-sa",
+                        "mature": "false", "format": "json"},
+            )
+            data = r.json()
+            results = []
+            for item in data.get("results", []):
+                img_url = item.get("url", "")
+                thumb = item.get("thumbnail") or img_url
+                title = item.get("title", "") or "Medical image"
+                landing = item.get("foreign_landing_url", "")
+                if img_url and any(img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".gif", ".svg"]):
+                    results.append({"title": title, "thumbnail": thumb, "url": landing or img_url})
+            return results[:limit]
+    except Exception:
+        return []
+
+
+async def _search_wikimedia(query: str, limit: int = 4) -> list:
+    """Search Wikimedia Commons for medical images."""
     import httpx, re as _re
     try:
         latin = _re.findall(r'[a-zA-ZÄäÖöÜüß][a-zA-ZÄäÖöÜüß]+', query)
-        if latin:
-            search_base = " ".join(w for w in latin if len(w) >= 4)[:80] or latin[0]
-        else:
-            search_base = "human anatomy"
+        search_base = " ".join(w for w in latin if len(w) >= 4)[:80] or latin[0] if latin else "human anatomy"
     except Exception:
         search_base = "medical diagram"
-
     seen = set()
     results = []
     try:
         async with httpx.AsyncClient(timeout=5.0) as cl:
             for kw in ["diagram", "anatomy", "medical", "illustration"]:
-                term = f"{search_base} {kw}"
-                r = await cl.get(
-                    "https://commons.wikimedia.org/w/api.php",
-                    params={"action": "query", "list": "search", "srsearch": term,
-                            "srnamespace": "6", "format": "json", "srlimit": str(limit)},
-                )
+                r = await cl.get("https://commons.wikimedia.org/w/api.php",
+                    params={"action": "query", "list": "search", "srsearch": f"{search_base} {kw}",
+                            "srnamespace": "6", "format": "json", "srlimit": str(limit)})
                 for item in r.json().get("query", {}).get("search", []):
                     title = item.get("title", "").replace("File:", "")
                     if title.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".gif")) and title not in seen:
@@ -2051,10 +2139,44 @@ async def _search_medical_images(query: str, limit: int = 3) -> list:
                         if len(results) >= limit:
                             return results
     except Exception:
-        pass  
+        pass
+    return results
+
+
+async def _search_medical_images(query: str, limit: int = 3) -> list:
+    """Multi-source medical image search: Openverse + Wikimedia + topic fallbacks."""
+    topic = _detect_image_topic(query)
+    wiki_results, openv_results = [], []
+    import asyncio
+    wiki_task = asyncio.create_task(_search_wikimedia(query, limit + 1))
+    openv_task = asyncio.create_task(_search_openverse(query, limit + 1))
+    done, _ = await asyncio.wait([wiki_task, openv_task], timeout=12.0)
+    for t in done:
+        try:
+            res = t.result()
+            if t == wiki_task:
+                wiki_results = res
+            else:
+                openv_results = res
+        except Exception:
+            pass
+
+    seen = set()
+    results = []
+    for item in wiki_results + openv_results:
+        key = item.get("thumbnail", "") or item.get("url", "")
+        if key not in seen:
+            seen.add(key)
+            results.append(item)
+        if len(results) >= limit:
+            return results
 
     if not results:
-        results = MEDICAL_IMAGE_FALLBACKS[:limit]
+        topic = _detect_image_topic(query)
+        if topic in TOPIC_FALLBACKS:
+            results = TOPIC_FALLBACKS[topic][:limit]
+        else:
+            results = [v for vals in TOPIC_FALLBACKS.values() for v in vals][:limit]
     return results
 
 
