@@ -2235,19 +2235,19 @@ def _search_image_db(query: str, limit: int = 4) -> list:
     def _score(e):
         s = 0
         for kw in e["keywords"]:
-            if kw in q:
+            if re.search(r'\b' + re.escape(kw) + r'\b', q):
                 s += 10
             for t in tokens:
                 if kw in t or t in kw:
                     s += 3
         region = e.get("body_region", "general")
-        if region in q:
+        if re.search(r'\b' + re.escape(region) + r'\b', q):
             s += 8
         mod = e.get("modality", "anatomy")
-        if mod in q:
+        if re.search(r'\b' + re.escape(mod) + r'\b', q):
             s += 5
         for p in e.get("pathology", []):
-            if p.lower() in q:
+            if re.search(r'\b' + re.escape(p.lower()) + r'\b', q):
                 s += 12
         return s
 
