@@ -1635,19 +1635,19 @@ export default function AdminPage() {
 
         <TabsContent value="online">
           <div style={{ background: '#f5f6fa', borderRadius: '24px', border: '1px solid #e5e7eb', padding: '24px' }}>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <Wifi className="w-5 h-5" style={{ color: '#22c55e' }} />
-                <h1 style={{ fontSize: '30px', fontWeight: 600, color: '#0f172a', margin: 0 }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Wifi className="w-4 h-4" style={{ color: '#22c55e' }} />
+                <h1 style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a', margin: 0 }}>
                   Online-Status
                 </h1>
               </div>
-              <button onClick={fetchData} style={{ background: 'none', border: 'none', color: '#111827', fontSize: '18px', fontWeight: 500, cursor: 'pointer' }}>
+              <button onClick={fetchData} style={{ background: 'none', border: 'none', color: '#111827', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>
                 Aktualisieren
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
               {onlineUsers.length === 0 ? (
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 0', color: '#64748b' }}>
                   Keine Aktivit��tsdaten vorhanden
@@ -1659,11 +1659,11 @@ export default function AdminPage() {
                     style={{
                       background: u.is_online ? '#eef7f3' : '#f8f8fb',
                       border: `1px solid ${u.is_online ? '#b7e4cc' : '#e5e7eb'}`,
-                      borderRadius: '24px',
-                      padding: '20px',
+                      borderRadius: '16px',
+                      padding: '14px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '8px',
+                      gap: '4px',
                       cursor: 'default',
                       transition: 'box-shadow 0.2s',
                     }}
@@ -1672,14 +1672,14 @@ export default function AdminPage() {
                   >
                     <div className="flex items-center gap-2">
                       {u.is_online
-                        ? <Wifi className="w-5 h-5" style={{ color: '#22c55e' }} />
-                        : <WifiOff className="w-5 h-5" style={{ color: '#6b7280' }} />
+                        ? <Wifi className="w-4 h-4" style={{ color: '#22c55e' }} />
+                        : <WifiOff className="w-4 h-4" style={{ color: '#6b7280' }} />
                       }
-                      <span style={{ fontSize: '28px', fontWeight: 600, color: '#111827' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>
                         {u.name || '?'}
                       </span>
                     </div>
-                    <p style={{ fontSize: '18px', color: '#64748b', margin: 0 }}>
+                    <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
                       {u.email || '?'}
                     </p>
                   </div>
