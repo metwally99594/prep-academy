@@ -2011,6 +2011,15 @@ LANG_PROMPTS = {
 def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
+MEDICAL_IMAGE_FALLBACKS = [
+    {"title": "Heart diagram (anterior view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Heart_diagram-en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg"},
+    {"title": "Heart anatomy (sectional)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Diagram_of_the_human_heart_(cropped).svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Diagram_of_the_human_heart_(cropped).svg"},
+    {"title": "Heart layers", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0470_HeartWall.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0470_HeartWall.png"},
+    {"title": "Human skeleton diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"},
+    {"title": "Brain anatomy (lateral view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Brain_human_normal_inferior_view_with_labels_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Brain_human_normal_inferior_view_with_labels_en.svg"},
+    {"title": "Lung anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Heart_diagram-en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg"},
+]
+
 async def _search_medical_images(query: str, limit: int = 3) -> list:
     """Search Wikimedia Commons — extracts English/German words for non-Latin queries."""
     import httpx, re as _re
@@ -2023,10 +2032,10 @@ async def _search_medical_images(query: str, limit: int = 3) -> list:
     except Exception:
         search_base = "medical diagram"
 
+    seen = set()
+    results = []
     try:
-        seen = set()
-        results = []
-        async with httpx.AsyncClient(timeout=10.0) as cl:
+        async with httpx.AsyncClient(timeout=5.0) as cl:
             for kw in ["diagram", "anatomy", "medical", "illustration"]:
                 term = f"{search_base} {kw}"
                 r = await cl.get(
@@ -2041,15 +2050,12 @@ async def _search_medical_images(query: str, limit: int = 3) -> list:
                         results.append({"title": title, "thumbnail": f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=300", "url": f"https://commons.wikimedia.org/wiki/File:{title}"})
                         if len(results) >= limit:
                             return results
-        if not results:
-            results = [
-                {"title": "Heart diagram (anterior view)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Heart_diagram-en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Heart_diagram-en.svg"},
-                {"title": "Heart anatomy (sectional)", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Diagram_of_the_human_heart_(cropped).svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Diagram_of_the_human_heart_(cropped).svg"},
-                {"title": "Heart layers", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Blausen_0470_HeartWall.png?width=300", "url": "https://commons.wikimedia.org/wiki/File:Blausen_0470_HeartWall.png"},
-            ][:limit]
-        return results
     except Exception:
-        return []
+        pass  
+
+    if not results:
+        results = MEDICAL_IMAGE_FALLBACKS[:limit]
+    return results
 
 
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
