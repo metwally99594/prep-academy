@@ -111,6 +111,7 @@ async def _background_db_sync():
         await db.questions.create_index("year")
         await db.questions.create_index([("specialty_id", 1), ("year", 1)])
         await db.questions.create_index([("specialty_id", 1), ("exam_location", 1)])
+        await db.questions.create_index("_question_hash", unique=True, partialFilterExpression={"_question_hash": {"$exists": True}})
         await db.favorites.create_index([("user_id", 1), ("question_id", 1)], unique=True)
         await db.user_stats.create_index("user_id", unique=True)
         await db.daily_activity.create_index([("user_id", 1), ("date", 1)])
@@ -2765,8 +2766,14 @@ def _validate_question(item: QuestionImportItem, index: int) -> list:
     errors = []
     if not item.specialty_id or not item.specialty_id.strip():
         errors.append({"index": index, "field": "specialty_id", "message": "specialty_id is required"})
+    elif len(item.specialty_id.strip()) > 100:
+        errors.append({"index": index, "field": "specialty_id", "message": "specialty_id too long (max 100 chars)"})
     if not item.question_text_de or not item.question_text_de.strip():
         errors.append({"index": index, "field": "question_text_de", "message": "question_text_de is required"})
+    elif len(item.question_text_de.strip()) > 5000:
+        errors.append({"index": index, "field": "question_text_de", "message": "Question text too long (max 5000 chars)"})
+    elif len(item.question_text_de.strip()) < 5:
+        errors.append({"index": index, "field": "question_text_de", "message": "Question text too short (min 5 chars)"})
     if not item.choices_de or len(item.choices_de) < 2:
         errors.append({"index": index, "field": "choices_de", "message": "At least 2 choices are required"})
     else:
@@ -2779,12 +2786,15 @@ def _validate_question(item: QuestionImportItem, index: int) -> list:
             choice_ids.append(cid)
             if c.get("is_correct"):
                 has_correct = True
+            text = c.get("text", "") or c.get("text_de", "")
+            if len(text) > 1000:
+                errors.append({"index": index, "field": f"choices_de[{ci}].text", "message": "Choice text too long (max 1000 chars)"})
         if not has_correct:
             errors.append({"index": index, "field": "choices_de", "message": "At least one correct answer required"})
     if item.explanation_de is not None and not item.explanation_de.strip():
         errors.append({"index": index, "field": "explanation_de", "message": "Explanation cannot be empty string (omit if not needed)"})
-    if item.question_text_de and len(item.question_text_de.strip()) < 5:
-        errors.append({"index": index, "field": "question_text_de", "message": "Question text too short (min 5 chars)"})
+    elif item.explanation_de and len(item.explanation_de.strip()) > 5000:
+        errors.append({"index": index, "field": "explanation_de", "message": "Explanation too long (max 5000 chars)"})
     return errors
 
 @api_router.post("/admin/questions/validate")
@@ -2793,6 +2803,9 @@ async def admin_validate_questions(
     admin: dict = Depends(get_admin_user),
 ):
     """Validate an array of questions without importing. Returns per-item errors."""
+    MAX_QUESTIONS = 500
+    if len(body.questions) > MAX_QUESTIONS:
+        raise HTTPException(status_code=413, detail=f"Too many questions (max {MAX_QUESTIONS} per request, got {len(body.questions)})")
     all_errors = []
     seen_hashes = set()
     for i, q in enumerate(body.questions):
@@ -2819,9 +2832,13 @@ async def admin_import_questions(
     body: QuestionImportRequest,
     admin: dict = Depends(get_admin_user),
 ):
-    """Bulk import questions with validation + duplicate detection."""
+    """Bulk import questions with validation + duplicate detection + atomic session."""
     import time, uuid
+    MAX_QUESTIONS = 500
+    if len(body.questions) > MAX_QUESTIONS:
+        raise HTTPException(status_code=413, detail=f"Too many questions (max {MAX_QUESTIONS} per request, got {len(body.questions)})")
     start = time.time()
+    session_id = str(uuid.uuid4())
     all_errors = []
     imported = []
     skipped = 0
@@ -2854,33 +2871,52 @@ async def admin_import_questions(
             "exam_location": q.exam_location,
             "tags": q.tags or [],
             "_question_hash": h,
+            "import_session_id": session_id,
             "created_at": time.time(),
         }
         imported.append(doc)
 
+    insert_result = None
+    insert_errors = 0
     if imported:
-        await db.questions.insert_many(imported, ordered=False)
+        try:
+            insert_result = await db.questions.insert_many(imported, ordered=False)
+        except Exception as e:
+            insert_errors = len(imported)
+            all_errors.append({"index": -1, "field": "_bulk", "message": f"Bulk insert partial failure: {str(e)[:200]}"})
+            imported = []
 
     duration_ms = int((time.time() - start) * 1000)
     log_entry = {
         "id": str(uuid.uuid4()),
+        "session_id": session_id,
         "admin_email": admin.get("email"),
         "filename": body.filename or "paste",
         "imported_count": len(imported),
         "skipped_duplicates": skipped,
         "validation_errors": len({e["index"] for e in all_errors}),
-        "errors": all_errors,
+        "errors": all_errors[:50],
         "created_at": start,
         "duration_ms": duration_ms,
     }
     await db.question_import_logs.insert_one(log_entry)
+    await db.audit_logs.insert_one({
+        "action": "admin_questions_import",
+        "actor_id": admin.get("id"),
+        "actor_email": admin.get("email"),
+        "target_type": "system",
+        "details": {"session_id": session_id, "imported": len(imported), "skipped": skipped, "errors": len(all_errors)},
+        "created_at": start,
+    })
 
     return {
         "imported": len(imported),
         "skipped_duplicates": skipped,
         "validation_errors": len({e["index"] for e in all_errors}),
         "errors": all_errors[:50],
+        "insert_errors": insert_errors,
         "duration_ms": duration_ms,
+        "session_id": session_id,
         "import_log_id": log_entry["id"],
     }
 
