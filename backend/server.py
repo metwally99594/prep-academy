@@ -2547,12 +2547,14 @@ Richtige Antworten: {', '.join(correct_choices)}
 
 Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wichtig sind."""
         response = await _or_text(system_msg, prompt, max_tokens=800, model_key=body.model)
+        if not response:
+            return {"explanation": None, "model": body.model, "language": body.language, "error": "AI returned empty response"}
         return {"explanation": response, "model": body.model, "language": body.language}
-    except HTTPException:
-        raise
+    except HTTPException as he:
+        return {"explanation": None, "model": body.model, "language": body.language, "error": he.detail}
     except Exception as e:
         logger.error(f"AI explain error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate AI explanation")
+        return {"explanation": None, "model": body.model, "language": body.language, "error": str(e)}
 
 @api_router.post("/ai/chat")
 @limiter.limit("20/minute;200/hour;500/day")
