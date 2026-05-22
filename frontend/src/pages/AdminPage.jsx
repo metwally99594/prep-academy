@@ -1634,52 +1634,57 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="online">
-          <div className="glass-card rounded-2xl p-6">
+          <div style={{ background: '#f5f6fa', borderRadius: '24px', border: '1px solid #e5e7eb', padding: '24px' }}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Wifi className="w-5 h-5 text-emerald-500" />
-                Online-Status
-              </h2>
-              <span className="text-sm text-muted-foreground">
-                {onlineUsers.filter(u => u.is_online).length} online
-              </span>
+              <div className="flex items-center gap-3">
+                <Wifi className="w-5 h-5" style={{ color: '#22c55e' }} />
+                <h1 style={{ fontSize: '30px', fontWeight: 600, color: '#0f172a', margin: 0 }}>
+                  Online-Status
+                </h1>
+              </div>
+              <button onClick={fetchData} style={{ background: 'none', border: 'none', color: '#111827', fontSize: '18px', fontWeight: 500, cursor: 'pointer' }}>
+                Aktualisieren
+              </button>
             </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">Status</TableHead>
-                    <TableHead>Benutzer</TableHead>
-                    <TableHead>E-Mail</TableHead>
-                    <TableHead>Letzte Aktivit��t</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {onlineUsers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                        Keine Aktivit��tsdaten vorhanden
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    onlineUsers.sort((a, b) => b.is_online - a.is_online).map((u, i) => (
-                      <TableRow key={u.user_id || i}>
-                        <TableCell>
-                          {u.is_online
-                            ? <Wifi className="w-5 h-5 text-emerald-500" />
-                            : <WifiOff className="w-5 h-5 text-muted-foreground/40" />
-                          }
-                        </TableCell>
-                        <TableCell className="font-medium">{u.name || '?'}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{u.email || '?'}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {u.last_active ? new Date(u.last_active).toLocaleString('de-DE') : '?'}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+              {onlineUsers.length === 0 ? (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 0', color: '#64748b' }}>
+                  Keine Aktivit��tsdaten vorhanden
+                </div>
+              ) : (
+                [...onlineUsers].sort((a, b) => b.is_online - a.is_online).map((u, i) => (
+                  <div
+                    key={u.user_id || i}
+                    style={{
+                      background: u.is_online ? '#eef7f3' : '#f8f8fb',
+                      border: `1px solid ${u.is_online ? '#b7e4cc' : '#e5e7eb'}`,
+                      borderRadius: '24px',
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      cursor: 'default',
+                      transition: 'box-shadow 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
+                    onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <div className="flex items-center gap-2">
+                      {u.is_online
+                        ? <Wifi className="w-5 h-5" style={{ color: '#22c55e' }} />
+                        : <WifiOff className="w-5 h-5" style={{ color: '#6b7280' }} />
+                      }
+                      <span style={{ fontSize: '28px', fontWeight: 600, color: '#111827' }}>
+                        {u.name || '?'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '18px', color: '#64748b', margin: 0 }}>
+                      {u.email || '?'}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </TabsContent>
