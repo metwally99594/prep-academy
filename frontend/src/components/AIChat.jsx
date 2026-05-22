@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 
 const MODELS = [
+  { id: "deepseek-chat", name: "DeepSeek Chat", provider: "DeepSeek", color: "#4f46e5" },
+  { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", color: "#10a37f" },
   { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI", color: "#10a37f" },
   { id: "claude-sonnet", name: "Claude Sonnet", provider: "Anthropic", color: "#cc785c" },
   { id: "gemini-flash", name: "Gemini Flash", provider: "Google", color: "#4285f4" },
@@ -36,7 +38,7 @@ export default function AIChat({ question, isOpen, onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("metsu");
+  const [selectedModel, setSelectedModel] = useState("deepseek-chat");
   const [selectedLang, setSelectedLang] = useState("de");
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);

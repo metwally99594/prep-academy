@@ -2490,7 +2490,7 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         "deepseek-chat": "deepseek/deepseek-chat",
         "gpt-4o-mini": "openai/gpt-4o-mini",
         "gpt-4o": "openai/gpt-4o",
-        "claude-sonnet": "anthropic/claude-sonnet-4-5-20250929",
+        "claude-sonnet": "anthropic/claude-sonnet-4-20250514",
         "gemini-flash": "google/gemma-4-31b-it:free",
     }
     or_model = models.get(model_key) or os.environ.get("DEFAULT_MODEL", "deepseek/deepseek-chat")
