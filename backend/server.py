@@ -2485,53 +2485,60 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         raise HTTPException(status_code=503, detail="Alle metsu-Modelle fehlgeschlagen")
 
     models = {
+        "gpt-4o-mini": "openai/gpt-4o-mini",
         "gpt-4o": "openai/gpt-4o",
         "claude-sonnet": "anthropic/claude-sonnet-4-5-20250929",
         "gemini-flash": "google/gemma-4-31b-it:free",
     }
-    or_model = models.get(model_key, "google/gemma-4-31b-it:free")
+    or_model = models.get(model_key) or os.environ.get("DEFAULT_MODEL", "openai/gpt-4o-mini")
+    fallback_models = ["openai/gpt-4o-mini", "google/gemma-4-31b-it:free"]
+    if or_model in fallback_models:
+        fallback_models.remove(or_model)
+
     last_error = None
     for attempt in range(3):
-        try:
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                start = _time.time()
-                r = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
-                             "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
-                    json={"model": or_model,
-                          "messages": [{"role": "system", "content": system_msg},
-                                        {"role": "user", "content": user_msg}],
-                          "max_tokens": max_tokens, "temperature": 0.4},
-                )
-                latency = _time.time() - start
-                d = r.json()
-                logger.info(f"[OR] {or_model} {r.status_code} {round(latency*1000)}ms")
-                if r.status_code == 429:
-                    msg = d.get("error", {}).get("message", "Rate limit exceeded")
-                    logger.warning(f"[OR] 429 attempt {attempt+1}/3: {msg}")
-                    last_error = msg
-                    await asyncio.sleep(2 ** attempt)
-                    continue
-                if "choices" in d and d["choices"]:
-                    content = (d["choices"][0].get("message") or {}).get("content") or ""
-                    result = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
-                    if result:
-                        return result
-                last_error = f"OpenRouter {r.status_code}: {str(d)[:200]}"
-                raise HTTPException(status_code=503, detail=last_error)
-        except HTTPException:
-            raise
-        except Exception as e:
-            last_error = str(e)
-            logger.warning(f"[OR] attempt {attempt+1}/3 failed: {e}")
-            await asyncio.sleep(2 ** attempt)
+        for model in [or_model] + fallback_models:
+            try:
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    start = _time.time()
+                    r = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                                 "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+                        json={"model": model,
+                              "messages": [{"role": "system", "content": system_msg},
+                                            {"role": "user", "content": user_msg}],
+                              "max_tokens": max_tokens, "temperature": 0.4},
+                    )
+                    latency = _time.time() - start
+                    d = r.json()
+                    logger.info(f"[OR] {model} {r.status_code} {round(latency*1000)}ms")
+                    if r.status_code == 429:
+                        msg = d.get("error", {}).get("message", "Rate limit exceeded")
+                        logger.warning(f"[OR] 429 {model}: {msg}")
+                        last_error = msg
+                        continue
+                    if "choices" in d and d["choices"]:
+                        content = (d["choices"][0].get("message") or {}).get("content") or ""
+                        result = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+                        if result:
+                            return result
+                    last_error = f"OpenRouter {r.status_code} {model}: {str(d)[:200]}"
+                    raise HTTPException(status_code=503, detail=last_error)
+            except HTTPException:
+                raise
+            except Exception as e:
+                last_error = f"{model}: {str(e)[:150]}"
+                logger.warning(f"[OR] {model} attempt {attempt+1}/3 failed: {e}")
+                continue
+        await asyncio.sleep(2 ** attempt)
     raise HTTPException(status_code=503, detail=f"AI-Versand fehlgeschlagen: {last_error}")
 
 
 @api_router.get("/ai/models")
 async def get_ai_models():
     return [
+        {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "OpenAI", "icon": "openai", "color": "#10a37f"},
         {"id": "gpt-4o", "name": "GPT-4o", "provider": "OpenAI", "icon": "openai", "color": "#10a37f"},
         {"id": "claude-sonnet", "name": "Claude Sonnet", "provider": "Anthropic", "icon": "anthropic", "color": "#cc785c"},
         {"id": "gemini-flash", "name": "Gemini Flash", "provider": "Google", "icon": "gemini", "color": "#4285f4"},
@@ -3039,29 +3046,27 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
         lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
         # Search both sources in parallel
         relevant_questions, relevant_knowledge = await asyncio.gather(
-            _search_questions_internal(body.user_message, limit=3),
-            _search_medical_knowledge(body.user_message, limit=3),
+            _search_questions_internal(body.user_message, limit=2),
+            _search_medical_knowledge(body.user_message, limit=2),
         )
         context_parts = []
-        # Exam questions
-        for idx, q in enumerate(relevant_questions[:3], 1):
-            q_text = q.get("question_text_de") or q.get("question_text", "")
+        for idx, q in enumerate(relevant_questions[:2], 1):
+            q_text = (q.get("question_text_de") or q.get("question_text", ""))[:300]
             choices = q.get("choices") or q.get("choices_de") or []
             correct = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
             expl = q.get("explanation_de") or q.get("explanation", "")
             choices_str = "\n".join(
-                f'  - {c.get("text_de") or c.get("text", "")} {"✓" if c.get("is_correct") else ""}'
-                for c in choices[:6]
+                f'  - {c.get("text_de") or c.get("text", "")[:100]} {"✓" if c.get("is_correct") else ""}'
+                for c in choices[:4]
             )
             correct_str = ", ".join(correct)
             if expl:
-                context_parts.append(f"📝 Prüfungsfrage {idx}:\n{q_text}\n{choices_str}\n✅ Richtig: {correct_str}\n📖 Erklärung: {expl}")
+                context_parts.append(f"📝 Frage {idx}:\n{q_text}\n{choices_str}\n✅ {correct_str}\n📖 {expl[:300]}")
             else:
-                context_parts.append(f"📝 Prüfungsfrage {idx}:\n{q_text}\n{choices_str}\n✅ Richtig: {correct_str}")
-        # Medical knowledge (Wikipedia + PubMed)
-        for idx, k in enumerate(relevant_knowledge[:4], 1):
+                context_parts.append(f"📝 Frage {idx}:\n{q_text}\n{choices_str}\n✅ {correct_str}")
+        for idx, k in enumerate(relevant_knowledge[:2], 1):
             title = k.get("title", "")
-            summary = k.get("summary", "")[:1200]
+            summary = k.get("summary", "")[:600]
             source = k.get("source", "unknown")
             if not summary:
                 continue
