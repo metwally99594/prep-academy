@@ -249,7 +249,7 @@ async def _background_db_sync():
         migration_done = await db.migrations.find_one({"id": "replace_internal_v1"})
         if not migration_done:
             import json as json_lib
-            seed_file = os.path.join(os.path.dirname(__file__), "seed_questions.json")
+            seed_file = os.path.join(os.path.dirname(__file__), "dev_seed_questions.json")
             if os.path.exists(seed_file):
                 with open(seed_file, 'r', encoding='utf-8') as f:
                     seed_questions = json_lib.load(f)
@@ -274,41 +274,46 @@ async def _background_db_sync():
     except Exception as e:
         logger.error(f"Background migration error: {e}")
     
-    # Auto-seed questions from JSON file (only on fresh DB)
-    try:
-        seed_file = os.path.join(os.path.dirname(__file__), "seed_questions.json")
-        if os.path.exists(seed_file):
-            current_count = await db.questions.count_documents({})
-            if current_count == 0:
-                import json as json_lib
-                with open(seed_file, 'r', encoding='utf-8') as f:
-                    seed_questions = json_lib.load(f)
-                if seed_questions:
-                    existing_ids = set()
-                    async for q in db.questions.find({}, {"id": 1, "_id": 0}):
-                        existing_ids.add(q.get("id"))
-                    new_questions = [q for q in seed_questions if q.get("id") not in existing_ids]
-                    
-                    if new_questions:
-                        images_file = os.path.join(os.path.dirname(__file__), "seed_images.json")
-                        images = {}
-                        if os.path.exists(images_file):
-                            with open(images_file, 'r') as f:
-                                images = json_lib.load(f)
-                        for q in new_questions:
-                            if q["id"] in images:
-                                q["image_base64"] = images[q["id"]]
+    # Auto-seed questions from JSON file (only on fresh DB, dev-only)
+    if os.getenv("DISABLE_AUTO_SEED") == "true":
+        logger.info("Auto-seed disabled via DISABLE_AUTO_SEED=true")
+    else:
+        try:
+            seed_file = os.path.join(os.path.dirname(__file__), "dev_seed_questions.json")
+            if os.path.exists(seed_file):
+                current_count = await db.questions.count_documents({})
+                if current_count == 0:
+                    import json as json_lib
+                    with open(seed_file, 'r', encoding='utf-8') as f:
+                        seed_questions = json_lib.load(f)
+                    if seed_questions:
+                        existing_ids = set()
+                        async for q in db.questions.find({}, {"id": 1, "_id": 0}):
+                            existing_ids.add(q.get("id"))
+                        new_questions = [q for q in seed_questions if q.get("id") not in existing_ids]
                         
-                        for bi in range(0, len(new_questions), 500):
-                            await db.questions.insert_many(new_questions[bi:bi+500])
-                        logger.info(f"Background seed: Added {len(new_questions)} questions (DB had {current_count})")
-                    else:
-                        logger.info("All seed questions already exist")
-                    del seed_questions
+                        if new_questions:
+                            images_file = os.path.join(os.path.dirname(__file__), "seed_images.json")
+                            images = {}
+                            if os.path.exists(images_file):
+                                with open(images_file, 'r') as f:
+                                    images = json_lib.load(f)
+                            for q in new_questions:
+                                if q["id"] in images:
+                                    q["image_base64"] = images[q["id"]]
+                            
+                            for bi in range(0, len(new_questions), 500):
+                                await db.questions.insert_many(new_questions[bi:bi+500])
+                            logger.info(f"Background seed: Added {len(new_questions)} questions (DB had {current_count})")
+                        else:
+                            logger.info("All seed questions already exist")
+                        del seed_questions
+                else:
+                    logger.info(f"DB has {current_count} questions, seed not needed")
             else:
-                logger.info(f"DB has {current_count} questions, seed not needed")
-    except Exception as e:
-        logger.error(f"Background seed error: {e}")
+                logger.info("seed file not found, skipping auto-seed")
+        except Exception as e:
+            logger.error(f"Background seed error: {e}")
     
     logger.info("Background DB sync completed successfully.")
 
