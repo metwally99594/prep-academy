@@ -1,8 +1,15 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, BackgroundTasks
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from services.community_observability import set_correlation_id, get_correlation_id
+import sys, traceback as _tb
+try:
+    from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, BackgroundTasks
+    from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from services.community_observability import set_correlation_id, get_correlation_id
+except Exception:
+    _tb.print_exc()
+    sys.stderr.write("=== FATAL IMPORT ERROR (fastapi/starlette) ===\n")
+    sys.stderr.flush()
+    raise
 from starlette.responses import StreamingResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -17,15 +24,20 @@ import asyncio
 
 
 # Import shared modules
-from database import (
-    db, client, logger, JWT_SECRET, JWT_ALGORITHM,
-    LEVELS, SPECIALTIES, EXAM_LOCATIONS,
-    get_level_info, compute_badges
-)
-import sys as _sys
+try:
+    from database import (
+        db, client, logger, JWT_SECRET, JWT_ALGORITHM,
+        LEVELS, SPECIALTIES, EXAM_LOCATIONS,
+        get_level_info, compute_badges
+    )
+except Exception:
+    _tb.print_exc()
+    sys.stderr.write("=== FATAL IMPORT ERROR (database) ===\n")
+    sys.stderr.flush()
+    raise
 if not hasattr(db, 'name'):
-    _sys.stderr.write("CRITICAL: db object invalid — check MONGO_URL/DB_NAME env vars\n")
-    _sys.stderr.flush()
+    sys.stderr.write("CRITICAL: db object invalid — check MONGO_URL/DB_NAME env vars\n")
+    sys.stderr.flush()
 from models import (
     UserCreate, UserLogin, UserResponse, GoogleAuthCallback,
     QuestionChoice, QuestionCreate, QuestionUpdate, QuestionResponse,
