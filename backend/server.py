@@ -2015,86 +2015,93 @@ def get_model_config(model_key: str):
 # ── Medical Image Database (curated, verified Wikimedia Commons) ──
 MEDICAL_IMAGES = []
 
-def _img(title, file, kw):
+def _img(title, file, kw, modality="anatomy", region="general", img_type="illustration"):
     MEDICAL_IMAGES.append({
+        "id": file.replace(".", "_").replace(" ", "_"),
         "title": title,
         "thumbnail": f"https://commons.wikimedia.org/wiki/Special:FilePath/{file}?width=300",
         "url": f"https://commons.wikimedia.org/wiki/File:{file}",
         "keywords": [k.strip().lower() for k in kw.split(",")],
+        "modality": modality,
+        "body_region": region,
+        "image_type": img_type,
+        "pathology": [],
+        "source": "wikimedia-commons",
+        "license": "CC BY-SA 4.0",
     })
 
 # Cardiovascular
-_img("Heart diagram anterior view", "Heart_diagram-en.svg", "heart, herz, قلب, cardiac, kardio")
-_img("Heart cross-section", "Diagram_of_the_human_heart_(cropped).svg", "heart, herz, قلب, atrium, ventricle, klappe")
-_img("Heart wall layers", "Blausen_0470_HeartWall.png", "heart wall, herzwand, جدار, myocard, endocard, pericard")
-_img("Heart electrical conduction", "ECG_principle_slow.gif", "ecg, ekg, conduction, herz, كهربية, قلب, reizleitung")
-_img("Coronary arteries", "Coronary_arteries.svg", "coronary, kranzarterie, تاجي, herzkranz")
-_img("Heart valves", "Heart_valves.svg", "heart valve, herzklappe, صمام")
+_img("Heart diagram anterior view", "Heart_diagram-en.svg", "heart, herz, قلب, cardiac, kardio", "anatomy", "chest", "anatomy")
+_img("Heart cross-section", "Diagram_of_the_human_heart_(cropped).svg", "heart, herz, قلب, atrium, ventricle, klappe", "anatomy", "chest", "anatomy")
+_img("Heart wall layers", "Blausen_0470_HeartWall.png", "heart wall, herzwand, جدار, myocard, endocard, pericard", "histology", "chest", "anatomy")
+_img("Heart electrical conduction", "ECG_principle_slow.gif", "ecg, ekg, conduction, herz, كهربية, قلب, reizleitung", "ecg", "chest", "clinical")
+_img("Coronary arteries", "Coronary_arteries.svg", "coronary, kranzarterie, تاجي, herzkranz", "anatomy", "chest", "anatomy")
+_img("Heart valves", "Heart_valves.svg", "heart valve, herzklappe, صمام", "anatomy", "chest", "anatomy")
 
 # Brain / CNS
-_img("Brain anatomy lateral view", "Brain_human_normal_inferior_view_with_labels_en.svg", "brain, hirn, دماغ, مخ, zerebral, cerebral")
-_img("Brain lobes", "Lobes_of_the_brain_NL.svg", "brain lobes, hirnlappen, فص مخ, lobe, cortex")
-_img("Brain cross-section", "Blausen_0906_Brain_CrossSection.png", "brain cross, hirnschnitt, مقطع, basal ganglia, thalamus")
-_img("Cranial nerves", "Brain_stem+thalamus+basal_ganglia.png", "cranial nerve, himnerv, عصب قحفي")
-_img("Neuron structure", "Neuron_Hand-tuned.svg", "neuron, nervenzelle, عصبون, synapse, dendrit, axon")
-_img("Cerebrospinal fluid circulation", "Cerebrospinal_fluid_circulation.png", "csf, liquor, سائل دماغي, ventricle")
-_img("Circle of Willis", "Circle_of_Willis_en.svg", "circle of willis, himn, arterie, دماغي")
+_img("Brain anatomy lateral view", "Brain_human_normal_inferior_view_with_labels_en.svg", "brain, hirn, دماغ, مخ, zerebral, cerebral", "anatomy", "head", "anatomy")
+_img("Brain lobes", "Lobes_of_the_brain_NL.svg", "brain lobes, hirnlappen, فص مخ, lobe, cortex", "anatomy", "head", "anatomy")
+_img("Brain cross-section", "Blausen_0906_Brain_CrossSection.png", "brain cross, hirnschnitt, مقطع, basal ganglia, thalamus", "anatomy", "head", "anatomy")
+_img("Cranial nerves", "Brain_stem+thalamus+basal_ganglia.png", "cranial nerve, himnerv, عصب قحفي", "anatomy", "head", "anatomy")
+_img("Neuron structure", "Neuron_Hand-tuned.svg", "neuron, nervenzelle, عصبون, synapse, dendrit, axon", "histology", "general", "anatomy")
+_img("Cerebrospinal fluid circulation", "Cerebrospinal_fluid_circulation.png", "csf, liquor, سائل دماغي, ventricle", "anatomy", "head", "anatomy")
+_img("Circle of Willis", "Circle_of_Willis_en.svg", "circle of willis, himn, arterie, دماغي", "angiography", "head", "anatomy")
 
 # Respiratory
-_img("Respiratory system overview", "Respiratory_system_complete_en.svg", "lung, lunge, رئة, respir, breathing, pulmonary")
-_img("Bronchial tree", "Bronchial_tree.svg", "bronchial, bronchus, شعب, trachea, alveole")
-_img("Alveoli gas exchange", "Alveolus_diagram.svg", "alveole, alveolus, حويصلة, gas exchange, sauerstoff")
-_img("Lung lobes", "Lung_segments.png", "lung lobe, lungenlappen, فص رئوي, segment")
-_img("Pleura", "Pleura.svg", "pleura, pleural, غشاء جنبي, lungenfell")
+_img("Respiratory system overview", "Respiratory_system_complete_en.svg", "lung, lunge, رئة, respir, breathing, pulmonary", "anatomy", "chest", "anatomy")
+_img("Bronchial tree", "Bronchial_tree.svg", "bronchial, bronchus, شعب, trachea, alveole", "anatomy", "chest", "anatomy")
+_img("Alveoli gas exchange", "Alveolus_diagram.svg", "alveole, alveolus, حويصلة, gas exchange, sauerstoff", "histology", "chest", "anatomy")
+_img("Lung lobes", "Lung_segments.png", "lung lobe, lungenlappen, فص رئوي, segment", "anatomy", "chest", "anatomy")
+_img("Pleura", "Pleura.svg", "pleura, pleural, غشاء جنبي, lungenfell", "anatomy", "chest", "anatomy")
 
 # Skeleton
-_img("Human skeleton anterior", "Human_skeleton_front_en.svg", "skeleton, skelett, هيكل, عظمي, bone, knochen")
-_img("Human skeleton posterior", "Human_skeleton_back_en.svg", "skeleton back, skelet rückseite")
-_img("Skull anatomy", "Human_skull_front_views.svg", "skull, schädel, جمجمة, cranium")
-_img("Vertebral column", "Spinal_column_lateral.svg", "spine, wirbelsäule, عمود فقري, vertebra")
-_img("Vertebra structure", "Vertebra.svg", "vertebra, فقرة, spinal, knochen")
-_img("Bone structure", "Bone_cross-section.svg", "bone, knochen, عظم, compacta, spongiosa")
+_img("Human skeleton anterior", "Human_skeleton_front_en.svg", "skeleton, skelett, هيكل, عظمي, bone, knochen", "anatomy", "whole-body", "anatomy")
+_img("Human skeleton posterior", "Human_skeleton_back_en.svg", "skeleton back, skelet rückseite", "anatomy", "whole-body", "anatomy")
+_img("Skull anatomy", "Human_skull_front_views.svg", "skull, schädel, جمجمة, cranium", "anatomy", "head", "anatomy")
+_img("Vertebral column", "Spinal_column_lateral.svg", "spine, wirbelsäule, عمود فقري, vertebra", "anatomy", "spine", "anatomy")
+_img("Vertebra structure", "Vertebra.svg", "vertebra, فقرة, spinal, knochen", "anatomy", "spine", "anatomy")
+_img("Bone structure", "Bone_cross-section.svg", "bone, knochen, عظم, compacta, spongiosa", "histology", "general", "anatomy")
 
 # Muscular
-_img("Muscular system anterior", "Muscular_system_front.svg", "muscle, muskel, عضلة, muskulatur")
-_img("Muscular system posterior", "Muscular_system_back.svg", "muscle back, عضلات ظهر")
-_img("Skeletal muscle", "Skeletal_muscle_structure.svg", "skeletal muscle, عضلة هيكلية, myofibril")
-_img("Neuromuscular junction", "Neuromuscular_junction.svg", "neuromuscular, motor endplate, موصل عصبي")
+_img("Muscular system anterior", "Muscular_system_front.svg", "muscle, muskel, عضلة, muskulatur", "anatomy", "whole-body", "anatomy")
+_img("Muscular system posterior", "Muscular_system_back.svg", "muscle back, عضلات ظهر", "anatomy", "whole-body", "anatomy")
+_img("Skeletal muscle", "Skeletal_muscle_structure.svg", "skeletal muscle, عضلة هيكلية, myofibril", "histology", "general", "anatomy")
+_img("Neuromuscular junction", "Neuromuscular_junction.svg", "neuromuscular, motor endplate, موصل عصبي", "histology", "general", "anatomy")
 
 # Kidney / Urinary
-_img("Kidney anatomy", "Kidney_PioM.svg", "kidney, niere, كلية, renal, nephron")
-_img("Nephron structure", "Nephron_structure.svg", "nephron, glomerulus, tubule, كلية, filtration")
-_img("Urinary system", "Urinary_system.svg", "urinary, harn, بول, ureter, bladder")
-_img("Renal blood supply", "Kidney_blood_supply.jpg", "renal artery, شريان كلوي, kidney blood")
+_img("Kidney anatomy", "Kidney_PioM.svg", "kidney, niere, كلية, renal, nephron", "anatomy", "abdomen", "anatomy")
+_img("Nephron structure", "Nephron_structure.svg", "nephron, glomerulus, tubule, كلية, filtration", "histology", "abdomen", "anatomy")
+_img("Urinary system", "Urinary_system.svg", "urinary, harn, بول, ureter, bladder", "anatomy", "abdomen", "anatomy")
+_img("Renal blood supply", "Kidney_blood_supply.jpg", "renal artery, شريان كلوي, kidney blood", "angiography", "abdomen", "anatomy")
 
 # Eye
-_img("Eye anatomy", "Schematic_diagram_of_the_human_eye_en.svg", "eye, auge, عين, okular, sehorgan, œil")
-_img("Retina structure", "Retina_array.svg", "retina, netzhaut, شبكية, rod, cone")
-_img("Lens accommodation", "Eye_lens_accommodation.svg", "lens, linse, عدسة, accommodation, katarakt")
+_img("Eye anatomy", "Schematic_diagram_of_the_human_eye_en.svg", "eye, auge, عين, okular, sehorgan, œil", "anatomy", "head", "anatomy")
+_img("Retina structure", "Retina_array.svg", "retina, netzhaut, شبكية, rod, cone", "histology", "head", "anatomy")
+_img("Lens accommodation", "Eye_lens_accommodation.svg", "lens, linse, عدسة, accommodation, katarakt", "anatomy", "head", "anatomy")
 
 # Ear
-_img("Ear anatomy", "Anatomy_of_the_Human_Ear.svg", "ear, ohr, أذن, cochlea, hör, oreille")
-_img("Inner ear", "Inner_ear_diagram.svg", "inner ear, innenohr, أذن داخلية, vestibul")
+_img("Ear anatomy", "Anatomy_of_the_Human_Ear.svg", "ear, ohr, أذن, cochlea, hör, oreille", "anatomy", "head", "anatomy")
+_img("Inner ear", "Inner_ear_diagram.svg", "inner ear, innenohr, أذن داخلية, vestibul", "anatomy", "head", "anatomy")
 
 # Skin
-_img("Skin anatomy", "Skin_anatomy.svg", "skin, haut, جلد, derma, cutan, epidermis")
-_img("Integumentary system", "Blausen_0353_Integumentary_System.png", "integument, hautorgan, dermis, follicle")
+_img("Skin anatomy", "Skin_anatomy.svg", "skin, haut, جلد, derma, cutan, epidermis", "anatomy", "general", "anatomy")
+_img("Integumentary system", "Blausen_0353_Integumentary_System.png", "integument, hautorgan, dermis, follicle", "anatomy", "general", "anatomy")
 
 # Gastrointestinal
-_img("Stomach anatomy", "Stomach_anatomy.svg", "stomach, magen, معدة, gastr, bauch")
-_img("Digestive system", "Digestive_system_diagram_en.svg", "digestive, verdauung, هضم, intestin, darm")
-_img("Small intestine", "Small_intestine.svg", "small intestine, dünndarm, أمعاء دقيقة, duodenum")
-_img("Large intestine", "Large_intestine.svg", "large intestine, dickdarm, أمعاء غليظة, colon")
+_img("Stomach anatomy", "Stomach_anatomy.svg", "stomach, magen, معدة, gastr, bauch", "anatomy", "abdomen", "anatomy")
+_img("Digestive system", "Digestive_system_diagram_en.svg", "digestive, verdauung, هضم, intestin, darm", "anatomy", "abdomen", "anatomy")
+_img("Small intestine", "Small_intestine.svg", "small intestine, dünndarm, أمعاء دقيقة, duodenum", "anatomy", "abdomen", "anatomy")
+_img("Large intestine", "Large_intestine.svg", "large intestine, dickdarm, أمعاء غليظة, colon", "anatomy", "abdomen", "anatomy")
 
 # Liver
-_img("Liver anatomy", "Liver_anatomy.svg", "liver, leber, كبد, hepat, hépatique")
-_img("Liver segments", "Gray1224.png", "liver segment, lebersegment, كبد, couinaud")
+_img("Liver anatomy", "Liver_anatomy.svg", "liver, leber, كبد, hepat, hépatique", "anatomy", "abdomen", "anatomy")
+_img("Liver segments", "Gray1224.png", "liver segment, lebersegment, كبد, couinaud", "anatomy", "abdomen", "anatomy")
 
 # Endocrine
-_img("Endocrine system", "Endocrine_system.svg", "endocrine, endokrin, غدد صماء, hormon")
-_img("Thyroid anatomy", "Thyroid_system.svg", "thyroid, schilddrüse, غدة درقية")
-_img("Pancreas anatomy", "Pancreas_anatomy.svg", "pancreas, pankreas, بنكرياس, insulin, langerhans")
-_img("Adrenal gland", "Adrenal_gland.svg", "adrenal, nebenniere, كظر, adrenalin, kortisol")
+_img("Endocrine system", "Endocrine_system.svg", "endocrine, endokrin, غدد صماء, hormon", "anatomy", "general", "anatomy")
+_img("Thyroid anatomy", "Thyroid_system.svg", "thyroid, schilddrüse, غدة درقية", "anatomy", "neck", "anatomy")
+_img("Pancreas anatomy", "Pancreas_anatomy.svg", "pancreas, pankreas, بنكرياس, insulin, langerhans", "anatomy", "abdomen", "anatomy")
+_img("Adrenal gland", "Adrenal_gland.svg", "adrenal, nebenniere, كظر, adrenalin, kortisol", "anatomy", "abdomen", "anatomy")
 
 # Vascular
 _img("Artery vs vein", "Artery_vein_cross_section.png", "artery, arterie, شريان, vein, vene, وريد, gefäß")
@@ -2146,59 +2153,59 @@ _img("Spinal cord cross-section", "Spinal_cord_cross_section.svg", "spinal cord,
 _img("Reflex arc", "Reflex_arc.svg", "reflex, reflexbogen, منعكس, monosynaptisch")
 
 # Pathologies / Clinical
-_img("Atherosclerosis progression", "Atherosclerosis_progression.png", "atherosclerosis, arteriosklerose, تصلب, plaque, cholesterin")
-_img("Myocardial infarction", "Myocardial_infarction.svg", "myocardial infarction, herzinfarkt, احتشاء, heart attack")
-_img("Pneumothorax", "Pneumothorax.svg", "pneumothorax, استرواح, lungenkollaps")
-_img("Pulmonary embolism", "Pulmonary_embolism.svg", "pulmonary embolism, lungenembolie, انصمام, thrombus")
-_img("Deep vein thrombosis", "Deep_vein_thrombosis.svg", "dvt, thrombosis, thrombose, خثار, embolie")
-_img("Stroke ischemic vs hemorrhagic", "Stroke_types.svg", "stroke, schlaganfall, سكتة, ischemia, hämorrhagie")
-_img("Cirrhosis of liver", "Cirrhosis_liver.svg", "cirrhosis, zirrhose, تليف, leberzirrhose")
-_img("Renal calculi (kidney stones)", "Kidney_stones.svg", "kidney stone, nierenstein, حصوة, calculi")
-_img("Osteoarthritis vs healthy joint", "Osteoarthritis.svg", "osteoarthritis, arthrose, التهاب, مفصل, gelenk")
-_img("Rheumatoid arthritis", "Rheumatoid_arthritis.svg", "rheumatoid, rheuma, التهاب مفاصل")
-_img("Diabetes mellitus types", "Diabetes_mellitus_types.svg", "diabetes, zucker, سكري, insulin, hyperglykämie")
-_img("Asthma pathophysiology", "Asthma_pathophysiology.svg", "asthma, ربو, bronchial, lunge, atemnot")
-_img("COPD lung comparison", "COPD_lung.svg", "copd, chronic, lunge, emphysem, bronchitis")
-_img("Gastric ulcer", "Gastric_ulcer.svg", "ulcer, ulkus, قرحة, magen, gastritis")
-_img("Hernia types (inguinal, femoral)", "Hernia_types.svg", "hernia, hernie, فتق, inguinal, nabel")
-_img("Fracture types", "Fracture_types.svg", "fracture, fraktur, كسر, bone, knochenbruch")
-_img("Wound healing stages", "Wound_healing.svg", "wound, wunde, جرح, healing, heilung, wound care")
-_img("Burns degree classification", "Burn_degrees.svg", "burn, verbrennung, حرق, brandwunde, haut")
-_img("Tumor stages TNM", "TNM_staging.svg", "tumor, tnm, staging, krebs, سرطان, metastasis")
-_img("Cell types (epithelial, connective)", "Cell_types_tissue.svg", "tissue, gewebe, نسيج, epithel, bindegewebe")
+_img("Atherosclerosis progression", "Atherosclerosis_progression.png", "atherosclerosis, arteriosklerose, تصلب, plaque, cholesterin", "anatomy", "vascular", "clinical", ["atherosclerosis", "arteriosclerosis"])
+_img("Myocardial infarction", "Myocardial_infarction.svg", "myocardial infarction, herzinfarkt, احتشاء, heart attack", "anatomy", "chest", "clinical", ["myocardial infarction", "heart attack"])
+_img("Pneumothorax", "Pneumothorax.svg", "pneumothorax, استرواح, lungenkollaps", "xray", "chest", "clinical", ["pneumothorax"])
+_img("Pulmonary embolism", "Pulmonary_embolism.svg", "pulmonary embolism, lungenembolie, انصمام, thrombus", "ct", "chest", "clinical", ["pulmonary embolism"])
+_img("Deep vein thrombosis", "Deep_vein_thrombosis.svg", "dvt, thrombosis, thrombose, خثار, embolie", "ultrasound", "leg", "clinical", ["deep vein thrombosis", "dvt"])
+_img("Stroke ischemic vs hemorrhagic", "Stroke_types.svg", "stroke, schlaganfall, سكتة, ischemia, hämorrhagie", "ct", "head", "clinical", ["stroke", "cerebrovascular"])
+_img("Cirrhosis of liver", "Cirrhosis_liver.svg", "cirrhosis, zirrhose, تليف, leberzirrhose", "anatomy", "abdomen", "clinical", ["cirrhosis", "liver disease"])
+_img("Renal calculi (kidney stones)", "Kidney_stones.svg", "kidney stone, nierenstein, حصوة, calculi", "xray", "abdomen", "clinical", ["kidney stones", "nephrolithiasis"])
+_img("Osteoarthritis vs healthy joint", "Osteoarthritis.svg", "osteoarthritis, arthrose, التهاب, مفصل, gelenk", "xray", "joint", "clinical", ["osteoarthritis", "arthrosis"])
+_img("Rheumatoid arthritis", "Rheumatoid_arthritis.svg", "rheumatoid, rheuma, التهاب مفاصل", "xray", "joint", "clinical", ["rheumatoid arthritis"])
+_img("Diabetes mellitus types", "Diabetes_mellitus_types.svg", "diabetes, zucker, سكري, insulin, hyperglykämie", "anatomy", "general", "clinical", ["diabetes mellitus"])
+_img("Asthma pathophysiology", "Asthma_pathophysiology.svg", "asthma, ربو, bronchial, lunge, atemnot", "anatomy", "chest", "clinical", ["asthma"])
+_img("COPD lung comparison", "COPD_lung.svg", "copd, chronic, lunge, emphysem, bronchitis", "anatomy", "chest", "clinical", ["copd", "emphysema", "chronic bronchitis"])
+_img("Gastric ulcer", "Gastric_ulcer.svg", "ulcer, ulkus, قرحة, magen, gastritis", "anatomy", "abdomen", "clinical", ["peptic ulcer", "gastric ulcer"])
+_img("Hernia types (inguinal, femoral)", "Hernia_types.svg", "hernia, hernie, فتق, inguinal, nabel", "anatomy", "abdomen", "clinical", ["hernia"])
+_img("Fracture types", "Fracture_types.svg", "fracture, fraktur, كسر, bone, knochenbruch", "xray", "general", "clinical", ["fracture"])
+_img("Wound healing stages", "Wound_healing.svg", "wound, wunde, جرح, healing, heilung", "anatomy", "general", "clinical")
+_img("Burns degree classification", "Burn_degrees.svg", "burn, verbrennung, حرق, brandwunde, haut", "anatomy", "general", "clinical", ["burn"])
+_img("Tumor stages TNM", "TNM_staging.svg", "tumor, tnm, staging, krebs, سرطان, metastasis", "anatomy", "general", "clinical", ["cancer", "tumor"])
+_img("Cell types (epithelial, connective)", "Cell_types_tissue.svg", "tissue, gewebe, نسيج, epithel, bindegewebe", "histology", "general", "anatomy")
 
 # Histology
-_img("Histology: cardiac muscle", "Cardiac_muscle_histology.svg", "histology, histologie, هستولوجي, cardiac muscle, herzmuskel")
-_img("Histology: liver", "Liver_histology.svg", "histology liver, leber histologie, hepatocyte, sinusoid")
-_img("Histology: lung alveoli", "Lung_histology_alveoli.svg", "histology lung, lunge histologie, alveole, pneumocyte")
-_img("Histology: kidney glomerulus", "Kidney_glomerulus_histology.svg", "histology kidney, niere histologie, glomerulus, bowman")
+_img("Histology: cardiac muscle", "Cardiac_muscle_histology.svg", "histology, histologie, هستولوجي, cardiac muscle, herzmuskel", "histology", "chest", "histology")
+_img("Histology: liver", "Liver_histology.svg", "histology liver, leber histologie, hepatocyte, sinusoid", "histology", "abdomen", "histology")
+_img("Histology: lung alveoli", "Lung_histology_alveoli.svg", "histology lung, lunge histologie, alveole, pneumocyte", "histology", "chest", "histology")
+_img("Histology: kidney glomerulus", "Kidney_glomerulus_histology.svg", "histology kidney, niere histologie, glomerulus, bowman", "histology", "abdomen", "histology")
 
 # Embryology
-_img("Embryology: fertilization to blastocyst", "Embryology_fertilization.svg", "embryology, embryologie, أجنة, fertilization, befruchtung, zygote")
-_img("Embryology: heart development", "Embryology_heart.svg", "embryology heart, herzentwicklung, تطور القلب, cardiogenesis")
-_img("Embryology: neurulation", "Embryology_neurulation.svg", "neurulation, neuralrohr, الأنبوب, embryology brain")
+_img("Embryology: fertilization to blastocyst", "Embryology_fertilization.svg", "embryology, embryologie, أجنة, fertilization, befruchtung, zygote", "anatomy", "general", "embryology")
+_img("Embryology: heart development", "Embryology_heart.svg", "embryology heart, herzentwicklung, تطور القلب, cardiogenesis", "anatomy", "chest", "embryology")
+_img("Embryology: neurulation", "Embryology_neurulation.svg", "neurulation, neuralrohr, الأنبوب, embryology brain", "anatomy", "head", "embryology")
 
 # Pharmacology
-_img("Drug administration routes", "Drug_routes.svg", "drug, medikament, دواء, pharmaco, verabreichung, injection, oral")
-_img("Autonomic drug targets", "Autonomic_drugs.svg", "pharmacology, pharmako, adrenerg, cholinerg, receptor")
-_img("Antibiotic mechanism of action", "Antibiotic_mechanisms.svg", "antibiotic, antibiotikum, مضاد, bakteri, penicillin, resistance")
+_img("Drug administration routes", "Drug_routes.svg", "drug, medikament, دواء, pharmaco, verabreichung, injection, oral", "anatomy", "general", "pharmacology")
+_img("Autonomic drug targets", "Autonomic_drugs.svg", "pharmacology, pharmako, adrenerg, cholinerg, receptor", "anatomy", "general", "pharmacology")
+_img("Antibiotic mechanism of action", "Antibiotic_mechanisms.svg", "antibiotic, antibiotikum, مضاد, bakteri, penicillin, resistance", "anatomy", "general", "pharmacology")
 
 # Imaging modalities
-_img("Ultrasound probe and waves", "Ultrasound_probe.svg", "ultrasound, sonographie, sonar, موجات, schall")
-_img("Mammography breast cancer screening", "Mammography.svg", "mammography, mammographie, ماموغرام, breast, brust")
-_img("PET scan principle", "PET_scan.svg", "pet scan, positronen, تصوير مقطعي, nuklearmedizin")
-_img("Nuclear medicine gamma camera", "Gamma_camera.svg", "nuclear medicine, nuklearmedizin, gamma, szintigraphie")
-_img("Endoscopy procedure", "Endoscopy.svg", "endoscopy, endoskopie, منظار, gastroskopie, koloskopie")
+_img("Ultrasound probe and waves", "Ultrasound_probe.svg", "ultrasound, sonographie, sonar, موجات, schall", "ultrasound", "general", "imaging")
+_img("Mammography breast cancer screening", "Mammography.svg", "mammography, mammographie, ماموغرام, breast, brust", "mammography", "chest", "imaging")
+_img("PET scan principle", "PET_scan.svg", "pet scan, positronen, تصوير مقطعي, nuklearmedizin", "pet", "general", "imaging")
+_img("Nuclear medicine gamma camera", "Gamma_camera.svg", "nuclear medicine, nuklearmedizin, gamma, szintigraphie", "nuclear", "general", "imaging")
+_img("Endoscopy procedure", "Endoscopy.svg", "endoscopy, endoskopie, منظار, gastroskopie, koloskopie", "endoscopy", "abdomen", "imaging")
 
 # Clinical skills
-_img("Blood pressure measurement", "Blood_pressure_measurement.svg", "blood pressure, blutdruck, ضغط, rr, messung, sphygmo")
-_img("Pulse points of the body", "Pulse_points.svg", "pulse, puls, نبض, arterie, herz, circulation")
-_img("Heart auscultation areas", "Heart_auscultation.svg", "auscultation, auskultation, تسمع, stethoscope, heart sound")
-_img("Lung auscultation areas", "Lung_auscultation.svg", "auscultation lung, lunge auskultation, تسمع رئة")
-_img("ECG leads placement", "ECG_leads.svg", "ecg, ekg, تخطيط, ableitung, electrode")
-_img("Intravenous access sites", "IV_access.svg", "iv, intravenous, وريدي, infusion, kanüle, venenverweil")
-_img("CPR chest compression", "CPR_compression.svg", "cpr, resuscitation, reanimation, إنعاش, herzdruckmassage")
-_img("Airway management (intubation)", "Airway_intubation.svg", "airway, intubation, تنبيب, endotracheal, beatmung")
+_img("Blood pressure measurement", "Blood_pressure_measurement.svg", "blood pressure, blutdruck, ضغط, rr, messung, sphygmo", "clinical", "general", "clinical")
+_img("Pulse points of the body", "Pulse_points.svg", "pulse, puls, نبض, arterie, herz, circulation", "clinical", "general", "clinical")
+_img("Heart auscultation areas", "Heart_auscultation.svg", "auscultation, auskultation, تسمع, stethoscope, heart sound", "clinical", "chest", "clinical")
+_img("Lung auscultation areas", "Lung_auscultation.svg", "auscultation lung, lunge auskultation, تسمع رئة", "clinical", "chest", "clinical")
+_img("ECG leads placement", "ECG_leads.svg", "ecg, ekg, تخطيط, ableitung, electrode", "ecg", "chest", "clinical")
+_img("Intravenous access sites", "IV_access.svg", "iv, intravenous, وريدي, infusion, kanüle, venenverweil", "clinical", "general", "clinical")
+_img("CPR chest compression", "CPR_compression.svg", "cpr, resuscitation, reanimation, إنعاش, herzdruckmassage", "clinical", "chest", "clinical")
+_img("Airway management (intubation)", "Airway_intubation.svg", "airway, intubation, تنبيب, endotracheal, beatmung", "clinical", "head", "clinical")
 
 # Medical equipment
 _img("Stethoscope parts", "Stethoscope_parts.svg", "stethoscope, stethoskop, سماعة")
@@ -2214,15 +2221,37 @@ def _search_image_db(query: str, limit: int = 4) -> list:
     import re
     q = query.lower()
     tokens = set(re.findall(r'[\wÄäÖöÜüßآ-ي]+', q))
-    scored = []
-    seen = set()
-    for e in MEDICAL_IMAGES:
-        score = sum(1 for kw in e["keywords"] if kw in q or any(kw in t or t in kw for t in tokens))
-        if score > 0 and e["thumbnail"] not in seen:
-            seen.add(e["thumbnail"])
-            scored.append((score, e))
+
+    def _score(e):
+        s = 0
+        for kw in e["keywords"]:
+            if kw in q:
+                s += 10
+            for t in tokens:
+                if kw in t or t in kw:
+                    s += 3
+        region = e.get("body_region", "general")
+        if region in q:
+            s += 8
+        mod = e.get("modality", "anatomy")
+        if mod in q:
+            s += 5
+        for p in e.get("pathology", []):
+            if p.lower() in q:
+                s += 12
+        return s
+
+    scored = [(s, e) for e in MEDICAL_IMAGES if (s := _score(e)) > 0]
     scored.sort(key=lambda x: -x[0])
-    return [e for _, e in scored[:limit]]
+    seen = set()
+    result = []
+    for _, e in scored:
+        if e["thumbnail"] not in seen:
+            seen.add(e["thumbnail"])
+            result.append({k: v for k, v in e.items() if k != "keywords"})
+            if len(result) >= limit:
+                break
+    return result
 
 # ── Openverse (AUTO-FALLBACK, only if DB fails) ──
 
