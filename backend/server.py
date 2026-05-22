@@ -2145,6 +2145,71 @@ _img("Autonomic nervous system", "Autonomic_nervous_system.svg", "autonomic, aut
 _img("Spinal cord cross-section", "Spinal_cord_cross_section.svg", "spinal cord, rückenmark, حبل شوكي, pyramidenbahn")
 _img("Reflex arc", "Reflex_arc.svg", "reflex, reflexbogen, منعكس, monosynaptisch")
 
+# Pathologies / Clinical
+_img("Atherosclerosis progression", "Atherosclerosis_progression.png", "atherosclerosis, arteriosklerose, تصلب, plaque, cholesterin")
+_img("Myocardial infarction", "Myocardial_infarction.svg", "myocardial infarction, herzinfarkt, احتشاء, heart attack")
+_img("Pneumothorax", "Pneumothorax.svg", "pneumothorax, استرواح, lungenkollaps")
+_img("Pulmonary embolism", "Pulmonary_embolism.svg", "pulmonary embolism, lungenembolie, انصمام, thrombus")
+_img("Deep vein thrombosis", "Deep_vein_thrombosis.svg", "dvt, thrombosis, thrombose, خثار, embolie")
+_img("Stroke ischemic vs hemorrhagic", "Stroke_types.svg", "stroke, schlaganfall, سكتة, ischemia, hämorrhagie")
+_img("Cirrhosis of liver", "Cirrhosis_liver.svg", "cirrhosis, zirrhose, تليف, leberzirrhose")
+_img("Renal calculi (kidney stones)", "Kidney_stones.svg", "kidney stone, nierenstein, حصوة, calculi")
+_img("Osteoarthritis vs healthy joint", "Osteoarthritis.svg", "osteoarthritis, arthrose, التهاب, مفصل, gelenk")
+_img("Rheumatoid arthritis", "Rheumatoid_arthritis.svg", "rheumatoid, rheuma, التهاب مفاصل")
+_img("Diabetes mellitus types", "Diabetes_mellitus_types.svg", "diabetes, zucker, سكري, insulin, hyperglykämie")
+_img("Asthma pathophysiology", "Asthma_pathophysiology.svg", "asthma, ربو, bronchial, lunge, atemnot")
+_img("COPD lung comparison", "COPD_lung.svg", "copd, chronic, lunge, emphysem, bronchitis")
+_img("Gastric ulcer", "Gastric_ulcer.svg", "ulcer, ulkus, قرحة, magen, gastritis")
+_img("Hernia types (inguinal, femoral)", "Hernia_types.svg", "hernia, hernie, فتق, inguinal, nabel")
+_img("Fracture types", "Fracture_types.svg", "fracture, fraktur, كسر, bone, knochenbruch")
+_img("Wound healing stages", "Wound_healing.svg", "wound, wunde, جرح, healing, heilung, wound care")
+_img("Burns degree classification", "Burn_degrees.svg", "burn, verbrennung, حرق, brandwunde, haut")
+_img("Tumor stages TNM", "TNM_staging.svg", "tumor, tnm, staging, krebs, سرطان, metastasis")
+_img("Cell types (epithelial, connective)", "Cell_types_tissue.svg", "tissue, gewebe, نسيج, epithel, bindegewebe")
+
+# Histology
+_img("Histology: cardiac muscle", "Cardiac_muscle_histology.svg", "histology, histologie, هستولوجي, cardiac muscle, herzmuskel")
+_img("Histology: liver", "Liver_histology.svg", "histology liver, leber histologie, hepatocyte, sinusoid")
+_img("Histology: lung alveoli", "Lung_histology_alveoli.svg", "histology lung, lunge histologie, alveole, pneumocyte")
+_img("Histology: kidney glomerulus", "Kidney_glomerulus_histology.svg", "histology kidney, niere histologie, glomerulus, bowman")
+
+# Embryology
+_img("Embryology: fertilization to blastocyst", "Embryology_fertilization.svg", "embryology, embryologie, أجنة, fertilization, befruchtung, zygote")
+_img("Embryology: heart development", "Embryology_heart.svg", "embryology heart, herzentwicklung, تطور القلب, cardiogenesis")
+_img("Embryology: neurulation", "Embryology_neurulation.svg", "neurulation, neuralrohr, الأنبوب, embryology brain")
+
+# Pharmacology
+_img("Drug administration routes", "Drug_routes.svg", "drug, medikament, دواء, pharmaco, verabreichung, injection, oral")
+_img("Autonomic drug targets", "Autonomic_drugs.svg", "pharmacology, pharmako, adrenerg, cholinerg, receptor")
+_img("Antibiotic mechanism of action", "Antibiotic_mechanisms.svg", "antibiotic, antibiotikum, مضاد, bakteri, penicillin, resistance")
+
+# Imaging modalities
+_img("Ultrasound probe and waves", "Ultrasound_probe.svg", "ultrasound, sonographie, sonar, موجات, schall")
+_img("Mammography breast cancer screening", "Mammography.svg", "mammography, mammographie, ماموغرام, breast, brust")
+_img("PET scan principle", "PET_scan.svg", "pet scan, positronen, تصوير مقطعي, nuklearmedizin")
+_img("Nuclear medicine gamma camera", "Gamma_camera.svg", "nuclear medicine, nuklearmedizin, gamma, szintigraphie")
+_img("Endoscopy procedure", "Endoscopy.svg", "endoscopy, endoskopie, منظار, gastroskopie, koloskopie")
+
+# Clinical skills
+_img("Blood pressure measurement", "Blood_pressure_measurement.svg", "blood pressure, blutdruck, ضغط, rr, messung, sphygmo")
+_img("Pulse points of the body", "Pulse_points.svg", "pulse, puls, نبض, arterie, herz, circulation")
+_img("Heart auscultation areas", "Heart_auscultation.svg", "auscultation, auskultation, تسمع, stethoscope, heart sound")
+_img("Lung auscultation areas", "Lung_auscultation.svg", "auscultation lung, lunge auskultation, تسمع رئة")
+_img("ECG leads placement", "ECG_leads.svg", "ecg, ekg, تخطيط, ableitung, electrode")
+_img("Intravenous access sites", "IV_access.svg", "iv, intravenous, وريدي, infusion, kanüle, venenverweil")
+_img("CPR chest compression", "CPR_compression.svg", "cpr, resuscitation, reanimation, إنعاش, herzdruckmassage")
+_img("Airway management (intubation)", "Airway_intubation.svg", "airway, intubation, تنبيب, endotracheal, beatmung")
+
+# Medical equipment
+_img("Stethoscope parts", "Stethoscope_parts.svg", "stethoscope, stethoskop, سماعة")
+_img("Sphygmomanometer (blood pressure cuff)", "Sphygmomanometer.svg", "sphygmomanometer, blutdruckmessgerät, جهاز ضغط")
+_img("Thermometer types", "Thermometer_types.svg", "thermometer, ترمومتر, fieber, temperatur")
+
+# First aid
+_img("Recovery position", "Recovery_position.svg", "recovery, stabile seitenlage, إفاقة, first aid, bewusstlos")
+_img("Heimlich maneuver", "Heimlich_maneuver.svg", "heimlich, مانور, choking, erstickung, airway obstruction")
+_img("Tourniquet application", "Tourniquet.svg", "tourniquet,止血带, blutstillung, blutung, notfall")
+
 def _search_image_db(query: str, limit: int = 4) -> list:
     import re
     q = query.lower()
@@ -2185,18 +2250,20 @@ async def _search_openverse(query: str, limit: int = 4) -> list:
         return []
 
 
+_UA = "PrepAcademyBot/1.0 (MedAT prep; contact at prep-academy)"
+
+
 async def _search_wikimedia(query: str, limit: int = 4) -> list:
-    """Search Wikimedia Commons for medical images."""
+    """Search Wikimedia Commons with proper User-Agent."""
     import httpx, re as _re
     try:
         latin = _re.findall(r'[a-zA-ZÄäÖöÜüß][a-zA-ZÄäÖöÜüß]+', query)
         search_base = " ".join(w for w in latin if len(w) >= 4)[:80] or latin[0] if latin else "human anatomy"
     except Exception:
         search_base = "medical diagram"
-    seen = set()
-    results = []
+    seen, results = set(), []
     try:
-        async with httpx.AsyncClient(timeout=5.0) as cl:
+        async with httpx.AsyncClient(timeout=5.0, headers={"User-Agent": _UA}) as cl:
             for kw in ["diagram", "anatomy", "medical", "illustration"]:
                 r = await cl.get("https://commons.wikimedia.org/w/api.php",
                     params={"action": "query", "list": "search", "srsearch": f"{search_base} {kw}",
@@ -2213,21 +2280,52 @@ async def _search_wikimedia(query: str, limit: int = 4) -> list:
     return results
 
 
+async def _search_wikipedia_pageimage(query: str, limit: int = 3) -> list:
+    """Search Wikipedia articles and get their main image (millions of medical articles)."""
+    import httpx, re
+    results = []
+    seen = set()
+    ua_headers = {"User-Agent": _UA}
+    langs = ["en", "de", "ar"]
+    for lang in langs:
+        try:
+            async with httpx.AsyncClient(timeout=5.0, headers=ua_headers) as cl:
+                r = await cl.get(f"https://{lang}.wikipedia.org/w/api.php",
+                    params={"action": "query", "list": "search", "srsearch": query,
+                            "srlimit": "5", "format": "json", "srwhat": "text"})
+                for article in r.json().get("query", {}).get("search", []):
+                    title = article.get("title", "")
+                    r2 = await cl.get(f"https://{lang}.wikipedia.org/w/api.php",
+                        params={"action": "query", "prop": "pageimages", "titles": title,
+                                "pithumbsize": "300", "format": "json"})
+                    for _, page in r2.json().get("query", {}).get("pages", {}).items():
+                        thumb = page.get("thumbnail", {}).get("source", "")
+                        if thumb and thumb not in seen:
+                            seen.add(thumb)
+                            results.append({"title": f"{title} ({lang})", "thumbnail": thumb, "url": f"https://{lang}.wikipedia.org/wiki/{title.replace(' ', '_')}"})
+                            if len(results) >= limit:
+                                return results
+        except Exception:
+            pass
+    return results[:limit]
+
+
 async def _search_medical_images(query: str, limit: int = 3) -> list:
     """3-tier search: local DB (instant, guaranteed) → Openverse + Wikimedia (parallel)."""
-    from_db = _search_image_db(query, limit)
-    if len(from_db) >= limit:
-        return from_db[:limit]
+    db_results = _search_image_db(query, limit)
+    results = list(db_results)
+    if len(results) >= limit:
+        return results[:limit]
 
-    seen = {e["thumbnail"]: True for e in from_db}
-    results = list(from_db)
+    seen = {e["thumbnail"]: True for e in results}
     import asyncio
     tasks = {
         "w": asyncio.create_task(_search_wikimedia(query, limit + 2)),
         "o": asyncio.create_task(_search_openverse(query, limit + 2)),
+        "p": asyncio.create_task(_search_wikipedia_pageimage(query, limit + 2)),
     }
-    done, _ = await asyncio.wait(list(tasks.values()), timeout=10.0)
-    for tag, t in tasks.items():
+    done, _ = await asyncio.wait(list(tasks.values()), timeout=12.0)
+    for t in tasks.values():
         if t in done:
             try:
                 for item in t.result():
@@ -2239,7 +2337,9 @@ async def _search_medical_images(query: str, limit: int = 3) -> list:
                             return results[:limit]
             except Exception:
                 pass
-    return results[:limit] if results else from_db[:limit] or [{"title": "Human anatomy", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"}]
+    if results:
+        return results[:limit]
+    return db_results[:limit] or [{"title": "Medical diagram", "thumbnail": "https://commons.wikimedia.org/wiki/Special:FilePath/Human_skeleton_front_en.svg?width=300", "url": "https://commons.wikimedia.org/wiki/File:Human_skeleton_front_en.svg"}]
 
 
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
