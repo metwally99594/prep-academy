@@ -2485,13 +2485,14 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         raise HTTPException(status_code=503, detail="Alle metsu-Modelle fehlgeschlagen")
 
     models = {
+        "deepseek-chat": "deepseek/deepseek-chat",
         "gpt-4o-mini": "openai/gpt-4o-mini",
         "gpt-4o": "openai/gpt-4o",
         "claude-sonnet": "anthropic/claude-sonnet-4-5-20250929",
         "gemini-flash": "google/gemma-4-31b-it:free",
     }
-    or_model = models.get(model_key) or os.environ.get("DEFAULT_MODEL", "openai/gpt-4o-mini")
-    fallback_models = ["openai/gpt-4o-mini", "google/gemma-4-31b-it:free"]
+    or_model = models.get(model_key) or os.environ.get("DEFAULT_MODEL", "deepseek/deepseek-chat")
+    fallback_models = ["deepseek/deepseek-chat", "openai/gpt-4o-mini", "google/gemma-4-31b-it:free"]
     if or_model in fallback_models:
         fallback_models.remove(or_model)
 
@@ -2518,6 +2519,11 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
                         logger.warning(f"[OR] 429 {model}: {msg}")
                         last_error = msg
                         continue
+                    if r.status_code == 402:
+                        msg = d.get("error", {}).get("message", "Credit limit")
+                        logger.warning(f"[OR] 402 {model}: {msg}")
+                        last_error = msg
+                        continue
                     if "choices" in d and d["choices"]:
                         content = (d["choices"][0].get("message") or {}).get("content") or ""
                         result = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
@@ -2538,6 +2544,7 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
 @api_router.get("/ai/models")
 async def get_ai_models():
     return [
+        {"id": "deepseek-chat", "name": "DeepSeek Chat", "provider": "DeepSeek", "icon": "deepseek", "color": "#4f46e5"},
         {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "OpenAI", "icon": "openai", "color": "#10a37f"},
         {"id": "gpt-4o", "name": "GPT-4o", "provider": "OpenAI", "icon": "openai", "color": "#10a37f"},
         {"id": "claude-sonnet", "name": "Claude Sonnet", "provider": "Anthropic", "icon": "anthropic", "color": "#cc785c"},
