@@ -2012,33 +2012,33 @@ def get_model_config(model_key: str):
     return MODEL_MAP.get(model_key, MODEL_MAP["gpt-4o"])
 
 async def _search_medical_images(query: str, limit: int = 3) -> list:
-    """Search Wikimedia Commons for medical/educational images related to a query."""
-    import httpx
+    """Search Wikimedia Commons — extracts English/German words for non-Latin queries."""
+    import httpx, re as _re
     try:
-        search_terms = []
-        for kw in ["diagram", "anatomy", "medical", "pathology", "illustration"]:
-            search_terms.append(f"{query} {kw}")
-            if len(search_terms) >= 2:
-                break
+        latin = _re.findall(r'[a-zA-ZÄäÖöÜüß][a-zA-ZÄäÖöÜüß]+', query)
+        if latin:
+            search_base = " ".join(w for w in latin if len(w) >= 4)[:80] or latin[0]
+        else:
+            search_base = "human anatomy"
+    except Exception:
+        search_base = "medical diagram"
+
+    try:
         seen = set()
         results = []
-        for term in search_terms:
-            async with httpx.AsyncClient(timeout=10.0) as cl:
+        async with httpx.AsyncClient(timeout=10.0) as cl:
+            for kw in ["diagram", "anatomy", "medical", "illustration"]:
+                term = f"{search_base} {kw}"
                 r = await cl.get(
                     "https://commons.wikimedia.org/w/api.php",
-                    params={
-                        "action": "query", "list": "search",
-                        "srsearch": term, "srnamespace": "6",
-                        "format": "json", "srlimit": str(limit),
-                    },
+                    params={"action": "query", "list": "search", "srsearch": term,
+                            "srnamespace": "6", "format": "json", "srlimit": str(limit)},
                 )
-                data = r.json()
-                for item in data.get("query", {}).get("search", []):
+                for item in r.json().get("query", {}).get("search", []):
                     title = item.get("title", "").replace("File:", "")
                     if title.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".gif")) and title not in seen:
                         seen.add(title)
-                        thumb = f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=300"
-                        results.append({"title": title, "thumbnail": thumb, "url": f"https://commons.wikimedia.org/wiki/File:{title}"})
+                        results.append({"title": title, "thumbnail": f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=300", "url": f"https://commons.wikimedia.org/wiki/File:{title}"})
                         if len(results) >= limit:
                             return results
         return results
