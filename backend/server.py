@@ -170,6 +170,8 @@ async def _background_db_sync():
 
         # Image search log TTL
         await db.image_search_log.create_index("ts", expireAfterSeconds=2592000)  # TTL: 30 days
+        await db.ai_usage.create_index("created_at", expireAfterSeconds=7776000)  # TTL: 90 days
+        await db.ai_usage.create_index([("user_id", 1), ("date", 1)])  # quota lookups
 
         # Notebook synthesis index
         await db.notebook_synthesis.create_index([("user_id", 1), ("notebook_id", 1)])
@@ -2568,9 +2570,31 @@ async def get_ai_languages():
         {"id": "ru", "name": "Русский", "flag": "RU"},
     ]
 
+
+DAILY_AI_LIMIT = int(os.environ.get("DAILY_AI_LIMIT", "50"))
+
+
+async def _check_ai_quota(user_id: str):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    doc = await db.ai_usage.find_one({"user_id": user_id, "date": today}, {"_id": 0})
+    count = doc["count"] if doc else 0
+    if count >= DAILY_AI_LIMIT:
+        raise HTTPException(status_code=429, detail=f"Tägliches KI-Limit erreicht ({DAILY_AI_LIMIT}/{DAILY_AI_LIMIT}). Morgen weiter.")
+
+
+async def _increment_ai_quota(user_id: str):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.ai_usage.update_one(
+        {"user_id": user_id, "date": today},
+        {"$inc": {"count": 1}, "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+
+
 @api_router.post("/ai/explain")
 @limiter.limit("30/minute;200/hour")
 async def ai_explain(request: Request, body: AIExplainRequest, user: dict = Depends(get_current_user)):
+    await _check_ai_quota(user["id"])
     question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -2589,6 +2613,7 @@ Richtige Antworten: {', '.join(correct_choices)}
 
 Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wichtig sind."""
         response = await _or_text(system_msg, prompt, max_tokens=800, model_key=body.model)
+        await _increment_ai_quota(user["id"])
         return {"explanation": response, "model": body.model, "language": body.language}
     except HTTPException:
         raise
@@ -2600,6 +2625,7 @@ Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wi
 @limiter.limit("20/minute;200/hour;500/day")
 async def ai_chat(request: Request, body: AIChatRequest, user: dict = Depends(get_current_user)):
     """Interactive AI chat for medical questions - multi-model, multi-language"""
+    await _check_ai_quota(user["id"])
     question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -2621,6 +2647,7 @@ Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei f
 Hinweis: Nach meiner Antwort werden medizinische Bilder von Wikimedia Commons angezeigt — ich kann im Text darauf verweisen."""
         response = await _or_text(system_message, body.user_message, max_tokens=800, model_key=body.model)
         images = await _search_medical_images(body.user_message)
+        await _increment_ai_quota(user["id"])
         return {"response": response, "images": images, "model": body.model, "language": body.language}
     except HTTPException:
         raise
@@ -3056,6 +3083,7 @@ async def admin_import_history(
 @limiter.limit("10/minute;100/hour;300/day")
 async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(get_current_user)):
     """Medical AI tutor with RAG — searches 3112 exam questions + Wikipedia medical knowledge"""
+    await _check_ai_quota(user["id"])
     try:
         lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
         # Search both sources in parallel
@@ -3109,6 +3137,7 @@ REGELN:
 8. Der Benutzer sieht nach deiner Antwort medizinische Bilder von Wikimedia Commons. Du kannst im Text darauf hinweisen, z.B. "siehe Abbildung unten" oder "die Bilder unten zeigen..."."""
         response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
         images = await _search_medical_images(body.user_message)
+        await _increment_ai_quota(user["id"])
         return {"response": response, "images": images, "model": body.model, "language": body.language,
                 "sources_questions": len(relevant_questions), "sources_knowledge": len(relevant_knowledge)}
     except HTTPException:
