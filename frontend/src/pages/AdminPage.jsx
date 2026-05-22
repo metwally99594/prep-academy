@@ -1404,10 +1404,10 @@ export default function AdminPage() {
                         {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.analyzer_enabled} onCheckedChange={() => toggleAnalyzer(user.id)} data-testid={`analyzer-toggle-${index}`} />}
                       </TableCell>
                       <TableCell className="text-center">
-                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.podcast_enabled} onCheckedChange={() => togglePodcast(user.id)} data-testid={`podcast-toggle-${index}`} />
+                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.podcast_enabled} onCheckedChange={() => togglePodcast(user.id)} data-testid={`podcast-toggle-${index}`} />}
                       </TableCell>
                       <TableCell className="text-center">
-                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.ai_enabled} onCheckedChange={() => toggleAI(user.id)} data-testid={`ai-toggle-${index}`} />
+                        {user.is_admin ? <span className="text-xs text-amber-500">Immer</span> : <Switch checked={!!user.ai_enabled} onCheckedChange={() => toggleAI(user.id)} data-testid={`ai-toggle-${index}`} />}
                       </TableCell>
                       <TableCell>
                         {!user.is_admin && (

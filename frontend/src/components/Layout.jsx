@@ -216,6 +216,20 @@ export const Layout = () => {
     fetch();
   }, [token]);
 
+  // Heartbeat — keeps user_activity up-to-date so admin sees online status
+  useEffect(() => {
+    if (!token) return;
+    const beat = () => {
+      axios.post(`${API}/admin/activity/heartbeat`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000,
+      }).catch(() => {});
+    };
+    beat(); // immediately on mount
+    const interval = setInterval(beat, 120_000); // every 2 min
+    return () => clearInterval(interval);
+  }, [token]);
+
   const handleLogout = () => {
     logout();
     navigate("/login");
