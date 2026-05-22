@@ -1,12 +1,6 @@
 import sys, traceback as _tb
-_sys = sys
-
-_sys.stderr.write("=== CP0: server.py loaded ===\n")
-_sys.stderr.flush()
 
 try:
-    _sys.stderr.write("=== CP1: importing fastapi ===\n")
-    _sys.stderr.flush()
     from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, Request, BackgroundTasks
     from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
     from starlette.middleware.cors import CORSMiddleware
@@ -14,8 +8,6 @@ try:
     from services.community_observability import set_correlation_id, get_correlation_id
 except BaseException:
     _tb.print_exc()
-    _sys.stderr.write("=== FATAL ERROR (fastapi import) ===\n")
-    _sys.stderr.flush()
     raise
 from starlette.responses import StreamingResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -32,8 +24,6 @@ import asyncio
 
 # Import shared modules
 try:
-    _sys.stderr.write("=== CP2: importing database ===\n")
-    _sys.stderr.flush()
     from database import (
         db, client, logger, JWT_SECRET, JWT_ALGORITHM,
         LEVELS, SPECIALTIES, EXAM_LOCATIONS,
@@ -41,14 +31,7 @@ try:
     )
 except BaseException:
     _tb.print_exc()
-    _sys.stderr.write("=== FATAL ERROR (database import) ===\n")
-    _sys.stderr.flush()
     raise
-if not hasattr(db, 'name'):
-    _sys.stderr.write("CRITICAL: db object invalid — check MONGO_URL/DB_NAME env vars\n")
-    _sys.stderr.flush()
-_sys.stderr.write("=== CP3: importing models ===\n")
-_sys.stderr.flush()
 from models import (
     UserCreate, UserLogin, UserResponse, GoogleAuthCallback,
     QuestionChoice, QuestionCreate, QuestionUpdate, QuestionResponse,
@@ -57,8 +40,6 @@ from models import (
     NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest,
     AccessRequestCreate, AccessRequestUpdate, ContactRequestCreate,
 )
-_sys.stderr.write("=== CP4: importing auth ===\n")
-_sys.stderr.flush()
 from auth import (
     hash_password, verify_password, create_token,
     get_current_user, get_admin_user, security
@@ -2044,7 +2025,7 @@ def get_model_config(model_key: str):
 # ── Medical Image Database (curated, verified Wikimedia Commons) ──
 MEDICAL_IMAGES = []
 
-def _img(title, file, kw, modality="anatomy", region="general", img_type="illustration"):
+def _img(title, file, kw, modality="anatomy", region="general", img_type="illustration", pathology=None):
     MEDICAL_IMAGES.append({
         "id": file.replace(".", "_").replace(" ", "_"),
         "title": title,
@@ -2054,7 +2035,7 @@ def _img(title, file, kw, modality="anatomy", region="general", img_type="illust
         "modality": modality,
         "body_region": region,
         "image_type": img_type,
-        "pathology": [],
+        "pathology": pathology or [],
         "source": "wikimedia-commons",
         "license": "CC BY-SA 4.0",
     })
