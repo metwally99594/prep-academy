@@ -2632,99 +2632,102 @@ async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
 async def admin_cleanup_surgery_only(
     dry_run: bool = Query(True, description="If true, only report counts without deleting"),
     confirm: str = Query(None, description="Set to 'I_AM_SURE' to execute"),
+    keep_specialty: str = Query("surgery", description="Specialty to keep, or 'none' to delete ALL"),
     admin: dict = Depends(get_admin_user),
 ):
-    """⚠️ DELETE all non-surgery questions. Protected by: admin auth, feature flag, dry_run default, confirmation token."""
+    """⚠️ DELETE questions by specialty. Default: delete all non-surgery. Use keep_specialty=none to delete ALL."""
     if os.environ.get("ENABLE_ADMIN_MAINTENANCE", "").lower() != "true":
         raise HTTPException(status_code=403, detail="Maintenance mode disabled. Set ENABLE_ADMIN_MAINTENANCE=true")
     import time
     start = time.time()
-    backup_id = f"backup_surgery_cleanup_{int(start)}"
+    keep = keep_specialty.strip().lower()
+    backup_id = f"backup_cleanup_{keep}_{int(start)}"
 
     total = await db.questions.count_documents({})
-    surgery_count = await db.questions.count_documents({"specialty_id": "surgery"})
-    non_surgery_count = total - surgery_count
+    if keep == "none":
+        keep_count = 0
+        delete_filter = {}
+        delete_label = "ALL questions"
+    else:
+        keep_count = await db.questions.count_documents({"specialty_id": keep})
+        delete_filter = {"specialty_id": {"$ne": keep}}
+        delete_label = f"non-{keep} questions"
+    to_delete = total - keep_count
     specialties_pipeline = [{"$group": {"_id": "$specialty_id", "count": {"$sum": 1}}}]
     specialties = await db.questions.aggregate(specialties_pipeline).to_list(100)
-    non_surgery_ids = []
-    if non_surgery_count > 0:
-        non_surgery_ids = [
-            q["id"] async for q in db.questions.find(
-                {"specialty_id": {"$ne": "surgery"}}, {"id": 1, "_id": 0}
-            )
+    ids_to_delete = []
+    if to_delete > 0:
+        ids_to_delete = [
+            q["id"] async for q in db.questions.find(delete_filter, {"id": 1, "_id": 0})
         ]
     related_counts = {}
     for coll in ["favorites", "wrong_answers", "notes", "spaced_repetition"]:
-        coll_refs = await db[coll].count_documents({"question_id": {"$in": non_surgery_ids}}) if non_surgery_ids else 0
+        coll_refs = await db[coll].count_documents({"question_id": {"$in": ids_to_delete}}) if ids_to_delete else 0
         related_counts[coll] = coll_refs
 
     if dry_run:
         return {
             "dry_run": True,
+            "keep_specialty": keep,
             "total_questions": total,
-            "surgery_questions": surgery_count,
-            "to_delete": non_surgery_count,
-            "remaining_after": surgery_count,
+            "to_keep": keep_count,
+            "to_delete": to_delete,
+            "remaining_after": keep_count,
             "specialties": {s["_id"]: s["count"] for s in specialties},
             "related_docs_to_delete": related_counts,
-            "message": "Run with dry_run=false&confirm=I_AM_SURE to execute",
+            "message": f"Run with dry_run=false&confirm=I_AM_SURE to delete {delete_label}",
         }
     if confirm != "I_AM_SURE":
         raise HTTPException(status_code=400, detail="Set confirm=I_AM_SURE to proceed")
 
-    # ── Safeguard 1: Timeout protection ──
     async def _execute_cleanup():
-        # Safeguard 3a: backup must succeed or abort
         all_questions = await db.questions.find({}, {"_id": 0}).to_list(total)
         if not all_questions:
-            raise HTTPException(status_code=500, detail="Backup failed — no questions retrieved from DB, aborting")
+            raise HTTPException(status_code=500, detail="Backup failed — no questions retrieved, aborting")
         backup_result = await db.backups.insert_one({
             "backup_id": backup_id,
-            "type": "full_backup_before_surgery_cleanup",
+            "type": "full_backup_before_cleanup",
             "created_at": start,
             "count": len(all_questions),
             "questions": all_questions,
-            # Safeguard 2: rich backup metadata
             "backup_type": "questions_cleanup",
             "specialties_before": {s["_id"]: s["count"] for s in specialties},
             "question_count": total,
             "created_by": admin.get("email"),
+            "source": "legacy_auto_seed_backup",
         })
         if not backup_result.acknowledged:
-            raise HTTPException(status_code=500, detail="Backup write was not acknowledged by MongoDB, aborting")
+            raise HTTPException(status_code=500, detail="Backup write not acknowledged, aborting")
 
-        # Safeguard 3b: delete questions first, then related collections
-        delete_result = await db.questions.delete_many({"specialty_id": {"$ne": "surgery"}})
+        delete_result = await db.questions.delete_many(delete_filter)
         deleted = delete_result.deleted_count
 
-        # Only now clean up related collections (after questions are safely deleted)
         deleted_related = {}
         for coll in ["favorites", "wrong_answers", "notes", "spaced_repetition"]:
-            if non_surgery_ids:
-                r = await db[coll].delete_many({"question_id": {"$in": non_surgery_ids}})
+            if ids_to_delete:
+                r = await db[coll].delete_many({"question_id": {"$in": ids_to_delete}})
                 deleted_related[coll] = r.deleted_count
             else:
                 deleted_related[coll] = 0
 
-        # Recalculate user_stats: zero out removed specialties
         async for stat in db.user_stats.find({}):
             updates = {}
             if "by_specialty" in stat:
                 for sp in list(stat["by_specialty"].keys()):
-                    if sp != "surgery":
+                    if sp != keep:
                         updates[f"by_specialty.{sp}"] = {"total": 0, "correct": 0}
             if updates:
                 await db.user_stats.update_one({"_id": stat["_id"]}, {"$set": updates})
 
-        # Audit log
         await db.audit_logs.insert_one({
-            "action": "admin_cleanup_surgery_only",
+            "action": "admin_cleanup",
             "actor_id": admin.get("id"),
             "actor_email": admin.get("email"),
             "target_type": "system",
             "details": {
+                "keep_specialty": keep,
                 "deleted_questions": deleted,
-                "remaining_questions": surgery_count,
+                "remaining_questions": keep_count,
                 "deleted_related": deleted_related,
                 "backup_id": backup_id,
             },
@@ -2732,13 +2735,14 @@ async def admin_cleanup_surgery_only(
         })
 
         duration_ms = int((time.time() - start) * 1000)
+        msg = f"Cleanup complete. {'All questions deleted.' if keep == 'none' else f'Only {keep} questions remain.'}"
         return {
             "deleted_questions": deleted,
-            "remaining_questions": surgery_count,
+            "remaining_questions": keep_count,
             "deleted_related_docs": deleted_related,
             "backup_id": backup_id,
             "duration_ms": duration_ms,
-            "message": "Cleanup complete. Only surgery questions remain.",
+            "message": msg,
         }
 
     try:
