@@ -2435,7 +2435,7 @@ async def _or_call_single(*, or_model: str, system_msg: str, user_msg: str, max_
 
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
     """OpenRouter text call — respects model_key, strips <think> blocks. If model_key is 'metsu', falls back through Chinese open-source models."""
-    import re as _re, httpx, random
+    import re as _re, httpx, random, time as _time
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
         raise HTTPException(status_code=503, detail="AI nicht verfügbar — OPENROUTER_API_KEY fehlt")
@@ -2491,21 +2491,25 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
     }
     or_model = models.get(model_key, "google/gemma-4-31b-it:free")
     or_cfg = RetryConfig(max_attempts=3, initial_delay=0.5, max_delay=5.0, jitter=True)
-    try:
-        result = await retry_async(
-            lambda: _or_call_single(
-                or_model=or_model, system_msg=system_msg,
-                user_msg=user_msg, max_tokens=max_tokens,
-                or_key=or_key,
-            ),
-            or_cfg,
+    async with httpx.AsyncClient(timeout=25.0) as client:
+        start = _time.time()
+        r = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+            json={"model": or_model,
+                  "messages": [{"role": "system", "content": system_msg},
+                                {"role": "user", "content": user_msg}],
+                  "max_tokens": max_tokens, "temperature": 0.4},
         )
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        _record_model_failure(or_model)
-        raise HTTPException(status_code=503, detail=f"AI-Verbindungsfehler: {str(e)[:200]}")
+        latency = _time.time() - start
+        d = r.json()
+        logger.warning(f"[OR-DEBUG] {or_model} {r.status_code} {round(latency*1000)}ms resp={str(d)[:300]}")
+        if "choices" in d and d["choices"]:
+            content = (d["choices"][0].get("message") or {}).get("content") or ""
+            if content.strip():
+                return _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
+        raise HTTPException(status_code=503, detail=f"OpenRouter {r.status_code}: {str(d)[:300]}")
 
 
 @api_router.get("/ai/models")
