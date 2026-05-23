@@ -590,9 +590,12 @@ def make_router(db, get_current_user):
 
     @router.post("/admin/generate")
     async def admin_trigger(req: TriggerRequest, user: dict = Depends(get_current_user)):
-        """Admin manual trigger — useful for testing."""
+        """Admin manual trigger — cleanup old podcasts first, then generate new one."""
         if not user.get("is_admin"):
             raise HTTPException(status_code=403, detail="Admin only")
+        today = datetime.now(timezone.utc).date().isoformat()
+        await db.daily_podcasts.delete_many({"date": {"$ne": today}})
+        await db.custom_podcasts.delete_many({})
         doc = await generate_daily_podcast(db, req.language, force=req.force)
         if not doc:
             raise HTTPException(status_code=500, detail="Generation failed")
