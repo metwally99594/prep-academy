@@ -2750,6 +2750,93 @@ async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
         await asyncio.sleep(0.5)
     return {"seeded": seeded, "skipped": skipped, "total": len(top_topics)}
 
+@api_router.post("/admin/seed-medat-wikipedia")
+async def seed_medat_wikipedia(user: dict = Depends(get_admin_user)):
+    """Seed MedAT-specific anatomy, physiology, surgery topics from German Wikipedia"""
+    import asyncio
+    medat_topics = [
+        # === ANATOMIE (40) ===
+        "Anatomie des Herzens", "Anatomie der Lunge", "Anatomie der Leber",
+        "Anatomie der Niere", "Anatomie des Gehirns", "Anatomie des Rückenmarks",
+        "Anatomie des Auges", "Anatomie des Ohrs", "Anatomie der Haut",
+        "Skelett des Menschen", "Muskeln des Menschen", "Gelenke des Menschen",
+        "Anatomie der Wirbelsäule", "Anatomie des Beckens", "Anatomie der Hand",
+        "Anatomie des Fußes", "Blutgefäße des Menschen", "Lymphsystem des Menschen",
+        "Nervensystem des Menschen", "Vegetatives Nervensystem", "Peripheres Nervensystem",
+        "Anatomie der Mundhöhle", "Anatomie der Nase", "Anatomie des Kehlkopfes",
+        "Anatomie der Schilddrüse", "Anatomie der Nebenniere", "Anatomie der Hypophyse",
+        "Anatomie der Brustdrüse", "Anatomie der Prostata", "Anatomie des Uterus",
+        "Anatomie des Ovars", "Anatomie des Hodens", "Anatomie des Pankreas",
+        "Anatomie der Milz", "Anatomie der Gallenblase", "Anatomie der Harnblase",
+        "Anatomie des Zwerchfells", "Anatomie des Bauchfells", "Anatomie des Mittelfells",
+        "Anatomie der Herzkranzgefäße",
+        # === PHYSIOLOGIE (35) ===
+        "Herzzyklus", "Blutkreislauf des Menschen", "Blutdruckregulation",
+        "Atmung des Menschen", "Gasaustausch in der Lunge", "Säure-Basen-Haushalt",
+        "Nierenfunktion", "Harnbildung", "Hormonsystem des Menschen",
+        "Nervenleitung", "Muskelkontraktion", "Verdauung des Menschen",
+        "Stoffwechsel des Menschen", "Immunsystem des Menschen",
+        "Blutgerinnung", "Wundheilung", "Flüssigkeitshaushalt",
+        "Elektrolythaushalt", "Temperaturregulation", "Schmerzphysiologie",
+        "Sehen beim Menschen", "Hören beim Menschen", "Gleichgewichtssinn",
+        "Reflexbogen", "Blutbildung", "Blutgruppen", "Gerinnungskaskade",
+        "Fettstoffwechsel", "Kohlenhydratstoffwechsel", "Eiweißstoffwechsel",
+        "Kalziumstoffwechsel", "Wasserhaushalt des Menschen", "Säure-Basen-Regulation",
+        "Thermoregulation des Menschen", "Glukosestoffwechsel",
+        # === CHIRURGIE / MEDIZINISCHE FACHGEBIETE (35) ===
+        "Chirurgie", "Allgemeinchirurgie", "Viszeralchirurgie", "Unfallchirurgie",
+        "Gefäßchirurgie", "Herzchirurgie", "Thoraxchirurgie", "Neurochirurgie",
+        "Orthopädie", "Anästhesie", "Intensivmedizin", "Notfallmedizin",
+        "Innere Medizin", "Kardiologie", "Pulmologie", "Gastroenterologie",
+        "Nephrologie", "Hämatologie", "Endokrinologie", "Rheumatologie",
+        "Infektiologie", "Pädiatrie", "Gynäkologie", "Geburtshilfe",
+        "Neurologie", "Psychiatrie", "Dermatologie", "Urologie",
+        "Hals-Nasen-Ohren-Heilkunde", "Ophthalmologie",
+        "Pathologie", "Mikrobiologie", "Pharmakologie", "Toxikologie",
+        "Radiologie",
+        # === BIOCHEMIE / MOLEKULARBIOLOGIE (20) ===
+        "Biochemie des Menschen", "Enzyme", "Proteine", "Kohlenhydrate",
+        "Fette", "Nukleinsäuren", "DNA-Replikation", "Transkription",
+        "Translation", "Zellzyklus", "Mitose", "Meiose",
+        "Stoffwechselwege", "Citratzyklus", "Atmungskette",
+        "Glykolyse", "Gluconeogenese", "Glykogensynthese",
+        "Harnstoffzyklus", "Beta-Oxidation",
+        # === PHARMAKOLOGIE (20) ===
+        "Antibiotikum", "Beta-Blocker", "ACE-Hemmer",
+        "Schmerzmittel", "Nichtsteroidales Antirheumatikum", "Opioid",
+        "Anästhetikum", "Lokalanästhetikum", "Antidepressivum",
+        "Neuroleptikum", "Benzodiazepin", "Antiepileptikum",
+        "Antihypertensivum", "Diuretikum", "Antikoagulans",
+        "Thrombozytenaggregationshemmer", "Statine", "Kortikosteroid",
+        "Insulin", "Muskelrelaxans",
+        # === NOTFALLMEDIZIN (15) ===
+        "Herz-Lungen-Wiederbelebung", "Akutes Koronarsyndrom",
+        "Anaphylaxie", "Schock", "Polytrauma", "Schädel-Hirn-Trauma",
+        "Verbrennung", "Vergiftung", "Intoxikation",
+        "Akute Ateminsuffizienz", "Lungenödem", "Lungenembolie",
+        "Status epilepticus", "Hypoglykämie", "Hyperglykämie",
+    ]
+    seeded, skipped = 0, 0
+    for i in range(0, len(medat_topics), 5):
+        batch = medat_topics[i:i + 5]
+        tasks = [_fetch_wikipedia_topic(t, "de") for t in batch]
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for topic, result in zip(batch, batch_results):
+            if isinstance(result, dict) and result:
+                try:
+                    existing = await db.medical_knowledge.find_one({"title": result["title"]})
+                    if existing:
+                        skipped += 1
+                    else:
+                        await db.medical_knowledge.insert_one(result)
+                        seeded += 1
+                except Exception:
+                    skipped += 1
+            else:
+                skipped += 1
+        await asyncio.sleep(0.5)
+    return {"seeded": seeded, "skipped": skipped, "total": len(medat_topics)}
+
 
 @api_router.get("/admin/debug/openrouter-test")
 async def debug_openrouter_test(user: dict = Depends(get_admin_user)):
@@ -3133,7 +3220,7 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
         # Search both sources in parallel
         relevant_questions, relevant_knowledge = await asyncio.gather(
             _search_questions_internal(body.user_message, limit=2),
-            _search_medical_knowledge(body.user_message, limit=2),
+            _search_medical_knowledge(body.user_message, limit=6),
         )
         context_parts = []
         for idx, q in enumerate(relevant_questions[:2], 1):
@@ -3150,19 +3237,19 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
                 context_parts.append(f"📝 Frage {idx}:\n{q_text}\n{choices_str}\n✅ {correct_str}\n📖 {expl[:300]}")
             else:
                 context_parts.append(f"📝 Frage {idx}:\n{q_text}\n{choices_str}\n✅ {correct_str}")
-        for idx, k in enumerate(relevant_knowledge[:2], 1):
+        for idx, k in enumerate(relevant_knowledge[:6], 1):
             title = k.get("title", "")
-            summary = k.get("summary", "")[:600]
+            content_text = k.get("content") or k.get("summary", "")[:800]
             source = k.get("source", "unknown")
-            if not summary:
+            if not content_text:
                 continue
             if source == "pubmed":
                 journal = k.get("journal", "")
                 pubdate = k.get("pubdate", "")
-                context_parts.append(f"🔬 PubMed-Studie {idx}:\n{title}\n{summary}\nQuelle: {journal} ({pubdate})")
+                context_parts.append(f"🔬 PubMed-Studie {idx}:\n{title}\n{content_text}\nQuelle: {journal} ({pubdate})")
             else:
                 category = k.get("category", "medical")
-                context_parts.append(f"📚 Medizinisches Wissen {idx} ({category}):\n{title}\n{summary}")
+                context_parts.append(f"📚 Medizinisches Wissen {idx} ({category}):\n{title}\n{content_text}")
         context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen zu diesem Thema gefunden."
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
