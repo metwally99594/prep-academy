@@ -574,6 +574,20 @@ def make_router(db, get_current_user):
         language: str = "de"
         force: bool = True
 
+    @router.post("/admin/cleanup")
+    async def admin_cleanup_podcasts(user: dict = Depends(get_current_user)):
+        """Delete all daily podcasts except today's. Admin only."""
+        if not user.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin only")
+        today = datetime.now(timezone.utc).date().isoformat()
+        daily_result = await db.daily_podcasts.delete_many({"date": {"$ne": today}})
+        custom_result = await db.custom_podcasts.delete_many({})
+        return {
+            "deleted_daily": daily_result.deleted_count,
+            "deleted_custom": custom_result.deleted_count,
+            "message": f"Deleted {daily_result.deleted_count} old daily + {custom_result.deleted_count} custom podcast(s)"
+        }
+
     @router.post("/admin/generate")
     async def admin_trigger(req: TriggerRequest, user: dict = Depends(get_current_user)):
         """Admin manual trigger — useful for testing."""
