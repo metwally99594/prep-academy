@@ -2783,6 +2783,8 @@ async def _fetch_wikipedia_full_page(page_title: str, lang: str = "de") -> Optio
 @api_router.post("/admin/seed-medical-knowledge")
 async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
     """Pre-seed medical knowledge base with common MedAT topics from Wikipedia"""
+    import asyncio
+    top_topics = [
         "Herzinsuffizienz", "Diabetes mellitus", "Asthma bronchiale", "COPD",
         "Myokardinfarkt", "Schlaganfall", "Hypertonie", "Niereninsuffizienz",
         "Leberzirrhose", "Pneumonie", "Lungenembolie", "Appendizitis",
