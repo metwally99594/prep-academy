@@ -2924,23 +2924,18 @@ async def seed_wikipedia_medical(user: dict = Depends(get_admin_user)):
     """Seed ALL German Wikipedia medical category pages into knowledge base."""
     import asyncio, httpx
     top_categories = [
-        "Kategorie:Krankheit", "Kategorie:Anatomie", "Kategorie:Arzneimittel",
+        "Kategorie:Krankheiten", "Kategorie:Anatomie", "Kategorie:Arzneimittel",
         "Kategorie:Chirurgie", "Kategorie:Innere Medizin", "Kategorie:Pharmakologie",
         "Kategorie:Physiologie", "Kategorie:Pathologie", "Kategorie:Neurologie",
-        "Kategorie:Psychiatrie", "Kategorie:Gynäkologie", "Kategorie:Pädiatrie",
-        "Kategorie:Notfallmedizin", "Kategorie:Orthopädie", "Kategorie:Dermatologie",
-        "Kategorie:Urologie", "Kategorie:Ophthalmologie", "Kategorie:Hals-Nasen-Ohren-Heilkunde",
-        "Kategorie:Mikrobiologie", "Kategorie:Biochemie", "Kategorie:Kardiologie",
-        "Kategorie:Gastroenterologie", "Kategorie:Pneumologie", "Kategorie:Nephrologie",
-        "Kategorie:Hämatologie", "Kategorie:Endokrinologie", "Kategorie:Rheumatologie",
-        "Kategorie:Infektiologie", "Kategorie:Anästhesie", "Kategorie:Radiologie",
-        "Kategorie:Toxikologie", "Kategorie:Genetik", "Kategorie:Immunologie",
-        "Kategorie:Virologie", "Kategorie:Parasitologie", "Kategorie:Embryologie",
-        "Kategorie:Histologie", "Kategorie:Zytologie", "Kategorie:Stoffwechsel",
-        "Kategorie:Herz-Kreislauf-Erkrankungen", "Kategorie:Lungenkrankheit",
-        "Kategorie:Leberkrankheit", "Kategorie:Nierenerkrankung", "Kategorie:Infektionskrankheit",
-        "Kategorie:Autoimmunerkrankung", "Kategorie:Tumor", "Kategorie:Verletzung",
-        "Kategorie:Vergiftung", "Kategorie:Allergologie",
+        "Kategorie:Kardiologie", "Kategorie:Gastroenterologie", "Kategorie:Pneumologie",
+        "Kategorie:Nephrologie", "Kategorie:Endokrinologie", "Kategorie:Rheumatologie",
+        "Kategorie:Hämatologie", "Kategorie:Diagnostik", "Kategorie:Therapie",
+        "Kategorie:Immunologie", "Kategorie:Virologie", "Kategorie:Mikrobiologie",
+        "Kategorie:Biochemie", "Kategorie:Biomedizin", "Kategorie:Stoffwechsel",
+        "Kategorie:Anästhesie", "Kategorie:Radiologie", "Kategorie:Genetik",
+        "Kategorie:Embryologie", "Kategorie:Histologie", "Kategorie:Toxikologie",
+        "Kategorie:Hygiene", "Kategorie:Humanmedizin",
+        "Kategorie:Medizinisches Fachgebiet",
     ]
     all_titles = set()
     async with httpx.AsyncClient(timeout=15.0) as cl:
@@ -2969,6 +2964,53 @@ async def seed_wikipedia_medical(user: dict = Depends(get_admin_user)):
                 except Exception:
                     break
                 await asyncio.sleep(0.3)
+        # Also get subcategories of Medizinisches Fachgebiet and their pages
+        subcat_cmcontinue = None
+        while True:
+            sparams = {
+                "action": "query", "list": "categorymembers",
+                "cmtitle": "Kategorie:Medizinisches Fachgebiet",
+                "cmtype": "subcat", "cmlimit": "max", "format": "json",
+            }
+            if subcat_cmcontinue:
+                sparams["cmcontinue"] = subcat_cmcontinue
+            try:
+                sr = await cl.get("https://de.wikipedia.org/w/api.php", params=sparams)
+                sdata = sr.json()
+                if sdata.get("query") and sdata["query"].get("categorymembers"):
+                    for cm in sdata["query"]["categorymembers"]:
+                        scat = cm["title"]
+                        if scat.startswith("Kategorie:"):
+                            scmcontinue = None
+                            while True:
+                                scparams = {
+                                    "action": "query", "generator": "categorymembers",
+                                    "gcmtitle": scat, "gcmtype": "page",
+                                    "gcmlimit": "max", "format": "json", "prop": "info",
+                                }
+                                if scmcontinue:
+                                    scparams["gcmcontinue"] = scmcontinue
+                                try:
+                                    scr = await cl.get("https://de.wikipedia.org/w/api.php", params=scparams)
+                                    scdata = scr.json()
+                                    if scdata.get("query") and scdata["query"].get("pages"):
+                                        for pid, pdata in scdata["query"]["pages"].items():
+                                            if int(pid) > 0:
+                                                all_titles.add(pdata["title"])
+                                    if scdata.get("continue") and scdata["continue"].get("gcmcontinue"):
+                                        scmcontinue = scdata["continue"]["gcmcontinue"]
+                                    else:
+                                        break
+                                except Exception:
+                                    break
+                                await asyncio.sleep(0.2)
+                if sdata.get("continue") and sdata["continue"].get("cmcontinue"):
+                    subcat_cmcontinue = sdata["continue"]["cmcontinue"]
+                else:
+                    break
+            except Exception:
+                break
+            await asyncio.sleep(0.3)
     total_found = len(all_titles)
     seeded, skipped, failed = 0, 0, 0
     titles_list = sorted(all_titles)
