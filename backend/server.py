@@ -583,7 +583,7 @@ async def get_exam_types():
 async def get_guest_questions(specialty_id: Optional[str] = None, count: int = 5):
     """Get random questions for guests (no auth required) - limited to 5"""
     count = min(count, 5)
-    query = {}
+    query = {"status": "published"}
     if specialty_id:
         query["specialty_id"] = specialty_id
     pipeline = [
@@ -893,11 +893,12 @@ async def get_questions(
     specialty_id: Optional[str] = None,
     year: Optional[int] = None,
     exam_location: Optional[str] = None,
+    status: Optional[str] = None,
     limit: int = 30,
     skip: int = 0,
     user: dict = Depends(get_current_user),
 ):
-    limit = min(limit, 100)  # hard cap to prevent mass extraction
+    limit = min(limit, 100)
     query = {}
     if specialty_id:
         query["specialty_id"] = specialty_id
@@ -905,6 +906,10 @@ async def get_questions(
         query["year"] = year
     if exam_location:
         query["exam_location"] = exam_location
+    if not user.get("is_admin"):
+        query["status"] = "published"
+    elif status:
+        query["status"] = status
 
     questions = await db.questions.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return questions
@@ -987,6 +992,7 @@ async def get_available_years(specialty_id: Optional[str] = None):
 @api_router.get("/simulation/questions")
 async def get_simulation_questions(city: str = "vienna", user: dict = Depends(get_current_user)):
     """Get 250 questions for exam simulation - redistributes from empty specialties."""
+    is_admin = user.get("is_admin", False)
     exam_structure = [
         ("internal", 30), ("surgery", 30), ("pediatrics", 30),
         ("neurology", 25), ("dermatology", 25), ("obgyn", 25),
@@ -1000,8 +1006,11 @@ async def get_simulation_questions(city: str = "vienna", user: dict = Depends(ge
     specs_with_questions = []
     
     for spec_id, target in exam_structure:
+        match = {"specialty_id": spec_id}
+        if not is_admin:
+            match["status"] = "published"
         pipeline = [
-            {"$match": {"specialty_id": spec_id}},
+            {"$match": match},
             {"$sample": {"size": target}},
             {"$project": {"_id": 0, "id": 1, "specialty_id": 1, "year": 1,
                          "question_text": 1, "question_text_de": 1, "choices": 1,
@@ -1025,8 +1034,11 @@ async def get_simulation_questions(city: str = "vienna", user: dict = Depends(ge
         for spec_id in specs_with_questions:
             if remaining <= 0:
                 break
+            fill_match = {"specialty_id": spec_id, "id": {"$nin": list(existing_ids)}}
+            if not is_admin:
+                fill_match["status"] = "published"
             pipeline = [
-                {"$match": {"specialty_id": spec_id, "id": {"$nin": list(existing_ids)}}},
+                {"$match": fill_match},
                 {"$sample": {"size": per_spec}},
                 {"$project": {"_id": 0, "id": 1, "specialty_id": 1, "year": 1,
                              "question_text": 1, "question_text_de": 1, "choices": 1,
@@ -1063,6 +1075,8 @@ async def get_quiz_questions(
         query["year"] = year
     if exam_location:
         query["exam_location"] = exam_location
+    if not user.get("is_admin"):
+        query["status"] = "published"
     
     project = {
         "_id": 0, "id": 1, "specialty_id": 1, "year": 1,
@@ -1107,6 +1121,8 @@ async def get_questions_count(
 async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_current_user)):
     """Advanced custom quiz with multiple filters"""
     query = {}
+    if not user.get("is_admin"):
+        query["status"] = "published"
 
     # Multiple specialties
     if request.specialties:
@@ -1170,6 +1186,8 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
 async def custom_quiz_count(request: CustomQuizRequest, user: dict = Depends(get_current_user)):
     """Count matching questions for custom quiz filters"""
     query = {}
+    if not user.get("is_admin"):
+        query["status"] = "published"
 
     if request.specialties:
         query["specialty_id"] = {"$in": request.specialties}
@@ -1207,6 +1225,8 @@ async def custom_quiz_count(request: CustomQuizRequest, user: dict = Depends(get
 async def get_question(question_id: str, user: dict = Depends(get_current_user)):
     question = await db.questions.find_one({"id": question_id}, {"_id": 0})
     if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    if not user.get("is_admin") and question.get("status") == "draft":
         raise HTTPException(status_code=404, detail="Question not found")
     return question
 
@@ -1323,6 +1343,26 @@ async def delete_question(question_id: str, admin: dict = Depends(get_admin_user
     # Remove from favorites
     await db.favorites.delete_many({"question_id": question_id})
     return {"message": "Question deleted"}
+
+@api_router.put("/admin/questions/{question_id}/status")
+async def toggle_question_status(question_id: str, admin: dict = Depends(get_admin_user)):
+    existing = await db.questions.find_one({"id": question_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Question not found")
+    new_status = "draft" if existing.get("status") != "draft" else "published"
+    await db.questions.update_one({"id": question_id}, {"$set": {"status": new_status}})
+    return {"id": question_id, "status": new_status}
+
+@api_router.post("/admin/questions/bulk-status")
+async def bulk_update_status(data: dict, admin: dict = Depends(get_admin_user)):
+    question_ids = data.get("question_ids", [])
+    new_status = data.get("status", "published")
+    if new_status not in ("published", "draft"):
+        raise HTTPException(status_code=400, detail="Status must be 'published' or 'draft'")
+    if not question_ids:
+        raise HTTPException(status_code=400, detail="No question IDs provided")
+    result = await db.questions.update_many({"id": {"$in": question_ids}}, {"$set": {"status": new_status}})
+    return {"updated": result.modified_count, "status": new_status}
 
 # ============ ANSWER ROUTES ============
 

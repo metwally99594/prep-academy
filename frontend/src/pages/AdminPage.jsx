@@ -108,6 +108,7 @@ const emptyQuestion = {
   specialty_id: "",
   year: new Date().getFullYear(),
   exam_location: "vienna",
+  status: "published",
   question_text: "",
   question_text_de: "",
   question_type: "single_choice",
@@ -140,12 +141,15 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   const [result, setResult] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
   const [history, setHistory] = useState(null);
+  const [xlsxMode, setXlsxMode] = useState(false);
+  const [xlsxResult, setXlsxResult] = useState(null);
+  const [xlsxImporting, setXlsxImporting] = useState(false);
 
   useEffect(() => {
     axios.get(`${API}/admin/import-logs?limit=10`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(r => setHistory(r.data.logs)).catch(() => {});
-  }, [token, result]);
+  }, [token, result, xlsxResult]);
 
   const parseQuestions = (data) => {
     if (!Array.isArray(data)) {
@@ -195,6 +199,27 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     reader.readAsText(f);
   };
 
+  const handleXlsxSelect = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (!f.name.endsWith('.xlsx') && !f.name.endsWith('.xls')) {
+      toast.error("Nur Excel-Dateien (.xlsx/.xls) sind erlaubt");
+      return;
+    }
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        parseQuestions(data);
+      } catch {
+        toast.error("Ungültige Excel-Datei");
+        setFile(null);
+      }
+    };
+    reader.readAsText(f);
+  };
+
   const handlePaste = () => {
     if (!pasteJson.trim()) { toast.error("Bitte JSON einfügen"); return; }
     try {
@@ -202,6 +227,31 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       parseQuestions(data);
     } catch {
       toast.error("Ungültiges JSON");
+    }
+  };
+
+  const handleXlsxImport = async () => {
+    if (!file) { toast.error("Bitte eine Excel-Datei auswählen"); return; }
+    setXlsxImporting(true);
+    setXlsxResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await axios.post(
+        `${API}/admin/import-questions/xlsx`,
+        formData,
+        {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+          timeout: 120000,
+        }
+      );
+      setXlsxResult(res.data);
+      toast.success(`${res.data.imported} Fragen aus Excel importiert!`);
+      if (onImportComplete) onImportComplete();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "XLSX-Import fehlgeschlagen");
+    } finally {
+      setXlsxImporting(false);
     }
   };
 
@@ -253,6 +303,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     setPreview(null);
     setResult(null);
     setValidationResult(null);
+    setXlsxResult(null);
   };
 
   return (
@@ -267,19 +318,22 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       </div>
 
       {/* Mode switcher */}
-      {!parsedQuestions && (
-        <div className="flex gap-3">
-          <Button variant={mode === "file" ? "default" : "outline"} onClick={() => setMode("file")} className="gap-2">
-            <Upload className="w-4 h-4" /> Datei hochladen
+      {!parsedQuestions && !xlsxResult && (
+        <div className="flex gap-2 flex-wrap">
+          <Button variant={!xlsxMode && mode === "file" ? "default" : "outline"} onClick={() => { setXlsxMode(false); setMode("file"); }} className="gap-2">
+            <Upload className="w-4 h-4" /> JSON
           </Button>
-          <Button variant={mode === "paste" ? "default" : "outline"} onClick={() => setMode("paste")} className="gap-2">
+          <Button variant={xlsxMode ? "default" : "outline"} onClick={() => { setXlsxMode(true); setMode("file"); }} className="gap-2">
+            <Upload className="w-4 h-4" /> Excel (XLSX)
+          </Button>
+          <Button variant={!xlsxMode && mode === "paste" ? "default" : "outline"} onClick={() => { setXlsxMode(false); setMode("paste"); }} className="gap-2">
             <Copy className="w-4 h-4" /> JSON einfügen
           </Button>
         </div>
       )}
 
-      {/* File upload */}
-      {mode === "file" && !parsedQuestions && (
+      {/* JSON File upload */}
+      {!xlsxMode && mode === "file" && !parsedQuestions && (
         <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-primary/30 rounded-2xl cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-all">
           <Upload className="w-10 h-10 text-primary/50 mb-3" />
           <span className="text-sm font-medium text-primary">JSON-Datei auswählen</span>
@@ -288,8 +342,78 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         </label>
       )}
 
+      {/* XLSX File upload */}
+      {xlsxMode && !parsedQuestions && !xlsxResult && (
+        <div className="space-y-3">
+          <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-emerald-500/30 rounded-2xl cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-500/5 transition-all">
+            <Upload className="w-10 h-10 text-emerald-500/50 mb-3" />
+            <span className="text-sm font-medium text-emerald-500">Excel-Datei auswählen (.xlsx)</span>
+            <span className="text-xs text-muted-foreground mt-1">Spalten: Fragetext, Fachgebiet, Antwort A-E, Richtige Antwort, Erklärung, Jahr, Ort</span>
+            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => {
+              const f = e.target.files[0];
+              if (!f) return;
+              if (!f.name.endsWith('.xlsx') && !f.name.endsWith('.xls')) {
+                toast.error("Nur Excel-Dateien (.xlsx/.xls) sind erlaubt");
+                return;
+              }
+              setFile(f);
+              setXlsxResult(null);
+            }} />
+          </label>
+          {file && xlsxMode && (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center gap-2 text-sm">
+                <Upload className="w-4 h-4 text-emerald-500" />
+                <span className="font-medium">{file.name}</span>
+                <span className="text-muted-foreground">({(file.size / 1024).toFixed(1)} KB)</span>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => { setFile(null); setXlsxResult(null); }} variant="ghost" size="sm">
+                  <X className="w-4 h-4" />
+                </Button>
+                <Button onClick={handleXlsxImport} disabled={xlsxImporting} className="gap-2 bg-emerald-600 hover:bg-emerald-500">
+                  {xlsxImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {xlsxImporting ? "Importiere..." : "Excel importieren"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* XLSX result */}
+      {xlsxResult && (
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+          <h3 className="font-medium text-emerald-600 mb-2">Excel-Import abgeschlossen!</h3>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="text-center p-2 rounded-lg bg-background">
+              <div className="text-xl font-bold text-emerald-600">{xlsxResult.imported}</div>
+              <div className="text-xs text-muted-foreground">Importiert</div>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-background">
+              <div className="text-xl font-bold text-amber-500">{xlsxResult.skipped}</div>
+              <div className="text-xs text-muted-foreground">Übersprungen</div>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-background">
+              <div className="text-xl font-bold text-primary">{xlsxResult.total_in_db}</div>
+              <div className="text-xs text-muted-foreground">Gesamt in DB</div>
+            </div>
+          </div>
+          {xlsxResult.errors?.length > 0 && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 mb-3 max-h-32 overflow-y-auto">
+              {xlsxResult.errors.map((e, i) => <div key={i} className="text-xs text-red-600 py-0.5">{e}</div>)}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setFile(null); setXlsxResult(null); }} className="gap-2">
+              <Upload className="w-4 h-4" /> Weiteres Excel importieren
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Paste JSON */}
-      {mode === "paste" && !parsedQuestions && (
+      {!xlsxMode && mode === "paste" && !parsedQuestions && (
         <div className="space-y-3">
           <Textarea
             placeholder='[{&quot;specialty_id&quot;: &quot;surgery&quot;, &quot;question_text_de&quot;: &quot;...&quot;, ...}]'
@@ -974,7 +1098,7 @@ export default function AdminPage() {
                       Frage hinzufügen
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
                     <DialogHeader>
                       <DialogTitle>
                         {editingQuestion ? "Frage bearbeiten" : "Neue Frage hinzufügen"}
@@ -1049,6 +1173,25 @@ export default function AdminPage() {
                           <option value="luckentext">Lückentext</option>
                         </select>
                       </div>
+
+                      {/* Status toggle (only when editing) */}
+                      {editingQuestion && (
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border">
+                          <div className="flex items-center gap-2">
+                            {formData.status === 'draft'
+                              ? <X className="w-4 h-4 text-amber-500" />
+                              : <Upload className="w-4 h-4 text-emerald-500" />
+                            }
+                            <Label className="cursor-pointer" onClick={() => setFormData(prev => ({ ...prev, status: prev.status === 'draft' ? 'published' : 'draft' }))}>
+                              {formData.status === 'draft' ? 'Entwurf — Nicht für Benutzer sichtbar' : 'Veröffentlicht — Für alle Benutzer sichtbar'}
+                            </Label>
+                          </div>
+                          <Switch
+                            checked={formData.status !== 'draft'}
+                            onCheckedChange={(v) => setFormData(prev => ({ ...prev, status: v ? 'published' : 'draft' }))}
+                          />
+                        </div>
+                      )}
 
                       <div className="space-y-2">
                         <Label>Fragetext *</Label>
@@ -1223,6 +1366,28 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
 
+                  <Button variant="outline" size="sm" className="gap-2 text-emerald-500 border-emerald-500/30" onClick={async () => {
+                    try {
+                      const headers = { Authorization: `Bearer ${token}` };
+                      await axios.post(`${API}/admin/questions/bulk-status`, { question_ids: selectedQuestions, status: "published" }, { headers });
+                      toast.success(`${selectedQuestions.length} Fragen veröffentlicht`);
+                      setSelectedQuestions([]);
+                      fetchQuestions();
+                    } catch { toast.error("Fehler"); }
+                  }}>
+                    <Upload className="w-3.5 h-3.5" /> Veröffentlichen
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-2 text-amber-500 border-amber-500/30" onClick={async () => {
+                    try {
+                      const headers = { Authorization: `Bearer ${token}` };
+                      await axios.post(`${API}/admin/questions/bulk-status`, { question_ids: selectedQuestions, status: "draft" }, { headers });
+                      toast.success(`${selectedQuestions.length} Fragen als Entwurf gespeichert`);
+                      setSelectedQuestions([]);
+                      fetchQuestions();
+                    } catch { toast.error("Fehler"); }
+                  }}>
+                    <X className="w-3.5 h-3.5" /> Entwurf
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="sm" className="gap-2" disabled={bulkDeleting} data-testid="bulk-delete-btn">
@@ -1264,6 +1429,7 @@ export default function AdminPage() {
                     <TableHead>Fachgebiet</TableHead>
                     <TableHead>Ort</TableHead>
                     <TableHead>Jahr</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Antworten</TableHead>
                     <TableHead className="w-24">Aktionen</TableHead>
                   </TableRow>
@@ -1271,7 +1437,7 @@ export default function AdminPage() {
                 <TableBody>
                   {questions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                         Keine Fragen vorhanden
                       </TableCell>
                     </TableRow>
@@ -1297,6 +1463,31 @@ export default function AdminPage() {
                           </span>
                         </TableCell>
                         <TableCell>{question.year}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              question.status === 'draft'
+                                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/20'
+                                : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
+                            }`}>
+                              {question.status === 'draft' ? 'Entwurf' : 'Veröffentlicht'}
+                            </span>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const headers = { Authorization: `Bearer ${token}` };
+                                  const res = await axios.put(`${API}/admin/questions/${question.id}/status`, {}, { headers });
+                                  toast.success(res.data.status === 'published' ? 'Veröffentlicht' : 'Als Entwurf gespeichert');
+                                  fetchQuestions();
+                                } catch { toast.error("Fehler beim Ändern des Status"); }
+                              }}
+                              className="ml-1 p-1 rounded hover:bg-muted transition-colors"
+                              title={question.status === 'draft' ? 'Veröffentlichen' : 'Als Entwurf speichern'}
+                            >
+                              {question.status === 'draft' ? <Upload className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <span className="text-emerald-500">
                             {question.choices?.filter(c => c.is_correct).length || 0}
@@ -1634,52 +1825,44 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="online">
-          <div style={{ background: '#f5f6fa', borderRadius: '24px', border: '1px solid #e5e7eb', padding: '24px' }}>
+          <div className="glass-card rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Wifi className="w-4 h-4" style={{ color: '#22c55e' }} />
-                <h1 style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a', margin: 0 }}>
-                  Online-Status
-                </h1>
+                <Wifi className="w-5 h-5 text-emerald-500" />
+                <h2 className="text-xl font-semibold">Online-Status</h2>
               </div>
-              <button onClick={fetchData} style={{ background: 'none', border: 'none', color: '#111827', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>
+              <Button variant="outline" size="sm" onClick={fetchData} className="gap-1">
+                <Activity className="w-3.5 h-3.5" />
                 Aktualisieren
-              </button>
+              </Button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
               {onlineUsers.length === 0 ? (
-                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 0', color: '#64748b' }}>
-                  Keine Aktivit��tsdaten vorhanden
+                <div className="col-span-full text-center py-12 text-muted-foreground">
+                  <WifiOff className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  Keine Aktivitätsdaten vorhanden
                 </div>
               ) : (
                 [...onlineUsers].sort((a, b) => b.is_online - a.is_online).map((u, i) => (
                   <div
                     key={u.user_id || i}
-                    style={{
-                      background: u.is_online ? '#eef7f3' : '#f8f8fb',
-                      border: `1px solid ${u.is_online ? '#b7e4cc' : '#e5e7eb'}`,
-                      borderRadius: '16px',
-                      padding: '14px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                      cursor: 'default',
-                      transition: 'box-shadow 0.2s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
+                    className={`rounded-xl p-4 flex flex-col gap-1.5 transition-shadow cursor-default ${
+                      u.is_online ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-muted/30 border border-border/60'
+                    }`}
+                    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
                     onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
                   >
                     <div className="flex items-center gap-2">
                       {u.is_online
-                        ? <Wifi className="w-4 h-4" style={{ color: '#22c55e' }} />
-                        : <WifiOff className="w-4 h-4" style={{ color: '#6b7280' }} />
+                        ? <Wifi className="w-4 h-4 text-emerald-500" />
+                        : <WifiOff className="w-4 h-4 text-muted-foreground" />
                       }
-                      <span style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>
+                      <span className="font-semibold text-base">
                         {u.name || '?'}
                       </span>
                     </div>
-                    <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+                    <p className="text-sm text-muted-foreground m-0">
                       {u.email || '?'}
                     </p>
                   </div>

@@ -101,6 +101,127 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
         raise HTTPException(status_code=500, detail=f"Import fehlgeschlagen: {str(e)}")
 
 
+@router.post("/admin/import-questions/xlsx")
+async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_current_user)):
+    """Import questions from an XLSX/Excel file"""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    if not (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+        raise HTTPException(status_code=400, detail="Nur Excel-Dateien (.xlsx/.xls) sind erlaubt")
+    try:
+        content = await file.read()
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+        if len(rows) < 2:
+            raise HTTPException(status_code=400, detail="Excel-Datei muss eine Kopfzeile und mindestens eine Frage enthalten")
+        headers = [str(h).lower().strip() if h else "" for h in rows[0]]
+
+        def col(name_de, name_en):
+            for i, h in enumerate(headers):
+                if h == name_de.lower().strip() or h == name_en.lower().strip():
+                    return i
+            return None
+
+        idx_text = col("Fragetext", "Question Text") or col("Frage", "Question") or col("Text", "text")
+        idx_spec = col("Fachgebiet", "Specialty") or col("Fach", "subject") or col("specialty_id", "specialty_id")
+        idx_a = col("Antwort A", "Answer A") or col("A", "a")
+        idx_b = col("Antwort B", "Answer B") or col("B", "b")
+        idx_c = col("Antwort C", "Answer C") or col("C", "c")
+        idx_d = col("Antwort D", "Answer D") or col("D", "d")
+        idx_e = col("Antwort E", "Answer E") or col("E", "e")
+        idx_correct = col("Richtige Antwort", "Correct Answer") or col("Richtig", "correct") or col("correct", "correct")
+        idx_explanation = col("Erklärung", "Explanation") or col("Erklaerung", "explanation")
+        idx_year = col("Jahr", "Year") or col("year", "year")
+        idx_location = col("Ort", "Location") or col("Stadt", "City") or col("exam_location", "exam_location")
+
+        if idx_text is None:
+            raise HTTPException(status_code=400, detail="Keine Spalte 'Fragetext' oder 'Frage' gefunden. Kopfzeile: " + ", ".join(headers[:10]))
+
+        imported = 0
+        skipped = 0
+        errors = []
+        existing_ids = set()
+        async for q in db.questions.find({}, {"id": 1, "_id": 0}):
+            existing_ids.add(q.get("id"))
+        batch = []
+
+        for i, row in enumerate(rows[1:], start=2):
+            try:
+                if not row or all(cell is None for cell in row):
+                    continue
+                question_text = str(row[idx_text]).strip() if idx_text is not None and row[idx_text] else ""
+                if not question_text:
+                    skipped += 1
+                    continue
+                choices = []
+                letters = [("A", idx_a), ("B", idx_b), ("C", idx_c), ("D", idx_d), ("E", idx_e)]
+                correct_val = str(row[idx_correct]).strip().upper() if idx_correct is not None and row[idx_correct] else ""
+                for letter, idx in letters:
+                    if idx is not None and row[idx] and str(row[idx]).strip():
+                        text = str(row[idx]).strip()
+                        is_correct = letter == correct_val or correct_val == letter
+                        choices.append({"id": str(uuid.uuid4())[:8], "text": text, "text_de": text, "is_correct": is_correct})
+                if not choices:
+                    skipped += 1
+                    continue
+                has_correct = any(c["is_correct"] for c in choices)
+                if not has_correct:
+                    choices[0]["is_correct"] = True
+
+                qid = str(uuid.uuid4())
+                specialty_id = str(row[idx_spec]).strip().lower() if idx_spec is not None and row[idx_spec] else "unknown"
+                explanation = str(row[idx_explanation]).strip() if idx_explanation is not None and row[idx_explanation] else ""
+                year_val = row[idx_year] if idx_year is not None and row[idx_year] else 2024
+                if year_val and str(year_val).strip().isdigit():
+                    year_val = int(year_val)
+                else:
+                    year_val = 2024
+                location_val = str(row[idx_location]).strip().lower() if idx_location is not None and row[idx_location] else "vienna"
+
+                normalized = {
+                    "id": qid,
+                    "specialty_id": specialty_id,
+                    "question_text": question_text,
+                    "question_text_de": question_text,
+                    "question_type": "single_choice",
+                    "choices": choices,
+                    "explanation": explanation,
+                    "explanation_de": explanation,
+                    "year": year_val,
+                    "exam_location": location_val,
+                    "tags": [],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if qid in existing_ids:
+                    skipped += 1
+                    continue
+                existing_ids.add(qid)
+                batch.append(normalized)
+                if len(batch) >= 100:
+                    await db.questions.insert_many(batch)
+                    imported += len(batch)
+                    batch = []
+            except Exception as e:
+                errors.append(f"Zeile {i}: {str(e)}")
+                skipped += 1
+                continue
+        if batch:
+            await db.questions.insert_many(batch)
+            imported += len(batch)
+        total = await db.questions.count_documents({})
+        return {"imported": imported, "skipped": skipped, "errors": errors[:10], "total_in_db": total, "filename": file.filename}
+    except HTTPException:
+        raise
+    except ImportError:
+        raise HTTPException(status_code=500, detail="openpyxl ist nicht installiert. Bitte 'pip install openpyxl' ausführen.")
+    except Exception as e:
+        logger.error(f"XLSX import error: {e}")
+        raise HTTPException(status_code=500, detail=f"XLSX-Import fehlgeschlagen: {str(e)}")
+
+
 @router.post("/admin/questions/bulk-update-city")
 async def bulk_update_city(request: BulkCityUpdate, admin: dict = Depends(get_admin_user)):
     if request.exam_location not in ["vienna", "innsbruck", "andere"]:

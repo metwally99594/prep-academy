@@ -56,13 +56,18 @@
         --chart-4: 0 72% 51%;
         --chart-5: 267 84% 65%;
 
+        /* ✨ Border radius hierarchy */
+        --radius-sm: 0.5rem;
         --radius: 0.75rem;
+        --radius-md: 0.75rem;
+        --radius-lg: 1rem;
+        --radius-xl: 1.25rem;
 
         --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.05);
         --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.1),  0 2px 4px -2px rgb(0 0 0 / 0.06);
         --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.05);
         --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.04);
-        --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+        --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.09), 0 2px 6px -1px rgb(0 0 0 / 0.06);
 
         --shadow-glow:      0 0 0 3px hsl(217 91% 60% / 0.15),  0 4px 20px hsl(217 91% 60% / 0.12);
         --shadow-glow-gold: 0 0 0 3px hsl(43 49% 49% / 0.18),  0 6px 24px hsl(43 49% 49% / 0.22);
@@ -73,9 +78,9 @@
         /* ─ NIGHT MODE — Royal Navy + Matte Gold ─ */
         --background: 230 60% 6%;           /* #06081a Deep Space */
         --foreground: 210 40% 98%;          /* #f8fafc Ivory text */
-        --card: 222 47% 11%;                /* #0f1829 Navy Card */
+        --card: 222 47% 14%;                /* #121d35 Brighter Navy Card (was 11%) */
         --card-foreground: 210 40% 98%;
-        --popover: 222 47% 11%;
+        --popover: 222 47% 14%;
         --popover-foreground: 210 40% 98%;
 
         --primary: 217 91% 67%;             /* #60a5fa Sky Blue */
@@ -126,7 +131,7 @@
         --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.3);
         --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.55), 0 4px 6px -4px rgb(0 0 0 / 0.35);
         --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.65), 0 8px 10px -6px rgb(0 0 0 / 0.45);
-        --shadow-card: 0 4px 24px rgb(0 0 0 / 0.4);
+        --shadow-card: 0 2px 20px rgb(0 0 0 / 0.45);
 
         --shadow-glow:      0 0 0 3px hsl(217 91% 67% / 0.18),  0 6px 22px hsl(217 91% 67% / 0.18);
         --shadow-glow-gold: 0 0 0 3px hsl(44 56% 54% / 0.25),   0 8px 28px hsl(44 56% 54% / 0.30);
@@ -230,7 +235,7 @@ code, .font-mono {
 .glass-card {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
 }
 
@@ -238,7 +243,7 @@ code, .font-mono {
 .medical-card {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
     transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
     position: relative;
@@ -270,7 +275,7 @@ code, .font-mono {
 .specialty-card {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-card);
     transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
@@ -285,7 +290,7 @@ code, .font-mono {
 .stat-card {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     padding: 1.5rem;
     text-align: center;
     box-shadow: var(--shadow-card);
@@ -401,7 +406,7 @@ code, .font-mono {
         radial-gradient(circle, hsl(var(--accent)) 1px, transparent 1px);
     background-size: 80px 80px, 56px 56px;
     background-position: 0 0, 28px 28px;
-    opacity: 0.035;
+    opacity: 0.02;
     pointer-events: none;
     z-index: 0;
 }
@@ -549,7 +554,7 @@ code, .font-mono {
 
 .gold-divider {
     height: 1px;
-    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.25), transparent);
+    background: linear-gradient(90deg, transparent, hsl(var(--gold) / 0.3), transparent);
 }
 
 .section-divider {
@@ -567,9 +572,57 @@ code, .font-mono {
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.4), hsl(var(--accent) / 0.3), transparent);
+    background: linear-gradient(90deg, transparent, hsl(var(--gold) / 0.5), hsl(var(--gold) / 0.3), transparent);
     border-radius: 1rem 1rem 0 0;
 }
+
+/* Gold badge — for premium/featured items */
+.gold-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: hsl(var(--gold) / 0.12);
+    color: hsl(var(--gold));
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--gold) / 0.25);
+    letter-spacing: 0.3px;
+}
+
+/* Gold active border — for selected/focused cards */
+.gold-active {
+    border-color: hsl(var(--gold) / 0.5) !important;
+    box-shadow: 0 0 0 2px hsl(var(--gold) / 0.2);
+}
+
+/* Gold icon tint */
+.gold-icon {
+    color: hsl(var(--gold));
+}
+
+/* Tab active state with gold underline */
+.tab-gold-active[data-state="active"] {
+    color: hsl(var(--gold));
+    position: relative;
+}
+.tab-gold-active[data-state="active"]::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: hsl(var(--gold));
+    border-radius: 999px;
+}
+
+/* Card border radius hierarchy */
+.card-sm { border-radius: var(--radius-sm); }
+.card-md { border-radius: var(--radius-md); }
+.card-lg { border-radius: var(--radius-lg); }
+.card-xl { border-radius: var(--radius-xl); }
 
 .diamond-marker::before {
     content: '\25C6';
@@ -859,7 +912,7 @@ code, .font-mono {
 .quiz-card {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    border-radius: 16px;
+    border-radius: var(--radius-xl);
     padding: 32px 36px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
 }
@@ -957,7 +1010,7 @@ code, .font-mono {
     gap: 14px;
     padding: 14px 18px;
     border: 1.5px solid hsl(var(--border));
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     background: hsl(var(--card));
     cursor: pointer;
     transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;

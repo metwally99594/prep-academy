@@ -52,6 +52,7 @@ class QuestionCreate(BaseModel):
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
     exam_location: Optional[str] = "vienna"
+    status: Optional[str] = "published"
     tags: Optional[List[str]] = []
     drag_drop_items: Optional[List[DragDropItem]] = None
     drag_drop_categories: Optional[List[DragDropCategory]] = None
@@ -70,6 +71,7 @@ class QuestionUpdate(BaseModel):
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
     exam_location: Optional[str] = None
+    status: Optional[str] = None
     tags: Optional[List[str]] = None
     drag_drop_items: Optional[List[DragDropItem]] = None
     drag_drop_categories: Optional[List[DragDropCategory]] = None
@@ -92,6 +94,7 @@ class QuestionResponse(BaseModel):
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
     exam_location: Optional[str] = "vienna"
+    status: Optional[str] = "published"
     created_at: Optional[str] = None
     tags: Optional[List[str]] = []
     drag_drop_items: Optional[List[dict]] = None
