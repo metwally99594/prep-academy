@@ -2699,11 +2699,90 @@ Hinweis: Nach meiner Antwort werden medizinische Bilder von Wikimedia Commons an
         raise HTTPException(status_code=500, detail="Failed to get AI response")
 
 
+async def _fetch_wikipedia_full_page(page_title: str, lang: str = "de") -> Optional[dict]:
+    """Fetch full Wikipedia page content (not just intro)."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as cl:
+            content_r = await cl.get(
+                "https://{}.wikipedia.org/w/api.php".format(lang),
+                params={
+                    "action": "query", "prop": "extracts|pageprops|categories",
+                    "explaintext": True, "exlimit": 1,
+                    "titles": page_title, "format": "json",
+                    "ppprop": "wikibase_item",
+                    "cllimit": 10,
+                },
+            )
+            cr = content_r.json()
+            pages_data = cr.get("query", {}).get("pages", {})
+            if not pages_data:
+                return None
+            page_id = next(iter(pages_data))
+            page = pages_data[page_id]
+            extract = page.get("extract", "")
+            if len(extract) < 50:
+                return None
+            cat = "medical"
+            cats = page.get("categories", [])
+            cat_map = {
+                "Kategorie:Krankheit": "disease",
+                "Kategorie:Arzneimittel": "medication",
+                "Kategorie:Anatomie": "anatomy",
+                "Kategorie:Diagnostik": "diagnostic_method",
+                "Kategorie:Chirurgie": "surgery",
+                "Kategorie:Pharmakologie": "pharmacology",
+                "Kategorie:Physiologie": "physiology",
+                "Kategorie:Pathologie": "pathology",
+            }
+            for c in cats:
+                title = c.get("title", "")
+                if title in cat_map:
+                    cat = cat_map[title]
+                    break
+            en_title = None
+            en_extract = ""
+            pp = page.get("pageprops", {})
+            wikibase = pp.get("wikibase_item") if pp else None
+            if wikibase:
+                try:
+                    wb_r = await cl.get(
+                        "https://www.wikidata.org/wiki/Special:EntityData/{}.json".format(wikibase)
+                    )
+                    wb_data = wb_r.json()
+                    en_label = wb_data.get("entities", {}).get(wikibase, {}).get("labels", {}).get("en", {}).get("value")
+                    if en_label:
+                        en_title = en_label
+                        en_r = await cl.get(
+                            "https://en.wikipedia.org/w/api.php",
+                            params={
+                                "action": "query", "prop": "extracts",
+                                "explaintext": True,
+                                "titles": en_label, "format": "json",
+                            },
+                        )
+                        en_data = en_r.json()
+                        for epid in en_data.get("query", {}).get("pages", {}).values():
+                            en_extract = epid.get("extract", "")
+                            break
+                except Exception:
+                    pass
+            return {
+                "title": page_title,
+                "title_en": en_title or "",
+                "language": lang,
+                "category": cat,
+                "content": extract[:5000],
+                "content_en": en_extract[:3000],
+                "source": "wikipedia",
+                "source_url": "https://{}.wikipedia.org/wiki/{}".format(lang, page_title.replace(" ", "_")),
+            }
+    except Exception:
+        return None
+
 @api_router.post("/admin/seed-medical-knowledge")
 async def seed_medical_knowledge(user: dict = Depends(get_admin_user)):
     """Pre-seed medical knowledge base with common MedAT topics from Wikipedia"""
-    import asyncio
-    top_topics = [
         "Herzinsuffizienz", "Diabetes mellitus", "Asthma bronchiale", "COPD",
         "Myokardinfarkt", "Schlaganfall", "Hypertonie", "Niereninsuffizienz",
         "Leberzirrhose", "Pneumonie", "Lungenembolie", "Appendizitis",
@@ -2836,6 +2915,80 @@ async def seed_medat_wikipedia(user: dict = Depends(get_admin_user)):
                 skipped += 1
         await asyncio.sleep(0.5)
     return {"seeded": seeded, "skipped": skipped, "total": len(medat_topics)}
+
+
+@api_router.post("/admin/seed-wikipedia-medical")
+async def seed_wikipedia_medical(user: dict = Depends(get_admin_user)):
+    """Seed ALL German Wikipedia medical category pages into knowledge base."""
+    import asyncio, httpx
+    top_categories = [
+        "Kategorie:Krankheit", "Kategorie:Anatomie", "Kategorie:Arzneimittel",
+        "Kategorie:Chirurgie", "Kategorie:Innere Medizin", "Kategorie:Pharmakologie",
+        "Kategorie:Physiologie", "Kategorie:Pathologie", "Kategorie:Neurologie",
+        "Kategorie:Psychiatrie", "Kategorie:Gynäkologie", "Kategorie:Pädiatrie",
+        "Kategorie:Notfallmedizin", "Kategorie:Orthopädie", "Kategorie:Dermatologie",
+        "Kategorie:Urologie", "Kategorie:Ophthalmologie", "Kategorie:Hals-Nasen-Ohren-Heilkunde",
+        "Kategorie:Mikrobiologie", "Kategorie:Biochemie", "Kategorie:Kardiologie",
+        "Kategorie:Gastroenterologie", "Kategorie:Pneumologie", "Kategorie:Nephrologie",
+        "Kategorie:Hämatologie", "Kategorie:Endokrinologie", "Kategorie:Rheumatologie",
+        "Kategorie:Infektiologie", "Kategorie:Anästhesie", "Kategorie:Radiologie",
+        "Kategorie:Toxikologie", "Kategorie:Genetik", "Kategorie:Immunologie",
+        "Kategorie:Virologie", "Kategorie:Parasitologie", "Kategorie:Embryologie",
+        "Kategorie:Histologie", "Kategorie:Zytologie", "Kategorie:Stoffwechsel",
+        "Kategorie:Herz-Kreislauf-Erkrankungen", "Kategorie:Lungenkrankheit",
+        "Kategorie:Leberkrankheit", "Kategorie:Nierenerkrankung", "Kategorie:Infektionskrankheit",
+        "Kategorie:Autoimmunerkrankung", "Kategorie:Tumor", "Kategorie:Verletzung",
+        "Kategorie:Vergiftung", "Kategorie:Allergologie",
+    ]
+    all_titles = set()
+    async with httpx.AsyncClient(timeout=15.0) as cl:
+        for cat in top_categories:
+            cmcontinue = None
+            while True:
+                params = {
+                    "action": "query", "generator": "categorymembers",
+                    "gcmtitle": cat, "gcmtype": "page",
+                    "gcmlimit": "max", "format": "json",
+                    "prop": "info",
+                }
+                if cmcontinue:
+                    params["gcmcontinue"] = cmcontinue
+                try:
+                    r = await cl.get("https://de.wikipedia.org/w/api.php", params=params)
+                    data = r.json()
+                    if data.get("query") and data["query"].get("pages"):
+                        for pid, pdata in data["query"]["pages"].items():
+                            if int(pid) > 0:
+                                all_titles.add(pdata["title"])
+                    if data.get("continue") and data["continue"].get("gcmcontinue"):
+                        cmcontinue = data["continue"]["gcmcontinue"]
+                    else:
+                        break
+                except Exception:
+                    break
+                await asyncio.sleep(0.3)
+    total_found = len(all_titles)
+    seeded, skipped, failed = 0, 0, 0
+    titles_list = sorted(all_titles)
+    for i in range(0, len(titles_list), 3):
+        batch = titles_list[i:i+3]
+        tasks = [_fetch_wikipedia_full_page(t, "de") for t in batch]
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for title, result in zip(batch, batch_results):
+            if isinstance(result, dict) and result:
+                try:
+                    existing = await db.medical_knowledge.find_one({"title": result["title"]})
+                    if existing:
+                        skipped += 1
+                    else:
+                        await db.medical_knowledge.insert_one(result)
+                        seeded += 1
+                except Exception:
+                    failed += 1
+            else:
+                failed += 1
+        await asyncio.sleep(0.5)
+    return {"seeded": seeded, "skipped": skipped, "failed": failed, "total_pages_found": total_found}
 
 
 @api_router.get("/admin/debug/openrouter-test")
