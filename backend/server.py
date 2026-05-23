@@ -2938,7 +2938,21 @@ async def seed_wikipedia_medical(user: dict = Depends(get_admin_user)):
         "Kategorie:Medizinisches Fachgebiet",
     ]
     all_titles = set()
-    async with httpx.AsyncClient(timeout=15.0) as cl:
+    async def _wiki_get(cl, params, retries=3):
+        for attempt in range(retries):
+            try:
+                r = await cl.get("https://de.wikipedia.org/w/api.php", params=params)
+                if r.status_code == 429:
+                    await asyncio.sleep(2 * (attempt + 1))
+                    continue
+                return r.json()
+            except Exception:
+                if attempt < retries - 1:
+                    await asyncio.sleep(2)
+                else:
+                    return None
+        return None
+    async with httpx.AsyncClient(timeout=30.0) as cl:
         for cat in top_categories:
             cmcontinue = None
             while True:
@@ -2950,20 +2964,18 @@ async def seed_wikipedia_medical(user: dict = Depends(get_admin_user)):
                 }
                 if cmcontinue:
                     params["gcmcontinue"] = cmcontinue
-                try:
-                    r = await cl.get("https://de.wikipedia.org/w/api.php", params=params)
-                    data = r.json()
-                    if data.get("query") and data["query"].get("pages"):
-                        for pid, pdata in data["query"]["pages"].items():
-                            if int(pid) > 0:
-                                all_titles.add(pdata["title"])
-                    if data.get("continue") and data["continue"].get("gcmcontinue"):
-                        cmcontinue = data["continue"]["gcmcontinue"]
-                    else:
-                        break
-                except Exception:
+                data = await _wiki_get(cl, params)
+                if not data or not data.get("query") or not data["query"].get("pages"):
                     break
-                await asyncio.sleep(0.3)
+                for pid, pdata in data["query"]["pages"].items():
+                    if int(pid) > 0:
+                        all_titles.add(pdata["title"])
+                if data.get("continue") and data["continue"].get("gcmcontinue"):
+                    cmcontinue = data["continue"]["gcmcontinue"]
+                else:
+                    break
+                await asyncio.sleep(0.5)
+            await asyncio.sleep(1.0)
         # Also get subcategories of Medizinisches Fachgebiet and their pages
         subcat_cmcontinue = None
         while True:
@@ -2974,43 +2986,39 @@ async def seed_wikipedia_medical(user: dict = Depends(get_admin_user)):
             }
             if subcat_cmcontinue:
                 sparams["cmcontinue"] = subcat_cmcontinue
-            try:
-                sr = await cl.get("https://de.wikipedia.org/w/api.php", params=sparams)
-                sdata = sr.json()
-                if sdata.get("query") and sdata["query"].get("categorymembers"):
-                    for cm in sdata["query"]["categorymembers"]:
-                        scat = cm["title"]
-                        if scat.startswith("Kategorie:"):
-                            scmcontinue = None
-                            while True:
-                                scparams = {
-                                    "action": "query", "generator": "categorymembers",
-                                    "gcmtitle": scat, "gcmtype": "page",
-                                    "gcmlimit": "max", "format": "json", "prop": "info",
-                                }
-                                if scmcontinue:
-                                    scparams["gcmcontinue"] = scmcontinue
-                                try:
-                                    scr = await cl.get("https://de.wikipedia.org/w/api.php", params=scparams)
-                                    scdata = scr.json()
-                                    if scdata.get("query") and scdata["query"].get("pages"):
-                                        for pid, pdata in scdata["query"]["pages"].items():
-                                            if int(pid) > 0:
-                                                all_titles.add(pdata["title"])
-                                    if scdata.get("continue") and scdata["continue"].get("gcmcontinue"):
-                                        scmcontinue = scdata["continue"]["gcmcontinue"]
-                                    else:
-                                        break
-                                except Exception:
-                                    break
-                                await asyncio.sleep(0.2)
-                if sdata.get("continue") and sdata["continue"].get("cmcontinue"):
-                    subcat_cmcontinue = sdata["continue"]["cmcontinue"]
-                else:
-                    break
-            except Exception:
+            sdata = await _wiki_get(cl, sparams)
+            if not sdata or not sdata.get("query") or not sdata["query"].get("categorymembers"):
                 break
-            await asyncio.sleep(0.3)
+            for cm in sdata["query"]["categorymembers"]:
+                scat = cm["title"]
+                if not scat.startswith("Kategorie:"):
+                    continue
+                scmcontinue = None
+                while True:
+                    scparams = {
+                        "action": "query", "generator": "categorymembers",
+                        "gcmtitle": scat, "gcmtype": "page",
+                        "gcmlimit": "max", "format": "json", "prop": "info",
+                    }
+                    if scmcontinue:
+                        scparams["gcmcontinue"] = scmcontinue
+                    scdata = await _wiki_get(cl, scparams)
+                    if not scdata or not scdata.get("query") or not scdata["query"].get("pages"):
+                        break
+                    for pid, pdata in scdata["query"]["pages"].items():
+                        if int(pid) > 0:
+                            all_titles.add(pdata["title"])
+                    if scdata.get("continue") and scdata["continue"].get("gcmcontinue"):
+                        scmcontinue = scdata["continue"]["gcmcontinue"]
+                    else:
+                        break
+                    await asyncio.sleep(0.3)
+                await asyncio.sleep(0.5)
+            if sdata.get("continue") and sdata["continue"].get("cmcontinue"):
+                subcat_cmcontinue = sdata["continue"]["cmcontinue"]
+            else:
+                break
+            await asyncio.sleep(1.0)
     total_found = len(all_titles)
     seeded, skipped, failed = 0, 0, 0
     titles_list = sorted(all_titles)
