@@ -277,20 +277,13 @@ export default function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {examTypes.map((exam) => {
               const isActive = selectedExam === exam.id;
+              const isKi = exam.id === "ki_generiert";
+              const Wrapper = isKi ? Link : 'button';
+              const wrapperProps = isKi
+                ? { to: `/quiz/surgery?exam_location=ai_generated`, className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'}`, style: { background: 'rgba(255,255,255,0.03)' } }
+                : { onClick: () => setSelectedExam(exam.id), className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'}`, style: { background: isActive ? 'hsl(var(--primary) / 0.08)' : 'rgba(255,255,255,0.03)', boxShadow: isActive ? '0 8px 32px hsl(var(--primary) / 0.15)' : 'none' } };
               return (
-                <button
-                  key={exam.id}
-                  onClick={() => setSelectedExam(exam.id)}
-                  data-testid={`exam-type-${exam.id}`}
-                  className={`relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${
-                    isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'
-                  }`}
-                  style={{
-                    background: isActive ? 'hsl(var(--primary) / 0.08)' : 'rgba(255,255,255,0.03)',
-                    boxShadow: isActive ? '0 8px 32px hsl(var(--primary) / 0.15)' : 'none',
-                  }}
-                >
-                  {isActive && <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-xl bg-primary" />}
+                <Wrapper key={exam.id} data-testid={`exam-type-${exam.id}`} {...wrapperProps}>
                   <div className="text-xl mb-2">
                   {exam.icon === 'flag_at' && '🇦🇹'}
                   {exam.icon === 'mountain' && '🏔️'}
@@ -306,7 +299,7 @@ export default function HomePage() {
                   <p className="text-xs font-mono" style={{ color: isActive ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.25)' }}>
                     {exam.question_count.toLocaleString('de-DE')} Fragen
                   </p>
-                </button>
+                </Wrapper>
               );
             })}
           </div>

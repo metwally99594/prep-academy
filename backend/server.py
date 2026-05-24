@@ -527,6 +527,13 @@ async def get_me(user: dict = Depends(get_current_user)):
 
 # ============ SPECIALTY ROUTES ============
 
+# Map German specialty names to English IDs (e.g. "chirurgie" -> "surgery")
+SPEC_NAME_TO_ID = {spec["name"].lower(): spec["id"] for spec in SPECIALTIES}
+
+def _normalize_spec_id(spec: str) -> str:
+    """Normalize a specialty_id to the canonical English ID."""
+    return SPEC_NAME_TO_ID.get(spec, spec)
+
 @api_router.get("/specialties")
 async def get_specialties():
     # Count questions per specialty + city
@@ -541,19 +548,22 @@ async def get_specialties():
         {"$group": {"_id": "$specialty_id", "count": {"$sum": 1}}}
     ]
     ai_counts_raw = await db.questions.aggregate(ai_pipeline).to_list(200)
-    ai_counts = {d["_id"]: d["count"] for d in ai_counts_raw}
+    ai_counts = {}
+    for d in ai_counts_raw:
+        normal_spec = _normalize_spec_id(d["_id"])
+        ai_counts[normal_spec] = ai_counts.get(normal_spec, 0) + d["count"]
     
-    # Build nested counts
+    # Build nested counts with normalized IDs
     counts = {}
     city_counts = {}
     for doc in raw_counts:
-        spec = doc["_id"]["spec"]
+        spec = _normalize_spec_id(doc["_id"]["spec"])
         city = doc["_id"]["city"] or "andere"
         count = doc["count"]
         counts[spec] = counts.get(spec, 0) + count
         if spec not in city_counts:
             city_counts[spec] = {}
-        city_counts[spec][city] = count
+        city_counts[spec][city] = city_counts[spec].get(city, 0) + count
     
     specialties = await db.specialties.find({}, {"_id": 0}).to_list(100)
     for s in specialties:
@@ -1559,7 +1569,7 @@ Return a JSON object with a "questions" array containing all generated questions
         qid = str(uuid.uuid4())
         doc = {
             "id": qid,
-            "specialty_id": fachgebiet.lower().replace(" ", "_"),
+            "specialty_id": _normalize_spec_id(fachgebiet.lower().replace(" ", "_")),
             "year": jahr,
             "exam_location": stadt.lower(),
             "question_text": qtext,
@@ -1572,7 +1582,7 @@ Return a JSON object with a "questions" array containing all generated questions
             "source_notebook_id": notebook_id,
             "status": "published",
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "tags": [fachgebiet.lower().replace(" ", "_")],
+            "tags": [_normalize_spec_id(fachgebiet.lower().replace(" ", "_"))],
         }
         if qtype in ("mcq", "multi_select"):
             choices = q.get("choices", [])
@@ -1710,6 +1720,29 @@ async def update_question(question_id: str, question: QuestionUpdate, admin: dic
 async def delete_questions_by_specialty(specialty: str, admin: dict = Depends(get_admin_user)):
     result = await db.questions.delete_many({"specialty_id": specialty})
     return {"deleted": result.deleted_count, "specialty": specialty}
+
+@api_router.post("/admin/migrate-specialty-ids")
+async def migrate_specialty_ids(admin: dict = Depends(get_admin_user)):
+    """Migrate German specialty_id values to canonical English IDs."""
+    migrated = 0
+    visited = set()
+    for spec in SPECIALTIES:
+        for variant in [spec["name"].lower(), spec["name"].lower().replace(" ", "_")]:
+            if variant == spec["id"] or variant in visited:
+                continue
+            visited.add(variant)
+            result = await db.questions.update_many(
+                {"specialty_id": variant},
+                {"$set": {"specialty_id": spec["id"]}}
+            )
+            migrated += result.modified_count
+            result2 = await db.questions.update_many(
+                {"tags": variant},
+                {"$set": {"tags.$[elem]": spec["id"]}},
+                array_filters=[{"elem": variant}]
+            )
+            migrated += result2.modified_count
+    return {"migrated": migrated}
 
 @api_router.delete("/questions/{question_id}")
 async def delete_question(question_id: str, admin: dict = Depends(get_admin_user)):

@@ -573,7 +573,7 @@ export default function AdminPage() {
   const [batchText, setBatchText] = useState("");
   const [batchTopic, setBatchTopic] = useState("");
   const [batchMix, setBatchMix] = useState({ mcq: 3, multi_select: 0, drag_drop: 0, kategorisierung: 0, lueckentext: 0 });
-  const [batchFach, setBatchFach] = useState("Chirurgie");
+  const [batchFach, setBatchFach] = useState("surgery");
   const [batchYear, setBatchYear] = useState(2024);
   const [batchCity, setBatchCity] = useState("Innsbruck");
   const [batchNotebook, setBatchNotebook] = useState("");
@@ -2081,7 +2081,7 @@ export default function AdminPage() {
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Fachgebiet</label>
                 <select value={batchFach} onChange={e => setBatchFach(e.target.value)} className="w-full px-4 py-2.5 bg-white border rounded-lg text-sm">
-                  {["Innere Medizin","Chirurgie","HNO","Pädiatrie","Gynäkologie","Neurologie","Psychiatrie","Dermatologie","Orthopädie","Anästhesie","Radiologie"].map(f => <option key={f} value={f}>{f}</option>)}
+                  {[{id:"internal",name:"Innere Medizin"},{id:"surgery",name:"Chirurgie"},{id:"ent",name:"HNO"},{id:"pediatrics",name:"Pädiatrie"},{id:"obgyn",name:"Gynäkologie"},{id:"neurology",name:"Neurologie"},{id:"psychiatry",name:"Psychiatrie"},{id:"dermatology",name:"Dermatologie"},{id:"emergency",name:"Notfallmedizin"},{id:"ophthalmology",name:"Ophthalmologie"}].map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
               </div>
               <div>
