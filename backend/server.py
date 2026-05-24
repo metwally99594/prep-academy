@@ -929,23 +929,21 @@ def _fix_mojibake(text):
 def _flexible_german_regex(token):
     """Build a regex pattern that matches correct German chars and known mojibake variants"""
     import re as _re
-    # Latin-1 mojibake variants for German umlauts
-    # UTF-8 bytes of ä (0xC3 0xA4) interpreted as Latin-1 → Ã (U+00C3) + ¤ (U+00A4)
-    A_UMLAUT_CORRUPT = '\u00c3\u00a4'
-    O_UMLAUT_CORRUPT = '\u00c3\u00b6'
-    U_UMLAUT_CORRUPT = '\u00c3\u00bc'
-    A_UPPER_UMLAUT_CORRUPT = '\u00c3\u0084'
-    O_UPPER_UMLAUT_CORRUPT = '\u00c3\u0096'
-    U_UPPER_UMLAUT_CORRUPT = '\u00c3\u009c'
-    SZ_CORRUPT = '\u00c3\u009f'
+    # German chars can be corrupted in two ways in the DB:
+    # 1. U+FFFD replacement chars (ä → two replacement chars)
+    # 2. Latin-1 mojibake (UTF-8 bytes interpreted as Latin-1: ä → Ã¤ = U+00C3+U+00A4)
+    U_FFFD = '\ufffd'
+    A_LATIN1 = '\u00c3\u00a4'
+    O_LATIN1 = '\u00c3\u00b6'
+    U_LATIN1 = '\u00c3\u00bc'
     corruption_alternatives = {
-        'ä': f'(?:ä|{A_UMLAUT_CORRUPT})',
-        'ö': f'(?:ö|{O_UMLAUT_CORRUPT})',
-        'ü': f'(?:ü|{U_UMLAUT_CORRUPT})',
-        'Ä': f'(?:Ä|{A_UPPER_UMLAUT_CORRUPT})',
-        'Ö': f'(?:Ö|{O_UPPER_UMLAUT_CORRUPT})',
-        'Ü': f'(?:Ü|Ǭ|{U_UPPER_UMLAUT_CORRUPT})',
-        'ß': f'(?:ß|{SZ_CORRUPT})',
+        'ä': f'(?:ä|{U_FFFD}{U_FFFD}|{A_LATIN1})',
+        'ö': f'(?:ö|{U_FFFD}{U_FFFD}|{O_LATIN1})',
+        'ü': f'(?:ü|{U_FFFD}{U_FFFD}|{U_LATIN1})',
+        'Ä': f'(?:Ä|{U_FFFD}{U_FFFD})',
+        'Ö': f'(?:Ö|{U_FFFD}{U_FFFD})',
+        'Ü': f'(?:Ü|Ǭ|{U_FFFD}{U_FFFD})',
+        'ß': f'(?:ß|{U_FFFD}{U_FFFD})',
     }
     result = []
     for ch in token:
@@ -1027,7 +1025,7 @@ async def _search_questions_internal(q: str, limit: int = 50):
         token_patterns.append(f"(?=.*{flexible})")
     fuzzy_regex = f"^{''.join(token_patterns)}" if token_patterns else _re.escape(cleaned)
     
-    text_fields = ["question_text_de", "question_text", "explanation_de"]
+    text_fields = ["question_text_de", "question_text", "explanation_de", "explanation"]
     search_conditions = [{field: {"$regex": fuzzy_regex, "$options": "is"}} for field in text_fields]
     search_conditions.append({"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}})
     search_conditions.append({"choices.text": {"$regex": fuzzy_regex, "$options": "is"}})
@@ -1044,6 +1042,8 @@ async def _search_questions_internal(q: str, limit: int = 50):
             pair_conditions = [
                 {"question_text_de": {"$regex": pair_regex, "$options": "is"}},
                 {"question_text": {"$regex": pair_regex, "$options": "is"}},
+                {"explanation_de": {"$regex": pair_regex, "$options": "is"}},
+                {"explanation": {"$regex": pair_regex, "$options": "is"}},
                 {"choices.text_de": {"$regex": pair_regex, "$options": "is"}},
             ]
             pair_results = await db.questions.find(
@@ -1248,6 +1248,8 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
         query["$or"] = [
             {"question_text_de": {"$regex": fuzzy_regex, "$options": "is"}},
             {"question_text": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"explanation_de": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"explanation": {"$regex": fuzzy_regex, "$options": "is"}},
             {"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}},
             {"choices.text": {"$regex": fuzzy_regex, "$options": "is"}},
         ]
@@ -1322,6 +1324,8 @@ async def custom_quiz_count(request: CustomQuizRequest, user: dict = Depends(get
         query["$or"] = [
             {"question_text_de": {"$regex": fuzzy_regex, "$options": "is"}},
             {"question_text": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"explanation_de": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"explanation": {"$regex": fuzzy_regex, "$options": "is"}},
             {"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}},
             {"choices.text": {"$regex": fuzzy_regex, "$options": "is"}},
         ]
