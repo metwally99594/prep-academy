@@ -1571,7 +1571,7 @@ Return a JSON object with a "questions" array containing all generated questions
             "id": qid,
             "specialty_id": _normalize_spec_id(fachgebiet.lower().replace(" ", "_")),
             "year": jahr,
-            "exam_location": stadt.lower(),
+            "exam_location": "ai_generated",
             "question_text": qtext,
             "question_text_de": qtext,
             "question_type": qtype,
@@ -1743,6 +1743,15 @@ async def migrate_specialty_ids(admin: dict = Depends(get_admin_user)):
             )
             migrated += result2.modified_count
     return {"migrated": migrated}
+
+@api_router.post("/admin/migrate-ai-exam-location")
+async def migrate_ai_exam_location(admin: dict = Depends(get_admin_user)):
+    """Set exam_location=ai_generated for all AI-generated questions."""
+    result = await db.questions.update_many(
+        {"generated_by_ai": True, "exam_location": {"$ne": "ai_generated"}},
+        {"$set": {"exam_location": "ai_generated"}}
+    )
+    return {"updated": result.modified_count}
 
 @api_router.delete("/questions/{question_id}")
 async def delete_question(question_id: str, admin: dict = Depends(get_admin_user)):
