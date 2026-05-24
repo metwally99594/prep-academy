@@ -914,6 +914,78 @@ async def get_questions(
     questions = await db.questions.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return questions
 
+def _fix_mojibake(text):
+    """Reverse UTF-8 → Latin-1 mojibake for German text"""
+    if not text or not isinstance(text, str):
+        return text
+    try:
+        fixed = text.encode('latin-1').decode('utf-8')
+        return fixed
+    except (UnicodeEncodeError, UnicodeDecodeError, LookupError):
+        pass
+    return text
+
+
+def _flexible_german_regex(token):
+    """Build a regex pattern that matches correct German chars and known mojibake variants"""
+    import re as _re
+    # Latin-1 mojibake variants for German umlauts
+    # UTF-8 bytes of ä (0xC3 0xA4) interpreted as Latin-1 → Ã (U+00C3) + ¤ (U+00A4)
+    A_UMLAUT_CORRUPT = '\u00c3\u00a4'
+    O_UMLAUT_CORRUPT = '\u00c3\u00b6'
+    U_UMLAUT_CORRUPT = '\u00c3\u00bc'
+    A_UPPER_UMLAUT_CORRUPT = '\u00c3\u0084'
+    O_UPPER_UMLAUT_CORRUPT = '\u00c3\u0096'
+    U_UPPER_UMLAUT_CORRUPT = '\u00c3\u009c'
+    SZ_CORRUPT = '\u00c3\u009f'
+    corruption_alternatives = {
+        'ä': f'(?:ä|{A_UMLAUT_CORRUPT})',
+        'ö': f'(?:ö|{O_UMLAUT_CORRUPT})',
+        'ü': f'(?:ü|{U_UMLAUT_CORRUPT})',
+        'Ä': f'(?:Ä|{A_UPPER_UMLAUT_CORRUPT})',
+        'Ö': f'(?:Ö|{O_UPPER_UMLAUT_CORRUPT})',
+        'Ü': f'(?:Ü|Ǭ|{U_UPPER_UMLAUT_CORRUPT})',
+        'ß': f'(?:ß|{SZ_CORRUPT})',
+    }
+    result = []
+    for ch in token:
+        alt = corruption_alternatives.get(ch)
+        if alt:
+            result.append(alt)
+        else:
+            result.append(_re.escape(ch))
+    return "".join(result)
+
+
+@api_router.post("/admin/fix-question-encoding")
+async def fix_question_encoding(admin: dict = Depends(get_admin_user)):
+    """Fix UTF-8 → Latin-1 mojibake in all question text fields"""
+    fixed_count = 0
+    error_count = 0
+    async for q in db.questions.find({}):
+        try:
+            updates = {}
+            for field in ["question_text", "question_text_de", "explanation", "explanation_de"]:
+                val = q.get(field)
+                if val and isinstance(val, str):
+                    fixed = _fix_mojibake(val)
+                    if fixed != val:
+                        updates[field] = fixed
+            choices = q.get("choices") or q.get("choices_de") or []
+            for ci, c in enumerate(choices):
+                for cf in ["text", "text_de"]:
+                    cv = c.get(cf)
+                    if cv and isinstance(cv, str):
+                        fixed = _fix_mojibake(cv)
+                        if fixed != cv:
+                            updates[f"choices.{ci}.{cf}"] = fixed
+            if updates:
+                await db.questions.update_one({"id": q["id"]}, {"$set": updates})
+                fixed_count += 1
+        except Exception:
+            error_count += 1
+    return {"fixed": fixed_count, "errors": error_count}
+
 @api_router.get("/questions/search/text")
 async def _search_questions_internal(q: str, limit: int = 50):
     """Internal search — no dependency injection, usable from other endpoints"""
@@ -940,31 +1012,51 @@ async def _search_questions_internal(q: str, limit: int = 50):
     cleaned = _re.sub(r'\s+', ' ', cleaned).strip()
     if len(cleaned) < 2:
         return []
+    
+    # Fix mojibake in query before tokenizing
+    cleaned = _fix_mojibake(cleaned)
+    
     tokens = [t for t in cleaned.split() if len(t) >= 3]
     if not tokens:
         tokens = [cleaned]
-    token_pattern = "".join(f"(?=.*{_re.escape(t)})" for t in tokens[:8])
-    fuzzy_regex = f"^{token_pattern}" if token_pattern else _re.escape(cleaned)
+    
+    # Build flexible regex pattern for each token, handling corrupted chars
+    token_patterns = []
+    for t in tokens[:8]:
+        flexible = _flexible_german_regex(t)
+        token_patterns.append(f"(?=.*{flexible})")
+    fuzzy_regex = f"^{''.join(token_patterns)}" if token_patterns else _re.escape(cleaned)
+    
     text_fields = ["question_text_de", "question_text", "explanation_de"]
     search_conditions = [{field: {"$regex": fuzzy_regex, "$options": "is"}} for field in text_fields]
     search_conditions.append({"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}})
     search_conditions.append({"choices.text": {"$regex": fuzzy_regex, "$options": "is"}})
-    escaped_q = _re.escape(q.strip())
-    search_conditions.append({"specialty_id": {"$regex": escaped_q, "$options": "i"}})
+    
     questions = await db.questions.find({"$or": search_conditions}, {"_id": 0}).limit(limit).to_list(limit)
+    
+    # Fallback: if AND search yields <3 results, try OR search on individual token pairs
     if len(questions) < 3 and len(tokens) > 1:
-        or_conditions = []
-        for t in tokens[:6]:
-            t_escaped = _re.escape(t)
-            or_conditions.append({"question_text_de": {"$regex": t_escaped, "$options": "i"}})
-            or_conditions.append({"question_text": {"$regex": t_escaped, "$options": "i"}})
-            or_conditions.append({"choices.text_de": {"$regex": t_escaped, "$options": "i"}})
-        existing_ids = {q["id"] for q in questions}
-        fallback = await db.questions.find(
-            {"$or": or_conditions, "id": {"$nin": list(existing_ids)}},
-            {"_id": 0}
-        ).limit(limit - len(questions)).to_list(limit - len(questions))
-        questions.extend(fallback)
+        fallback_anded = []
+        for i in range(min(3, len(tokens) - 1)):
+            t1 = _flexible_german_regex(tokens[i])
+            t2 = _flexible_german_regex(tokens[i + 1])
+            pair_regex = f"^(?=.*{t1})(?=.*{t2})"
+            pair_conditions = [
+                {"question_text_de": {"$regex": pair_regex, "$options": "is"}},
+                {"question_text": {"$regex": pair_regex, "$options": "is"}},
+                {"choices.text_de": {"$regex": pair_regex, "$options": "is"}},
+            ]
+            pair_results = await db.questions.find(
+                {"$or": pair_conditions, "id": {"$nin": [q["id"] for q in questions]}},
+                {"_id": 0}
+            ).limit(limit - len(questions)).to_list(limit - len(questions))
+            for pr in pair_results:
+                if pr["id"] not in {q["id"] for q in questions}:
+                    questions.append(pr)
+                    if len(questions) >= limit:
+                        break
+            if len(questions) >= limit:
+                break
     return questions
 
 async def search_questions(
@@ -1140,11 +1232,24 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
     elif request.year_to:
         query["year"] = {"$lte": request.year_to}
 
-    # Text search
+    # Text search — use same token-based AND matching as _search_questions_internal
     if request.text_search and len(request.text_search) >= 2:
+        import re as _re
+        cleaned = _re.sub(r'[^\w\sÄäÖöÜüß]', ' ', request.text_search)
+        cleaned = _re.sub(r'\s+', ' ', cleaned).strip()
+        cleaned = _fix_mojibake(cleaned)
+        tokens = [t for t in cleaned.split() if len(t) >= 3]
+        if tokens:
+            token_patterns = [_flexible_german_regex(t) for t in tokens]
+            pattern = "".join(f"(?=.*{p})" for p in token_patterns)
+            fuzzy_regex = f"^{pattern}" if pattern else _re.escape(cleaned)
+        else:
+            fuzzy_regex = _re.escape(cleaned)
         query["$or"] = [
-            {"question_text_de": {"$regex": request.text_search, "$options": "i"}},
-            {"question_text": {"$regex": request.text_search, "$options": "i"}},
+            {"question_text_de": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"question_text": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"choices.text": {"$regex": fuzzy_regex, "$options": "is"}},
         ]
 
     # Favorites only
@@ -1203,9 +1308,22 @@ async def custom_quiz_count(request: CustomQuizRequest, user: dict = Depends(get
         query["year"] = {"$lte": request.year_to}
 
     if request.text_search and len(request.text_search) >= 2:
+        import re as _re
+        cleaned = _re.sub(r'[^\w\sÄäÖöÜüß]', ' ', request.text_search)
+        cleaned = _re.sub(r'\s+', ' ', cleaned).strip()
+        cleaned = _fix_mojibake(cleaned)
+        tokens = [t for t in cleaned.split() if len(t) >= 3]
+        if tokens:
+            token_patterns = [_flexible_german_regex(t) for t in tokens]
+            pattern = "".join(f"(?=.*{p})" for p in token_patterns)
+            fuzzy_regex = f"^{pattern}" if pattern else _re.escape(cleaned)
+        else:
+            fuzzy_regex = _re.escape(cleaned)
         query["$or"] = [
-            {"question_text_de": {"$regex": request.text_search, "$options": "i"}},
-            {"question_text": {"$regex": request.text_search, "$options": "i"}},
+            {"question_text_de": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"question_text": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}},
+            {"choices.text": {"$regex": fuzzy_regex, "$options": "is"}},
         ]
 
     if request.favorites_only:

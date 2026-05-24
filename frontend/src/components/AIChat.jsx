@@ -143,7 +143,7 @@ export default function AIChat({ question, isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-2xl h-[600px] rounded-2xl border shadow-2xl flex flex-col overflow-hidden animate-fadeIn"
+      <div className="w-full max-w-5xl h-[85vh] min-h-[500px] max-h-[90vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden animate-fadeIn"
         style={{ background: '#0c1229', borderColor: 'rgba(59,130,246,0.15)' }}>
 
         {/* Header */}
