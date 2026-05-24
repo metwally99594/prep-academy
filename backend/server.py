@@ -1571,7 +1571,7 @@ Return a JSON object with a "questions" array containing all generated questions
             "id": qid,
             "specialty_id": _normalize_spec_id(fachgebiet.lower().replace(" ", "_")),
             "year": jahr,
-            "exam_location": "ai_generated",
+            "exam_location": stadt.lower(),
             "question_text": qtext,
             "question_text_de": qtext,
             "question_type": qtype,

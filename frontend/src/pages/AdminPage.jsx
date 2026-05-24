@@ -575,7 +575,7 @@ export default function AdminPage() {
   const [batchMix, setBatchMix] = useState({ mcq: 3, multi_select: 0, drag_drop: 0, kategorisierung: 0, lueckentext: 0 });
   const [batchFach, setBatchFach] = useState("surgery");
   const [batchYear, setBatchYear] = useState(2024);
-  const [batchCity, setBatchCity] = useState("Innsbruck");
+  const [batchCity, setBatchCity] = useState("innsbruck");
   const [batchNotebook, setBatchNotebook] = useState("");
   const [notebookTitle, setNotebookTitle] = useState("");
   const [notebooks, setNotebooks] = useState([]);
@@ -2094,7 +2094,7 @@ export default function AdminPage() {
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Stadt</label>
                 <select value={batchCity} onChange={e => setBatchCity(e.target.value)} className="w-full px-4 py-2.5 bg-white border rounded-lg text-sm">
-                  {["Wien","Graz","Innsbruck","Linz","Salzburg"].map(c => <option key={c}>{c}</option>)}
+                  {[{v:"wien",l:"Wien"},{v:"graz",l:"Graz"},{v:"innsbruck",l:"Innsbruck"},{v:"linz",l:"Linz"},{v:"salzburg",l:"Salzburg"},{v:"ai_generated",l:"🤖 KI Fragen"}].map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
                 </select>
               </div>
             </div>
