@@ -157,16 +157,26 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       toast.error("JSON muss ein Array von Fragen sein");
       return null;
     }
-    const items = data.map(q => ({
-      specialty_id: q.specialty_id || q.fach || q.specialty || "",
-      question_text_de: q.question_text_de || q.question_text || q.question || q.frage || q.text || "",
-      question_type: q.question_type || "mcq",
-      choices_de: q.choices_de || q.choices || [],
-      explanation_de: q.explanation_de || q.explanation || null,
-      year: q.year || null,
-      exam_location: q.exam_location || null,
-      tags: q.tags || [],
-    }));
+    const items = data.map(q => {
+      let choices = q.choices_de || q.choices || [];
+      if (choices.length > 0 && typeof choices[0] === 'string') {
+        choices = choices.map((text, ci) => ({
+          id: String.fromCharCode(97 + ci),
+          text,
+          is_correct: ci === 0,
+        }));
+      }
+      return {
+        specialty_id: q.specialty_id || q.fach || q.specialty || "",
+        question_text_de: q.question_text_de || q.question_text || q.question || q.frage || q.text || "",
+        question_type: q.question_type || "mcq",
+        choices_de: choices,
+        explanation_de: q.explanation_de || q.explanation || null,
+        year: q.year || null,
+        exam_location: q.exam_location || null,
+        tags: q.tags || [],
+      };
+    });
     const specs = {};
     items.forEach(q => {
       const sid = q.specialty_id || "unknown";

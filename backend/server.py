@@ -3674,23 +3674,35 @@ def _validate_question(item: QuestionImportItem, index: int) -> list:
         errors.append({"index": index, "field": "question_text_de", "message": "Question text too long (max 5000 chars)"})
     elif len(item.question_text_de.strip()) < 5:
         errors.append({"index": index, "field": "question_text_de", "message": "Question text too short (min 5 chars)"})
-    if not item.choices_de or len(item.choices_de) < 2:
-        errors.append({"index": index, "field": "choices_de", "message": "At least 2 choices are required"})
-    else:
-        choice_ids = []
-        has_correct = False
-        for ci, c in enumerate(item.choices_de):
-            cid = c.get("id", "")
-            if cid in choice_ids:
-                errors.append({"index": index, "field": f"choices_de[{ci}].id", "message": f"Duplicate choice ID: {cid}"})
-            choice_ids.append(cid)
-            if c.get("is_correct"):
-                has_correct = True
-            text = c.get("text", "") or c.get("text_de", "")
-            if len(text) > 1000:
-                errors.append({"index": index, "field": f"choices_de[{ci}].text", "message": "Choice text too long (max 1000 chars)"})
-        if not has_correct:
-            errors.append({"index": index, "field": "choices_de", "message": "At least one correct answer required"})
+    qtype = (item.question_type or "mcq").lower()
+    if qtype in ("mcq", "multi_select", "single_choice"):
+        if not item.choices_de or len(item.choices_de) < 2:
+            errors.append({"index": index, "field": "choices_de", "message": "At least 2 choices are required"})
+        else:
+            choice_ids = []
+            has_correct = False
+            for ci, c in enumerate(item.choices_de):
+                if isinstance(c, str):
+                    continue
+                cid = c.get("id", "")
+                if cid in choice_ids:
+                    errors.append({"index": index, "field": f"choices_de[{ci}].id", "message": f"Duplicate choice ID: {cid}"})
+                choice_ids.append(cid)
+                if c.get("is_correct"):
+                    has_correct = True
+                text = c.get("text", "") or c.get("text_de", "")
+                if len(text) > 1000:
+                    errors.append({"index": index, "field": f"choices_de[{ci}].text", "message": "Choice text too long (max 1000 chars)"})
+            if not has_correct:
+                errors.append({"index": index, "field": "choices_de", "message": "At least one correct answer required"})
+    elif qtype in ("drag_drop", "kategorisierung"):
+        if not item.drag_drop_items or len(item.drag_drop_items) < 2:
+            errors.append({"index": index, "field": "drag_drop_items", "message": "At least 2 drag & drop items required"})
+        if not item.drag_drop_categories or len(item.drag_drop_categories) < 2:
+            errors.append({"index": index, "field": "drag_drop_categories", "message": "At least 2 categories required"})
+    elif qtype == "lueckentext":
+        if not item.blanks or len(item.blanks) < 1:
+            errors.append({"index": index, "field": "blanks", "message": "At least 1 blank required"})
     if item.explanation_de is not None and not item.explanation_de.strip():
         errors.append({"index": index, "field": "explanation_de", "message": "Explanation cannot be empty string (omit if not needed)"})
     elif item.explanation_de and len(item.explanation_de.strip()) > 5000:

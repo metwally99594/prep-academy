@@ -385,11 +385,14 @@ class QuestionImportItem(BaseModel):
     specialty_id: str
     question_text_de: str
     question_type: str = "mcq"
-    choices_de: List[dict]
+    choices_de: Optional[List] = None
     explanation_de: Optional[str] = None
     year: Optional[int] = None
     exam_location: Optional[str] = None
     tags: Optional[List[str]] = []
+    drag_drop_items: Optional[List[dict]] = None
+    drag_drop_categories: Optional[List] = None
+    blanks: Optional[List[dict]] = None
 
 class QuestionImportRequest(BaseModel):
     questions: List[QuestionImportItem]
