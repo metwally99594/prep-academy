@@ -945,12 +945,12 @@ export default function AdminPage() {
         source_text = nb?.text || "";
       }
       const payload = {
-        source_text,
+        raw_text: source_text,
         topic: batchTopic,
         mix: batchMix,
-        specialty_id: batchFach,
-        year: batchYear,
-        exam_location: batchCity,
+        fachgebiet: batchFach,
+        jahr: batchYear,
+        stadt: batchCity,
         notebook_id: batchSource === "notebook" ? batchNotebook : null,
       };
       const res = await axios.post(`${API}/admin/batch-generator/generate`, payload, { headers, timeout: 300000 });
