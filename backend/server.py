@@ -6587,6 +6587,18 @@ async def delete_report(report_id: str, admin: dict = Depends(get_admin_user)):
     await db.reports.delete_one({"id": report_id})
     return {"status": "deleted"}
 
+@api_router.post("/admin/reports/resolve-all")
+async def resolve_all_reports(admin: dict = Depends(get_admin_user)):
+    """Admin: resolve all open reports"""
+    result = await db.reports.update_many({"status": "open"}, {"$set": {"status": "resolved"}})
+    return {"resolved": result.modified_count}
+
+@api_router.delete("/admin/reports/delete-all")
+async def delete_all_reports(admin: dict = Depends(get_admin_user)):
+    """Admin: delete all reports"""
+    result = await db.reports.delete_many({})
+    return {"deleted": result.deleted_count}
+
 @api_router.post("/admin/reports/{report_id}/reply")
 async def reply_to_report(report_id: str, data: dict, admin: dict = Depends(get_admin_user)):
     """Admin: reply to a report — sends notification to the reporting user"""
