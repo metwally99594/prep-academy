@@ -1619,7 +1619,7 @@ CONTEXT: Fachgebiet={fachgebiet}, Jahr={jahr}, Stadt={stadt}
 
 Return a JSON object with a "questions" array containing all generated questions."""
 
-    models_to_try = ["deepseek/deepseek-chat:free", "qwen/qwen-2.5-72b-instruct:free", "openchat/openchat-8b:free"]
+    models_to_try = ["meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-v4-flash:free", "qwen/qwen3-coder:free"]
     questions = []
     last_err = ""
     model_used = ""
