@@ -5,7 +5,9 @@ export default function DragDrop({ question, submitted, answer, onChange, result
   const [selectedItem, setSelectedItem] = useState(null);
 
   const items = question.drag_drop_items || [];
-  const categories = question.drag_drop_categories || [];
+  const categories = (question.drag_drop_categories || []).map(cat =>
+    typeof cat === 'string' ? { id: cat, text: cat } : cat
+  );
   const assignedItems = answer || {};
   const unassignedItems = items.filter(item => !assignedItems[item.id]);
 

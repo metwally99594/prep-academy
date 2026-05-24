@@ -699,19 +699,21 @@ export default function QuizPage() {
                   {(qType === 'drag_drop' || qType === 'kategorisierung') && (
                     <div className="space-y-1.5">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Richtige Zuordnung:</p>
-                      {(q.drag_drop_items || []).map(item => {
-                        const correctCat = (q.drag_drop_categories || []).find(c => c.id === item.correct_category);
-                        const userCatId = a.dragDropAnswer?.[item.id];
-                        const userCat = (q.drag_drop_categories || []).find(c => c.id === userCatId);
-                        const itemCorrect = userCatId === item.correct_category;
-                        return (
-                          <div key={item.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs border ${itemCorrect ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
-                            {itemCorrect ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" /> : <X className="w-3 h-3 text-red-400 flex-shrink-0" />}
-                            <span className="font-medium">{item.text}</span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="text-emerald-400 font-medium">{correctCat?.text || '?'}</span>
-                            {!itemCorrect && userCat && (
-                              <span className="text-red-400 ml-auto">(du: {userCat.text})</span>
+                      {(() => {
+                        const normCats = (q.drag_drop_categories || []).map(c => typeof c === 'string' ? { id: c, text: c } : c);
+                        return (q.drag_drop_items || []).map(item => {
+                          const correctCat = normCats.find(c => c.id === item.correct_category);
+                          const userCatId = a.dragDropAnswer?.[item.id];
+                          const userCat = normCats.find(c => c.id === userCatId);
+                          const itemCorrect = userCatId === item.correct_category;
+                          return (
+                            <div key={item.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs border ${itemCorrect ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                              {itemCorrect ? <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" /> : <X className="w-3 h-3 text-red-400 flex-shrink-0" />}
+                              <span className="font-medium">{item.text}</span>
+                              <span className="text-muted-foreground">→</span>
+                              <span className="text-emerald-400 font-medium">{correctCat?.text || '?'}</span>
+                              {!itemCorrect && userCat && (
+                                <span className="text-red-400 ml-auto">(du: {userCat.text})</span>
                             )}
                           </div>
                         );
