@@ -1625,7 +1625,7 @@ Return a JSON object with a "questions" array containing all generated questions
     model_used = ""
     for attempt, model in enumerate(models_to_try):
         if attempt > 0:
-            await asyncio.sleep(3)
+            await asyncio.sleep(5)
         try:
             async with httpx.AsyncClient(timeout=180.0) as cl:
                 r = await cl.post(
@@ -1646,10 +1646,15 @@ Return a JSON object with a "questions" array containing all generated questions
                         "temperature": 0.7,
                     },
                 )
-            result = r.json()
+            try:
+                result = r.json()
+            except Exception:
+                last_err = f"{model}: invalid JSON response: {r.text[:500]}"
+                continue
             err = result.get("error")
             if err:
                 last_err = f"{model}: {err.get('message', str(err))}"
+                logger.warning(f"[BatchGen] {model} failed: {last_err}")
                 continue
             content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
             if not content:
@@ -1667,7 +1672,7 @@ Return a JSON object with a "questions" array containing all generated questions
             last_err = f"{model}: {str(e)}"
             continue
     if not questions:
-        raise HTTPException(502, f"All AI models failed: {last_err}")
+        raise HTTPException(502, f"All AI models failed. Last error: {last_err}")
 
     saved = 0
     for q in questions:
