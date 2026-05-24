@@ -1619,38 +1619,53 @@ CONTEXT: Fachgebiet={fachgebiet}, Jahr={jahr}, Stadt={stadt}
 
 Return a JSON object with a "questions" array containing all generated questions."""
 
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as cl:
-            r = await cl.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {or_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://prep-academy.onrender.com",
-                    "X-Title": "PrepAcademy",
-                },
-                json={
-                    "model": "deepseek/deepseek-chat:free",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "max_tokens": 8000,
-                    "temperature": 0.7,
-                },
-            )
-        result = r.json()
-        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-        if not content:
-            raise HTTPException(500, "AI returned empty response")
-        # Strip code fences
-        import re as _re
-        content = _re.sub(r'^```(?:json)?\s*', '', content.strip())
-        content = _re.sub(r'\s*```$', '', content)
-        parsed = _json.loads(content)
-        questions = parsed.get("questions", [])
-    except Exception as e:
-        raise HTTPException(500, f"AI generation failed: {str(e)}")
+    models_to_try = ["deepseek/deepseek-chat:free", "qwen/qwen-2.5-72b-instruct:free", "google/gemini-2.0-flash-exp:free"]
+    questions = []
+    last_err = ""
+    model_used = ""
+    for model in models_to_try:
+        try:
+            async with httpx.AsyncClient(timeout=180.0) as cl:
+                r = await cl.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {or_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://prep-academy.onrender.com",
+                        "X-Title": "PrepAcademy",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "max_tokens": 8000,
+                        "temperature": 0.7,
+                    },
+                )
+            result = r.json()
+            err = result.get("error")
+            if err:
+                last_err = f"{model}: {err.get('message', str(err))}"
+                continue
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if not content:
+                last_err = f"{model}: empty response"
+                continue
+            import re as _re
+            content = _re.sub(r'^```(?:json)?\s*', '', content.strip())
+            content = _re.sub(r'\s*```$', '', content)
+            parsed = _json.loads(content)
+            questions = parsed.get("questions", [])
+            if questions:
+                model_used = model
+                break
+        except Exception as e:
+            last_err = f"{model}: {str(e)}"
+            continue
+    if not questions:
+        raise HTTPException(502, f"All AI models failed: {last_err}")
 
     saved = 0
     for q in questions:
@@ -1673,7 +1688,7 @@ Return a JSON object with a "questions" array containing all generated questions
             "explanation": q.get("explanation_de", ""),
             "explanation_de": q.get("explanation_de", ""),
             "generated_by_ai": True,
-            "ai_model_used": "deepseek/deepseek-chat:free",
+            "ai_model_used": model_used,
             "source_notebook_id": notebook_id,
             "status": "published",
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1695,7 +1710,7 @@ Return a JSON object with a "questions" array containing all generated questions
         "jahr": jahr,
         "stadt": stadt,
         "status": "completed",
-        "ai_model_used": "deepseek/deepseek-chat:free",
+        "ai_model_used": model_used,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
