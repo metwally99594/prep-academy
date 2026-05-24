@@ -1619,11 +1619,13 @@ CONTEXT: Fachgebiet={fachgebiet}, Jahr={jahr}, Stadt={stadt}
 
 Return a JSON object with a "questions" array containing all generated questions."""
 
-    models_to_try = ["deepseek/deepseek-chat:free", "qwen/qwen-2.5-72b-instruct:free", "google/gemini-2.0-flash-exp:free"]
+    models_to_try = ["deepseek/deepseek-chat:free", "qwen/qwen-2.5-72b-instruct:free", "openchat/openchat-8b:free"]
     questions = []
     last_err = ""
     model_used = ""
-    for model in models_to_try:
+    for attempt, model in enumerate(models_to_try):
+        if attempt > 0:
+            await asyncio.sleep(3)
         try:
             async with httpx.AsyncClient(timeout=180.0) as cl:
                 r = await cl.post(
