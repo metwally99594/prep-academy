@@ -206,9 +206,11 @@ export default function SearchResultsPage() {
     return "";
   }, [showResult, selectedChoices, result]);
 
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const highlightKeyword = (text) => {
     if (!query || !text) return text;
-    const regex = new RegExp(`(${query})`, 'gi');
+    const escaped = escapeRegex(query);
+    const regex = new RegExp(`(${escaped})`, 'gi');
     const parts = text.split(regex);
     return parts.map((part, i) => 
       regex.test(part) ? <mark key={i} className="bg-primary/30 text-primary px-1 rounded">{part}</mark> : part
