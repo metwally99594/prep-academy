@@ -6602,18 +6602,6 @@ async def get_reports(status: str = "open", admin: dict = Depends(get_admin_user
     reports = await db.reports.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
     return reports
 
-@api_router.post("/admin/reports/{report_id}/resolve")
-async def resolve_report(report_id: str, admin: dict = Depends(get_admin_user)):
-    """Admin: resolve a report"""
-    await db.reports.update_one({"id": report_id}, {"$set": {"status": "resolved"}})
-    return {"status": "resolved"}
-
-@api_router.delete("/admin/reports/{report_id}")
-async def delete_report(report_id: str, admin: dict = Depends(get_admin_user)):
-    """Admin: delete a report"""
-    await db.reports.delete_one({"id": report_id})
-    return {"status": "deleted"}
-
 @api_router.post("/admin/reports/resolve-all")
 async def resolve_all_reports(admin: dict = Depends(get_admin_user)):
     """Admin: resolve all open reports"""
@@ -6625,6 +6613,18 @@ async def delete_all_reports(admin: dict = Depends(get_admin_user)):
     """Admin: delete all reports"""
     result = await db.reports.delete_many({})
     return {"deleted": result.deleted_count}
+
+@api_router.post("/admin/reports/{report_id}/resolve")
+async def resolve_report(report_id: str, admin: dict = Depends(get_admin_user)):
+    """Admin: resolve a report"""
+    await db.reports.update_one({"id": report_id}, {"$set": {"status": "resolved"}})
+    return {"status": "resolved"}
+
+@api_router.delete("/admin/reports/{report_id}")
+async def delete_report(report_id: str, admin: dict = Depends(get_admin_user)):
+    """Admin: delete a report"""
+    await db.reports.delete_one({"id": report_id})
+    return {"status": "deleted"}
 
 @api_router.post("/admin/reports/{report_id}/reply")
 async def reply_to_report(report_id: str, data: dict, admin: dict = Depends(get_admin_user)):
