@@ -579,6 +579,7 @@ export default function AdminPage() {
   const [batchNotebook, setBatchNotebook] = useState("");
   const [notebookTitle, setNotebookTitle] = useState("");
   const [notebooks, setNotebooks] = useState([]);
+  const [allSpecialties, setAllSpecialties] = useState([]);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [batchResult, setBatchResult] = useState(null);
   const [batchError, setBatchError] = useState(null);
@@ -971,6 +972,10 @@ export default function AdminPage() {
   useEffect(() => {
     if (token) fetchNotebooks();
   }, [token]);
+
+  useEffect(() => {
+    axios.get(`${API}/specialties`).then(r => setAllSpecialties(r.data)).catch(() => {});
+  }, []);
 
   const openNewQuestion = () => {
     setEditingQuestion(null);
@@ -1870,9 +1875,7 @@ export default function AdminPage() {
                     <SelectTrigger className="w-40"><SelectValue placeholder="Alle" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alle Fachgebiete</SelectItem>
-                      <SelectItem value="surgery">Chirurgie</SelectItem>
-                      <SelectItem value="internal">Innere Medizin</SelectItem>
-                      <SelectItem value="pediatrics">Pädiatrie</SelectItem>
+                      {(allSpecialties.length ? allSpecialties : []).map(f => <SelectItem key={f.id} value={f.id}>{f.name || f.name_de}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Button onClick={smartMergeDupes} disabled={!duplicates?.groups?.length || merging} className="gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
@@ -2081,7 +2084,7 @@ export default function AdminPage() {
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Fachgebiet</label>
                 <select value={batchFach} onChange={e => setBatchFach(e.target.value)} className="w-full px-4 py-2.5 bg-white border rounded-lg text-sm">
-                  {[{id:"internal",name:"Innere Medizin"},{id:"surgery",name:"Chirurgie"},{id:"ent",name:"HNO"},{id:"pediatrics",name:"Pädiatrie"},{id:"obgyn",name:"Gynäkologie"},{id:"neurology",name:"Neurologie"},{id:"psychiatry",name:"Psychiatrie"},{id:"dermatology",name:"Dermatologie"},{id:"emergency",name:"Notfallmedizin"},{id:"ophthalmology",name:"Ophthalmologie"}].map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  {(allSpecialties.length ? allSpecialties : [{id:"surgery",name:"Chirurgie"},{id:"internal",name:"Innere Medizin"}]).map(f => <option key={f.id} value={f.id}>{f.name || f.name_de}</option>)}
                 </select>
               </div>
               <div>
