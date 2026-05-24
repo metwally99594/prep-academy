@@ -1723,16 +1723,19 @@ async def create_question(question: QuestionCreate, admin: dict = Depends(get_ad
     question_doc.pop("_id", None)
     return question_doc
 
-@api_router.put("/questions/{question_id}", response_model=QuestionResponse)
+@api_router.put("/questions/{question_id}")
 async def update_question(question_id: str, question: QuestionUpdate, admin: dict = Depends(get_admin_user)):
     existing = await db.questions.find_one({"id": question_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Question not found")
     
-    _q_dump = question.dict() if hasattr(question, 'dict') else question.model_dump()
+    _q_dump = question.model_dump(exclude_unset=True)
     update_data = {k: v for k, v in _q_dump.items() if v is not None}
     if "choices" in update_data and isinstance(update_data["choices"], list):
-        update_data["choices"] = [c.dict() if hasattr(c, 'dict') else (c.model_dump() if hasattr(c, 'model_dump') else c) for c in update_data["choices"]]
+        update_data["choices"] = [
+            c if isinstance(c, dict) else c.model_dump()
+            for c in update_data["choices"]
+        ]
     
     if update_data:
         await db.questions.update_one({"id": question_id}, {"$set": update_data})
