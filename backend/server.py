@@ -534,6 +534,14 @@ async def get_specialties():
         {"$group": {"_id": {"spec": "$specialty_id", "city": "$exam_location"}, "count": {"$sum": 1}}}
     ]
     raw_counts = await db.questions.aggregate(count_pipeline).to_list(200)
+
+    # Count AI-generated questions per specialty
+    ai_pipeline = [
+        {"$match": {"generated_by_ai": True}},
+        {"$group": {"_id": "$specialty_id", "count": {"$sum": 1}}}
+    ]
+    ai_counts_raw = await db.questions.aggregate(ai_pipeline).to_list(200)
+    ai_counts = {d["_id"]: d["count"] for d in ai_counts_raw}
     
     # Build nested counts
     counts = {}
@@ -551,6 +559,7 @@ async def get_specialties():
     for s in specialties:
         s["question_count"] = counts.get(s["id"], 0)
         s["city_counts"] = city_counts.get(s["id"], {})
+        s["city_counts"]["ai_generated"] = ai_counts.get(s["id"], 0)
     return specialties
 
 @api_router.get("/specialties/{specialty_id}")
@@ -568,7 +577,9 @@ async def get_exam_types():
     result = []
     for et in EXAM_TYPES:
         query = {}
-        if et.get("location"):
+        if et.get("location") == "ai_generated":
+            query["generated_by_ai"] = True
+        elif et.get("location"):
             query["exam_location"] = et["location"]
         if et.get("specialty"):
             query["specialty_id"] = et["specialty"]
@@ -756,155 +767,9 @@ async def create_challenge(
         query["specialty_id"] = specialty_id
     if year:
         query["year"] = year
-    if exam_location:
-        query["exam_location"] = exam_location
-
-    if all_questions:
-        # Get ALL matching questions
-        question_ids = [q["id"] async for q in db.questions.find(query, {"_id": 0, "id": 1})]
-    else:
-        count = min(max(count, 5), 50)
-        pipeline = [
-            {"$match": query},
-            {"$sample": {"size": count}},
-            {"$project": {"_id": 0, "id": 1}}
-        ]
-        question_ids = [q["id"] for q in await db.questions.aggregate(pipeline).to_list(count)]
-
-    if not question_ids:
-        raise HTTPException(status_code=404, detail="Keine Fragen gefunden")
-
-    challenge_id = str(uuid.uuid4())[:8]
-
-    # Build description
-    desc_parts = []
-    if specialty_id:
-        spec = await db.specialties.find_one({"id": specialty_id}, {"_id": 0, "name_de": 1})
-        desc_parts.append(spec.get("name_de", specialty_id) if spec else specialty_id)
-    else:
-        desc_parts.append("Alle Fächer")
-    if year:
-        desc_parts.append(str(year))
-    if exam_location:
-        city_names = {"vienna": "Wien", "innsbruck": "Innsbruck", "andere": "Andere Stadt"}
-        desc_parts.append(city_names.get(exam_location, exam_location))
-    spec_name = " | ".join(desc_parts)
-
-    await db.challenges.insert_one({
-        "id": challenge_id,
-        "creator_id": user["id"],
-        "creator_name": user.get("name", "Anonym"),
-        "specialty_id": specialty_id,
-        "specialty_name": spec_name,
-        "year": year,
-        "exam_location": exam_location,
-        "question_ids": question_ids,
-        "count": len(question_ids),
-        "results": [],
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-
-    return {"challenge_id": challenge_id, "count": len(question_ids), "specialty": spec_name}
-
-
-@api_router.get("/challenge/{challenge_id}")
-async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
-    """Get challenge details and questions"""
-    ch = await db.challenges.find_one({"id": challenge_id}, {"_id": 0})
-    if not ch:
-        raise HTTPException(status_code=404, detail="Challenge nicht gefunden")
-
-    def strip_correct_from_choices(choices):
-        """Remove is_correct flag from choices before sending to client."""
-        if not choices:
-            return choices
-        return [{k: v for k, v in c.items() if k != "is_correct"} for c in choices]
-
-    # Get questions (correct answers and is_correct flags are never sent to client)
-    questions = []
-    for qid in ch.get("question_ids", []):
-        q = await db.questions.find_one({"id": qid}, {"_id": 0, "id": 1, "specialty_id": 1,
-            "question_text": 1, "question_text_de": 1, "choices": 1, "choices_de": 1,
-            "explanation_de": 1, "question_type": 1, "drag_drop_items": 1,
-            "drag_drop_categories": 1, "blank_text": 1, "blank_answers": 1})
-        if q:
-            # Strip correct answer indicators before sending to client
-            q["choices"] = strip_correct_from_choices(q.get("choices") or q.get("choices_de") or [])
-            q.pop("choices_de", None)
-            q.pop("blank_answers", None)  # also hide fill-in-blank answers
-            questions.append(q)
-
-    already_played = any(r["user_id"] == user["id"] for r in ch.get("results", []))
-
-    return {
-        "id": ch["id"],
-        "creator_name": ch.get("creator_name", "Anonym"),
-        "specialty_name": ch.get("specialty_name", ""),
-        "count": ch.get("count", 0),
-        "questions": questions,
-        "results": ch.get("results", []),
-        "already_played": already_played,
-    }
-
-
-@api_router.post("/challenge/{challenge_id}/submit")
-async def submit_challenge_result(challenge_id: str, score: int = 0, total: int = 0, user: dict = Depends(get_current_user)):
-    """Submit challenge result"""
-    ch = await db.challenges.find_one({"id": challenge_id}, {"_id": 0})
-    if not ch:
-        raise HTTPException(status_code=404, detail="Challenge nicht gefunden")
-
-    # Server-side validation: score must be non-negative and ≤ actual question count
-    actual_count = ch.get("count", len(ch.get("question_ids", [])))
-    if score < 0 or total < 0:
-        raise HTTPException(status_code=400, detail="Ungültige Punktzahl")
-    if score > actual_count or total > actual_count:
-        raise HTTPException(status_code=400, detail="Ungültige Punktzahl")
-    # Use server-authoritative total (question count) instead of client-supplied total
-    validated_total = actual_count
-
-    result_entry = {
-        "user_id": user["id"],
-        "user_name": user.get("name", "Anonym"),
-        "score": score,
-        "total": validated_total,
-        "accuracy": round(score / validated_total * 100, 1) if validated_total > 0 else 0,
-        "submitted_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    # Remove old result for same user, add new
-    await db.challenges.update_one(
-        {"id": challenge_id},
-        {"$pull": {"results": {"user_id": user["id"]}}}
-    )
-    await db.challenges.update_one(
-        {"id": challenge_id},
-        {"$push": {"results": result_entry}}
-    )
-
-    # Get updated results
-    ch = await db.challenges.find_one({"id": challenge_id}, {"_id": 0, "results": 1})
-    return {"results": ch.get("results", [])}
-
-# ============ QUESTION ROUTES ============
-
-@api_router.get("/questions", response_model=List[QuestionResponse])
-async def get_questions(
-    specialty_id: Optional[str] = None,
-    year: Optional[int] = None,
-    exam_location: Optional[str] = None,
-    status: Optional[str] = None,
-    limit: int = 30,
-    skip: int = 0,
-    user: dict = Depends(get_current_user),
-):
-    limit = min(limit, 100)
-    query = {}
-    if specialty_id:
-        query["specialty_id"] = specialty_id
-    if year:
-        query["year"] = year
-    if exam_location:
+    if exam_location == "ai_generated":
+        query["generated_by_ai"] = True
+    elif exam_location:
         query["exam_location"] = exam_location
     if not user.get("is_admin"):
         query["status"] = "published"

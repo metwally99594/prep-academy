@@ -105,10 +105,14 @@ export default function HomePage() {
 
   // Memoize filtered specialties to avoid recalculation on unrelated re-renders
   const filteredSpecialties = useMemo(() => {
+    const isKi = selectedExam === "ki_generiert";
     return specialties.filter(s => {
       if (!selectedExam) return true;
       const exam = examTypes.find(e => e.id === selectedExam);
       if (!exam) return true;
+      if (isKi) {
+        return (s.city_counts?.ai_generated || 0) > 0;
+      }
       if (exam.specialty) return s.id === exam.specialty;
       if (exam.location) {
         const cityCount = s.city_counts?.[exam.location] || 0;
@@ -118,6 +122,9 @@ export default function HomePage() {
     }).map(s => {
       const exam = examTypes.find(e => e.id === selectedExam);
       if (!exam) return s;
+      if (isKi) {
+        return { ...s, question_count: s.city_counts?.ai_generated || 0 };
+      }
       if (exam.location) {
         return { ...s, question_count: s.city_counts?.[exam.location] || 0 };
       }
@@ -285,10 +292,11 @@ export default function HomePage() {
                 >
                   {isActive && <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-xl bg-primary" />}
                   <div className="text-xl mb-2">
-                    {exam.icon === 'flag_at' && '🇦🇹'}
-                    {exam.icon === 'mountain' && '🏔️'}
-                    {exam.icon === 'building' && '🏛️'}
-                    {exam.icon === 'pill' && '💊'}
+                  {exam.icon === 'flag_at' && '🇦🇹'}
+                  {exam.icon === 'mountain' && '🏔️'}
+                  {exam.icon === 'building' && '🏛️'}
+                  {exam.icon === 'pill' && '💊'}
+                  {exam.icon === 'robot' && '🤖'}
                   </div>
                   <h3 className={`font-semibold text-sm sm:text-base mb-1 ${isActive ? 'text-primary' : 'text-white/80'}`}>
                     {exam.name}
