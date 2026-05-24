@@ -1589,20 +1589,27 @@ async def batch_generate(data: dict, admin: dict = Depends(get_admin_user)):
     if not or_key:
         raise HTTPException(500, "OPENROUTER_API_KEY not set")
 
-    system_prompt = """You are a medical exam question creator for German-speaking medical exams (Kenntnisprüfung, Stichprobentest, Nostrifizierung).
-Generate questions in GERMAN medical German. Each question must have a clinical vignette, 5 answer options (one correct), and a detailed explanation.
+    system_prompt = """You are a medical exam question creator for German-speaking medical exams.
+Generate questions in GERMAN. Each must have a clinical vignette and detailed explanation in German.
 
-Response MUST be valid JSON only:
-{
-  "questions": [
-    {
-      "question_type": "mcq",
-      "question_text": "...",
-      "choices": [{"id":"a","text":"...","is_correct":false}, ...],
-      "explanation_de": "..."
-    }
-  ]
-}"""
+JSON FORMATS BY QUESTION TYPE:
+
+1. mcq (single choice):
+{"question_type":"mcq","question_text":"...","choices":[{"id":"a","text":"...","is_correct":true/false},...],"explanation_de":"..."}
+
+2. multi_select (multiple correct):
+{"question_type":"multi_select","question_text":"...","choices":[{"id":"a","text":"...","is_correct":true/false},...],"explanation_de":"..."}
+
+3. drag_drop (drag items to categories):
+{"question_type":"drag_drop","question_text":"...","drag_drop_items":[{"id":"i1","text":"Item1","correct_category":"Kategorie A"},{"id":"i2","text":"Item2","correct_category":"Kategorie B"}],"drag_drop_categories":["Kategorie A","Kategorie B","Kategorie C"],"explanation_de":"..."}
+
+4. kategorisierung (same as drag_drop):
+{"question_type":"kategorisierung","question_text":"...","drag_drop_items":[{"id":"i1","text":"Item1","correct_category":"Kategorie X"},...],"drag_drop_categories":["Kategorie X","Kategorie Y"],"explanation_de":"..."}
+
+5. lueckentext (fill in blank):
+{"question_type":"lueckentext","question_text":"Der ___ ist das wichtigste Organ für ___ .","blanks":[{"type":"text","answer":"Leber"},{"type":"text","answer":"Entgiftung"}],"explanation_de":"..."}
+
+Return ONLY a JSON object with a "questions" array containing ALL generated questions."""
 
     type_labels = {"mcq": "MCQ (single choice)", "multi_select": "Multi-Select (multiple correct)", "drag_drop": "Drag & Drop matching", "kategorisierung": "Kategorisierung (sort into categories)", "lueckentext": "Lückentext (fill in blanks)"}
     type_counts = "\n".join(f"- {type_labels[k]}: {v}" for k, v in mix.items() if v > 0)
@@ -1679,9 +1686,7 @@ Return a JSON object with a "questions" array containing all generated questions
         qtext = q.get("question_text", "")
         if len(qtext) < 20:
             continue
-        qchoices = q.get("choices", [])
-        if not qchoices:
-            continue
+        qtype = q.get("question_type", "mcq")
         qid = str(uuid.uuid4())
         doc = {
             "id": qid,
@@ -1690,8 +1695,7 @@ Return a JSON object with a "questions" array containing all generated questions
             "exam_location": stadt.lower(),
             "question_text": qtext,
             "question_text_de": qtext,
-            "question_type": q.get("question_type", "single_choice"),
-            "choices": qchoices,
+            "question_type": qtype,
             "explanation": q.get("explanation_de", ""),
             "explanation_de": q.get("explanation_de", ""),
             "generated_by_ai": True,
@@ -1701,6 +1705,25 @@ Return a JSON object with a "questions" array containing all generated questions
             "created_at": datetime.now(timezone.utc).isoformat(),
             "tags": [fachgebiet.lower().replace(" ", "_")],
         }
+        if qtype in ("mcq", "multi_select"):
+            choices = q.get("choices", [])
+            if not choices:
+                continue
+            doc["choices"] = choices
+        elif qtype in ("drag_drop", "kategorisierung"):
+            items = q.get("drag_drop_items", [])
+            cats = q.get("drag_drop_categories", [])
+            if not items or not cats:
+                continue
+            doc["drag_drop_items"] = items
+            doc["drag_drop_categories"] = cats
+        elif qtype == "lueckentext":
+            blanks = q.get("blanks", [])
+            if not blanks:
+                continue
+            doc["blanks"] = blanks
+        else:
+            continue
         await db.questions.insert_one(doc)
         saved += 1
 
