@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { API, useAuth } from "@/App";
 import { Button } from "@/components/ui/button";
@@ -48,13 +48,15 @@ const iconMap = {
 export default function SpecialtyPage() {
   const { specialtyId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { token } = useAuth();
   
   const [specialty, setSpecialty] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState("all");
-  const [selectedCity, setSelectedCity] = useState("all");
+  const urlCity = searchParams.get("exam_location") || "all";
+  const [selectedCity, setSelectedCity] = useState(urlCity);
   const [quizMode, setQuizMode] = useState("study"); // study or exam
   const [loading, setLoading] = useState(true);
 

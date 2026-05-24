@@ -1030,7 +1030,9 @@ async def get_quiz_questions(
         query["specialty_id"] = specialty_id
     if year:
         query["year"] = year
-    if exam_location:
+    if exam_location == "ai_generated":
+        query["generated_by_ai"] = True
+    elif exam_location:
         query["exam_location"] = exam_location
     if not user.get("is_admin"):
         query["status"] = "published"
@@ -1070,7 +1072,9 @@ async def get_questions_count(
         query["specialty_id"] = specialty_id
     if year:
         query["year"] = year
-    if exam_location:
+    if exam_location == "ai_generated":
+        query["generated_by_ai"] = True
+    elif exam_location:
         query["exam_location"] = exam_location
     return {"count": await db.questions.count_documents(query)}
 
