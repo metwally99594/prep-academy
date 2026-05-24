@@ -1025,6 +1025,26 @@ async def get_simulation_questions(city: str = "vienna", user: dict = Depends(ge
     random.shuffle(all_questions)
     return all_questions[:TARGET]
 
+@api_router.get("/questions")
+async def list_questions(
+    specialty_id: Optional[str] = None,
+    exam_location: Optional[str] = None,
+    limit: int = 30,
+    skip: int = 0,
+    admin: dict = Depends(get_admin_user),
+):
+    """Admin: list questions with pagination and filters."""
+    query = {}
+    if specialty_id and specialty_id != "all":
+        query["specialty_id"] = specialty_id
+    if exam_location and exam_location != "all":
+        if exam_location == "ai_generated":
+            query["generated_by_ai"] = True
+        else:
+            query["exam_location"] = exam_location
+    questions = await db.questions.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    return questions
+
 @api_router.get("/questions/quiz")
 async def get_quiz_questions(
     specialty_id: Optional[str] = None,
