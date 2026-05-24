@@ -1619,7 +1619,7 @@ CONTEXT: Fachgebiet={fachgebiet}, Jahr={jahr}, Stadt={stadt}
 
 Return a JSON object with a "questions" array containing all generated questions."""
 
-    models_to_try = ["nousresearch/hermes-3-llama-3.1-405b:free", "meta-llama/llama-3.3-70b-instruct:free", "google/gemma-4-26b-a4b-it:free"]
+    models_to_try = ["deepseek/deepseek-chat", "openai/gpt-4o-mini", "google/gemma-4-31b-it:free"]
     questions = []
     last_err = ""
     model_used = ""
