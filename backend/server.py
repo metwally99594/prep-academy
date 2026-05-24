@@ -1417,6 +1417,341 @@ async def find_duplicate_questions(specialty_id: Optional[str] = None, admin: di
     return {"groups": duplicate_groups, "total_duplicate_groups": len(duplicate_groups), "total_extra_copies": total_dupes}
 
 
+# ─── DUPLICATE SCAN (AI-powered fingerprint + groups) ────────────────────────
+
+def _normalize_text(t):
+    if not t:
+        return ""
+    import re as _r
+    return _r.sub(r'\s+', ' ', t.strip().lower())
+
+
+def _question_fingerprint(q):
+    import hashlib
+    text = q.get("question_text_de") or q.get("question_text") or ""
+    norm = _normalize_text(text)[:200]
+    return hashlib.sha256(norm.encode()).hexdigest()[:32]
+
+
+def _completeness_score(q):
+    score = 0
+    if len(q.get("question_text_de") or q.get("question_text") or "") > 30: score += 20
+    if len(q.get("explanation_de") or q.get("explanation") or "") > 30: score += 30
+    if q.get("image_base64"): score += 20
+    choices = q.get("choices") or []
+    if len([c for c in choices if c.get("is_correct")]) > 0: score += 30
+    return score
+
+
+@api_router.post("/admin/duplicates/scan")
+async def scan_duplicates(data: dict = {}, admin: dict = Depends(get_admin_user)):
+    """Scan questions and create duplicate groups using fingerprint + AI"""
+    import re as _re
+    specialty = data.get("specialty_id")
+    match = {}
+    if specialty:
+        match["specialty_id"] = specialty
+    all_qs = await db.questions.find(match, {"_id": 0}).to_list(10000)
+    groups = {}
+    for q in all_qs:
+        fp = _question_fingerprint(q)
+        if fp not in groups:
+            groups[fp] = []
+        groups[fp].append(q)
+    inserted = 0
+    for fp, qs in groups.items():
+        if len(qs) < 2:
+            continue
+        best = max(qs, key=_completeness_score)
+        gid = str(uuid.uuid4())
+        qids = [q["id"] for q in qs]
+        await db.duplicate_groups.update_one(
+            {"question_ids": {"$all": qids}},
+            {"$setOnInsert": {
+                "id": gid, "question_ids": qids, "primary_id": best["id"],
+                "count": len(qs), "detection_method": "fingerprint",
+                "similarity_score": 100.0, "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "specialty_id": best.get("specialty_id", ""),
+            }},
+            upsert=True,
+        )
+        inserted += 1
+    return {"groups_created": inserted}
+
+
+@api_router.get("/admin/duplicates/list")
+async def list_duplicate_groups(specialty_id: str = "", admin: dict = Depends(get_admin_user)):
+    """List duplicate groups with their questions"""
+    match = {"status": "pending"}
+    if specialty_id:
+        match["specialty_id"] = specialty_id
+    groups = await db.duplicate_groups.find(match, {"_id": 0}).sort("created_at", -1).to_list(500)
+    enriched = []
+    for g in groups:
+        qs = await db.questions.find({"id": {"$in": g["question_ids"]}}, {"_id": 0}).to_list(50)
+        qs.sort(key=_completeness_score, reverse=True)
+        enriched.append({**g, "questions": qs})
+    total_extras = sum(g["count"] - 1 for g in enriched)
+    return {"groups": enriched, "total_groups": len(enriched), "total_extra_copies": total_extras}
+
+
+@api_router.post("/admin/duplicates/merge-all")
+async def merge_all_duplicates(data: dict = {}, admin: dict = Depends(get_admin_user)):
+    """Merge all pending duplicate groups"""
+    use_ai = data.get("use_ai", False)
+    groups = await db.duplicate_groups.find({"status": "pending"}, {"_id": 0}).to_list(500)
+    merged = 0
+    deleted = 0
+    for g in groups:
+        qs = await db.questions.find({"id": {"$in": g["question_ids"]}}, {"_id": 0}).to_list(50)
+        if len(qs) < 2:
+            continue
+        best = max(qs, key=_completeness_score)
+        others = [q for q in qs if q["id"] != best["id"]]
+        for o in others:
+            for field in ["explanation_de", "explanation", "image_base64"]:
+                if not best.get(field) and o.get(field):
+                    best[field] = o[field]
+            await db.questions.delete_one({"id": o["id"]})
+            deleted += 1
+        await db.questions.update_one({"id": best["id"]}, {"$set": {
+            "explanation_de": best.get("explanation_de", ""),
+            "explanation": best.get("explanation", ""),
+            "image_base64": best.get("image_base64"),
+            "completeness_score": _completeness_score(best),
+        }})
+        await db.duplicate_groups.update_one({"id": g["id"]}, {"$set": {
+            "status": "merged", "merged_at": datetime.now(timezone.utc).isoformat(),
+        }})
+        merged += 1
+    return {"merged_groups": merged, "deleted_questions": deleted}
+
+
+@api_router.post("/admin/duplicates/merge/{group_id}")
+async def merge_one_duplicate(group_id: str, admin: dict = Depends(get_admin_user)):
+    """Merge a single duplicate group"""
+    g = await db.duplicate_groups.find_one({"id": group_id}, {"_id": 0})
+    if not g:
+        raise HTTPException(404, "Group not found")
+    qs = await db.questions.find({"id": {"$in": g["question_ids"]}}, {"_id": 0}).to_list(50)
+    if len(qs) < 2:
+        return {"merged": False, "reason": "less than 2 questions"}
+    best = max(qs, key=_completeness_score)
+    deleted = 0
+    for o in qs:
+        if o["id"] == best["id"]:
+            continue
+        for field in ["explanation_de", "explanation", "image_base64"]:
+            if not best.get(field) and o.get(field):
+                best[field] = o[field]
+        await db.questions.delete_one({"id": o["id"]})
+        deleted += 1
+    await db.questions.update_one({"id": best["id"]}, {"$set": {
+        "explanation_de": best.get("explanation_de", ""),
+        "explanation": best.get("explanation", ""),
+        "image_base64": best.get("image_base64"),
+    }})
+    await db.duplicate_groups.update_one({"id": group_id}, {"$set": {
+        "status": "merged", "merged_at": datetime.now(timezone.utc).isoformat(),
+    }})
+    return {"merged": True, "deleted": deleted}
+
+
+# ─── BATCH GENERATOR (AI question generation from text/PDF) ──────────────────
+
+@api_router.post("/admin/batch-generator/generate")
+async def batch_generate(data: dict, admin: dict = Depends(get_admin_user)):
+    """Generate questions from text or notebook using OpenRouter AI"""
+    import httpx, json as _json
+    source_type = data.get("source_type", "text")
+    raw_text = data.get("raw_text", "")
+    notebook_id = data.get("notebook_id")
+    mix = data.get("mix", {"mcq": 3, "multi_select": 2, "drag_drop": 1, "kategorisierung": 1, "lueckentext": 1})
+    fachgebiet = data.get("fachgebiet", "Innere Medizin")
+    jahr = data.get("jahr", 2024)
+    stadt = data.get("stadt", "Wien")
+
+    total_requested = sum(mix.values())
+    if total_requested == 0 or total_requested > 30:
+        raise HTTPException(400, "Mix total must be 1-30")
+
+    if source_type == "notebook" and notebook_id:
+        nb = await db.pdf_notebooks.find_one({"id": notebook_id}, {"_id": 0})
+        if not nb:
+            raise HTTPException(404, "Notebook not found")
+        raw_text = nb.get("extracted_text") or nb.get("raw_text") or ""
+
+    if not raw_text or len(raw_text) < 50:
+        raise HTTPException(400, "Text too short, need at least 50 chars")
+
+    or_key = os.environ.get("OPENROUTER_API_KEY")
+    if not or_key:
+        raise HTTPException(500, "OPENROUTER_API_KEY not set")
+
+    system_prompt = """You are a medical exam question creator for German-speaking medical exams (Kenntnisprüfung, Stichprobentest, Nostrifizierung).
+Generate questions in GERMAN medical German. Each question must have a clinical vignette, 5 answer options (one correct), and a detailed explanation.
+
+Response MUST be valid JSON only:
+{
+  "questions": [
+    {
+      "question_type": "mcq",
+      "question_text": "...",
+      "choices": [{"id":"a","text":"...","is_correct":false}, ...],
+      "explanation_de": "..."
+    }
+  ]
+}"""
+
+    type_labels = {"mcq": "MCQ (single choice)", "multi_select": "Multi-Select (multiple correct)", "drag_drop": "Drag & Drop matching", "kategorisierung": "Kategorisierung (sort into categories)", "lueckentext": "Lückentext (fill in blanks)"}
+    type_counts = "\n".join(f"- {type_labels[k]}: {v}" for k, v in mix.items() if v > 0)
+
+    user_prompt = f"""Generate {total_requested} medical exam questions based on this content:
+
+CONTENT:
+{raw_text[:6000]}
+
+TYPE MIX:
+{type_counts}
+
+CONTEXT: Fachgebiet={fachgebiet}, Jahr={jahr}, Stadt={stadt}
+
+Return a JSON object with a "questions" array containing all generated questions."""
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as cl:
+            r = await cl.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {or_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://prep-academy.onrender.com",
+                    "X-Title": "PrepAcademy",
+                },
+                json={
+                    "model": "deepseek/deepseek-chat:free",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_tokens": 8000,
+                    "temperature": 0.7,
+                },
+            )
+        result = r.json()
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not content:
+            raise HTTPException(500, "AI returned empty response")
+        # Strip code fences
+        import re as _re
+        content = _re.sub(r'^```(?:json)?\s*', '', content.strip())
+        content = _re.sub(r'\s*```$', '', content)
+        parsed = _json.loads(content)
+        questions = parsed.get("questions", [])
+    except Exception as e:
+        raise HTTPException(500, f"AI generation failed: {str(e)}")
+
+    saved = 0
+    for q in questions:
+        qtext = q.get("question_text", "")
+        if len(qtext) < 20:
+            continue
+        qchoices = q.get("choices", [])
+        if not qchoices:
+            continue
+        qid = str(uuid.uuid4())
+        doc = {
+            "id": qid,
+            "specialty_id": fachgebiet.lower().replace(" ", "_"),
+            "year": jahr,
+            "exam_location": stadt.lower(),
+            "question_text": qtext,
+            "question_text_de": qtext,
+            "question_type": q.get("question_type", "single_choice"),
+            "choices": qchoices,
+            "explanation": q.get("explanation_de", ""),
+            "explanation_de": q.get("explanation_de", ""),
+            "generated_by_ai": True,
+            "ai_model_used": "deepseek/deepseek-chat:free",
+            "source_notebook_id": notebook_id,
+            "status": "published",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "tags": [fachgebiet.lower().replace(" ", "_")],
+        }
+        await db.questions.insert_one(doc)
+        saved += 1
+
+    # Save batch record
+    await db.batch_generations.insert_one({
+        "id": str(uuid.uuid4()),
+        "source_type": source_type,
+        "notebook_id": notebook_id,
+        "raw_text": raw_text[:1000],
+        "mix_config": mix,
+        "total_requested": total_requested,
+        "total_generated": saved,
+        "fachgebiet": fachgebiet,
+        "jahr": jahr,
+        "stadt": stadt,
+        "status": "completed",
+        "ai_model_used": "deepseek/deepseek-chat:free",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {"requested": total_requested, "generated": saved}
+
+
+@api_router.post("/admin/batch-generator/extract-pdf")
+async def extract_pdf_text(file: bytes = File(...)):
+    """Extract text from uploaded PDF using PyMuPDF"""
+    import fitz
+    doc = fitz.open(stream=file, filetype="pdf")
+    pages = []
+    for page in doc:
+        pages.append(page.get_text())
+    doc.close()
+    full_text = "\n".join(pages).strip()
+    if not full_text:
+        raise HTTPException(400, "Could not extract any text from PDF")
+    return {"text": full_text, "pages": len(pages), "chars": len(full_text)}
+
+
+@api_router.post("/admin/notebooks/upload")
+async def upload_notebook(data: dict, admin: dict = Depends(get_admin_user)):
+    """Upload a PDF notebook (base64 content)"""
+    title = data.get("title", "Untitled")
+    file_data = data.get("file_data", "")
+    fachgebiet = data.get("fachgebiet", "")
+    text_content = data.get("text_content", "")
+    nb_id = str(uuid.uuid4())
+    await db.pdf_notebooks.insert_one({
+        "id": nb_id,
+        "title": title,
+        "file_data": file_data[:500000],
+        "raw_text": text_content,
+        "extracted_text": text_content,
+        "fachgebiet": fachgebiet,
+        "file_size": len(file_data),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"id": nb_id, "title": title}
+
+
+@api_router.get("/admin/notebooks/list")
+async def list_notebooks(admin: dict = Depends(get_admin_user)):
+    """List all uploaded notebooks"""
+    nbs = await db.pdf_notebooks.find({}, {"_id": 0, "file_data": 0}).sort("created_at", -1).to_list(500)
+    return {"notebooks": nbs}
+
+
+@api_router.get("/admin/batch-generator/history")
+async def batch_generator_history(admin: dict = Depends(get_admin_user)):
+    """List batch generation history"""
+    records = await db.batch_generations.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return {"records": records}
+
+
 @api_router.get("/admin/questions/{question_id}")
 async def admin_get_question(question_id: str, admin: dict = Depends(get_admin_user)):
     """Admin: get a single question by ID for editing"""
@@ -2825,7 +3160,7 @@ async def _fetch_wikipedia_full_page(page_title: str, lang: str = "de") -> Optio
     """Fetch full Wikipedia page content (not just intro)."""
     import httpx
     try:
-        async with httpx.AsyncClient(timeout=15.0) as cl:
+        async with httpx.AsyncClient(timeout=15.0, headers={"User-Agent": "PrepAcademy/1.0 (contact@prep-academy.com)"}) as cl:
             content_r = await cl.get(
                 "https://{}.wikipedia.org/w/api.php".format(lang),
                 params={
@@ -3074,7 +3409,7 @@ async def seed_wikipedia_medical(user: dict = Depends(get_admin_user)):
                 else:
                     return None
         return None
-    async with httpx.AsyncClient(timeout=30.0) as cl:
+    async with httpx.AsyncClient(timeout=30.0, headers={"User-Agent": "PrepAcademy/1.0 (contact@prep-academy.com)"}) as cl:
         for cat in top_categories:
             cmcontinue = None
             while True:

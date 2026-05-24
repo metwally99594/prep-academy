@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import QuestionTypeFields from "@/components/QuestionTypeFields";
@@ -77,7 +77,8 @@ import {
   Flag,
   Tag,
   Headphones,
-  ShieldCheck
+  ShieldCheck,
+  Play
 } from "lucide-react";
 
 const SPECIALTIES = [
@@ -568,7 +569,21 @@ export default function AdminPage() {
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [merging, setMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState(null);
+  const [batchSource, setBatchSource] = useState("text");
+  const [batchText, setBatchText] = useState("");
+  const [batchTopic, setBatchTopic] = useState("");
+  const [batchMix, setBatchMix] = useState({ mcq: 3, multi_select: 0, drag_drop: 0, kategorisierung: 0, lueckentext: 0 });
+  const [batchFach, setBatchFach] = useState("Chirurgie");
+  const [batchYear, setBatchYear] = useState(2024);
+  const [batchCity, setBatchCity] = useState("Innsbruck");
+  const [batchNotebook, setBatchNotebook] = useState("");
+  const [notebookTitle, setNotebookTitle] = useState("");
+  const [notebooks, setNotebooks] = useState([]);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [batchResult, setBatchResult] = useState(null);
+  const [batchError, setBatchError] = useState(null);
   const [allTags, setAllTags] = useState([]);
+  const batchTotal = React.useMemo(() => Object.values(batchMix).reduce((a, b) => a + b, 0), [batchMix]);
   const PAGE_SIZE = 30;
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -910,6 +925,53 @@ export default function AdminPage() {
     }
   };
 
+  const fetchNotebooks = async () => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.get(`${API}/admin/notebooks/list`, { headers });
+      setNotebooks(res.data || []);
+    } catch { /* ignore */ }
+  };
+
+  const handleBatchGenerate = async () => {
+    setBatchGenerating(true);
+    setBatchResult(null);
+    setBatchError(null);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      let source_text = batchText;
+      if (batchSource === "notebook" && batchNotebook) {
+        const nb = notebooks.find(n => n.id === batchNotebook);
+        source_text = nb?.text || "";
+      }
+      const payload = {
+        source_text,
+        topic: batchTopic,
+        mix: batchMix,
+        specialty_id: batchFach,
+        year: batchYear,
+        exam_location: batchCity,
+        notebook_id: batchSource === "notebook" ? batchNotebook : null,
+      };
+      const res = await axios.post(`${API}/admin/batch-generator/generate`, payload, { headers, timeout: 300000 });
+      setBatchResult(res.data);
+      setBatchText("");
+      setBatchTopic("");
+      setBatchMix({ mcq: 3, multi_select: 0, drag_drop: 0, kategorisierung: 0, lueckentext: 0 });
+      toast.success(`${res.data.generated} Fragen erstellt!`);
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || "Fehler bei der Generierung";
+      setBatchError(msg);
+      toast.error(msg);
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) fetchNotebooks();
+  }, [token]);
+
   const openNewQuestion = () => {
     setEditingQuestion(null);
     setFormData(emptyQuestion);
@@ -1033,6 +1095,10 @@ export default function AdminPage() {
           <TabsTrigger value="duplicates" className="gap-2" data-testid="duplicates-tab" onClick={() => { if (!duplicates) fetchDuplicates(); }}>
             <Copy className="w-4 h-4" />
             Duplikate
+          </TabsTrigger>
+          <TabsTrigger value="batch-generator" className="gap-2" onClick={() => fetchNotebooks()}>
+            <Sparkles className="w-4 h-4" />
+            Batch Generator
           </TabsTrigger>
           <TabsTrigger value="reports" className="gap-2" data-testid="reports-tab">
             <Flag className="w-4 h-4" />
@@ -1791,20 +1857,280 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="duplicates">
-          <div className="glass-card rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">Duplikate finden</h2>
-              <Button onClick={fetchDuplicates} disabled={loadingDupes} className="gap-2">
-                {loadingDupes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
-                Scannen
-              </Button>
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="glass-card rounded-2xl p-6">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-xl font-semibold">Duplikate finden</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Doppelte Fragen erkennen, zusammenführen oder löschen</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Select value={dupeFilter} onValueChange={v => { setDupeFilter(v); if (duplicates) fetchDuplicates(); }}>
+                    <SelectTrigger className="w-40"><SelectValue placeholder="Alle" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Fachgebiete</SelectItem>
+                      <SelectItem value="surgery">Chirurgie</SelectItem>
+                      <SelectItem value="internal">Innere Medizin</SelectItem>
+                      <SelectItem value="pediatrics">Pädiatrie</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={smartMergeDupes} disabled={!duplicates?.groups?.length || merging} className="gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
+                    {merging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    Smart Merge
+                  </Button>
+                  <Button onClick={fetchDuplicates} disabled={loadingDupes} className="gap-2">
+                    {loadingDupes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                    Scannen
+                  </Button>
+                </div>
+              </div>
             </div>
-            {!duplicates && !loadingDupes && (
-              <div className="text-center py-12 text-muted-foreground">
+
+            {/* Stats */}
+            {duplicates && (
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-amber-600">{duplicates.total_duplicate_groups || 0}</div>
+                  <div className="text-sm text-amber-700 mt-1">Duplikat-Gruppen</div>
+                </div>
+                <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-rose-600">{duplicates.total_extra_copies || 0}</div>
+                  <div className="text-sm text-rose-700 mt-1">Zusätzliche Kopien</div>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-emerald-600">{duplicates.groups?.length || 0}</div>
+                  <div className="text-sm text-emerald-700 mt-1">Angezeigt</div>
+                </div>
+              </div>
+            )}
+
+            {/* Merge Result */}
+            {mergeResult && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+                <p className="text-emerald-800 font-medium">
+                  ✅ {mergeResult.merged_groups} Gruppen zusammengeführt, {mergeResult.deleted_count || mergeResult.deleted_questions} Kopien gelöscht
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => setMergeResult(null)}><X className="w-4 h-4" /></Button>
+              </div>
+            )}
+
+            {/* Auto-select + Bulk Delete */}
+            {duplicates?.groups?.length > 0 && (
+              <div className="bg-gray-100 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Checkbox id="auto-select" checked={selectedDupes.length > 0} onCheckedChange={() => autoSelectDupes()} />
+                  <label htmlFor="auto-select" className="text-sm font-medium cursor-pointer">Kopien automatisch markieren</label>
+                </div>
+                {selectedDupes.length > 0 && (
+                  <Button variant="destructive" size="sm" onClick={bulkDeleteDupes} disabled={bulkDeleting} className="gap-2">
+                    {bulkDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    {selectedDupes.length} Kopien löschen
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Groups List */}
+            {loadingDupes ? (
+              <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            ) : !duplicates ? (
+              <div className="glass-card rounded-2xl p-12 text-center text-muted-foreground">
                 <Copy className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p>Klicken Sie auf "Scannen" um Duplikate zu finden</p>
+              </div>
+            ) : duplicates.groups?.length === 0 ? (
+              <div className="glass-card rounded-2xl p-12 text-center text-muted-foreground">
+                <Sparkles className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>Keine Duplikate gefunden</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {duplicates.groups.map((group, gi) => (
+                  <div key={group._id || gi} className="glass-card rounded-xl p-4 hover:border-blue-500/20 transition">
+                    <div className="flex items-start gap-4">
+                      <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full shrink-0" onClick={() => setExpandedGroup(expandedGroup === (group._id || gi) ? null : (group._id || gi))}>
+                        <Play className="w-3 h-3 text-muted-foreground" fill="currentColor" />
+                      </Button>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-semibold shrink-0 mt-1">{group.count || group.questions?.length}x</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{group._id || group.questions?.[0]?.question_text_de || group.questions?.[0]?.question_text}</p>
                       </div>
+                    </div>
+                    {expandedGroup === (group._id || gi) && group.questions && (
+                      <div className="mt-4 pl-12 space-y-2 border-t pt-4">
+                        {group.questions.map((q, qi) => (
+                          <div key={q.id || qi} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
+                            <Checkbox checked={selectedDupes.includes(q.id)} onCheckedChange={() => {
+                              setSelectedDupes(prev => prev.includes(q.id) ? prev.filter(id => id !== q.id) : [...prev, q.id]);
+                            }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-foreground">{q.question_text_de || q.question_text}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{q.specialty_id} · {q.year} · {q.exam_location}</p>
+                            </div>
+                            {qi === 0 && <span className="text-xs text-emerald-600 font-medium shrink-0">Original</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="batch-generator">
+          <div className="glass-card rounded-2xl p-6">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold">Batch Generator</h2>
+                <p className="text-sm text-muted-foreground mt-1">KI erstellt mehrere Fragen aus einem Text oder PDF</p>
+              </div>
+            </div>
+
+            {/* Source Type */}
+            <div className="flex gap-2 mb-6">
+              <button onClick={() => setBatchSource("text")} className={`px-4 py-2 rounded-full text-sm font-medium transition ${batchSource === "text" ? "bg-amber-100 text-amber-700 border border-amber-200" : "text-muted-foreground hover:bg-muted border"}`}>Rohtext / Thema</button>
+              <button onClick={() => setBatchSource("notebook")} className={`px-4 py-2 rounded-full text-sm font-medium transition ${batchSource === "notebook" ? "bg-amber-100 text-amber-700 border border-amber-200" : "text-muted-foreground hover:bg-muted border"}`}>PDF-Notebook</button>
+            </div>
+
+            {/* Text Input */}
+            {batchSource === "text" ? (
+              <div className="space-y-3 mb-6">
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Thema (optional)</label>
+                  <Input value={batchTopic} onChange={e => setBatchTopic(e.target.value)} placeholder="z.B. Schluckstörungen, Larynxkarzinom..." />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Rohtext / Lerninhalte</label>
+                  <Textarea value={batchText} onChange={e => setBatchText(e.target.value)} rows={6} placeholder="Füge den Lerninhalt ein..." className="resize-none" />
+                  <p className="text-xs text-muted-foreground mt-1">{batchText.length} Zeichen</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 mb-6">
+                <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4">
+                  <label className="text-sm font-medium mb-2 block">Notebook auswählen</label>
+                  <select value={batchNotebook} onChange={e => setBatchNotebook(e.target.value)} className="w-full px-4 py-2.5 bg-white border rounded-lg text-sm">
+                    <option value="">PDF-Notebook wählen</option>
+                    {notebooks.map(nb => <option key={nb.id} value={nb.id}>{nb.title} ({nb.page_count || '?'} Seiten)</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Oder neues Notebook hochladen</label>
+                  <div className="flex gap-2">
+                    <Input value={notebookTitle} onChange={e => setNotebookTitle(e.target.value)} placeholder="Titel" className="w-64" />
+                    <Input type="file" accept=".txt,.pdf" onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.name.endsWith('.pdf')) {
+                        try {
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          const headers = { Authorization: `Bearer ${token}` };
+                          const res = await axios.post(`${API}/admin/batch-generator/extract-pdf`, formData, { headers, timeout: 30000 });
+                          setNotebookTitle(file.name.replace(/\.[^/.]+$/, ""));
+                          setBatchText(res.data.text);
+                          setBatchSource("text");
+                          toast.success(`"${file.name}" extrahiert (${res.data.pages} Seiten, ${res.data.chars} Zeichen)`);
+                        } catch (err) {
+                          toast.error(err.response?.data?.detail || "PDF-Extraktion fehlgeschlagen");
+                        }
+                      } else {
+                        const text = await file.text();
+                        setNotebookTitle(file.name.replace(/\.[^/.]+$/, ""));
+                        setBatchText(text);
+                        setBatchSource("text");
+                        toast.success(`"${file.name}" geladen (${text.length} Zeichen)`);
+                      }
+                    }} className="flex-1" />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Unterstützt .txt und .pdf</p>
+                </div>
+              </div>
+            )}
+
+            {/* Fragen-Mix */}
+            <div className="bg-muted/30 rounded-xl p-5 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">Fragen-Mix</h3>
+                <span className={`text-sm font-bold ${batchTotal > 30 ? "text-red-600" : batchTotal > 24 ? "text-amber-600" : "text-green-600"}`}>Gesamt: {batchTotal} / 30</span>
+              </div>
+              <div className="grid grid-cols-5 gap-3">
+                {[
+                  {key:"mcq", label:"MCQ"},
+                  {key:"multi_select", label:"Multi-Select"},
+                  {key:"drag_drop", label:"Drag & Drop"},
+                  {key:"kategorisierung", label:"Kategorisierung"},
+                  {key:"lueckentext", label:"Lückentext"},
+                ].map(({key, label}) => (
+                  <div key={key}>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">{label}</label>
+                    <input type="number" value={batchMix[key]} onChange={e => setBatchMix({...batchMix, [key]: Math.max(0, Math.min(30, parseInt(e.target.value) || 0))})} min={0} max={30} className="w-full px-3 py-2 bg-white border rounded-lg text-sm text-center font-semibold" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Meta Fields */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Fachgebiet</label>
+                <select value={batchFach} onChange={e => setBatchFach(e.target.value)} className="w-full px-4 py-2.5 bg-white border rounded-lg text-sm">
+                  {["Innere Medizin","Chirurgie","HNO","Pädiatrie","Gynäkologie","Neurologie","Psychiatrie","Dermatologie","Orthopädie","Anästhesie","Radiologie"].map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Jahr</label>
+                <Input type="number" value={batchYear} onChange={e => setBatchYear(parseInt(e.target.value) || 2024)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Stadt</label>
+                <select value={batchCity} onChange={e => setBatchCity(e.target.value)} className="w-full px-4 py-2.5 bg-white border rounded-lg text-sm">
+                  {["Wien","Graz","Innsbruck","Linz","Salzburg"].map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Progress */}
+            {batchGenerating && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                <p className="text-sm font-medium text-amber-900 mb-2">Generiert {batchTotal} Fragen...</p>
+                <div className="w-full bg-amber-100 rounded-full h-2 overflow-hidden">
+                  <div className="bg-gradient-to-r from-amber-400 to-amber-600 h-full w-2/3 rounded-full animate-pulse" />
+                </div>
+              </div>
+            )}
+
+            {/* Error */}
+            {batchError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+                <p className="text-sm text-red-800">❌ {batchError}</p>
+                <Button variant="ghost" size="sm" onClick={() => setBatchError(null)}><X className="w-4 h-4" /></Button>
+              </div>
+            )}
+
+            {/* Results */}
+            {batchResult && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+                <p className="text-sm text-emerald-800 font-medium">
+                  ✅ {batchResult.generated} von {batchResult.requested} Fragen erfolgreich generiert!
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => { setBatchResult(null); fetchQuestions(); fetchData(); }}><X className="w-4 h-4" /></Button>
+              </div>
+            )}
+
+            {/* Generate Button */}
+            <div className="flex justify-end">
+              <Button onClick={handleBatchGenerate} disabled={batchGenerating || batchTotal === 0 || batchTotal > 30 || (batchSource === "text" && !batchText)} className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700">
+                <Sparkles className="w-4 h-4" />
+                {batchGenerating ? "Generiert..." : `${batchTotal} Fragen generieren`}
+              </Button>
+            </div>
           </div>
         </TabsContent>
 
