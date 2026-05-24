@@ -1619,13 +1619,13 @@ CONTEXT: Fachgebiet={fachgebiet}, Jahr={jahr}, Stadt={stadt}
 
 Return a JSON object with a "questions" array containing all generated questions."""
 
-    models_to_try = ["meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-v4-flash:free", "qwen/qwen3-coder:free"]
+    models_to_try = ["nousresearch/hermes-3-llama-3.1-405b:free", "meta-llama/llama-3.3-70b-instruct:free", "google/gemma-4-26b-a4b-it:free"]
     questions = []
     last_err = ""
     model_used = ""
     for attempt, model in enumerate(models_to_try):
         if attempt > 0:
-            await asyncio.sleep(5)
+            await asyncio.sleep(3 * attempt)
         try:
             async with httpx.AsyncClient(timeout=180.0) as cl:
                 r = await cl.post(
