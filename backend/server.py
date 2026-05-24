@@ -782,7 +782,11 @@ async def create_challenge(
     elif exam_location:
         query["exam_location"] = exam_location
     if not user.get("is_admin"):
-        query["status"] = "published"
+        query["$or"] = [
+            {"status": "published"},
+            {"status": {"$exists": False}},
+            {"status": None},
+        ]
     elif status:
         query["status"] = status
 
