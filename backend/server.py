@@ -1792,6 +1792,11 @@ async def update_question(question_id: str, question: QuestionUpdate, admin: dic
     updated = await db.questions.find_one({"id": question_id}, {"_id": 0})
     return updated
 
+@api_router.delete("/questions/by-specialty/{specialty}")
+async def delete_questions_by_specialty(specialty: str, admin: dict = Depends(get_admin_user)):
+    result = await db.questions.delete_many({"specialty_id": specialty})
+    return {"deleted": result.deleted_count, "specialty": specialty}
+
 @api_router.delete("/questions/{question_id}")
 async def delete_question(question_id: str, admin: dict = Depends(get_admin_user)):
     result = await db.questions.delete_one({"id": question_id})
