@@ -98,10 +98,13 @@ class QuestionResponse(BaseModel):
     created_at: Optional[str] = None
     tags: Optional[List[str]] = []
     drag_drop_items: Optional[List[dict]] = None
-    drag_drop_categories: Optional[List[dict]] = None
+    drag_drop_categories: Optional[list] = None
     blank_text: Optional[str] = None
     blank_answers: Optional[List[str]] = None
     blanks: Optional[List[dict]] = None
+    generated_by_ai: Optional[bool] = None
+    ai_model_used: Optional[str] = None
+    source_notebook_id: Optional[str] = None
 
 class AnswerSubmit(BaseModel):
     question_id: str
