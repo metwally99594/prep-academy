@@ -122,8 +122,8 @@ export default function QuizPage() {
         .map((c, i) => `${String.fromCharCode(65 + i)}. ${c.text_de || c.text || ""}`)
         .join(". ");
       const fullText = `Frage. ${qText}. Antwortmöglichkeiten. ${choicesText}`;
-      const res = await axios.post(`${API}/learn/tts/speak`,
-        { text: fullText, language: "de" },
+      const res = await axios.post(`${API}/learn/audio-tts`,
+        { script: fullText, language: "de" },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 }
       );
       if (!res.data.audio_base64) throw new Error("Kein Audio");
