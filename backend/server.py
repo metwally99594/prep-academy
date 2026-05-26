@@ -772,14 +772,13 @@ async def create_challenge(
     user: dict = Depends(get_current_user)
 ):
     """Create a challenge with full filtering: specialty, year, city, count, or ALL"""
-    query = {}
+    import secrets
+    query: dict[str, object] = {}
     if specialty_id:
         query["specialty_id"] = specialty_id
     if year:
         query["year"] = year
-    if exam_location == "ai_generated":
-        query["generated_by_ai"] = True
-    elif exam_location:
+    if exam_location:
         query["exam_location"] = exam_location
     if not user.get("is_admin"):
         query["$or"] = [
@@ -787,11 +786,66 @@ async def create_challenge(
             {"status": {"$exists": False}},
             {"status": None},
         ]
-    elif status:
-        query["status"] = status
+    limit = 20 if all_questions else max(5, min(count, 20))
+    questions = await db.questions.aggregate([
+        {"$match": query},
+        {"$sample": {"size": limit}},
+        {"$project": {"_id": 0, "id": 1, "specialty_id": 1, "year": 1,
+                       "question_text": 1, "question_text_de": 1, "choices": 1,
+                       "choices_de": 1, "correct_answers": 1,
+                       "explanation_de": 1, "exam_location": 1, "image_base64": 1,
+                       "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
+                       "blank_text": 1, "blank_answers": 1, "blanks": 1}}
+    ]).to_list(limit)
+    challenge_id = secrets.token_hex(4)
+    await db.challenges.insert_one({
+        "challenge_id": challenge_id,
+        "creator_id": user["id"],
+        "creator_name": user.get("name", "Jemand"),
+        "specialty_id": specialty_id or "all",
+        "count": len(questions),
+        "questions": questions,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"challenge_id": challenge_id, "count": len(questions)}
 
-    questions = await db.questions.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
-    return questions
+
+@api_router.get("/challenge/{challenge_id}")
+async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
+    """Get a challenge by ID (public — anyone with the link can view)."""
+    doc = await db.challenges.find_one({"challenge_id": challenge_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Challenge nicht gefunden")
+    results = await db.challenge_results.find(
+        {"challenge_id": challenge_id},
+        {"_id": 0, "user_name": 1, "score": 1, "total": 1, "accuracy": 1, "submitted_at": 1}
+    ).sort("accuracy", -1).to_list(50)
+    doc["results"] = results
+    return doc
+
+
+@api_router.post("/challenge/{challenge_id}/submit")
+async def submit_challenge_result(
+    challenge_id: str,
+    score: int = 0,
+    total: int = 0,
+    user: dict = Depends(get_current_user),
+):
+    """Submit a challenge result (score/total)."""
+    doc = await db.challenges.find_one({"challenge_id": challenge_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Challenge nicht gefunden")
+    await db.challenge_results.insert_one({
+        "challenge_id": challenge_id,
+        "user_id": user["id"],
+        "user_name": user.get("name", "Jemand"),
+        "score": score,
+        "total": total,
+        "accuracy": round(score / total * 100, 1) if total > 0 else 0,
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"score": score, "total": total, "accuracy": round(score / total * 100, 1) if total > 0 else 0}
+
 
 def _fix_mojibake(text):
     """Reverse UTF-8 → Latin-1 mojibake for German text"""
