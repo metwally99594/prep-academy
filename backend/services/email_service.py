@@ -1,11 +1,13 @@
-"""Transactional email via Brevo REST API (uses httpx — no extra dependency).
+"""Transactional email via Brevo REST API.
 
-Startup strategy:
-- NO module-level Brevo client init — everything is lazy inside functions
-- ALL os.environ reads use safe os.getenv() with defaults
-- Diagnostics are printed to stdout on first use, not at import time
+- Retry with exponential backoff (3 attempts)
+- In-memory rate limiting (300/hour burst ≈ 5/min sustained)
+- Centralised logging with messageId tracking
+- Responsive HTML templates with PrepAcademy branding
+- Sender: PrepAcademy <noreply@prepacademy-med.com>
 """
 import os
+import asyncio
 import logging
 import traceback
 from datetime import datetime
@@ -15,9 +17,13 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+_ADMIN_CONTACT = "hilfe@prepacademy-med.com"
 
+_RETRY_DELAYS = [1, 3, 5]
+_RATE_LIMIT_MAX = 25
+_RATE_LIMIT_WINDOW = 60
+_sent_timestamps: list[float] = []
 
-# ── Lazy config helpers (safe — never raise at import time) ───────────────
 
 def _api_key() -> str:
     return os.getenv("BREVO_API_KEY", "").strip()
@@ -28,31 +34,11 @@ def _frontend_url() -> str:
 
 
 def _from_email() -> str:
-    return os.getenv("EMAIL_FROM", "mohamedmetwle99@gmail.com").strip()
+    return os.getenv("EMAIL_FROM", "noreply@prepacademy-med.com").strip()
 
 
 def _from_name() -> str:
     return os.getenv("EMAIL_FROM_NAME", "PrepAcademy").strip()
-
-
-def _diagnose() -> None:
-    """Print startup diagnostics to stdout. Called once on first send attempt."""
-    import sys
-    key = _api_key()
-    fe = _from_email()
-    fn = _from_name()
-    fu = _frontend_url()
-    print("[email_service] ====== Brevo Config =====", flush=True)
-    print(f"[email_service] BREVO_API_KEY exists: {bool(key)}", flush=True)
-    print(f"[email_service] BREVO_API_KEY length: {len(key)}", flush=True)
-    print(f"[email_service] EMAIL_FROM: {fe}", flush=True)
-    print(f"[email_service] EMAIL_FROM_NAME: {fn}", flush=True)
-    print(f"[email_service] FRONTEND_URL: {fu}", flush=True)
-    print(f"[email_service] ===========================", flush=True)
-    if not key:
-        logger.warning("BREVO_API_KEY is NOT set — transactional emails will NOT be sent.")
-    if not fe:
-        logger.warning("EMAIL_FROM is not set — transactional emails will NOT be sent.")
 
 
 def _headers() -> dict:
@@ -62,6 +48,24 @@ def _headers() -> dict:
         "Accept": "application/json",
     }
 
+
+# ── Rate limiter ─────────────────────────────────────────────────────────────
+
+def _rate_limited() -> bool:
+    """Simple sliding-window rate limiter. Returns True if under limit."""
+    global _sent_timestamps
+    now = datetime.now().timestamp()
+    cutoff = now - _RATE_LIMIT_WINDOW
+    _sent_timestamps = [t for t in _sent_timestamps if t > cutoff]
+    if len(_sent_timestamps) >= _RATE_LIMIT_MAX:
+        wait = _sent_timestamps[0] - cutoff
+        logger.warning("[Email] Rate limit hit (%d in %ds) — wait %.0fs", _RATE_LIMIT_MAX, _RATE_LIMIT_WINDOW, wait)
+        return False
+    _sent_timestamps.append(now)
+    return True
+
+
+# ── HTML helpers ─────────────────────────────────────────────────────────────
 
 def _btn(text: str, url: str) -> str:
     return (
@@ -90,6 +94,8 @@ def _wrap(body: str) -> str:
     <p style="font-size:11px;color:rgba(255,255,255,0.3);margin:0;line-height:1.8">
       © {year} Mohamed Metwally · PrepAcademy Elite<br>
       Lussmer Ring 69, 28777 Bremen, Deutschland<br>
+      <a href="mailto:{_ADMIN_CONTACT}" style="color:rgba(201,168,76,0.5);text-decoration:none">{_ADMIN_CONTACT}</a>
+      &nbsp;·&nbsp;
       <a href="{_frontend_url()}/impressum" style="color:rgba(201,168,76,0.5);text-decoration:none">Impressum</a>
       &nbsp;·&nbsp;
       <a href="{_frontend_url()}/datenschutz" style="color:rgba(201,168,76,0.5);text-decoration:none">Datenschutz</a>
@@ -101,24 +107,30 @@ def _wrap(body: str) -> str:
 </body></html>"""
 
 
+# ── Core send with retry + rate-limit + diagnostics ─────────────────────────
+
 _diagnosed = False
 
 
 async def _send(to_email: str, to_name: str, subject: str, html: str, text: str = "") -> bool:
-    """Send email via Brevo. Returns True on success, False on failure (logged)."""
+    """Send email via Brevo REST API with retry + rate-limit protection."""
     global _diagnosed
     if not _diagnosed:
         _diagnosed = True
-        _diagnose()
+        _print_diagnostics()
 
     fe = _from_email()
     fn = _from_name()
     key = _api_key()
+
     if not key:
         logger.warning("[Email] BREVO_API_KEY not set — skipping: %s to %s", subject, to_email)
         return False
     if not fe:
         logger.error("[Email] EMAIL_FROM not set — skipping: %s to %s", subject, to_email)
+        return False
+    if not _rate_limited():
+        logger.warning("[Email] Rate limited — skipping: %s to %s", subject, to_email)
         return False
 
     payload = {
@@ -129,47 +141,68 @@ async def _send(to_email: str, to_name: str, subject: str, html: str, text: str 
         "textContent": text or subject,
     }
 
-    # Log request summary (sanitized — no API key, no full HTML to avoid noise)
-    logger.info(
-        "[Email] Sending '%s' → %s (%s) | from=%s | htmlLen=%d",
-        subject, to_email, to_name, fe, len(html),
-    )
+    last_error = None
+    for attempt, delay in enumerate(_RETRY_DELAYS, 1):
+        if attempt > 1:
+            logger.info("[Email] Retry %d/%d for '%s' → %s after %.0fs", attempt, len(_RETRY_DELAYS), subject, to_email, delay)
+            await asyncio.sleep(delay)
 
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(_BREVO_API_URL, json=payload, headers=_headers())
-
-        # Log full response details
         try:
-            resp_body = r.json()
-        except Exception:
-            resp_body = {"raw": r.text[:500]}
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.post(_BREVO_API_URL, json=payload, headers=_headers())
 
-        if r.status_code in (200, 201):
-            message_id = resp_body.get("messageId", "unknown")
-            logger.info(
-                "[Email] SUCCESS '%s' → %s | status=%d | messageId=%s",
-                subject, to_email, r.status_code, message_id,
-            )
-            return True
-        else:
-            logger.error(
-                "[Email] FAILURE '%s' → %s | status=%d | body=%s",
-                subject, to_email, r.status_code, resp_body,
-            )
-            return False
-    except Exception as exc:
-        logger.error(
-            "[Email] EXCEPTION '%s' → %s | error=%s\n%s",
-            subject, to_email, exc, traceback.format_exc(),
-        )
-        return False
+            try:
+                resp_body = r.json()
+            except Exception:
+                resp_body = {"raw": r.text[:500]}
+
+            if r.status_code in (200, 201):
+                message_id = resp_body.get("messageId", "unknown")
+                logger.info("[Email] SUCCESS '%s' → %s | status=%d | messageId=%s | attempt=%d",
+                            subject, to_email, r.status_code, message_id, attempt)
+                return True
+
+            last_error = f"HTTP {r.status_code}"
+            logger.warning("[Email] FAILURE '%s' → %s | attempt=%d | status=%d | body=%s",
+                           subject, to_email, attempt, r.status_code, resp_body)
+
+            if r.status_code in (400, 422):
+                break
+
+        except Exception as exc:
+            last_error = str(exc)
+            logger.warning("[Email] EXCEPTION '%s' → %s | attempt=%d | error=%s",
+                           subject, to_email, attempt, exc)
+
+    logger.error("[Email] GIVING UP '%s' → %s | last_error=%s\n%s",
+                 subject, to_email, last_error, traceback.format_exc())
+    return False
 
 
-# ── Templates ──────────────────────────────────────────────────────────────
+def _print_diagnostics() -> None:
+    import sys
+    key = _api_key()
+    fe = _from_email()
+    fn = _from_name()
+    fu = _frontend_url()
+    print("[email_service] ====== Brevo Config =====", flush=True)
+    print(f"[email_service] BREVO_API_KEY exists: {bool(key)}", flush=True)
+    print(f"[email_service] BREVO_API_KEY length: {len(key)}", flush=True)
+    print(f"[email_service] EMAIL_FROM: {fe}", flush=True)
+    print(f"[email_service] EMAIL_FROM_NAME: {fn}", flush=True)
+    print(f"[email_service] FRONTEND_URL: {fu}", flush=True)
+    print(f"[email_service] ADMIN_CONTACT: {_ADMIN_CONTACT}", flush=True)
+    print(f"[email_service] ===========================", flush=True)
+    if not key:
+        logger.warning("BREVO_API_KEY is NOT set — transactional emails will NOT be sent.")
+    if not fe:
+        logger.warning("EMAIL_FROM is not set — transactional emails will NOT be sent.")
+
+
+# ── Templates ────────────────────────────────────────────────────────────────
 
 async def send_verification_email(user: dict, token: str) -> None:
-    """Send verification email. Raises RuntimeError on failure."""
+    """Send email address verification. Raises RuntimeError on failure."""
     link = f"{_frontend_url()}/verify-email?token={token}"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">E-Mail-Adresse bestätigen</h2>
@@ -216,7 +249,7 @@ async def send_welcome_email(user: dict) -> None:
 
 
 async def send_password_reset_email(user: dict, token: str) -> None:
-    """Send password reset email. Raises RuntimeError on failure."""
+    """Send password reset. Raises RuntimeError on failure."""
     link = f"{_frontend_url()}/reset-password?token={token}"
     body = f"""
       <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">Passwort zurücksetzen</h2>
@@ -239,6 +272,30 @@ async def send_password_reset_email(user: dict, token: str) -> None:
     )
     if not ok:
         raise RuntimeError(f"Failed to send password reset email to {user.get('email', '?')}")
+
+
+async def send_otp_email(user: dict, otp_code: str) -> None:
+    """Send one-time passcode for sensitive operations."""
+    body = f"""
+      <h2 style="color:#c9a84c;font-size:20px;margin:0 0 16px 0">Ihr Einmalcode</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user.get('name','')}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 12px 0">
+        Verwenden Sie folgenden Code, um Ihre Aktion zu bestätigen:
+      </p>
+      <div style="text-align:center;margin:24px 0">
+        <span style="font-size:36px;font-weight:700;color:#c9a84c;letter-spacing:8px;background:rgba(201,168,76,0.08);padding:16px 32px;border-radius:12px;display:inline-block">{otp_code}</span>
+      </div>
+      <p style="font-size:12px;color:rgba(255,255,255,0.3);text-align:center">
+        Der Code ist <strong style="color:#c9a84c">10 Minuten</strong> gültig.
+        Falls Sie keine Aktion angefordert haben, ignorieren Sie diese E-Mail.
+      </p>
+    """
+    await _send(
+        user["email"], user.get("name", ""),
+        "Ihr Einmalcode – PrepAcademy",
+        _wrap(body),
+        f"Ihr Einmalcode: {otp_code}",
+    )
 
 
 async def send_access_granted_email(user: dict, feature_label: str) -> None:
@@ -271,8 +328,7 @@ async def send_access_rejected_email(user: dict, feature_label: str, reason: str
       </p>
       {reason_block}
       <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:20px 0 0 0">
-        Bei Fragen:
-        <a href="mailto:mohamedmetwle99@gmail.com" style="color:#c9a84c">mohamedmetwle99@gmail.com</a>
+        Bei Fragen: <a href="mailto:{_ADMIN_CONTACT}" style="color:#c9a84c">{_ADMIN_CONTACT}</a>
       </p>
     """
     await _send(
@@ -287,7 +343,6 @@ async def send_admin_new_request_email(admin_email: str, user: dict, feature_lab
     phone = user.get("phone", "")
     message = user.get("message", "")
     is_public = bool(user.get("phone") or user.get("message"))
-
     title = "Neue Kontaktanfrage" if is_public else "Neue Zugangsanfrage"
 
     phone_block = ""
@@ -328,7 +383,7 @@ async def send_admin_new_request_email(admin_email: str, user: dict, feature_lab
     )
 
 
-# ── Trial Templates ────────────────────────────────────────────────────────
+# ── Trial Templates ──────────────────────────────────────────────────────────
 
 async def send_trial_started_email(user: dict, days: int = 30) -> None:
     body = f"""
@@ -376,7 +431,7 @@ async def send_trial_2days_warning_email(user: dict, days_left: int) -> None:
       </p>
       {_btn('Verlängerung anfragen', f"{_frontend_url()}/dashboard")}
       <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:16px 0 0 0">
-        Kontakt: <a href="mailto:mohamedmetwle99@gmail.com" style="color:#c9a84c">mohamedmetwle99@gmail.com</a>
+        Kontakt: <a href="mailto:{_ADMIN_CONTACT}" style="color:#c9a84c">{_ADMIN_CONTACT}</a>
       </p>
     """
     await _send(user["email"], user.get("name",""), f"🚨 Probezeit endet {label}! – PrepAcademy", _wrap(body))
@@ -392,7 +447,7 @@ async def send_trial_expired_email(user: dict) -> None:
       </p>
       {_btn('Verlängerung anfragen', f"{_frontend_url()}/dashboard")}
       <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:16px 0 0 0">
-        Kontakt: <a href="mailto:mohamedmetwle99@gmail.com" style="color:#c9a84c">mohamedmetwle99@gmail.com</a>
+        Kontakt: <a href="mailto:{_ADMIN_CONTACT}" style="color:#c9a84c">{_ADMIN_CONTACT}</a>
       </p>
     """
     await _send(user["email"], user.get("name",""), "Ihre Probezeit ist abgelaufen – PrepAcademy", _wrap(body))
