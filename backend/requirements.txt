@@ -22,3 +22,4 @@ openai>=1.30.5
 slowapi>=0.1.9
 fpdf2>=2.8.7
 openpyxl>=3.1.5
+python-dateutil>=2.9.0

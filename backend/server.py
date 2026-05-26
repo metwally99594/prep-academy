@@ -3092,8 +3092,10 @@ async def check_question_access(user: dict):
     trial_end = u.get("trial_ends_at")
     if trial_end:
         try:
-            from dateutil import parser
-            end = parser.isoparse(trial_end) if isinstance(trial_end, str) else trial_end
+            if isinstance(trial_end, str):
+                end = datetime.fromisoformat(trial_end.replace("Z", "+00:00"))
+            else:
+                end = trial_end
             if end.tzinfo is None:
                 end = end.replace(tzinfo=timezone.utc)
             if end > datetime.now(timezone.utc):
