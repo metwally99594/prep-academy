@@ -5237,6 +5237,43 @@ async def toggle_analyzer_access(user_id: str, user: dict = Depends(get_current_
     return {"user_id": user_id, "analyzer_enabled": new_val}
 
 
+@api_router.get("/analyzer/history")
+async def get_analyzer_history(user: dict = Depends(get_current_user)):
+    """Get current user's analysis history (latest first, max 20)."""
+    cursor = db.analyses.find(
+        {"user_id": user["id"], "deleted": {"$ne": True}},
+        {
+            "_id": 0,
+            "id": 1, "user_id": 1, "report_type": 1, "detected_category": 1,
+            "analysis": 1, "has_second_opinion": 1, "has_third_opinion": 1,
+            "ai_count": 1, "confidence_score": 1, "models_used": 1,
+            "image_count": 1, "created_at": 1,
+            "human_review_triggered": 1, "clinical_safety_mode": 1,
+            "strict_csm_triggered": 1,
+            "risk_result": 1, "visibility_data": 1,
+            "validation_violations": 1, "voting_result": 1,
+            "pipeline_explainability": 1,
+        },
+    ).sort("created_at", -1).limit(20)
+    items = await cursor.to_list(20)
+    return items
+
+
+@api_router.delete("/analyzer/{analysis_id}")
+async def delete_analysis(analysis_id: str, user: dict = Depends(get_current_user)):
+    """Soft-delete an analysis by id (owner only)."""
+    analysis = await db.analyses.find_one({"id": analysis_id}, {"_id": 0, "user_id": 1})
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
+    if analysis["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Nicht berechtigt")
+    await db.analyses.update_one(
+        {"id": analysis_id},
+        {"$set": {"deleted": True, "deleted_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"deleted": True}
+
+
 # ── Question Access (Quiz / Simulation / Battle) ─────────────────
 
 @api_router.get("/access/quiz")

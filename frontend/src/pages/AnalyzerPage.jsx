@@ -50,7 +50,7 @@ export default function AnalyzerPage() {
     if (!token) return;
     axios.get(`${API}/analyzer/history`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => setHistory(r.data || []))
-      .catch(() => {});
+      .catch((err) => { console.error("[Analyzer] History error:", err?.message); toast.error("Fehler beim Laden des Verlaufs"); });
   };
 
   const handleFileSelect = (e) => {
@@ -213,7 +213,7 @@ export default function AnalyzerPage() {
       await axios.delete(`${API}/analyzer/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       setHistory(prev => prev.filter(h => h.id !== id));
       toast.success("Gelöscht");
-    } catch { /* */ }
+    } catch { toast.error("Fehler beim Löschen"); }
   };
 
   const getConfidence = (result) => {
