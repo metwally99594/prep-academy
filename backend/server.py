@@ -1043,11 +1043,12 @@ async def get_simulation_questions(city: str = "vienna", user: dict = Depends(ge
 async def list_questions(
     specialty_id: Optional[str] = None,
     exam_location: Optional[str] = None,
+    search: Optional[str] = None,
     limit: int = 30,
     skip: int = 0,
     admin: dict = Depends(get_admin_user),
 ):
-    """Admin: list questions with pagination and filters."""
+    """Admin: list questions with pagination, filters, and text search."""
     query = {}
     if specialty_id and specialty_id != "all":
         query["specialty_id"] = specialty_id
@@ -1056,6 +1057,23 @@ async def list_questions(
             query["generated_by_ai"] = True
         else:
             query["exam_location"] = exam_location
+    if search and len(search.strip()) >= 2:
+        import re as _re
+        cleaned = _re.sub(r'[^\w\sÄäÖöÜüß]', ' ', search.strip())
+        cleaned = _re.sub(r'\s+', ' ', cleaned).strip()
+        tokens = [t for t in cleaned.split() if len(t) >= 3]
+        if not tokens:
+            tokens = [cleaned]
+        token_patterns = []
+        for t in tokens[:8]:
+            flexible = _flexible_german_regex(t)
+            token_patterns.append(f"(?=.*{flexible})")
+        fuzzy_regex = f"^{''.join(token_patterns)}" if token_patterns else _re.escape(cleaned)
+        text_fields = ["question_text_de", "question_text", "explanation_de", "explanation"]
+        search_conditions = [{field: {"$regex": fuzzy_regex, "$options": "is"}} for field in text_fields]
+        search_conditions.append({"choices.text_de": {"$regex": fuzzy_regex, "$options": "is"}})
+        search_conditions.append({"choices.text": {"$regex": fuzzy_regex, "$options": "is"}})
+        query["$or"] = search_conditions
     questions = await db.questions.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return questions
 

@@ -78,7 +78,8 @@ import {
   Tag,
   Headphones,
   ShieldCheck,
-  Play
+  Play,
+  Search
 } from "lucide-react";
 
 const SPECIALTIES = [
@@ -562,6 +563,7 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [filterSpecialty, setFilterSpecialty] = useState("all");
   const [filterCity, setFilterCity] = useState("all");
+  const [filterSearch, setFilterSearch] = useState("");
   const [activeTab, setActiveTab] = useState("questions");
   const [exportCats, setExportCats] = useState(null);
   const [exportCatsLoading, setExportCatsLoading] = useState(false);
@@ -624,7 +626,7 @@ export default function AdminPage() {
     setQuestionPage(0);
     setSelectedQuestions([]);
     fetchQuestions();
-  }, [filterSpecialty, filterCity, token]);
+  }, [filterSpecialty, filterCity, filterSearch, token]);
 
   useEffect(() => {
     fetchQuestions();
@@ -667,6 +669,7 @@ export default function AdminPage() {
       let params = `limit=${PAGE_SIZE}&skip=${questionPage * PAGE_SIZE}`;
       if (filterSpecialty !== "all") params += `&specialty_id=${filterSpecialty}`;
       if (filterCity !== "all") params += `&exam_location=${filterCity}`;
+      if (filterSearch.trim()) params += `&search=${encodeURIComponent(filterSearch.trim())}`;
       const response = await axios.get(`${API}/questions?${params}`, { headers });
       setQuestions(response.data);
     } catch (error) {
@@ -1171,6 +1174,16 @@ export default function AdminPage() {
                     <SelectItem value="andere">Andere</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Frage suchen…"
+                    value={filterSearch}
+                    onChange={e => setFilterSearch(e.target.value)}
+                    className="w-56 pl-8"
+                  />
+                </div>
 
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
