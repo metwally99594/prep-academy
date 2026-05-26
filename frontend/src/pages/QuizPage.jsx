@@ -34,7 +34,6 @@ import {
   Volume2,
   VolumeX,
   Lock,
-  MessageCircle,
 } from "lucide-react";
 import AIChat from "@/components/AIChat";
 import ShareResults from "@/components/ShareResults";
