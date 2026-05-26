@@ -51,17 +51,17 @@ export default function TermsPage() {
             <div>
               <strong className="text-foreground">Free-Tier (kostenlos):</strong>
               <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Die ersten 30 Tage: uneingeschränkter Zugriff auf alle Funktionen</li>
-                <li>Nach 30 Tagen: 100 Fragen pro Tag, kein KI-Assistent, keine Simulation</li>
-                <li>Uneingeschränkter Zugriff auf vorhandene Notizen und Podcasts</li>
+                <li>5 KI-Analysen pro Tag</li>
+                <li>3 PDF-Uploads pro Tag</li>
+                <li>Unbegrenzter Quiz-Zugang</li>
               </ul>
             </div>
             <div>
-              <strong className="text-foreground">Premium (nach Freischaltung durch Administrator):</strong>
+              <strong className="text-foreground">Premium-Abonnement:</strong>
               <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Unbegrenzter Quiz-Zugang</li>
-                <li>KI-Assistent und Analyse-Tools</li>
-                <li>Prüfungssimulation</li>
+                <li>Unbegrenzte KI-Analysen</li>
+                <li>Unbegrenzte PDF-Uploads</li>
+                <li>Prioritäts-KI-Verarbeitung</li>
                 <li>Alle Premium-Features</li>
               </ul>
             </div>
