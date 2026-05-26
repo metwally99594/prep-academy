@@ -7128,11 +7128,14 @@ async def health_check():
 
 @api_router.get("/health")
 async def api_health_check():
-    from services.email_service import _api_key
+    from services.email_service import _api_key, sender_email, sender_name, admin_contact
+    sender = f"{sender_name()} <{sender_email()}>"
     return {
         "status": "healthy",
         "email": {
             "brevo_key_configured": bool(_api_key()),
+            "sender": sender,
+            "admin_contact": admin_contact(),
         },
     }
 

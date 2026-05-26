@@ -25,7 +25,7 @@ export default function PrivacyPage() {
             28777 Bremen<br />
             Deutschland<br />
             Telefon: <a href="tel:+4915561785638" className="text-[#3b82f6] hover:underline">+49 15561 785638</a><br />
-            E-Mail: <a href="mailto:mohamedmetwle99@gmail.com" className="text-[#3b82f6] hover:underline">mohamedmetwle99@gmail.com</a>
+            E-Mail: <a href="mailto:hilfe@prepacademy-med.com" className="text-[#3b82f6] hover:underline">hilfe@prepacademy-med.com</a>
           </p>
         </section>
 
@@ -101,8 +101,8 @@ export default function PrivacyPage() {
             <li>Berichtigung unrichtiger Daten (Art. 16 DSGVO)</li>
             <li>
               Löschung Ihrer Daten (Art. 17 DSGVO) — Kontakt:{" "}
-              <a href="mailto:mohamedmetwle99@gmail.com" className="text-[#3b82f6] hover:underline">
-                mohamedmetwle99@gmail.com
+              <a href="mailto:hilfe@prepacademy-med.com" className="text-[#3b82f6] hover:underline">
+                hilfe@prepacademy-med.com
               </a>
             </li>
             <li>Einschränkung der Verarbeitung (Art. 18 DSGVO)</li>

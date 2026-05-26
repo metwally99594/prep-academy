@@ -16,7 +16,10 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# ── Brevo constants (hardcoded — no env var override to prevent misconfiguration) ─
 _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+_SENDER_EMAIL = "noreply@prepacademy-med.com"
+_SENDER_NAME = "PrepAcademy"
 _ADMIN_CONTACT = "hilfe@prepacademy-med.com"
 
 _RETRY_DELAYS = [1, 3, 5]
@@ -33,12 +36,17 @@ def _frontend_url() -> str:
     return os.getenv("FRONTEND_URL", "https://prep-academy-rho.vercel.app").strip()
 
 
-def _from_email() -> str:
-    return os.getenv("EMAIL_FROM", "noreply@prepacademy-med.com").strip()
+def sender_email() -> str:
+    """Return the hardcoded Brevo sender email (ignore any EMAIL_FROM override)."""
+    return _SENDER_EMAIL
 
 
-def _from_name() -> str:
-    return os.getenv("EMAIL_FROM_NAME", "PrepAcademy").strip()
+def sender_name() -> str:
+    return _SENDER_NAME
+
+
+def admin_contact() -> str:
+    return _ADMIN_CONTACT
 
 
 def _headers() -> dict:
@@ -119,22 +127,16 @@ async def _send(to_email: str, to_name: str, subject: str, html: str, text: str 
         _diagnosed = True
         _print_diagnostics()
 
-    fe = _from_email()
-    fn = _from_name()
+    se = sender_email()
+    sn = sender_name()
     key = _api_key()
 
     if not key:
         logger.warning("[Email] BREVO_API_KEY not set — skipping: %s to %s", subject, to_email)
         return False
-    if not fe:
-        logger.error("[Email] EMAIL_FROM not set — skipping: %s to %s", subject, to_email)
-        return False
-    if not _rate_limited():
-        logger.warning("[Email] Rate limited — skipping: %s to %s", subject, to_email)
-        return False
 
     payload = {
-        "sender": {"email": fe, "name": fn},
+        "sender": {"email": se, "name": sn},
         "to": [{"email": to_email, "name": to_name or to_email}],
         "subject": subject,
         "htmlContent": html,
@@ -182,21 +184,26 @@ async def _send(to_email: str, to_name: str, subject: str, html: str, text: str 
 def _print_diagnostics() -> None:
     import sys
     key = _api_key()
-    fe = _from_email()
-    fn = _from_name()
+    se = sender_email()
+    sn = sender_name()
     fu = _frontend_url()
+    override = os.getenv("EMAIL_FROM", "").strip()
+    override_name = os.getenv("EMAIL_FROM_NAME", "").strip()
     print("[email_service] ====== Brevo Config =====", flush=True)
     print(f"[email_service] BREVO_API_KEY exists: {bool(key)}", flush=True)
     print(f"[email_service] BREVO_API_KEY length: {len(key)}", flush=True)
-    print(f"[email_service] EMAIL_FROM: {fe}", flush=True)
-    print(f"[email_service] EMAIL_FROM_NAME: {fn}", flush=True)
+    print(f"[email_service] SENDER: {sn} <{se}>", flush=True)
     print(f"[email_service] FRONTEND_URL: {fu}", flush=True)
-    print(f"[email_service] ADMIN_CONTACT: {_ADMIN_CONTACT}", flush=True)
+    print(f"[email_service] ADMIN_CONTACT: {admin_contact()}", flush=True)
+    if override and override != se:
+        logger.warning("EMAIL_FROM env var (%s) is IGNORED — using hardcoded sender %s <%s>", override, sn, se)
+    if override_name and override_name != sn:
+        logger.warning("EMAIL_FROM_NAME env var (%s) is IGNORED — using hardcoded sender name %s", override_name, sn)
     print(f"[email_service] ===========================", flush=True)
     if not key:
         logger.warning("BREVO_API_KEY is NOT set — transactional emails will NOT be sent.")
-    if not fe:
-        logger.warning("EMAIL_FROM is not set — transactional emails will NOT be sent.")
+    if "gmail" in se.lower() or "yahoo" in se.lower() or "outlook" in se.lower():
+        logger.error("PRODUCTION BLOCK: sender email (%s) uses a consumer domain! Enforce noreply@prepacademy-med.com", se)
 
 
 # ── Templates ────────────────────────────────────────────────────────────────

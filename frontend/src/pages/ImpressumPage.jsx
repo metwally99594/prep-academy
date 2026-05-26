@@ -30,7 +30,7 @@ export default function ImpressumPage() {
           <h2 className="text-lg font-semibold text-foreground mb-2">Kontakt</h2>
           <p>
             Telefon: <a href="tel:+4915561785638" className="text-[#3b82f6] hover:underline">+49 15561 785638</a><br />
-            E-Mail: <a href="mailto:mohamedmetwle99@gmail.com" className="text-[#3b82f6] hover:underline">mohamedmetwle99@gmail.com</a>
+            E-Mail: <a href="mailto:hilfe@prepacademy-med.com" className="text-[#3b82f6] hover:underline">hilfe@prepacademy-med.com</a>
           </p>
         </section>
 
