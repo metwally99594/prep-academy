@@ -33,6 +33,8 @@ import {
   Highlighter,
   Volume2,
   VolumeX,
+  Lock,
+  MessageCircle,
 } from "lucide-react";
 import AIChat from "@/components/AIChat";
 import ShareResults from "@/components/ShareResults";
@@ -54,7 +56,12 @@ export default function QuizPage() {
   const examLocation = searchParams.get("exam_location");
   const quizMode = searchParams.get("mode") || "study";
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+
+  const [accessState, setAccessState] = useState(null);
+  const [accessUsed, setAccessUsed] = useState(0);
+  const [accessLimit, setAccessLimit] = useState(100);
+  const [contactSent, setContactSent] = useState(false);
 
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -200,6 +207,25 @@ export default function QuizPage() {
     }
     const fetchQuestions = async () => {
       try {
+        // Check access
+        try {
+          const accessRes = await axios.get(`${API}/access/quiz`, { headers: { Authorization: `Bearer ${token}` } });
+          setAccessState(accessRes.data.access);
+          setAccessUsed(accessRes.data.used || 0);
+          setAccessLimit(accessRes.data.limit || 100);
+          if (accessRes.data.access !== "full" && user?.is_admin) {
+            setAccessState("full");
+          }
+        } catch (e) {
+          if (e.response?.status === 403 || e.response?.status === 429) {
+            setAccessState("limited");
+            setAccessUsed(e.response.data?.used || 0);
+            setAccessLimit(e.response.data?.limit || 100);
+            setLoading(false);
+            return;
+          }
+        }
+
         if (specialtyId === "custom") {
           const stored = sessionStorage.getItem("customQuizQuestions");
           if (stored) {
@@ -593,6 +619,35 @@ export default function QuizPage() {
   const answeredCount = Object.values(answers).filter(a => a.submitted).length;
   const correctCount = currentQuestion?.choices?.filter(c => c.is_correct === true)?.length || 1;
   const wrongAnswers = Object.entries(answers).filter(([, a]) => a.submitted && !a.correct && !a.skipped);
+
+  if (accessState === "limited") return (
+    <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <Lock className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+      <h2 className="text-2xl font-bold mb-2">Testzugriff abgelaufen</h2>
+      <p className="text-muted-foreground mb-2">
+        Ihr 30-tägiger Testzeitraum ist vorbei. Sie haben noch <strong>{accessLimit - accessUsed}</strong> von {accessLimit} Fragen heute übrig.
+      </p>
+      <p className="text-muted-foreground mb-6">
+        Für vollen Zugriff kontaktieren Sie bitte den Administrator.
+      </p>
+      {!contactSent ? (
+        <Button onClick={async () => {
+          try {
+            await axios.post(`${API}/access/request-unlock`, { message: "Bitte um Freischaltung des vollen Zugangs." }, { headers: { Authorization: `Bearer ${token}` } });
+            setContactSent(true);
+            toast.success("Anfrage gesendet. Der Administrator wird sich bald melden.");
+          } catch (e) {
+            toast.error("Fehler beim Senden der Anfrage");
+          }
+        }}>
+          <MessageCircle className="w-4 h-4 mr-2" />
+          Administrator kontaktieren
+        </Button>
+      ) : (
+        <p className="text-sm text-green-600 font-medium">✓ Anfrage wurde gesendet</p>
+      )}
+    </div>
+  );
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 

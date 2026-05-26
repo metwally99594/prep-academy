@@ -23,6 +23,8 @@ import {
   Grid3X3,
   ListChecks,
   X,
+  Lock,
+  MessageCircle,
 } from "lucide-react";
 
 // Exam structure - Austrian medical exam format
@@ -50,8 +52,11 @@ const CITIES = [
 
 export default function ExamSimulationPage() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   
+  const [accessState, setAccessState] = useState(null);
+  const [contactSent, setContactSent] = useState(false);
+
   // Exam states
   const [stage, setStage] = useState("intro"); // intro, exam, results
   const [selectedCity, setSelectedCity] = useState(null);
@@ -79,6 +84,20 @@ export default function ExamSimulationPage() {
       return;
     }
     
+    // Check access
+    try {
+      const accessRes = await axios.get(`${API}/access/quiz`, { headers: { Authorization: `Bearer ${token}` } });
+      if (accessRes.data.access !== "full" && !user?.is_admin) {
+        setAccessState("limited");
+        setLoading(false);
+        return;
+      }
+    } catch (e) {
+      setAccessState("limited");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
@@ -334,6 +353,35 @@ export default function ExamSimulationPage() {
     printWindow.document.close();
     printWindow.print();
   };
+
+  // Access limited screen
+  if (accessState === "limited") {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <Lock className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Testzugriff abgelaufen</h2>
+        <p className="text-muted-foreground mb-6">
+          Ihr 30-tägiger Testzeitraum ist vorbei. Die Simulation benötigt 250 Fragen — diese Funktion ist nach Ablauf des Testzeitraums nicht verfügbar.
+        </p>
+        {!contactSent ? (
+          <Button onClick={async () => {
+            try {
+              await axios.post(`${API}/access/request-unlock`, { message: "Bitte um Freischaltung der Simulation." }, { headers: { Authorization: `Bearer ${token}` } });
+              setContactSent(true);
+              toast.success("Anfrage gesendet. Der Administrator wird sich bald melden.");
+            } catch (e) {
+              toast.error("Fehler beim Senden der Anfrage");
+            }
+          }}>
+            <MessageCircle className="w-4 h-4 mr-2" />
+            Administrator kontaktieren
+          </Button>
+        ) : (
+          <p className="text-sm text-green-600 font-medium">✓ Anfrage wurde gesendet</p>
+        )}
+      </div>
+    );
+  }
 
   // Intro Stage
   if (stage === "intro") {

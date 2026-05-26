@@ -267,6 +267,7 @@ def make_trial_router(db, get_current_user, get_admin_user):
             "notebook_enabled": True,
             "analyzer_enabled": True,
             "podcast_enabled": True,
+            "ai_enabled": True,
         }})
         asyncio.ensure_future(send_trial_made_permanent_email(user))
         return {"is_permanent": True}

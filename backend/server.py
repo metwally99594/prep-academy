@@ -963,6 +963,16 @@ async def get_available_years(specialty_id: Optional[str] = None):
 @api_router.get("/simulation/questions")
 async def get_simulation_questions(city: str = "vienna", user: dict = Depends(get_current_user)):
     """Get 250 questions for exam simulation - redistributes from empty specialties."""
+    access = await check_question_access(user)
+    if access["access"] == "limited":
+        used = access.get("used", 0)
+        qlimit = access.get("limit", 100)
+        remaining_q = qlimit - used
+        if remaining_q < 250:
+            raise HTTPException(status_code=429, detail=f"Simulation benötigt 250 Fragen. Sie haben nur noch {remaining_q}/{qlimit} Fragen heute übrig.")
+        for _ in range(250):
+            await _increment_daily_question_quota(user["id"])
+    
     is_admin = user.get("is_admin", False)
     exam_structure = [
         ("internal", 30), ("surgery", 30), ("pediatrics", 30),
@@ -1059,6 +1069,14 @@ async def get_quiz_questions(
     user: dict = Depends(get_current_user),
 ):
     """Get questions for quiz. mode=study returns ALL questions, mode=exam uses random sampling"""
+    access = await check_question_access(user)
+    if access["access"] == "limited":
+        used = access.get("used", 0)
+        qlimit = access.get("limit", 100)
+        if used >= qlimit:
+            raise HTTPException(status_code=429, detail=f"Tägliches Fragen-Limit erreicht ({used}/{qlimit}). Morgen weiter.")
+        await _increment_daily_question_quota(user["id"])
+    
     query = {}
     if specialty_id:
         query["specialty_id"] = specialty_id
@@ -3058,6 +3076,44 @@ async def get_ai_languages():
 
 
 DAILY_AI_LIMIT = int(os.environ.get("DAILY_AI_LIMIT", "50"))
+DAILY_QUESTION_LIMIT = int(os.environ.get("DAILY_QUESTION_LIMIT", "100"))
+
+
+async def check_question_access(user: dict):
+    """Check if user can access questions. Returns 'full' or 'limited' (expired trial).
+    Admin/permanent/trial-active → full. Expired trial → limited (daily quota applies)."""
+    if user.get("is_admin"):
+        return {"access": "full"}
+    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "is_permanent": 1, "trial_ends_at": 1})
+    if not u:
+        raise HTTPException(status_code=403, detail="Zugang verweigert.")
+    if u.get("is_permanent"):
+        return {"access": "full"}
+    trial_end = u.get("trial_ends_at")
+    if trial_end:
+        try:
+            from dateutil import parser
+            end = parser.isoparse(trial_end) if isinstance(trial_end, str) else trial_end
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+            if end > datetime.now(timezone.utc):
+                return {"access": "full"}
+        except Exception:
+            pass
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage = await db.daily_usage.find_one({"user_id": user["id"], "date": today}, {"_id": 0})
+    used = usage["count"] if usage else 0
+    return {"access": "limited", "used": used, "limit": DAILY_QUESTION_LIMIT}
+
+
+async def _increment_daily_question_quota(user_id: str):
+    """Increment daily question counter (for expired-trial users)."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.daily_usage.update_one(
+        {"user_id": user_id, "date": today},
+        {"$inc": {"count": 1}, "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
 
 
 async def _check_ai_quota(user_id: str):
@@ -5111,6 +5167,49 @@ async def toggle_analyzer_access(user_id: str, user: dict = Depends(get_current_
     new_val = not target.get("analyzer_enabled", False)
     await db.users.update_one({"id": user_id}, {"$set": {"analyzer_enabled": new_val}})
     return {"user_id": user_id, "analyzer_enabled": new_val}
+
+
+# ── Question Access (Quiz / Simulation / Battle) ─────────────────
+
+@api_router.get("/access/quiz")
+async def get_quiz_access(user: dict = Depends(get_current_user)):
+    """Check if current user can access questions."""
+    try:
+        result = await check_question_access(user)
+        return result
+    except HTTPException as e:
+        raise e
+
+
+@api_router.post("/access/request-unlock")
+async def request_unlock(data: dict, user: dict = Depends(get_current_user)):
+    """Expired-trial user requests admin to unlock full access."""
+    msg = data.get("message", "").strip()
+    now = datetime.now(timezone.utc).isoformat()
+    req = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "user_email": user.get("email", ""),
+        "message": msg or "Bitte um Freischaltung des vollen Zugangs.",
+        "status": "open",
+        "created_at": now,
+    }
+    await db.access_requests.insert_one(req)
+    return {"status": "submitted"}
+
+
+@api_router.get("/admin/access-requests")
+async def list_access_requests(admin: dict = Depends(get_admin_user)):
+    """Admin: list all unlock requests."""
+    reqs = await db.access_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return reqs
+
+
+@api_router.post("/admin/access-requests/{req_id}/resolve")
+async def resolve_access_request(req_id: str, admin: dict = Depends(get_admin_user)):
+    """Admin: mark a request as resolved."""
+    await db.access_requests.update_one({"id": req_id}, {"$set": {"status": "resolved"}})
+    return {"status": "resolved"}
 
 
 # ── Podcast Access ────────────────────────────────────────────────
