@@ -40,6 +40,63 @@ from auth import get_current_user
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
+# ── Edge TTS voice mappings ──
+EDGE_VOICES = {
+    "nova":     "de-DE-KatjaNeural",
+    "shimmer":  "de-DE-AmalaNeural",
+    "alloy":    "de-DE-SeraphinaMultilingualNeural",
+    "echo":     "de-DE-ConradNeural",
+    "fable":    "de-AT-JonasNeural",
+    "onyx":     "de-DE-KillianNeural",
+    "de-AT-IngridNeural": "de-AT-IngridNeural",
+    "de-AT-JonasNeural":  "de-AT-JonasNeural",
+    "de-DE-KatjaNeural":  "de-DE-KatjaNeural",
+    "de-DE-ConradNeural": "de-DE-ConradNeural",
+}
+
+PODCAST_SPEAKERS = {
+    "austrian": ("de-AT-IngridNeural", "de-AT-JonasNeural"),
+    "german":   ("de-DE-KatjaNeural",  "de-DE-ConradNeural"),
+    "warm":     ("de-DE-AmalaNeural",  "de-DE-KillianNeural"),
+    "english":     ("en-US-AvaNeural",  "en-US-AndrewNeural"),
+    "british":     ("en-GB-SoniaNeural","en-GB-RyanNeural"),
+    "arabic":      ("ar-EG-SalmaNeural","ar-EG-ShakirNeural"),
+    "arabic_gulf": ("ar-SA-ZariyahNeural","ar-SA-HamedNeural"),
+    "russian":     ("ru-RU-SvetlanaNeural","ru-RU-DmitryNeural"),
+    "ukrainian":   ("uk-UA-PolinaNeural","uk-UA-OstapNeural"),
+}
+
+LANG_PRESET_DEFAULT = {
+    "de": "austrian",
+    "en": "english",
+    "ar": "arabic",
+    "ru": "russian",
+    "uk": "ukrainian",
+}
+
+SPEAKER_TAGS = {
+    "de": {"moderator": ["moderator", "sprecher 1", "speaker 1"], "experte": ["experte", "expertin", "sprecher 2", "speaker 2"]},
+    "en": {"moderator": ["host", "moderator", "speaker 1", "interviewer"], "experte": ["expert", "guest", "speaker 2", "doctor"]},
+    "ar": {"moderator": ["مقدم", "المقدم", "المذيع", "moderator"], "experte": ["خبير", "الخبير", "الطبيب", "expert"]},
+    "ru": {"moderator": ["ведущий", "ведущая", "модератор", "moderator"], "experte": ["эксперт", "врач", "expert"]},
+    "uk": {"moderator": ["ведучий", "ведуча", "модератор"], "experte": ["експерт", "лікар"]},
+}
+
+LANG_DEFAULT_VOICE = {
+    "de": "de-AT-IngridNeural",
+    "en": "en-US-AvaNeural",
+    "ar": "ar-EG-SalmaNeural",
+    "ru": "ru-RU-SvetlanaNeural",
+    "uk": "uk-UA-PolinaNeural",
+}
+
+LANG_MAP = {
+    "de": "Antworte auf Deutsch. Verwende medizinische Fachbegriffe auf Deutsch.",
+    "en": "Answer in English. Use medical terminology.",
+    "ar": "أجب بالعربية مع ذكر المصطلحات الألمانية بين قوسين.",
+    "ru": "Отвечайте на русском. Используйте немецкую терминологию в скобках.",
+    "uk": "Відповідайте українською. Вказуйте німецьку термінологію в дужках.",
+}
 
 async def _llm_text(system_msg: str, user_msg: str, max_tokens: int = 1500, model_key: str = None) -> str:
     """Text-only LLM call via OpenRouter — respects model_key for model selection."""

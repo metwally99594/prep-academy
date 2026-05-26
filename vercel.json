@@ -1,6 +1,5 @@
 {
-  "buildCommand": "CI=false craco build",
-  "outputDirectory": "build",
-  "framework": "create-react-app",
-  "rootDirectory": "frontend"
+  "buildCommand": "cd frontend && CI=false craco build",
+  "outputDirectory": "frontend/build",
+  "framework": "create-react-app"
 }
