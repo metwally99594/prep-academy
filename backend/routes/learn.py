@@ -305,19 +305,6 @@ class AudioTTSRequest(BaseModel):
     podcast_preset: Optional[str] = None  # auto-chosen from language if None
     language: str = "de"
 
-@router.get("/debug-edge-tts")
-async def debug_edge_tts():
-    import base64, edge_tts
-    try:
-        comm = edge_tts.Communicate(text="Hallo Test", voice="de-DE-KatjaNeural", rate="-5%", pitch="+0Hz")
-        chunks = []
-        async for ck in comm.stream():
-            if ck["type"] == "audio":
-                chunks.append(ck["data"])
-        return {"ok": True, "len": len(b"".join(chunks))}
-    except Exception as e:
-        return {"ok": False, "error": str(e), "type": type(e).__name__}
-
 @router.post("/audio-tts")
 async def generate_audio_tts(req: AudioTTSRequest, user: dict = Depends(get_current_user)):
     """Convert script to speech using Microsoft Edge TTS (free, no key needed). Multi-language."""
