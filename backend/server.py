@@ -374,7 +374,7 @@ async def register(request: Request, user: UserCreate, background_tasks: Backgro
         "notebook_enabled": True,
         "analyzer_enabled": True,
         "podcast_enabled": True,
-        "ai_enabled": False,
+        "ai_enabled": True,
     }
     await db.users.insert_one(user_doc)
     await db.user_stats.insert_one({
@@ -1019,13 +1019,7 @@ async def get_simulation_questions(city: str = "vienna", user: dict = Depends(ge
     """Get 250 questions for exam simulation - redistributes from empty specialties."""
     access = await check_question_access(user)
     if access["access"] == "limited":
-        used = access.get("used", 0)
-        qlimit = access.get("limit", 100)
-        remaining_q = qlimit - used
-        if remaining_q < 250:
-            raise HTTPException(status_code=429, detail=f"Simulation benötigt 250 Fragen. Sie haben nur noch {remaining_q}/{qlimit} Fragen heute übrig.")
-        for _ in range(250):
-            await _increment_daily_question_quota(user["id"])
+        raise HTTPException(status_code=429, detail="Simulation nur im Premium-Zugang verfügbar. Testphase abgelaufen. Kontaktieren Sie den Administrator.")
     
     is_admin = user.get("is_admin", False)
     exam_structure = [
@@ -5323,13 +5317,28 @@ async def toggle_podcast_access(user_id: str, user: dict = Depends(get_current_u
 # ── AI Access ─────────────────────────────────────────────────────
 
 async def check_ai_access(user: dict):
-    """Check if user has AI tutor access (admin always does)."""
+    """Check if user has AI tutor access (admin/permanent/active-trial does)."""
     if user.get("is_admin"):
         return True
-    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "ai_enabled": 1})
-    if not u or not u.get("ai_enabled"):
-        raise HTTPException(status_code=403, detail="KI-Zugang nicht freigeschaltet. Kontaktieren Sie den Administrator.")
-    return True
+    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "is_permanent": 1, "trial_ends_at": 1})
+    if not u:
+        raise HTTPException(status_code=403, detail="Zugang verweigert.")
+    if u.get("is_permanent"):
+        return True
+    trial_end = u.get("trial_ends_at")
+    if trial_end:
+        try:
+            if isinstance(trial_end, str):
+                end = datetime.fromisoformat(trial_end.replace("Z", "+00:00"))
+            else:
+                end = trial_end
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+            if end > datetime.now(timezone.utc):
+                return True
+        except Exception:
+            pass
+    raise HTTPException(status_code=403, detail="KI-Zugang nicht verfügbar. Testphase abgelaufen. Kontaktieren Sie den Administrator für Premium-Zugang.")
 
 
 @api_router.get("/ai/access")
