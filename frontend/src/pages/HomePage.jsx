@@ -49,6 +49,7 @@ export default function HomePage() {
   const [specialties, setSpecialties] = useState([]);
   const [examTypes, setExamTypes] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
+  const [selectedCountryFilter, setSelectedCountryFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const { user, token } = useAuth();
@@ -271,11 +272,32 @@ export default function HomePage() {
       {/* SECTION */}
       <section className="relative z-20 -mt-8 pb-12">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-6">
+          <div className="text-center mb-4">
             <p className="text-xs tracking-[0.2em] uppercase text-white/30">Prüfung / Exam</p>
           </div>
+
+          {/* Country filter */}
+          <div className="flex justify-center gap-2 mb-5">
+            {[
+              { value: "", label: "Alle", color: "bg-white/10 text-white/60 hover:text-white/80" },
+              { value: "austria", label: "AT", color: "bg-red-500/15 text-red-400 hover:bg-red-500/25" },
+              { value: "germany", label: "DE", color: "bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25" },
+              { value: "switzerland", label: "CH", color: "bg-blue-500/15 text-blue-400 hover:bg-blue-500/25" },
+            ].map((c) => (
+              <button
+                key={c.value}
+                onClick={() => setSelectedCountryFilter(prev => prev === c.value ? "" : c.value)}
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                  selectedCountryFilter === c.value ? c.color + " ring-1 ring-current" : "bg-white/5 text-white/30 hover:text-white/50"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            {examTypes.map((exam) => {
+            {examTypes.filter(exam => !selectedCountryFilter || exam.country === selectedCountryFilter).map((exam) => {
               const isActive = selectedExam === exam.id;
               const isKi = exam.id === "ki_generiert";
               const Wrapper = isKi ? Link : 'button';
@@ -298,16 +320,19 @@ export default function HomePage() {
                   <p className="text-[11px] sm:text-xs text-white/30 leading-snug mb-2 line-clamp-2">{exam.subtitle}</p>
                   <div className="flex items-center gap-2 mb-1">
                     {exam.country && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                        exam.country === 'austria' ? 'bg-red-500/15 text-red-400' :
-                        exam.country === 'germany' ? 'bg-yellow-500/15 text-yellow-400' :
-                        exam.country === 'switzerland' ? 'bg-blue-500/15 text-blue-400' :
-                        'bg-white/5 text-white/30'
-                      }`}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedCountryFilter(prev => prev === exam.country ? "" : exam.country); }}
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-all hover:ring-1 hover:ring-current ${
+                          exam.country === 'austria' ? 'bg-red-500/15 text-red-400' :
+                          exam.country === 'germany' ? 'bg-yellow-500/15 text-yellow-400' :
+                          exam.country === 'switzerland' ? 'bg-blue-500/15 text-blue-400' :
+                          'bg-white/5 text-white/30'
+                        }`}
+                      >
                         {exam.country === 'austria' ? 'AT' :
                          exam.country === 'germany' ? 'DE' :
                          exam.country === 'switzerland' ? 'CH' : exam.country}
-                      </span>
+                      </button>
                     )}
                   </div>
                   <p className="text-xs font-mono" style={{ color: isActive ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.25)' }}>
