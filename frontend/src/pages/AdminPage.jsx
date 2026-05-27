@@ -110,6 +110,7 @@ const emptyQuestion = {
   specialty_id: "",
   year: new Date().getFullYear(),
   exam_location: "vienna",
+  country: "",
   status: "published",
   question_text: "",
   question_text_de: "",
@@ -1249,9 +1250,26 @@ export default function AdminPage() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <div className="space-y-2">
+                          <Label>Land</Label>
+                          <Select 
+                            value={formData.country || ""} 
+                            onValueChange={(v) => setFormData(prev => ({ ...prev, country: v }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Land wählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">—</SelectItem>
+                              <SelectItem value="austria">Österreich</SelectItem>
+                              <SelectItem value="germany">Deutschland</SelectItem>
+                              <SelectItem value="switzerland">Schweiz</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
-                      {/* ✅ NEW: Fragetyp Dropdown */}
+                      {/* Fragetyp Dropdown */}
                       <div className="space-y-2">
                         <Label>Fragetyp *</Label>
                         <select
@@ -1522,6 +1540,7 @@ export default function AdminPage() {
                     <TableHead>Frage</TableHead>
                     <TableHead>Fachgebiet</TableHead>
                     <TableHead>Ort</TableHead>
+                    <TableHead>Land</TableHead>
                     <TableHead>Jahr</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Antworten</TableHead>
@@ -1531,7 +1550,7 @@ export default function AdminPage() {
                 <TableBody>
                   {questions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         Keine Fragen vorhanden
                       </TableCell>
                     </TableRow>
@@ -1555,6 +1574,20 @@ export default function AdminPage() {
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${question.exam_location === 'vienna' ? 'bg-blue-500/20 text-blue-400' : question.exam_location === 'innsbruck' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-500/20 text-gray-400'}`}>
                             {question.exam_location === 'vienna' ? 'Wien' : question.exam_location === 'innsbruck' ? 'Innsbruck' : question.exam_location || '—'}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          {question.country && (
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              question.country === 'austria' ? 'bg-red-500/10 text-red-400' :
+                              question.country === 'germany' ? 'bg-yellow-500/10 text-yellow-500' :
+                              question.country === 'switzerland' ? 'bg-blue-500/10 text-blue-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {question.country === 'austria' ? 'AT' :
+                               question.country === 'germany' ? 'DE' :
+                               question.country === 'switzerland' ? 'CH' : question.country}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>{question.year}</TableCell>
                         <TableCell>

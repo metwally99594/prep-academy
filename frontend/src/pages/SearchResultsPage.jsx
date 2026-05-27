@@ -481,6 +481,18 @@ export default function SearchResultsPage() {
                         {question.exam_location === "vienna" ? "Wien" : "Innsbruck"}
                       </span>
                     )}
+                    {question.country && (
+                      <span className={`px-2 py-1 text-xs rounded-lg ${
+                        question.country === 'austria' ? 'bg-red-500/10 text-red-400' :
+                        question.country === 'germany' ? 'bg-yellow-500/10 text-yellow-500' :
+                        question.country === 'switzerland' ? 'bg-blue-500/10 text-blue-400' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {question.country === 'austria' ? 'AT' :
+                         question.country === 'germany' ? 'DE' :
+                         question.country === 'switzerland' ? 'CH' : question.country}
+                      </span>
+                    )}
                   </div>
                   <p className="text-foreground mb-4 text-lg">
                     {highlightKeyword(question.question_text_de || question.question_text)}
