@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { API, useAuth } from "@/App";
+import { API } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ import { Loader2, FileText, Filter, Search, BookOpen } from "lucide-react";
 import axios from "axios";
 
 export default function KpReportsPage() {
-  const { user } = useAuth();
   const [reports, setReports] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
