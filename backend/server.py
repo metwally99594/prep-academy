@@ -855,7 +855,11 @@ async def submit_challenge_result(
         "accuracy": round(score / total * 100, 1) if total > 0 else 0,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     })
-    return {"score": score, "total": total, "accuracy": round(score / total * 100, 1) if total > 0 else 0}
+    results = await db.challenge_results.find(
+        {"challenge_id": challenge_id},
+        {"_id": 0, "user_name": 1, "score": 1, "total": 1, "accuracy": 1, "submitted_at": 1}
+    ).sort("accuracy", -1).to_list(50)
+    return {"score": score, "total": total, "accuracy": round(score / total * 100, 1) if total > 0 else 0, "results": results}
 
 
 def _fix_mojibake(text):
