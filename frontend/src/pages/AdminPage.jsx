@@ -1253,14 +1253,14 @@ export default function AdminPage() {
                         <div className="space-y-2">
                           <Label>Land</Label>
                           <Select 
-                            value={formData.country || ""} 
-                            onValueChange={(v) => setFormData(prev => ({ ...prev, country: v }))}
+                            value={formData.country || "none"} 
+                            onValueChange={(v) => setFormData(prev => ({ ...prev, country: v === "none" ? "" : v }))}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Land wählen" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">—</SelectItem>
+                              <SelectItem value="none">—</SelectItem>
                               <SelectItem value="austria">Österreich</SelectItem>
                               <SelectItem value="germany">Deutschland</SelectItem>
                               <SelectItem value="switzerland">Schweiz</SelectItem>
