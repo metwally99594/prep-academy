@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import uuid
+from auth import get_current_user
+
 
 router = APIRouter()
 
@@ -65,17 +67,19 @@ async def get_kp_report_filters():
     }
 
 
-@router.post("/admin/kp-reports/seed")
-async def seed_kp_reports(
-    credentials: HTTPAuthorizationCredentials = Depends(
-        Depends(lambda: __import__("server", fromlist=["httpbearer"]).httpbearer)
-    )
-):
-    from server import get_current_user
+_httpbearer = HTTPBearer(auto_error=False)
+
+async def _get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(_httpbearer)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     user = await get_current_user(credentials)
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
+    return user
 
+
+@router.post("/admin/kp-reports/seed")
+async def seed_kp_reports(admin=Depends(_get_admin_user)):
     from database import db
     reports = _SEED_DATA
     count = 0
@@ -88,16 +92,7 @@ async def seed_kp_reports(
 
 
 @router.post("/admin/kp-reports/import-json")
-async def import_kp_reports_json(
-    data: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(
-        Depends(lambda: __import__("server", fromlist=["httpbearer"]).httpbearer)
-    ),
-):
-    from server import get_current_user
-    user = await get_current_user(credentials)
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def import_kp_reports_json(data: dict, admin=Depends(_get_admin_user)):
 
     from database import db
     reports = data.get("reports", data.get("protokolle", []))
