@@ -790,7 +790,7 @@ async def create_challenge(
             {"status": None},
         ]
     limit = 20 if all_questions else max(5, min(count, 20))
-    questions = await db.questions.aggregate([
+    questions_raw = await db.questions.aggregate([
         {"$match": query},
         {"$sample": {"size": limit}},
         {"$project": {"_id": 0, "id": 1, "specialty_id": 1, "year": 1,
@@ -800,6 +800,14 @@ async def create_challenge(
                        "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
                        "blank_text": 1, "blank_answers": 1, "blanks": 1}}
     ]).to_list(limit)
+    # Normalize question data: copy choices_de to choices if missing, normalize mcq type
+    questions = []
+    for q in questions_raw:
+        if not q.get("choices") and q.get("choices_de"):
+            q["choices"] = q["choices_de"]
+        if q.get("question_type") == "mcq":
+            q["question_type"] = "single_choice"
+        questions.append(q)
     challenge_id = secrets.token_hex(4)
     await db.challenges.insert_one({
         "challenge_id": challenge_id,

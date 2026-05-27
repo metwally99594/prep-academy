@@ -257,11 +257,11 @@ export default function ChallengePage() {
           submitted={submitted}
           selectedChoices={selectedChoiceArr}
           onToggle={(id) => handleChoiceClick(id)}
-          result={submitResult ? { correct_choice_ids: (q.choices || []).filter(c => c.is_correct).map(c => c.id) } : null}
+          result={submitResult ? { correct_choice_ids: (q.choices || q.choices_de || []).filter(c => c.is_correct).map(c => c.id) } : null}
         />
       ) : (
         <div className="space-y-3">
-          {(q.choices || []).map(c => {
+          {(q.choices || q.choices_de || []).map(c => {
             let style = "border-border/30 hover:border-[#3b82f6]/40";
             if (submitted && c.is_correct) style = "border-emerald-500/50 bg-emerald-500/10";
             else if (submitted && c.id === selectedChoice && !c.is_correct) style = "border-red-500/50 bg-red-500/10";
