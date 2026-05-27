@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional
+from typing import Optional, Union
 import uuid
 from auth import get_current_user
 
@@ -92,10 +92,13 @@ async def seed_kp_reports(admin=Depends(_get_admin_user)):
 
 
 @router.post("/admin/kp-reports/import-json")
-async def import_kp_reports_json(data: dict, admin=Depends(_get_admin_user)):
+async def import_kp_reports_json(data: Union[dict, list] = Body(...), admin=Depends(_get_admin_user)):
 
     from database import db
-    reports = data.get("reports", data.get("protokolle", []))
+    if isinstance(data, list):
+        reports = data
+    else:
+        reports = data.get("reports", data.get("protokolle", []))
     if not isinstance(reports, list) or len(reports) == 0:
         raise HTTPException(status_code=400, detail="JSON muss ein Array 'reports' oder 'protokolle' enthalten")
 

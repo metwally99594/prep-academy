@@ -256,7 +256,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       toast.success(`${res.data.imported} Fragen aus Excel importiert!`);
       if (onImportComplete) onImportComplete();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "XLSX-Import fehlgeschlagen");
+      toast.error(_safeErr(err, "XLSX-Import fehlgeschlagen"));
     } finally {
       setXlsxImporting(false);
     }
@@ -278,7 +278,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         toast.error(`${res.data.error_count} Fragen haben Fehler`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Validierung fehlgeschlagen");
+      toast.error(_safeErr(err, "Validierung fehlgeschlagen"));
     } finally {
       setValidating(false);
     }
@@ -297,7 +297,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       toast.success(`${res.data.imported} Fragen importiert!`);
       if (onImportComplete) onImportComplete();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Import fehlgeschlagen");
+      toast.error(_safeErr(err, "Import fehlgeschlagen"));
     } finally {
       setImporting(false);
     }
@@ -608,6 +608,12 @@ function ImportQuestionsTab({ token, onImportComplete }) {
 }
 
 export default function AdminPage() {
+  // Safely extract human-readable error from API responses — prevents React crash when detail is an array of {type,loc,msg,input} objects from FastAPI 422
+  const _safeErr = (err, fallback) => {
+    let d = err?.response?.data?.detail;
+    if (Array.isArray(d)) return d.map(e => e?.msg || JSON.stringify(e)).filter(Boolean).join("; ");
+    return d || fallback;
+  };
   const [adminStats, setAdminStats] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [users, setUsers] = useState([]);
@@ -713,7 +719,7 @@ export default function AdminPage() {
       setSeedResult({ message: `${res.data.seeded} von ${res.data.total} Protokollen importiert.`, error: false });
       toast.success("KP Protokolle importiert");
     } catch (err) {
-      const msg = err.response?.data?.detail || "Fehler beim Import";
+      const msg = _safeErr(err, "Fehler beim Import");
       setSeedResult({ message: msg, error: true });
       toast.error(msg);
     } finally {
@@ -731,7 +737,7 @@ export default function AdminPage() {
       setKpImportResult({ message: `${res.data.imported} importiert, ${res.data.skipped} übersprungen. Gesamt: ${res.data.total_in_db}`, error: false });
       toast.success("KP Protokolle importiert");
     } catch (err) {
-      const msg = err.response?.data?.detail || err.message || "Fehler beim Import";
+      const msg = _safeErr(err, err.message || "Fehler beim Import");
       setKpImportResult({ message: msg, error: true });
       toast.error(msg);
     } finally {
@@ -1073,7 +1079,7 @@ export default function AdminPage() {
       setBatchMix({ mcq: 3, multi_select: 0, drag_drop: 0, kategorisierung: 0, lueckentext: 0 });
       toast.success(`${res.data.generated} Fragen erstellt!`);
     } catch (err) {
-      const msg = err.response?.data?.detail || err.message || "Fehler bei der Generierung";
+      const msg = _safeErr(err, err.message || "Fehler bei der Generierung");
       setBatchError(msg);
       toast.error(msg);
     } finally {
@@ -2211,7 +2217,7 @@ export default function AdminPage() {
                           setBatchSource("text");
                           toast.success(`"${file.name}" extrahiert (${res.data.pages} Seiten, ${res.data.chars} Zeichen)`);
                         } catch (err) {
-                          toast.error(err.response?.data?.detail || "PDF-Extraktion fehlgeschlagen");
+                          toast.error(_safeErr(err, "PDF-Extraktion fehlgeschlagen"));
                         }
                       } else {
                         const text = await file.text();
