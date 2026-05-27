@@ -144,16 +144,9 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   const [validating, setValidating] = useState(false);
   const [result, setResult] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
-  const [history, setHistory] = useState(null);
   const [xlsxMode, setXlsxMode] = useState(false);
   const [xlsxResult, setXlsxResult] = useState(null);
   const [xlsxImporting, setXlsxImporting] = useState(false);
-
-  useEffect(() => {
-    axios.get(`${API}/admin/import-logs?limit=10`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(r => setHistory(r.data.logs)).catch(() => {});
-  }, [token, result, xlsxResult]);
 
   const parseQuestions = (data) => {
     if (!Array.isArray(data)) {
@@ -529,25 +522,6 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         </Button>
       )}
 
-      {/* Import history */}
-      {history && history.length > 0 && (
-        <div className="border-t border-border pt-4 mt-4">
-          <h3 className="font-medium mb-3">Letzte Importe</h3>
-          <div className="space-y-2 text-sm">
-            {history.map((log, i) => (
-              <div key={log.id || i} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
-                <div>
-                  <span className="font-medium">{log.filename}</span>
-                  <span className="text-muted-foreground ml-2">
-                    {log.imported_count} importiert, {log.skipped_duplicates} übersprungen
-                  </span>
-                </div>
-                <span className="text-xs text-muted-foreground">{log.duration_ms}ms</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -663,6 +637,24 @@ export default function AdminPage() {
       toast.error(msg);
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const importKpReportsJson = async () => {
+    setKpImporting(true);
+    setKpImportResult(null);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const data = JSON.parse(kpJsonText);
+      const res = await axios.post(`${API}/admin/kp-reports/import-json`, data, { headers });
+      setKpImportResult({ message: `${res.data.imported} importiert, ${res.data.skipped} übersprungen. Gesamt: ${res.data.total_in_db}`, error: false });
+      toast.success("KP Protokolle importiert");
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || "Fehler beim Import";
+      setKpImportResult({ message: msg, error: true });
+      toast.error(msg);
+    } finally {
+      setKpImporting(false);
     }
   };
 
