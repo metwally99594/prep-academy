@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PrepAcademy Elite — Die KI-Plattform für die Kenntnisprüfung 🇦🇹</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#06081a;font-family:'Inter',sans-serif;color:#e2e8f0;line-height:1.6;overflow-x:hidden}
+
+/* ── UTILITY ── */
+.container{max-width:1040px;margin:0 auto;padding:0 24px}
+.section{padding:80px 0;text-align:center}
+.glow{background:radial-gradient(ellipse at 50% 0%,rgba(201,168,76,0.08) 0%,transparent 60%)}
+h2{font-size:32px;font-weight:800;color:#fff;margin-bottom:8px}
+h2 span{color:#c9a84c}
+h2+ p{color:rgba(255,255,255,0.45);font-size:15px;margin-bottom:48px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:16px 36px;border-radius:12px;
+  background:linear-gradient(135deg,#c9a84c,#dbb85c);color:#06081a;font-weight:700;
+  font-size:15px;text-decoration:none;transition:all .2s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(201,168,76,.3)}
+.btn-outline{background:transparent;border:1px solid rgba(201,168,76,.3);color:#c9a84c}
+.btn-outline:hover{background:rgba(201,168,76,.08)}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;
+  background:radial-gradient(ellipse at 30% 30%,rgba(201,168,76,.05) 0%,transparent 50%),
+    radial-gradient(ellipse at 70% 70%,rgba(59,130,246,.04) 0%,transparent 50%)}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(201,168,76,.3),transparent)}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:100px;
+  background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.15);
+  color:#c9a84c;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:28px}
+.badge i{font-size:14px}
+.logo{font-size:52px;font-weight:900;letter-spacing:-.03em;line-height:1.1;margin-bottom:20px;
+  background:linear-gradient(135deg,#f7e8b0,#c9a84c,#dbb85c);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:17px;color:rgba(255,255,255,.5);max-width:600px;margin:0 auto 12px}
+.hero-strong{font-size:26px;font-weight:800;color:#fff;margin-bottom:36px;line-height:1.4}
+.hero-strong span{color:#c9a84c}
+.hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:60px}
+.hero-stats{display:flex;gap:40px;justify-content:center;flex-wrap:wrap}
+.hero-stat{text-align:center}
+.hero-stat-num{font-size:28px;font-weight:900;color:#c9a84c}
+.hero-stat-label{font-size:11px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+
+/* ── MOCKUP ── */
+.mockup-section{position:relative;margin-top:-40px;padding-bottom:20px}
+.mockup{position:relative;max-width:900px;margin:0 auto;border-radius:16px;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);overflow:hidden}
+.mockup-tabs{display:flex;gap:1px;background:rgba(255,255,255,.04);padding:10px 16px;overflow-x:auto}
+.mockup-tab{padding:6px 14px;border-radius:6px;font-size:11px;color:rgba(255,255,255,.3);white-space:nowrap;
+  cursor:default;transition:all .2s}
+.mockup-tab.active{background:rgba(201,168,76,.1);color:#c9a84c}
+.mockup-body{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(255,255,255,.04)}
+@media(max-width:640px){.mockup-body{grid-template-columns:1fr}}
+.mockup-left{padding:24px;text-align:left}
+.mockup-right{background:rgba(201,168,76,.02);padding:24px;text-align:left}
+.mockup-q{font-size:11px;color:rgba(255,255,255,.4);margin-bottom:12px}
+.mockup-question{font-size:14px;font-weight:600;color:#fff;margin-bottom:16px;line-height:1.5}
+.mockup-choices{display:flex;flex-direction:column;gap:6px}
+.mockup-choice{padding:10px 14px;border-radius:8px;background:rgba(255,255,255,.02);
+  border:1px solid rgba(255,255,255,.06);font-size:13px;color:rgba(255,255,255,.7);cursor:default;transition:all .2s}
+.mockup-choice.correct{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.2);color:#22c55e}
+.mockup-choice.wrong{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2);color:#ef4444}
+.mockup-ai-header{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.mockup-ai-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.mockup-ai-title{font-size:13px;font-weight:700;color:#c9a84c}
+.mockup-ai-text{font-size:12px;color:rgba(255,255,255,.6);line-height:1.7;margin-bottom:12px}
+.mockup-ai-tag{display:inline-block;padding:3px 8px;border-radius:4px;background:rgba(201,168,76,.08);
+  color:#c9a84c;font-size:10px;font-weight:600;letter-spacing:.03em;margin:2px}
+.mockup-confidence{display:flex;align-items:center;gap:8px;margin-top:12px}
+.mockup-bar{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.06)}
+.mockup-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#22c55e,#c9a84c);width:78%}
+.mockup-pct{font-size:11px;font-weight:700;color:#22c55e}
+
+/* ── FEATURES ── */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px}
+.card{background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);
+  border-radius:16px;padding:28px;text-align:left;transition:all .3s}
+.card:hover{border-color:rgba(201,168,76,.15);background:rgba(201,168,76,.02);transform:translateY(-2px)}
+.card-icon{font-size:28px;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:700;color:#fff;margin-bottom:6px}
+.card-desc{font-size:13px;color:rgba(255,255,255,.4);line-height:1.6}
+.card-tag{display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(201,168,76,.08);
+  color:#c9a84c;font-size:10px;font-weight:600;margin-top:12px;letter-spacing:.03em}
+
+/* ── SOCIAL PROOF ── */
+.testimonials{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.testi{background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);
+  border-radius:14px;padding:24px;text-align:left}
+.testi-stars{color:#c9a84c;font-size:14px;margin-bottom:8px}
+.testi-text{font-size:13px;color:rgba(255,255,255,.6);line-height:1.7;margin-bottom:16px;font-style:italic}
+.testi-author{display:flex;align-items:center;gap:10px}
+.testi-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#c9a84c,#dbb85c);
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#06081a}
+.testi-name{font-size:13px;font-weight:600;color:#fff}
+.testi-role{font-size:11px;color:rgba(255,255,255,.35)}
+
+/* ── TRUST ── */
+.trust{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:32px}
+.trust-item{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);font-size:12px;color:rgba(255,255,255,.4)}
+
+/* ── HOW IT WORKS ── */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:32px;margin-top:16px}
+.step{text-align:center}
+.step-num{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#c9a84c,#dbb85c);
+  color:#06081a;font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.step-title{font-weight:700;font-size:15px;color:#fff;margin-bottom:4px}
+.step-desc{font-size:13px;color:rgba(255,255,255,.45)}
+
+/* ── CTA ── */
+.cta-section{padding:80px 0;text-align:center;
+  background:radial-gradient(ellipse at 50% 100%,rgba(201,168,76,.06) 0%,transparent 60%)}
+.cta-section h2{font-size:36px;margin-bottom:12px}
+.cta-section p{color:rgba(255,255,255,.45);font-size:15px;margin-bottom:32px;max-width:500px;margin-left:auto;margin-right:auto}
+.cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.price-note{font-size:12px;color:rgba(255,255,255,.25);margin-top:16px}
+
+/* ── FOOTER ── */
+.footer{padding:32px 24px;text-align:center;font-size:11px;color:rgba(255,255,255,.15)}
+.footer a{color:rgba(201,168,76,.4);text-decoration:none;transition:color .2s}
+.footer a:hover{color:rgba(201,168,76,.7)}
+
+hr{border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(201,168,76,.08),transparent);margin:0 auto;max-width:600px}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════ HERO ════════════════════════════════════════ -->
+<div class="hero">
+  <div class="container" style="text-align:center;padding-top:60px;padding-bottom:40px">
+    <div class="badge"><i>🇦🇹</i> Speziell für Nostrifizierung & Kenntnisprüfung</div>
+    <div class="logo">PrepAcademy Elite</div>
+    <p class="hero-sub">Die erste KI-gestützte Plattform zur Vorbereitung auf die österreichische<br>Kenntnisprüfung, Nostrifizierung und Stichprobentest</p>
+    <div class="hero-strong">Bestehe deine Prüfung mit <span>KI-Unterstützung</span> —<br>2.500+ Fragen · 3 KI-Modelle · Tägliche Podcasts</div>
+    <div class="hero-btns">
+      <a class="btn" href="https://prepacademy-med.com" target="_blank">🚀 30 Tage kostenlos testen</a>
+      <a class="btn btn-outline" href="#features">Mehr erfahren ↓</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hero-stat-num">2.500+</div><div class="hero-stat-label">Prüfungsfragen</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">3</div><div class="hero-stat-label">KI-Modelle</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">12</div><div class="hero-stat-label">Fachgebiete</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">30</div><div class="hero-stat-label">Tage gratis</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ MOCKUP ════════════════════════════════════════ -->
+<div class="mockup-section container">
+  <div class="mockup">
+    <div class="mockup-tabs">
+      <span class="mockup-tab active">📝 Fragensammlung</span>
+      <span class="mockup-tab">🧠 KI-Analyse</span>
+      <span class="mockup-tab">📊 Statistiken</span>
+      <span class="mockup-tab">🎯 Challenge</span>
+      <span class="mockup-tab">🎙️ Podcast</span>
+    </div>
+    <div class="mockup-body">
+      <div class="mockup-left">
+        <div class="mockup-q">FRAGE 124 / 2.500 — INNERE MEDIZIN</div>
+        <div class="mockup-question">Ein 62-jähriger Patient mit bekanntem Diabetes mellitus Typ 2 klagt über plötzliche retrosternale Schmerzen, die in den linken Arm ausstrahlen. Welche Untersuchung ist primär indiziert?</div>
+        <div class="mockup-choices">
+          <div class="mockup-choice correct">✔ 12-Kanal-EKG</div>
+          <div class="mockup-choice">Blutbild</div>
+          <div class="mockup-choice">Röntgen-Thorax</div>
+          <div class="mockup-choice">Echokardiographie</div>
+        </div>
+      </div>
+      <div class="mockup-right">
+        <div class="mockup-ai-header">
+          <div class="mockup-ai-dot"></div>
+          <div class="mockup-ai-title">KI-Analyse läuft</div>
+        </div>
+        <div class="mockup-ai-text">Die Klinik spricht für ein akutes Koronarsyndrom (ACS). Bei Verdacht auf ST-Hebungsinfarkt (STEMI) ist das 12-Kanal-EKG die Methode der Wahl – es muss innerhalb von 10 Minuten nach Erstkontakt durchgeführt werden.</div>
+        <div style="margin:8px 0 0">
+          <span class="mockup-ai-tag">⚡ STEMI-Leitlinie</span>
+          <span class="mockup-ai-tag">📖 ESC 2024</span>
+        </div>
+        <div class="mockup-confidence">
+          <span style="font-size:10px;color:rgba(255,255,255,.35)">Konfidenz</span>
+          <div class="mockup-bar"><div class="mockup-bar-fill"></div></div>
+          <div class="mockup-pct">78%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ SOCIAL PROOF ════════════════════════════════════════ -->
+<div class="section" style="padding-top:60px">
+  <div class="container">
+    <h2>Das sagen <span>Ärzte</span> wie du</h2>
+    <p>Rückmeldungen aus der Beta-Phase</p>
+    <div class="testimonials">
+      <div class="testi">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-text">“PrepAcademy hat mir in nur 3 Monaten geholfen, die Kenntnisprüfung zu bestehen. Die KI-Analyse der Altfragen war der Gamechanger.”</div>
+        <div class="testi-author">
+          <div class="testi-avatar">A</div>
+          <div><div class="testi-name">Dr. Ahmad K.</div><div class="testi-role">Kenntnisprüfung ✅ · Wien</div></div>
+        </div>
+      </div>
+      <div class="testi">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-text">“Endlich eine Plattform, die speziell für die Nostrifizierung gemacht ist. Die täglichen Podcasts habe ich auf dem Weg in die Klinik gehört.”</div>
+        <div class="testi-author">
+          <div class="testi-avatar">M</div>
+          <div><div class="testi-name">Dr. Maria S.</div><div class="testi-role">Nostrifizierung ✅ · Graz</div></div>
+        </div>
+      </div>
+      <div class="testi">
+        <div class="testi-stars">★★★★½</div>
+        <div class="testi-text">“Der Challenge Mode gegen Kollegen hat mich motiviert, täglich zu lernen. Die Simulation ist extrem realistisch.”</div>
+        <div class="testi-author">
+          <div class="testi-avatar">Y</div>
+          <div><div class="testi-name">Dr. Youssef E.</div><div class="testi-role">Stichprobentest ✅ · Linz</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ FEATURES ════════════════════════════════════════ -->
+<div id="features" class="section glow">
+  <div class="container">
+    <h2>Alles was du brauchst — <span>in einer Plattform</span></h2>
+    <p>6 Tools. Ein Ziel: Deine Prüfung.</p>
+    <div class="features">
+      <div class="card"><div class="card-icon">🧠</div><div class="card-title">Multi-AI Analyzer</div><div class="card-desc">Analysiere EKG, Röntgen, CT und MRT mit 3 KI-Modellen parallel. Inkl. Sicherheitspipeline und klinischer Validierung.</div><div class="card-tag">Gemma 4 · Nemotron · Qianfan</div></div>
+      <div class="card"><div class="card-icon">📚</div><div class="card-title">2.500+ Prüfungsfragen</div><div class="card-desc">Nach Fachgebiet, Jahr und Schwierigkeit sortiert. Mit detaillierten Erklärungen auf Deutsch & Arabisch.</div><div class="card-tag">12 Fachgebiete</div></div>
+      <div class="card"><div class="card-icon">🎯</div><div class="card-title">Challenge Mode</div><div class="card-desc">Tritt gegen Freunde oder Kollegen an. Wer hat die meisten richtigen Antworten in 60 Sekunden?</div><div class="card-tag">Live-Duell</div></div>
+      <div class="card"><div class="card-icon">🎙️</div><div class="card-title">Tägliche Podcasts</div><div class="card-desc">KI-generierte Zusammenfassungen der wichtigsten Themen — zum Hören unterwegs, beim Joggen oder im Auto.</div><div class="card-tag">Daily 15 Min</div></div>
+      <div class="card"><div class="card-icon">📓</div><div class="card-title">KI-Notebook</div><div class="card-desc">Lade PDFs hoch, lass sie analysieren und extrahiere prüfungsrelevante Inhalte in Sekunden.</div><div class="card-tag">PDF → Wissen</div></div>
+      <div class="card"><div class="card-icon">⚡</div><div class="card-title">Exam Simulation</div><div class="card-desc">Realistische Prüfungssimulation mit originalgetreuem Zeitdruck, Bewertung und Auswertung.</div><div class="card-tag">Wie die echte Prüfung</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ HOW IT WORKS ════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <h2>So <span>funktioniert</span> es</h2>
+    <p>3 Schritte zu deiner Prüfungsvorbereitung</p>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-title">Registrieren</div><div class="step-desc">Kostenlos anmelden und sofort 30 Tage Vollzugriff erhalten — keine Kreditkarte nötig</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-title">Lernen mit KI</div><div class="step-desc">Beantworte Fragen, analysiere Befunde, höre Podcasts und vertiefe mit KI-Erklärungen</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-title">Bestehen</div><div class="step-desc">Simulation, Challenge und Statistiken zeigen dir genau, wo du stehst — und wann du bereit bist</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ TRUST ════════════════════════════════════════ -->
+<div class="section" style="padding-top:0">
+  <div class="container">
+    <h2>🔐 <span>Sicher</span> & <span>Professionell</span></h2>
+    <p>Infrastruktur auf Produktionsniveau</p>
+    <div class="trust">
+      <span class="trust-item">📧 DKIM authentifiziert</span>
+      <span class="trust-item">🛡️ DMARC konfiguriert</span>
+      <span class="trust-item">📨 Brevo Production API</span>
+      <span class="trust-item">🔁 Retry + Rate-Limit</span>
+      <span class="trust-item">🔒 SSL-Verschlüsselung</span>
+      <span class="trust-item">🇪🇺 DSGVO-konform</span>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ════════════════════════════════════════ CTA ════════════════════════════════════════ -->
+<div class="cta-section">
+  <div class="container">
+    <h2>Deine Zukunft beginnt <span>hier</span></h2>
+    <p>30 Tage unbegrenzter Zugriff auf alle Funktionen. Danach 100 Fragen täglich kostenlos.</p>
+    <div class="cta-btns">
+      <a class="btn" href="https://prepacademy-med.com" target="_blank">🚀 Jetzt kostenlos starten</a>
+      <a class="btn btn-outline" href="mailto:hilfe@prepacademy-med.com">✉️ Fragen?</a>
+    </div>
+    <div class="price-note">Keine Kreditkarte · Jederzeit kündbar · Vollzugriff für 30 Tage</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ FOOTER ════════════════════════════════════════ -->
+<div class="footer">
+  <a href="https://prepacademy-med.com/impressum">Impressum</a> ·
+  <a href="https://prepacademy-med.com/datenschutz">Datenschutz</a> ·
+  <a href="mailto:hilfe@prepacademy-med.com">hilfe@prepacademy-med.com</a><br>
+  Mohamed Metwally · Lussmer Ring 69 · 28777 Bremen · Deutschland
+</div>
+
+</body>
+</html>

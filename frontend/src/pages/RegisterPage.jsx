@@ -107,8 +107,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <img src="/logo-elite.png" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
-              style={{ filter: "drop-shadow(0 0 16px rgba(59,130,246,0.2))" }} />
+            <img src="/logo-elite.webp" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
+              style={{ filter: "drop-shadow(0 0 16px rgba(59,130,246,0.2))" }} loading="lazy" />
           </Link>
           <h1 className="text-2xl font-bold mb-2 text-white" data-testid="register-title">Konto erstellen</h1>
           <p className="text-white/50">Registrieren Sie sich und beginnen Sie zu lernen</p>

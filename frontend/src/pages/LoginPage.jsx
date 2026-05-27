@@ -68,7 +68,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-3 mb-6">
-            <img src="/logo-elite.png" alt="Prep Academy" className="w-28 h-28 object-contain" style={{ filter: "drop-shadow(0 0 20px rgba(59,130,246,0.2))" }} />
+            <img src="/logo-elite.webp" alt="Prep Academy" className="w-28 h-28 object-contain" style={{ filter: "drop-shadow(0 0 20px rgba(59,130,246,0.2))" }} loading="lazy" />
           </Link>
           <h1 className="text-2xl font-bold mb-2 text-white" data-testid="login-title">Anmelden</h1>
           <p className="text-white/50">Melden Sie sich an, um auf Ihr Konto zuzugreifen</p>

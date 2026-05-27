@@ -50,8 +50,8 @@ export default function VerifyEmailPage() {
       style={{ background: "linear-gradient(135deg,#080818 0%,#0c1229 50%,#080818 100%)" }}>
       <div className="w-full max-w-md text-center">
         <Link to="/" className="inline-block mb-8">
-          <img src="/logo-elite.png" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
-            style={{ filter: "drop-shadow(0 0 16px rgba(59,130,246,0.2))" }} />
+          <img src="/logo-elite.webp" alt="PrepAcademy" className="w-20 h-20 object-contain mx-auto"
+            style={{ filter: "drop-shadow(0 0 16px rgba(59,130,246,0.2))" }} loading="lazy" />
         </Link>
 
         {status === "loading" && (

@@ -30,7 +30,7 @@ const SplashOverlay = ({ onDone }) => {
     <div className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-500 ${phase >= 2 ? "opacity-0 pointer-events-none" : "opacity-100"}`} style={{ background: "linear-gradient(135deg, #06081a 0%, #0a1128 40%, #06081a 100%)" }} data-testid="splash-overlay">
       <div className="text-center relative">
         <div className={`transition-all duration-600 ${phase >= 1 ? "opacity-100 scale-100" : "opacity-0 scale-75"}`}>
-          <img src="/logo-elite.png" alt="Prep Academy" className="w-44 h-44 mx-auto object-contain" style={{ filter: "drop-shadow(0 0 40px rgba(59,130,246,0.25))" }} />
+          <img src="/logo-elite.webp" alt="Prep Academy" className="w-44 h-44 mx-auto object-contain" style={{ filter: "drop-shadow(0 0 40px rgba(59,130,246,0.25))" }} />
         </div>
       </div>
     </div>

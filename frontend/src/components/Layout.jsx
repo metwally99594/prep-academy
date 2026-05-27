@@ -345,7 +345,7 @@ export const Layout = () => {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group flex-shrink-0" data-testid="logo-link">
               <div className="w-12 h-12 rounded-lg overflow-hidden border border-primary/25 flex-shrink-0">
-                <img src="/logo-elite.png" alt="Prep Academy" className="w-full h-full object-cover" />
+                <img src="/logo-elite.webp" alt="Prep Academy" className="w-full h-full object-cover" loading="lazy" />
               </div>
               <span className="text-base font-semibold hidden lg:block whitespace-nowrap">Prep Academy</span>
             </Link>

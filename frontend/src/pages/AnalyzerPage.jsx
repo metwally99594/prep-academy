@@ -235,7 +235,7 @@ export default function AnalyzerPage() {
     const conf = getConfidence(item);
     const confColor = conf >= 80 ? '#10b981' : conf >= 60 ? '#f59e0b' : '#ef4444';
     const dateStr = new Date(item.created_at || Date.now()).toLocaleString('de-DE', { dateStyle: 'long', timeStyle: 'short' });
-    const logoUrl = `${window.location.origin}/logo-elite.png`;
+    const logoUrl = `${window.location.origin}/logo-elite.webp`;
 
     // Convert markdown-ish text to HTML for print
     const toPrintHtml = (md) => {
