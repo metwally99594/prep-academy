@@ -72,6 +72,8 @@ EXAM_TYPES = [
     {"id": "andere", "name": "Andere Stadt", "subtitle": "Prüfungsvorbereitung (Andere)", "location": "andere", "country": None, "icon": "building"},
     {"id": "pharma", "name": "Pharma", "subtitle": "Pharmakologie Rezeptierkunde", "location": None, "specialty": "pharma", "country": None, "icon": "pill"},
     {"id": "ki_generiert", "name": "KI Fragen", "subtitle": "KI-generierte Prüfungsfragen", "location": "ai_generated", "country": None, "icon": "robot"},
+    {"id": "de_allgemein", "name": "Deutsche Prüfung", "subtitle": "Ärztliche Prüfung (Deutschland)", "location": "de", "country": "germany", "icon": "flag_de"},
+    {"id": "ch_allgemein", "name": "Eidgenössische Prüfung", "subtitle": "Medizinalprüfung (Schweiz)", "location": "ch", "country": "switzerland", "icon": "flag_ch"},
 ]
 
 

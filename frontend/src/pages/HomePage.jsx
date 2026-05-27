@@ -308,6 +308,8 @@ export default function HomePage() {
                 <Wrapper key={exam.id} data-testid={`exam-type-${exam.id}`} {...wrapperProps}>
                   <div className="text-xl mb-2">
                   {exam.icon === 'flag_at' && '🇦🇹'}
+                  {exam.icon === 'flag_de' && '🇩🇪'}
+                  {exam.icon === 'flag_ch' && '🇨🇭'}
                   {exam.icon === 'mountain' && '🏔️'}
                   {exam.icon === 'building' && '🏛️'}
                   {exam.icon === 'pill' && '💊'}
