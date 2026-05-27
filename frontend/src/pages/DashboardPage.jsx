@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [challengeCity, setChallengeCity] = useState("");
   const [challengeYear, setChallengeYear] = useState("");
   const [challengeAll, setChallengeAll] = useState(false);
+  const [challengeCountry, setChallengeCountry] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -442,8 +443,8 @@ export default function DashboardPage() {
           </h3>
           <p className="text-sm text-muted-foreground mb-4">Erstelle eine Challenge - du bestimmst alles!</p>
           
-          {/* Filters Row 1: Specialty + Count */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+          {/* Filters Row 1: Specialty + Count + Land + City + Year */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Fachgebiet</label>
               <select value={challengeSpec} onChange={e => setChallengeSpec(e.target.value)}
@@ -463,6 +464,16 @@ export default function DashboardPage() {
                 className="w-full h-9 rounded-lg bg-muted/40 border border-border/40 px-2 text-sm" data-testid="challenge-count-select">
                 {[5, 10, 15, 20, 30, 50].map(n => <option key={n} value={n}>{n}</option>)}
                 <option value="all">Alle Fragen</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Land</label>
+              <select value={challengeCountry} onChange={e => setChallengeCountry(e.target.value)}
+                className="w-full h-9 rounded-lg bg-muted/40 border border-border/40 px-2 text-sm" data-testid="challenge-country-select">
+                <option value="">Alle Länder</option>
+                <option value="austria">Österreich</option>
+                <option value="germany">Deutschland</option>
+                <option value="switzerland">Schweiz</option>
               </select>
             </div>
             <div>
@@ -497,6 +508,7 @@ export default function DashboardPage() {
                 if (challengeAll) params.set("all_questions", "true");
                 if (challengeCity) params.set("exam_location", challengeCity);
                 if (challengeYear) params.set("year", challengeYear);
+                if (challengeCountry) params.set("country", challengeCountry);
                 const res = await axios.post(`${API}/challenge/create?${params}`, {}, { headers: { Authorization: `Bearer ${token}` } });
                 const link = `${window.location.origin}/challenge/${res.data.challenge_id}`;
                 await navigator.clipboard.writeText(link);

@@ -768,6 +768,7 @@ async def create_challenge(
     count: int = 10,
     year: Optional[int] = None,
     exam_location: Optional[str] = None,
+    country: Optional[str] = None,
     all_questions: bool = False,
     user: dict = Depends(get_current_user)
 ):
@@ -780,6 +781,8 @@ async def create_challenge(
         query["year"] = year
     if exam_location:
         query["exam_location"] = exam_location
+    if country:
+        query["country"] = country
     if not user.get("is_admin"):
         query["$or"] = [
             {"status": "published"},
