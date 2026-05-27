@@ -564,6 +564,7 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [filterSpecialty, setFilterSpecialty] = useState("all");
   const [filterCity, setFilterCity] = useState("all");
+  const [filterCountry, setFilterCountry] = useState("all");
   const [filterSearch, setFilterSearch] = useState("");
   const [activeTab, setActiveTab] = useState("questions");
   const [exportCats, setExportCats] = useState(null);
@@ -670,6 +671,7 @@ export default function AdminPage() {
       let params = `limit=${PAGE_SIZE}&skip=${questionPage * PAGE_SIZE}`;
       if (filterSpecialty !== "all") params += `&specialty_id=${filterSpecialty}`;
       if (filterCity !== "all") params += `&exam_location=${filterCity}`;
+      if (filterCountry !== "all") params += `&country=${filterCountry}`;
       if (filterSearch.trim()) params += `&search=${encodeURIComponent(filterSearch.trim())}`;
       const response = await axios.get(`${API}/questions?${params}`, { headers });
       setQuestions(response.data);
@@ -1173,6 +1175,18 @@ export default function AdminPage() {
                     <SelectItem value="vienna">Wien</SelectItem>
                     <SelectItem value="innsbruck">Innsbruck</SelectItem>
                     <SelectItem value="andere">Andere</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={filterCountry} onValueChange={v => { setFilterCountry(v); setQuestionPage(0); }}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue placeholder="Alle Länder" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Länder</SelectItem>
+                    <SelectItem value="austria">Österreich</SelectItem>
+                    <SelectItem value="germany">Deutschland</SelectItem>
+                    <SelectItem value="switzerland">Schweiz</SelectItem>
                   </SelectContent>
                 </Select>
 

@@ -1092,6 +1092,7 @@ async def list_questions(
     specialty_id: Optional[str] = None,
     exam_location: Optional[str] = None,
     search: Optional[str] = None,
+    country: Optional[str] = None,
     limit: int = 30,
     skip: int = 0,
     admin: dict = Depends(get_admin_user),
@@ -1105,6 +1106,8 @@ async def list_questions(
             query["generated_by_ai"] = True
         else:
             query["exam_location"] = exam_location
+    if country and country != "all":
+        query["country"] = country
     if search and len(search.strip()) >= 2:
         import re as _re
         cleaned = _re.sub(r'[^\w\sÄäÖöÜüß]', ' ', search.strip())

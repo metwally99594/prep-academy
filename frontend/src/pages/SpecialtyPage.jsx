@@ -27,6 +27,7 @@ import {
   Star,
   Activity,
   MapPin,
+  Globe,
   Clock,
   GraduationCap
 } from "lucide-react";
@@ -57,6 +58,8 @@ export default function SpecialtyPage() {
   const [selectedYear, setSelectedYear] = useState("all");
   const urlCity = searchParams.get("exam_location") || "all";
   const [selectedCity, setSelectedCity] = useState(urlCity);
+  const urlCountry = searchParams.get("country") || "all";
+  const [selectedCountry, setSelectedCountry] = useState(urlCountry);
   const [quizMode, setQuizMode] = useState("study"); // study or exam
   const [loading, setLoading] = useState(true);
 
@@ -91,6 +94,7 @@ export default function SpecialtyPage() {
         let params = `specialty_id=${specialtyId}`;
         if (selectedYear !== "all") params += `&year=${selectedYear}`;
         if (selectedCity !== "all") params += `&exam_location=${selectedCity}`;
+        if (selectedCountry !== "all") params += `&country=${selectedCountry}`;
         
         const res = await axios.get(`${API}/questions/count?${params}`, { headers });
         setQuestionCount(res.data.count);
@@ -99,13 +103,14 @@ export default function SpecialtyPage() {
       }
     };
     updateCount();
-  }, [selectedYear, selectedCity, specialtyId, token]);
+  }, [selectedYear, selectedCity, selectedCountry, specialtyId, token]);
 
   const startQuiz = () => {
     let params = [];
     params.push(`mode=${quizMode}`);
     if (selectedYear !== "all") params.push(`year=${selectedYear}`);
     if (selectedCity !== "all") params.push(`exam_location=${selectedCity}`);
+    if (selectedCountry !== "all") params.push(`country=${selectedCountry}`);
     const queryString = params.length > 0 ? `?${params.join("&")}` : "";
     navigate(`/quiz/${specialtyId}${queryString}`);
   };
@@ -242,6 +247,23 @@ export default function SpecialtyPage() {
               <SelectItem value="all">Alle Städte</SelectItem>
               <SelectItem value="vienna">Wien</SelectItem>
               <SelectItem value="innsbruck">Innsbruck</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Country Filter */}
+          <div className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Land:</span>
+          </div>
+          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Alle Länder" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Länder</SelectItem>
+              <SelectItem value="austria">Österreich</SelectItem>
+              <SelectItem value="germany">Deutschland</SelectItem>
+              <SelectItem value="switzerland">Schweiz</SelectItem>
             </SelectContent>
           </Select>
         </div>
