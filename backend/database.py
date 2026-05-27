@@ -67,11 +67,11 @@ EXAM_LOCATIONS = ["vienna", "innsbruck", "andere"]
 
 # Exam types for the selector
 EXAM_TYPES = [
-    {"id": "kp_wien", "name": "Kenntnisprüfung", "subtitle": "Österreichische Kenntnisprüfung (Wien)", "location": "vienna", "icon": "flag_at"},
-    {"id": "kmp_innsbruck", "name": "KMP Innsbruck", "subtitle": "Kumulative Modulprüfung (Innsbruck)", "location": "innsbruck", "icon": "mountain"},
-    {"id": "andere", "name": "Andere Stadt", "subtitle": "Prüfungsvorbereitung (Andere)", "location": "andere", "icon": "building"},
-    {"id": "pharma", "name": "Pharma", "subtitle": "Pharmakologie Rezeptierkunde", "location": None, "specialty": "pharma", "icon": "pill"},
-    {"id": "ki_generiert", "name": "KI Fragen", "subtitle": "KI-generierte Prüfungsfragen", "location": "ai_generated", "icon": "robot"},
+    {"id": "kp_wien", "name": "Kenntnisprüfung", "subtitle": "Österreichische Kenntnisprüfung (Wien)", "location": "vienna", "country": "austria", "icon": "flag_at"},
+    {"id": "kmp_innsbruck", "name": "KMP Innsbruck", "subtitle": "Kumulative Modulprüfung (Innsbruck)", "location": "innsbruck", "country": "austria", "icon": "mountain"},
+    {"id": "andere", "name": "Andere Stadt", "subtitle": "Prüfungsvorbereitung (Andere)", "location": "andere", "country": None, "icon": "building"},
+    {"id": "pharma", "name": "Pharma", "subtitle": "Pharmakologie Rezeptierkunde", "location": None, "specialty": "pharma", "country": None, "icon": "pill"},
+    {"id": "ki_generiert", "name": "KI Fragen", "subtitle": "KI-generierte Prüfungsfragen", "location": "ai_generated", "country": None, "icon": "robot"},
 ]
 
 

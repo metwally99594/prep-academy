@@ -296,6 +296,20 @@ export default function HomePage() {
                     {isActive && <span className="ml-2 text-primary">?</span>}
                   </h3>
                   <p className="text-[11px] sm:text-xs text-white/30 leading-snug mb-2 line-clamp-2">{exam.subtitle}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    {exam.country && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                        exam.country === 'austria' ? 'bg-red-500/15 text-red-400' :
+                        exam.country === 'germany' ? 'bg-yellow-500/15 text-yellow-400' :
+                        exam.country === 'switzerland' ? 'bg-blue-500/15 text-blue-400' :
+                        'bg-white/5 text-white/30'
+                      }`}>
+                        {exam.country === 'austria' ? 'AT' :
+                         exam.country === 'germany' ? 'DE' :
+                         exam.country === 'switzerland' ? 'CH' : exam.country}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs font-mono" style={{ color: isActive ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.25)' }}>
                     {exam.question_count.toLocaleString('de-DE')} Fragen
                   </p>
