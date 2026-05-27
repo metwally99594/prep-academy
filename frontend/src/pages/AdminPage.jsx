@@ -522,6 +522,87 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         </Button>
       )}
 
+      {/* JSON Format Reference */}
+      <div className="border-t border-border pt-4 mt-4">
+        <details className="group">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground select-none">
+            JSON-Format anzeigen
+          </summary>
+          <div className="mt-3 space-y-4 text-xs">
+            <div>
+              <p className="font-medium text-primary mb-1">MCQ / Multi-Select</p>
+              <pre className="bg-muted p-3 rounded-lg overflow-x-auto whitespace-pre-wrap font-mono">{`[
+  {
+    "specialty_id": "surgery",
+    "question_text_de": "Was ist...?",
+    "question_type": "mcq",
+    "choices_de": [
+      {"id": "a", "text": "Antwort A", "is_correct": false},
+      {"id": "b", "text": "Antwort B", "is_correct": true}
+    ],
+    "correct_answers": ["b"],
+    "year": 2024,
+    "exam_location": "vienna",
+    "country": "austria",
+    "explanation_de": "Erklärung..."
+  }
+]`}</pre>
+            </div>
+            <div>
+              <p className="font-medium text-primary mb-1">Drag & Drop / Kategorisierung</p>
+              <pre className="bg-muted p-3 rounded-lg overflow-x-auto whitespace-pre-wrap font-mono">{`{
+  "specialty_id": "internal",
+  "question_type": "drag_drop",
+  "question_text_de": "Ordnen Sie zu.",
+  "interactive_data": {
+    "items": [
+      {"id": "i1", "text_de": "Brustschmerz"},
+      {"id": "i2", "text_de": "Schwindel"}
+    ],
+    "categories": [
+      {"id": "cat_a", "label_de": "Kardial"},
+      {"id": "cat_b", "label_de": "Harmlos"}
+    ],
+    "correct_mapping": {"i1": "cat_a", "i2": "cat_b"}
+  },
+  "year": 2025,
+  "exam_location": "vienna",
+  "country": "austria"
+}`}</pre>
+            </div>
+            <div>
+              <p className="font-medium text-primary mb-1">Lückentext</p>
+              <pre className="bg-muted p-3 rounded-lg overflow-x-auto whitespace-pre-wrap font-mono">{`{
+  "specialty_id": "internal",
+  "question_type": "fill_blank",
+  "question_text_de": "Beschriften Sie.",
+  "interactive_data": {
+    "prompt_de": "Tragen Sie den korrekten Begriff ein:",
+    "blanks": [
+      {
+        "id": "b1",
+        "label": "1",
+        "hint_de": "Oben rechts",
+        "correct_answers": ["Rechter Vorhof", "RA"],
+        "case_sensitive": false
+      }
+    ]
+  },
+  "year": 2025,
+  "exam_location": "vienna",
+  "country": "austria"
+}`}</pre>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50">
+              <p className="font-medium mb-1">Erlaubte Werte</p>
+              <p>Fragetypen: <code className="text-primary">mcq</code> <code className="text-primary">multi_select</code> <code className="text-primary">drag_drop</code> <code className="text-primary">categorize</code> <code className="text-primary">fill_blank</code></p>
+              <p className="mt-1">Specialty IDs: <code className="text-primary">surgery</code> <code className="text-primary">internal</code> <code className="text-primary">ophthalmology</code> <code className="text-primary">dermatology</code> <code className="text-primary">ent</code> <code className="text-primary">obgyn</code> <code className="text-primary">neurology</code> <code className="text-primary">emergency</code> <code className="text-primary">pediatrics</code> <code className="text-primary">psychiatry</code></p>
+              <p className="mt-1">Orte: <code className="text-primary">vienna</code> <code className="text-primary">innsbruck</code> <code className="text-primary">andere</code></p>
+              <p className="mt-1">Länder: <code className="text-primary">austria</code> <code className="text-primary">germany</code> <code className="text-primary">switzerland</code></p>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
   );
 }
