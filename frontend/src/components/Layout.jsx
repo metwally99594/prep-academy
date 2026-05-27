@@ -469,6 +469,12 @@ export const Layout = () => {
                       <Lock className="w-3 h-3 opacity-60" />
                     </Button>
                   )}
+                  <Link to="/kp-reports">
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="kp-reports-nav-btn">
+                      <FileText className="w-4 h-4" />
+                      <span className="hidden lg:inline">KP Protokolle</span>
+                    </Button>
+                  </Link>
                   <Link to="/blog">
                     <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="blog-nav-btn">
                       <BookOpen className="w-4 h-4" />
@@ -722,6 +728,12 @@ export const Layout = () => {
                 <Lock className="w-3 h-3 ml-auto opacity-60" />
               </Button>
             )}
+            <Link to="/kp-reports" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start gap-2">
+                <FileText className="w-4 h-4" />
+                KP Protokolle
+              </Button>
+            </Link>
             <Link to="/blog" onClick={() => setMobileMenuOpen(false)}>
               <Button variant="ghost" className="w-full justify-start gap-2">
                 <BookOpen className="w-4 h-4" />

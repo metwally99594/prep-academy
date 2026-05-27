@@ -55,6 +55,8 @@ const CommunityPage = lazy(() => import("@/pages/CommunityPage"));
 const CommunityPostPage = lazy(() => import("@/pages/CommunityPostPage"));
 const ModerationQueuePage = lazy(() => import("@/pages/ModerationQueuePage"));
 const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"));
+const KpReportsPage = lazy(() => import("@/pages/KpReportsPage"));
+const KpReportDetailPage = lazy(() => import("@/pages/KpReportDetailPage"));
 
 // API base URL for legacy raw axios calls in pages
 import { API } from "@/lib/api";
@@ -335,6 +337,8 @@ function AppRouter() {
           <Route path="/community/:postId" element={
             <ProtectedRoute><CommunityPostPage /></ProtectedRoute>
           } />
+          <Route path="/kp-reports" element={<KpReportsPage />} />
+          <Route path="/kp-reports/:reportId" element={<KpReportDetailPage />} />
           <Route path="/podcast" element={<DailyPodcastPage />} />
           <Route path="/impressum" element={<ImpressumPage />} />
           <Route path="/datenschutz" element={<PrivacyPage />} />

@@ -79,7 +79,8 @@ import {
   Headphones,
   ShieldCheck,
   Play,
-  Search
+  Search,
+  FileText,
 } from "lucide-react";
 
 const SPECIALTIES = [
@@ -598,6 +599,11 @@ export default function AdminPage() {
   const [batchResult, setBatchResult] = useState(null);
   const [batchError, setBatchError] = useState(null);
   const [allTags, setAllTags] = useState([]);
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState(null);
+  const [kpJsonText, setKpJsonText] = useState("");
+  const [kpImportResult, setKpImportResult] = useState(null);
+  const [kpImporting, setKpImporting] = useState(false);
   const batchTotal = React.useMemo(() => Object.values(batchMix).reduce((a, b) => a + b, 0), [batchMix]);
   const PAGE_SIZE = 30;
   const { token } = useAuth();
@@ -642,6 +648,23 @@ export default function AdminPage() {
       .catch(() => toast.error("Fehler beim Laden der Kategorien"))
       .finally(() => setExportCatsLoading(false));
   }, [activeTab, token]); // eslint-disable-line
+
+  const seedKpReports = async () => {
+    setSeeding(true);
+    setSeedResult(null);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.post(`${API}/admin/kp-reports/seed`, {}, { headers });
+      setSeedResult({ message: `${res.data.seeded} von ${res.data.total} Protokollen importiert.`, error: false });
+      toast.success("KP Protokolle importiert");
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Fehler beim Import";
+      setSeedResult({ message: msg, error: true });
+      toast.error(msg);
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -1124,6 +1147,10 @@ export default function AdminPage() {
           <TabsTrigger value="reports" className="gap-2" data-testid="reports-tab">
             <Flag className="w-4 h-4" />
             Meldungen
+          </TabsTrigger>
+          <TabsTrigger value="kp-reports" className="gap-2">
+            <FileText className="w-4 h-4" />
+            KP Protokolle
           </TabsTrigger>
           <TabsTrigger value="access-requests" className="gap-2" data-testid="access-requests-tab">
             <ShieldCheck className="w-4 h-4" />
@@ -2209,6 +2236,98 @@ export default function AdminPage() {
 
         <TabsContent value="reports">
           <AdminReportsTab token={token} />
+        </TabsContent>
+
+        <TabsContent value="kp-reports">
+          <div className="space-y-6">
+            {/* Seed */}
+            <div className="glass-card rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold">KP Protokolle</h2>
+                </div>
+                <Button variant="default" size="sm" onClick={seedKpReports} disabled={seeding} className="gap-2">
+                  {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {seeding ? "Wird importiert..." : "Seed Daten importieren"}
+                </Button>
+              </div>
+              {seedResult && (
+                <div className={`p-3 rounded-lg text-sm ${seedResult.error ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+                  {seedResult.message}
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground mt-2">
+                Importiert die 3 Beispiel-Protokolle in die Datenbank. Bereits vorhandene werden übersprungen.
+              </p>
+            </div>
+
+            {/* JSON Import */}
+            <div className="glass-card rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Upload className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-semibold">JSON Import</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label>Protokolle als JSON einfügen</Label>
+                  <Textarea
+                    className="font-mono text-sm mt-1 min-h-[300px]"
+                    placeholder='{"reports": [{"state": "Niedersachsen", "year": 2022, "main_case": "..."}]}'
+                    value={kpJsonText}
+                    onChange={(e) => setKpJsonText(e.target.value)}
+                  />
+                </div>
+                {kpImportResult && (
+                  <div className={`p-3 rounded-lg text-sm ${kpImportResult.error ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+                    {kpImportResult.message}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => { setKpJsonText(""); setKpImportResult(null); }}>
+                    Zurücksetzen
+                  </Button>
+                  <Button onClick={importKpReportsJson} disabled={kpImporting || !kpJsonText.trim()} className="gap-2">
+                    {kpImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {kpImporting ? "Importiert..." : "JSON importieren"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Format Reference */}
+            <div className="glass-card rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <BookOpen className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-semibold">JSON Format</h2>
+              </div>
+              <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap font-mono">
+{`{
+  "reports": [
+    {
+      "state": "Niedersachsen",
+      "year": 2022,
+      "date": "2022-01-26",
+      "main_case": "Divertikulitis",
+      "passed": "1/3",
+      "author": "Dr. Parvin",
+      "difficulty": "mittel",
+      "topics_asked": ["Divertikulitis", "Sepsis"],
+      "questions_highlighted": ["qSOFA", "CRUB 65"],
+      "examiner_notes": "Anmerkungen zum Prüfer...",
+      "full_text": "Ausführlicher Bericht..."
+    }
+  ]
+}`}
+              </pre>
+              <p className="text-xs text-muted-foreground mt-2">
+                Pflichtfelder: <code>state</code>, <code>main_case</code>. 
+                Alternative Feldnamen: <code>topics</code>/<code>themen</code>, <code>highlights</code>/<code>fragen</code>,
+                <code>notes</code>/<code>notizen</code>, <code>text</code>/<code>bericht</code>, <code>protocol_id</code>.
+                Array-Name: <code>reports</code> oder <code>protokolle</code>.
+              </p>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="access-requests">

@@ -7221,6 +7221,10 @@ from routes.export import make_export_router
 export_router = make_export_router(db, get_current_user)
 app.include_router(export_router)
 
+# Include KP Reports router
+from routes.kp_reports import router as kp_reports_router
+app.include_router(kp_reports_router)
+
 # Include messaging router
 from routes.messaging import router as messaging_router
 app.include_router(messaging_router)
