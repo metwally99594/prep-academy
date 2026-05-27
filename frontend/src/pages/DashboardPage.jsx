@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [challengeYear, setChallengeYear] = useState("");
   const [challengeAll, setChallengeAll] = useState(false);
   const [challengeCountry, setChallengeCountry] = useState("");
+  const [allSpecialties, setAllSpecialties] = useState([]);
 
   useEffect(() => {
     if (!token) return;
@@ -64,12 +65,14 @@ export default function DashboardPage() {
       axios.get(`${API}/gamification/profile`, { headers }),
       axios.get(`${API}/dashboard/weakness-map`, { headers }).catch(() => ({ data: null })),
       axios.get(`${API}/dashboard/percentile`, { headers }).catch(() => ({ data: null })),
-    ]).then(([statsRes, activityRes, gamRes, wmRes, pRes]) => {
+      axios.get(`${API}/specialties`),
+    ]).then(([statsRes, activityRes, gamRes, wmRes, pRes, specRes]) => {
       setStats(statsRes.data);
       setWeeklyActivity(activityRes.data);
       setGamification(gamRes.data);
       setWeaknessMap(wmRes.data);
       setPercentile(pRes.data);
+      setAllSpecialties(specRes.data);
     }).catch(error => {
       console.error("Failed to fetch dashboard data:", error);
     });
@@ -450,8 +453,8 @@ export default function DashboardPage() {
               <select value={challengeSpec} onChange={e => setChallengeSpec(e.target.value)}
                 className="w-full h-9 rounded-lg bg-muted/40 border border-border/40 px-2 text-sm" data-testid="challenge-spec-select">
                 <option value="">Alle Fächer</option>
-                {(stats?.specialty_progress || []).filter(s => s.total_questions > 0).map(s => (
-                  <option key={s.id} value={s.id}>{s.name_de} ({s.total_questions})</option>
+                {(allSpecialties || []).map(s => (
+                  <option key={s.id} value={s.id}>{s.name_de} ({s.question_count || 0})</option>
                 ))}
               </select>
             </div>
