@@ -593,8 +593,15 @@ async def get_exam_types():
             query["exam_location"] = et["location"]
         if et.get("specialty"):
             query["specialty_id"] = et["specialty"]
-        count = await db.questions.count_documents(query)
-        result.append({**et, "question_count": count})
+        qcount = await db.questions.count_documents(query)
+        kp_count = 0
+        if et.get("location") == "de":
+            kp_count = await db.kp_reports.count_documents({})
+        elif et.get("location") == "ch":
+            kp_count = await db.kp_reports.count_documents({"state": "Schweiz"})
+        elif et.get("location") in ("vienna", "innsbruck"):
+            kp_count = await db.kp_reports.count_documents({"state": "Österreich"})
+        result.append({**et, "question_count": qcount, "kp_report_count": kp_count})
     return result
 
 
