@@ -251,6 +251,7 @@ export default function QuizPage() {
           const yf = searchParams.get("yf");
           const yt = searchParams.get("yt");
           const loc = searchParams.get("loc");
+          const countryParam = searchParams.get("country");
           const fav = searchParams.get("fav");
           const tagsParam = searchParams.get("tags");
           const limit = searchParams.get("limit") || 50;
@@ -261,6 +262,7 @@ export default function QuizPage() {
             year_from: yf ? parseInt(yf) : null,
             year_to: yt ? parseInt(yt) : null,
             exam_location: loc || null,
+            country: countryParam || null,
             favorites_only: fav === "1",
             tags: tagsParam ? tagsParam.split(",") : null,
             limit: parseInt(limit),
@@ -288,6 +290,8 @@ export default function QuizPage() {
         let params = `specialty_id=${specialtyId}`;
         if (year) params += `&year=${year}`;
         if (examLocation) params += `&exam_location=${examLocation}`;
+        const countryParam = searchParams.get("country");
+        if (countryParam) params += `&country=${countryParam}`;
         const modeParam = isExamMode ? 'exam' : 'study';
         const quizLimit = isExamMode ? 50 : 5000;
         const response = await axios.get(`${API}/questions/quiz?${params}&limit=${quizLimit}&mode=${modeParam}`, { headers });

@@ -20,6 +20,7 @@ import {
   Filter,
   RotateCcw,
   MapPin,
+  Globe,
 } from "lucide-react";
 
 const SPECIALTIES = [
@@ -44,6 +45,7 @@ export default function CustomQuizPage() {
 
   const [selectedSpecs, setSelectedSpecs] = useState([]);
   const [examLocation, setExamLocation] = useState("");
+  const [country, setCountry] = useState("");
   const [textSearch, setTextSearch] = useState("");
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
@@ -79,11 +81,12 @@ export default function CustomQuizPage() {
     year_from: yearFrom ? parseInt(yearFrom) : null,
     year_to: yearTo ? parseInt(yearTo) : null,
     exam_location: examLocation || null,
+    country: country || null,
     favorites_only: favoritesOnly,
     tags: selectedTags.length > 0 ? selectedTags : null,
     limit: questionLimit[0],
     mode: quizMode,
-  }), [selectedSpecs, textSearch, yearFrom, yearTo, examLocation, favoritesOnly, selectedTags, questionLimit, quizMode]);
+  }), [selectedSpecs, textSearch, yearFrom, yearTo, examLocation, country, favoritesOnly, selectedTags, questionLimit, quizMode]);
 
   // Debounced count
   useEffect(() => {
@@ -121,6 +124,7 @@ export default function CustomQuizPage() {
       if (payload.year_from) filterParams.set("yf", payload.year_from);
       if (payload.year_to) filterParams.set("yt", payload.year_to);
       if (payload.exam_location) filterParams.set("loc", payload.exam_location);
+      if (payload.country) filterParams.set("country", payload.country);
       if (payload.favorites_only) filterParams.set("fav", "1");
       if (payload.tags?.length) filterParams.set("tags", payload.tags.join(","));
       filterParams.set("limit", payload.limit);
@@ -136,6 +140,7 @@ export default function CustomQuizPage() {
   const resetFilters = () => {
     setSelectedSpecs([]);
     setExamLocation("");
+    setCountry("");
     setTextSearch("");
     setYearFrom("");
     setYearTo("");
@@ -145,7 +150,7 @@ export default function CustomQuizPage() {
     setQuizMode("exam");
   };
 
-  const hasAnyFilter = selectedSpecs.length > 0 || textSearch || yearFrom || yearTo || favoritesOnly || examLocation;
+  const hasAnyFilter = selectedSpecs.length > 0 || textSearch || yearFrom || yearTo || favoritesOnly || examLocation || country;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8" data-testid="custom-quiz-page">
@@ -230,6 +235,34 @@ export default function CustomQuizPage() {
                 }`}
               >
                 {city.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Land */}
+        <div className="glass-card rounded-2xl p-6">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <Globe className="w-4 h-4 text-primary" />
+            Land
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { value: "", label: "Alle Länder" },
+              { value: "austria", label: "Österreich" },
+              { value: "germany", label: "Deutschland" },
+              { value: "switzerland", label: "Schweiz" },
+            ].map((c) => (
+              <button
+                key={c.value}
+                onClick={() => setCountry(c.value)}
+                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-[color,background-color,border-color] ${
+                  country === c.value
+                    ? "border-primary bg-primary/5 text-foreground"
+                    : "border-border hover:border-primary/30 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {c.label}
               </button>
             ))}
           </div>

@@ -52,6 +52,7 @@ class QuestionCreate(BaseModel):
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
     exam_location: Optional[str] = "vienna"
+    country: Optional[str] = None
     status: Optional[str] = "published"
     tags: Optional[List[str]] = []
     drag_drop_items: Optional[List[DragDropItem]] = None
@@ -71,6 +72,7 @@ class QuestionUpdate(BaseModel):
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
     exam_location: Optional[str] = None
+    country: Optional[str] = None
     status: Optional[str] = None
     tags: Optional[List[str]] = None
     drag_drop_items: Optional[List[DragDropItem]] = None
@@ -94,6 +96,7 @@ class QuestionResponse(BaseModel):
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
     exam_location: Optional[str] = "vienna"
+    country: Optional[str] = None
     status: Optional[str] = "published"
     created_at: Optional[str] = None
     tags: Optional[List[str]] = []
@@ -158,6 +161,7 @@ class CustomQuizRequest(BaseModel):
     year_from: Optional[int] = None
     year_to: Optional[int] = None
     exam_location: Optional[str] = None
+    country: Optional[str] = None
     favorites_only: bool = False
     tags: Optional[List[str]] = None
     limit: int = 50
@@ -389,6 +393,7 @@ class QuestionImportItem(BaseModel):
     explanation_de: Optional[str] = None
     year: Optional[int] = None
     exam_location: Optional[str] = None
+    country: Optional[str] = None
     tags: Optional[List[str]] = []
     drag_drop_items: Optional[List[dict]] = None
     drag_drop_categories: Optional[List] = None

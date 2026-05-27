@@ -1044,7 +1044,7 @@ async def get_simulation_questions(city: str = "vienna", user: dict = Depends(ge
             {"$project": {"_id": 0, "id": 1, "specialty_id": 1, "year": 1,
                          "question_text": 1, "question_text_de": 1, "choices": 1,
                          "choices_de": 1, "correct_answers": 1,
-                         "explanation_de": 1, "exam_location": 1, "image_base64": 1,
+                         "explanation_de": 1, "exam_location": 1, "country": 1, "image_base64": 1,
                          "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
                          "blank_text": 1, "blank_answers": 1, "blanks": 1, "tags": 1}}
         ]
@@ -1130,6 +1130,7 @@ async def get_quiz_questions(
     specialty_id: Optional[str] = None,
     year: Optional[int] = None,
     exam_location: Optional[str] = None,
+    country: Optional[str] = None,
     limit: int = 50,
     mode: str = "exam",
     user: dict = Depends(get_current_user),
@@ -1152,6 +1153,8 @@ async def get_quiz_questions(
         query["generated_by_ai"] = True
     elif exam_location:
         query["exam_location"] = exam_location
+    if country:
+        query["country"] = country
     if not user.get("is_admin"):
         query["status"] = "published"
     
@@ -1159,7 +1162,7 @@ async def get_quiz_questions(
         "_id": 0, "id": 1, "specialty_id": 1, "year": 1,
         "question_text": 1, "question_text_de": 1,
         "choices": 1, "choices_de": 1, "correct_answers": 1,
-        "explanation_de": 1, "exam_location": 1, "image_base64": 1,
+        "explanation_de": 1, "exam_location": 1, "country": 1, "image_base64": 1,
         "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
         "blank_text": 1, "blank_answers": 1, "blanks": 1, "tags": 1,
     }
@@ -1183,6 +1186,7 @@ async def get_questions_count(
     specialty_id: Optional[str] = None,
     year: Optional[int] = None,
     exam_location: Optional[str] = None,
+    country: Optional[str] = None,
 ):
     """Fast count endpoint - no data transfer"""
     query = {}
@@ -1194,6 +1198,8 @@ async def get_questions_count(
         query["generated_by_ai"] = True
     elif exam_location:
         query["exam_location"] = exam_location
+    if country:
+        query["country"] = country
     return {"count": await db.questions.count_documents(query)}
 
 @api_router.post("/questions/custom-quiz")
@@ -1210,6 +1216,10 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
     # Exam location (city)
     if request.exam_location:
         query["exam_location"] = request.exam_location
+
+    # Country
+    if request.country:
+        query["country"] = request.country
 
     # Year range
     if request.year_from and request.year_to:
@@ -1257,7 +1267,7 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
         "_id": 0, "id": 1, "specialty_id": 1, "year": 1,
         "question_text": 1, "question_text_de": 1,
         "choices": 1, "choices_de": 1, "correct_answers": 1,
-        "explanation_de": 1, "exam_location": 1, "image_base64": 1, "tags": 1,
+        "explanation_de": 1, "exam_location": 1, "country": 1, "image_base64": 1, "tags": 1,
         "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
         "blank_text": 1, "blank_answers": 1,
     }
@@ -1288,6 +1298,9 @@ async def custom_quiz_count(request: CustomQuizRequest, user: dict = Depends(get
 
     if request.exam_location:
         query["exam_location"] = request.exam_location
+
+    if request.country:
+        query["country"] = request.country
 
     if request.year_from and request.year_to:
         query["year"] = {"$gte": request.year_from, "$lte": request.year_to}
@@ -1861,6 +1874,15 @@ async def migrate_ai_exam_location(admin: dict = Depends(get_admin_user)):
     result = await db.questions.update_many(
         {"generated_by_ai": True, "exam_location": {"$ne": "ai_generated"}},
         {"$set": {"exam_location": "ai_generated"}}
+    )
+    return {"updated": result.modified_count}
+
+@api_router.post("/admin/migrate-country")
+async def migrate_country(admin: dict = Depends(get_admin_user)):
+    """Set country=austria for all questions without a country."""
+    result = await db.questions.update_many(
+        {"$or": [{"country": {"$exists": False}}, {"country": None}, {"country": ""}]},
+        {"$set": {"country": "austria"}}
     )
     return {"updated": result.modified_count}
 
@@ -3932,6 +3954,7 @@ async def admin_import_questions(
             "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
             "year": q.year,
             "exam_location": q.exam_location,
+            "country": q.country,
             "tags": q.tags or [],
             "_question_hash": h,
             "import_session_id": session_id,
