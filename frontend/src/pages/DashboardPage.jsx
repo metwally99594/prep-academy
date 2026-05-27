@@ -34,6 +34,21 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+const FALLBACK_SPECIALTIES = [
+  { id: "surgery", name_de: "Chirurgie" },
+  { id: "internal", name_de: "Innere Medizin" },
+  { id: "pediatrics", name_de: "Pädiatrie" },
+  { id: "emergency", name_de: "Notfallmedizin" },
+  { id: "ophthalmology", name_de: "Ophthalmologie" },
+  { id: "dermatology", name_de: "Dermatologie" },
+  { id: "ent", name_de: "HNO" },
+  { id: "obgyn", name_de: "Gynäkologie" },
+  { id: "neurology", name_de: "Neurologie" },
+  { id: "psychiatry", name_de: "Psychiatrie" },
+  { id: "orthopedics", name_de: "Orthopädie" },
+  { id: "pharma", name_de: "Pharmakologie" },
+];
+
 const BADGE_ICONS = {
   Zap, BookOpen, Library: BookOpen, Crown, Trophy, Flame, Target, Star, Award, Shield,
 };
@@ -453,8 +468,8 @@ export default function DashboardPage() {
               <select value={challengeSpec} onChange={e => setChallengeSpec(e.target.value)}
                 className="w-full h-9 rounded-lg bg-muted/40 border border-border/40 px-2 text-sm" data-testid="challenge-spec-select">
                 <option value="">Alle Fächer</option>
-                {(allSpecialties || []).map(s => (
-                  <option key={s.id} value={s.id}>{s.name_de} ({s.question_count || 0})</option>
+                {(allSpecialties.length ? allSpecialties : FALLBACK_SPECIALTIES).map(s => (
+                  <option key={s.id} value={s.id}>{s.name_de} ({s.question_count ?? 0})</option>
                 ))}
               </select>
             </div>
