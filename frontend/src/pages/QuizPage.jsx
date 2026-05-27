@@ -930,6 +930,18 @@ export default function QuizPage() {
         <div className="quiz-card mb-4">
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             {currentQuestion?.year && <span className="quiz-year-badge">{currentQuestion.year}</span>}
+            {currentQuestion?.country && (
+              <span className={`px-2 py-0.5 text-xs rounded-md font-medium ${
+                currentQuestion.country === 'austria' ? 'bg-red-500/10 text-red-500' :
+                currentQuestion.country === 'germany' ? 'bg-yellow-500/10 text-yellow-600' :
+                currentQuestion.country === 'switzerland' ? 'bg-blue-500/10 text-blue-500' :
+                'bg-muted text-muted-foreground'
+              }`}>
+                {currentQuestion.country === 'austria' ? 'AT' :
+                 currentQuestion.country === 'germany' ? 'DE' :
+                 currentQuestion.country === 'switzerland' ? 'CH' : currentQuestion.country}
+              </span>
+            )}
             {currentQuestion?.tags?.map(t => <span key={t} className="px-2 py-0.5 bg-muted text-xs rounded-md text-muted-foreground">{t}</span>)}
             {correctCount > 1 && <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs rounded-lg font-medium">{correctCount} richtige</span>}
             <button
