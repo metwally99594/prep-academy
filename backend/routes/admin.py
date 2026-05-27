@@ -63,6 +63,7 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
                 "choices": unified_choices, "explanation": explanation_de, "explanation_de": explanation_de,
                 "year": q.get("year", q.get("jahr", 2024)),
                 "exam_location": q.get("exam_location", q.get("ort", "vienna")),
+                "country": q.get("country", None),
                 "image_base64": q.get("image_base64", q.get("image", None)),
                 "interactive_data": q.get("interactive_data", None),
                 "tags": q.get("tags", []),
@@ -136,6 +137,7 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
         idx_explanation = col("Erklärung", "Explanation") or col("Erklaerung", "explanation")
         idx_year = col("Jahr", "Year") or col("year", "year")
         idx_location = col("Ort", "Location") or col("Stadt", "City") or col("exam_location", "exam_location")
+        idx_country = col("Land", "Country") or col("country", "country")
 
         if idx_text is None:
             raise HTTPException(status_code=400, detail="Keine Spalte 'Fragetext' oder 'Frage' gefunden. Kopfzeile: " + ", ".join(headers[:10]))
@@ -181,6 +183,10 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
                     year_val = 2024
                 location_val = str(row[idx_location]).strip().lower() if idx_location is not None and row[idx_location] else "vienna"
 
+                country_val = str(row[idx_country]).strip().lower() if idx_country is not None and row[idx_country] else None
+                if country_val and country_val not in ("austria", "germany", "switzerland"):
+                    country_val = None
+
                 normalized = {
                     "id": qid,
                     "specialty_id": specialty_id,
@@ -192,6 +198,7 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
                     "explanation_de": explanation,
                     "year": year_val,
                     "exam_location": location_val,
+                    "country": country_val,
                     "tags": [],
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }

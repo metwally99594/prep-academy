@@ -361,7 +361,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
           <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-emerald-500/30 rounded-2xl cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-500/5 transition-all">
             <Upload className="w-10 h-10 text-emerald-500/50 mb-3" />
             <span className="text-sm font-medium text-emerald-500">Excel-Datei auswählen (.xlsx)</span>
-            <span className="text-xs text-muted-foreground mt-1">Spalten: Fragetext, Fachgebiet, Antwort A-E, Richtige Antwort, Erklärung, Jahr, Ort</span>
+            <span className="text-xs text-muted-foreground mt-1">Spalten: Fragetext, Fachgebiet, Antwort A-E, Richtige Antwort, Erklärung, Jahr, Ort, Land</span>
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => {
               const f = e.target.files[0];
               if (!f) return;
