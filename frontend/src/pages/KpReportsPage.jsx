@@ -164,13 +164,10 @@ export default function KpReportsPage() {
                               {report.passed} bestanden
                             </span>
                           </div>
-                          <h3 className="font-medium text-base mb-1">
-                            Kenntnisprüfung {report.state} {report.year}
+                          <h3 className="font-medium text-base mb-2">
+                            {report.main_case}
                           </h3>
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {report.full_text}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-2">
                             {report.topics_asked?.slice(0, 5).map(t => (
                               <span key={t} className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded">{t}</span>
                             ))}
