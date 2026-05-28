@@ -283,8 +283,7 @@ _GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
 
 
 async def _synthesize_podcast(script: str, language: str) -> str:
-    """Generate base64 MP3 using edge-tts — one call per speaker segment, no fallback."""
-    from xml.sax.saxutils import escape
+    """Generate base64 MP3 using edge-tts — plain text only, no SSML."""
     import edge_tts
 
     voices = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])
@@ -298,13 +297,8 @@ async def _synthesize_podcast(script: str, language: str) -> str:
         if not text:
             continue
         voice = mod_voice if speaker == "moderator" else exp_voice
-        t = escape(text[:2500])
-        t = t.replace(". ", ".<break time=\"300ms\"/> ")
-        t = t.replace("? ", "?<break time=\"300ms\"/> ")
-        t = t.replace("! ", "!<break time=\"300ms\"/> ")
-        ssml = f'<speak version="1.0" xml:lang="de-DE"><voice name="{voice}"><prosody rate="-5%">{t}</prosody></voice></speak>'
         try:
-            c = edge_tts.Communicate(ssml)
+            c = edge_tts.Communicate(text[:2500], voice, rate="-5%")
             buf = bytearray()
             async for chunk in c.stream():
                 if chunk["type"] == "audio":
