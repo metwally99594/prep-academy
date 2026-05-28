@@ -55,12 +55,11 @@ async def text_to_speech(text: str, voice: str = "de-DE-KatjaNeural") -> str:
     from xml.sax.saxutils import escape
     import io as _io
     t = escape(text[:2500])
-    t = t.replace(". ", ".<break time=\"350ms\"/> ")
-    t = t.replace("? ", "?<break time=\"350ms\"/> ")
-    t = t.replace("! ", "!<break time=\"350ms\"/> ")
-    t = t.replace(", ", ",<break time=\"120ms\"/> ")
-    ssml = f'<speak version="1.0" xml:lang="de-DE"><prosody rate="-10%" pitch="+0Hz">{t}</prosody></speak>'
-    communicate = edge_tts.Communicate(ssml, voice, rate="-10%", pitch="+0Hz")
+    t = t.replace(". ", ".<break time=\"300ms\"/> ")
+    t = t.replace("? ", "?<break time=\"300ms\"/> ")
+    t = t.replace("! ", "!<break time=\"300ms\"/> ")
+    ssml = f'<speak version="1.0" xml:lang="de-DE"><voice name="{voice}"><prosody rate="-5%">{t}</prosody></voice></speak>'
+    communicate = edge_tts.Communicate(ssml)
     buf = _io.BytesIO()
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":

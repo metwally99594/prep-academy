@@ -283,8 +283,9 @@ _GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
 
 
 async def _synthesize_podcast(script: str, language: str) -> str:
-    """Generate base64 MP3 using edge-tts with dual voices in a single SSML doc."""
+    """Generate base64 MP3 using edge-tts — one call per speaker segment, no fallback."""
     from xml.sax.saxutils import escape
+    import edge_tts
 
     voices = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])
     mod_voice, exp_voice = voices
@@ -292,44 +293,31 @@ async def _synthesize_podcast(script: str, language: str) -> str:
     if not parts:
         return ""
 
-    # Build one SSML doc with <voice> switching — single API call
-    segments = []
-    for i, (speaker, text) in enumerate(parts):
+    audio_chunks = []
+    for speaker, text in parts:
         if not text:
             continue
-        t = escape(text[:2500])
-        t = t.replace(". ", ".<break time=\"350ms\"/> ")
-        t = t.replace("? ", "?<break time=\"350ms\"/> ")
-        t = t.replace("! ", "!<break time=\"350ms\"/> ")
-        t = t.replace(", ", ",<break time=\"120ms\"/> ")
         voice = mod_voice if speaker == "moderator" else exp_voice
-        segments.append(f'<voice name="{voice}">{t}</voice>')
-        if i < len(parts) - 1:
-            segments.append('<break time="400ms"/>')
+        t = escape(text[:2500])
+        t = t.replace(". ", ".<break time=\"300ms\"/> ")
+        t = t.replace("? ", "?<break time=\"300ms\"/> ")
+        t = t.replace("! ", "!<break time=\"300ms\"/> ")
+        ssml = f'<speak version="1.0" xml:lang="de-DE"><voice name="{voice}"><prosody rate="-5%">{t}</prosody></voice></speak>'
+        try:
+            c = edge_tts.Communicate(ssml)
+            buf = bytearray()
+            async for chunk in c.stream():
+                if chunk["type"] == "audio":
+                    buf.extend(chunk["data"])
+            if buf:
+                audio_chunks.append(bytes(buf))
+        except Exception as e:
+            logger.warning(f"edge-tts failed for {speaker}/{voice}: {e}")
 
-    ssml = (
-        '<speak version="1.0" xml:lang="de-DE">'
-        '<prosody rate="-10%" pitch="+0Hz">'
-        f'{" ".join(segments)}'
-        '</prosody></speak>'
-    )
-
-    import edge_tts
-    import asyncio
-    try:
-        communicate = edge_tts.Communicate(ssml, rate="-10%", pitch="+0Hz")
-        buf = bytearray()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                buf.extend(chunk["data"])
-        if not buf:
-            logger.error("edge-tts returned empty audio")
-            return ""
-        logger.info(f"edge-tts podcast OK — {len(buf)} bytes, {len(parts)} segments")
-        return base64.b64encode(bytes(buf)).decode("ascii")
-    except Exception as e:
-        logger.error(f"edge-tts SSML failed: {e}")
+    if not audio_chunks:
+        logger.error(f"edge-tts produced no audio for language={language}")
         return ""
+    return base64.b64encode(b"".join(audio_chunks)).decode("ascii")
 
 
 async def _get_random_mcq(db, specialty_id: str = None, country: str = None, exam_location: str = None) -> Optional[dict]:
