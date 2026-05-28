@@ -43,14 +43,6 @@ export default function FSPSimulationPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    const last = messages[messages.length - 1];
-    if (last?.audio) {
-      const a = new Audio(`data:audio/mp3;base64,${last.audio}`);
-      a.play().catch(() => {});
-    }
-  }, [messages]);
-
   const handleStart = useCallback(async () => {
     setLoading(true);
     try {
@@ -58,7 +50,7 @@ export default function FSPSimulationPage() {
       setSessionId(data.session_id);
       setPhase("chat");
       setCurrentPhase("patient");
-      setMessages([{ role: "patient", message: data.opening_message, phase: "patient", audio: data.audio }]);
+      setMessages([{ role: "patient", message: data.opening_message, phase: "patient" }]);
     } catch (err) {
       const detail = err.response?.data?.detail || "Fehler beim Starten";
       if (typeof detail === "string") {
@@ -79,7 +71,7 @@ export default function FSPSimulationPage() {
     setSending(true);
     try {
       const data = await chatFSP(sessionId, msg);
-      setMessages(prev => [...prev, { role: data.phase, message: data.reply, phase: data.phase, audio: data.audio }]);
+      setMessages(prev => [...prev, { role: data.phase, message: data.reply, phase: data.phase }]);
       setCanSwitch(data.can_switch);
       setCanEnd(data.can_end);
     } catch (err) {
@@ -95,7 +87,7 @@ export default function FSPSimulationPage() {
       const data = await switchToExaminer(sessionId);
       setCurrentPhase("examiner");
       setCanSwitch(false);
-      setMessages(prev => [...prev, { role: "examiner", message: data.examiner_opening, phase: "examiner", audio: data.audio }]);
+      setMessages(prev => [...prev, { role: "examiner", message: data.examiner_opening, phase: "examiner" }]);
     } catch (err) {
       // silent
     } finally {

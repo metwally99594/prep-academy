@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
 from typing import Optional
 import uuid, json, os, re as _re, httpx, time as _time
-from groq import Groq
 from datetime import datetime, timezone
 from auth import get_current_user
 
@@ -50,16 +49,6 @@ async def _call_or(system: str, user: str, max_tokens: int = 500, temp: float = 
         raise HTTPException(503, f"FSP-AI fehlgeschlagen: {str(d)[:200]}")
 
 
-async def text_to_speech(text: str, voice: str = "de-DE-KatjaNeural") -> str:
-    import edge_tts
-    import io as _io
-    communicate = edge_tts.Communicate(text[:2500], voice, rate="-5%")
-    buf = _io.BytesIO()
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            buf.write(chunk["data"])
-    return base64.b64encode(buf.getvalue()).decode()
-
 @router.post("/fsp/start")
 async def fsp_start(body: dict, user: dict = Depends(get_current_user)):
     from database import db
@@ -106,8 +95,7 @@ Regeln:
         "updated_at": now,
     }
     await db.fsp_sessions.insert_one(session)
-    audio = await text_to_speech(opening)
-    return {"session_id": session_id, "opening_message": opening, "phase": "patient", "audio": audio}
+    return {"session_id": session_id, "opening_message": opening, "phase": "patient"}
 
 
 @router.post("/fsp/chat")
@@ -182,13 +170,11 @@ Regeln:
     can_switch = phase == "patient" and patient_msgs >= 5
     can_end = phase == "examiner" and examiner_msgs >= 5
 
-    audio = await text_to_speech(reply)
     return {
         "reply": reply,
         "phase": phase,
         "can_switch": can_switch,
         "can_end": can_end,
-        "audio": audio,
     }
 
 
@@ -223,8 +209,7 @@ Regeln:
         {"session_id": session_id},
         {"$set": {"phase": "examiner", "history": session["history"], "updated_at": now}}
     )
-    audio = await text_to_speech(opening, "de-DE-ConradNeural")
-    return {"examiner_opening": opening, "phase": "examiner", "audio": audio}
+    return {"examiner_opening": opening, "phase": "examiner"}
 
 
 @router.post("/fsp/evaluate")
@@ -292,23 +277,23 @@ Antworte NUR mit einem gültigen JSON-Objekt, keinem anderen Text:
 
 @router.post("/fsp/transcribe")
 async def fsp_transcribe(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
-    groq_key = os.environ.get("GROQ_API_KEY")
-    if not groq_key:
-        raise HTTPException(503, "Transkription nicht verfügbar — setze GROQ_API_KEY im Render Dashboard")
+    if not OR_KEY:
+        raise HTTPException(503, "Transkription nicht verfügbar — OPENROUTER_API_KEY fehlt")
     raw = await file.read()
     if not raw:
         raise HTTPException(400, "Leere Audio-Datei")
     try:
-        client = Groq(api_key=groq_key)
-        transcript = client.audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=("audio.webm", raw, "audio/webm"),
-            language="de",
-        )
-        text = transcript.text or ""
-        if not text:
-            raise HTTPException(502, "Transkription fehlgeschlagen — kein Text erhalten")
-        return {"transcript": text}
-    except Exception as e:
-        print(f"TRANSCRIBE ERROR: {type(e).__name__}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        async with httpx.AsyncClient(timeout=30.0) as cl:
+            r = await cl.post(
+                "https://openrouter.ai/api/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {OR_KEY}"},
+                files={"file": ("audio.webm", raw, "audio/webm")},
+                data={"model": "whisper-1", "language": "de"},
+            )
+            data = r.json()
+            text = data.get("text") or data.get("transcript") or ""
+            if not text:
+                raise HTTPException(502, f"Transkription fehlgeschlagen: {str(data)[:200]}")
+            return {"transcript": text}
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Transkription zeitüberschreitung")

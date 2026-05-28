@@ -32,9 +32,9 @@ logger = logging.getLogger("daily-podcast")
 
 # Same speaker presets as the notebook podcast
 PODCAST_SPEAKERS = {
-    "de": ("de-DE-KatjaNeural", "de-DE-ConradNeural"),
-    "en": ("en-US-JennyNeural", "en-US-TonyNeural"),
-    "ar": ("ar-SA-ZariyahNeural","ar-SA-HamedNeural"),
+    "de": ("de-AT-IngridNeural", "de-AT-JonasNeural"),
+    "en": ("en-US-AvaNeural",    "en-US-AndrewNeural"),
+    "ar": ("ar-EG-SalmaNeural",  "ar-EG-ShakirNeural"),
     "ru": ("ru-RU-SvetlanaNeural","ru-RU-DmitryNeural"),
     "uk": ("uk-UA-PolinaNeural", "uk-UA-OstapNeural"),
 }
@@ -283,39 +283,36 @@ _GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
 
 
 async def _synthesize_podcast(script: str, language: str) -> str:
-    """Generate base64 MP3 using edge-tts — plain text only, no SSML."""
-    import edge_tts
-
-    voices = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])
-    mod_voice, exp_voice = voices
+    """Generate base64 MP3 using gTTS (works on cloud servers unlike edge-tts)."""
+    lang = _GTTS_LANG.get(language, "de")
     parts = _split_speaker_parts(script)
-    if not parts:
-        return ""
-
+    loop = asyncio.get_running_loop()
     audio_chunks = []
-    for speaker, text in parts:
+
+    for _, text in parts:
         if not text:
             continue
-        voice = mod_voice if speaker == "moderator" else exp_voice
+        text = text[:2500]
+
+        def _render(t=text, l=lang):
+            buf = io.BytesIO()
+            gTTS(text=t, lang=l, slow=False).write_to_fp(buf)
+            return buf.getvalue()
+
         try:
-            c = edge_tts.Communicate(text[:2500], voice, rate="-5%")
-            buf = bytearray()
-            async for chunk in c.stream():
-                if chunk["type"] == "audio":
-                    buf.extend(chunk["data"])
-            if buf:
-                audio_chunks.append(bytes(buf))
+            chunk = await loop.run_in_executor(None, _render)
+            audio_chunks.append(chunk)
         except Exception as e:
-            logger.warning(f"edge-tts failed for {speaker}/{voice}: {e}")
+            logger.warning(f"gTTS chunk failed for lang={language}: {e}")
 
     if not audio_chunks:
-        logger.error(f"edge-tts produced no audio for language={language}")
-        return ""
-    return base64.b64encode(b"".join(audio_chunks)).decode("ascii")
+        logger.error(f"gTTS produced no audio chunks for language={language}")
+    return base64.b64encode(b"".join(audio_chunks)).decode("ascii") if audio_chunks else ""
 
 
-async def _get_random_mcq(db, specialty_id: str = None, country: str = None, exam_location: str = None) -> Optional[dict]:
-    """Pick a random unused MCQ from the database. Optionally filter by specialty/country/location."""
+async def _get_random_mcq(db) -> Optional[dict]:
+    """Pick a random unused MCQ from the database. Avoids re-using questions used in the last 30 days."""
+    # Get questions used in last 30 days to skip them
     thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     used = set()
     async for d in db.daily_podcasts.find(
@@ -325,25 +322,21 @@ async def _get_random_mcq(db, specialty_id: str = None, country: str = None, exa
         if d.get("source_question_id"):
             used.add(d["source_question_id"])
 
-    match_and = [
-        {"$or": [
-            {"choices": {"$exists": True, "$ne": []}},
-            {"choices_de": {"$exists": True, "$ne": []}},
-        ]},
-        {"$or": [
-            {"question_text": {"$exists": True, "$ne": ""}},
-            {"question_text_de": {"$exists": True, "$ne": ""}},
-        ]},
-    ]
-    if specialty_id:
-        match_and.append({"specialty_id": specialty_id})
-    if country:
-        match_and.append({"country": country})
-    if exam_location:
-        match_and.append({"exam_location": exam_location})
-
+    # Random sample from questions collection (use $sample aggregation)
     pipeline = [
-        {"$match": {"$and": match_and, "id": {"$nin": list(used)}}},
+        {"$match": {
+            "$and": [
+                {"$or": [
+                    {"choices": {"$exists": True, "$ne": []}},
+                    {"choices_de": {"$exists": True, "$ne": []}},
+                ]},
+                {"$or": [
+                    {"question_text": {"$exists": True, "$ne": ""}},
+                    {"question_text_de": {"$exists": True, "$ne": ""}},
+                ]},
+            ],
+            "id": {"$nin": list(used)},
+        }},
         {"$sample": {"size": 1}},
         {"$project": {"_id": 0}},
     ]
@@ -383,11 +376,10 @@ async def _format_mcq_for_prompt(q: dict, db) -> dict:
     }
 
 
-async def generate_daily_podcast(db, language: str, specialty: str = None, force: bool = False,
-                                  specialty_id: str = None, country: str = None, exam_location: str = None) -> Optional[dict]:
+async def generate_daily_podcast(db, language: str, specialty: str = None, force: bool = False) -> Optional[dict]:
     """
     Generate one daily podcast for a language. Returns the saved doc or None on failure.
-    Sources real MCQ questions from the database.
+    Now sources real MCQ questions from the database and builds a clinical case around them.
     """
     today = datetime.now(timezone.utc).date().isoformat()
     if not force:
@@ -399,8 +391,8 @@ async def generate_daily_podcast(db, language: str, specialty: str = None, force
             logger.info(f"Daily podcast already exists for {today}/{language}")
             return existing
 
-    # 1. Get a real MCQ from the database (with optional filters)
-    mcq = await _get_random_mcq(db, specialty_id=specialty_id, country=country, exam_location=exam_location)
+    # 1. Get a real MCQ from the database
+    mcq = await _get_random_mcq(db)
     if mcq:
         mcq_data = await _format_mcq_for_prompt(mcq, db)
         specialty = mcq_data["specialty"]
@@ -582,35 +574,18 @@ def make_router(db, get_current_user):
         language: str = "de"
         force: bool = True
 
-    class ReseedRequest(BaseModel):
-        specialty_id: Optional[str] = "surgery"
-        country: Optional[str] = "austria"
-        exam_location: Optional[str] = None
-        languages: Optional[list[str]] = None  # defaults to all supported
-
-    @router.post("/admin/reseed")
-    async def admin_reseed(req: ReseedRequest, user: dict = Depends(get_current_user)):
-        """Admin: delete ALL daily podcasts and regenerate using filtered questions."""
+    @router.post("/admin/cleanup")
+    async def admin_cleanup_podcasts(user: dict = Depends(get_current_user)):
+        """Delete all daily podcasts except today's. Admin only."""
         if not user.get("is_admin"):
             raise HTTPException(status_code=403, detail="Admin only")
-        # Delete ALL daily podcasts (every date, every language)
-        del_result = await db.daily_podcasts.delete_many({})
-        await db.custom_podcasts.delete_many({})
-        langs = req.languages or SUPPORTED_LANGS
-        results = {}
-        for lang in langs:
-            doc = await generate_daily_podcast(
-                db, lang, force=True,
-                specialty_id=req.specialty_id,
-                country=req.country,
-                exam_location=req.exam_location,
-            )
-            results[lang] = {"success": doc is not None, "title": doc.get("title") if doc else None}
-            await asyncio.sleep(2)
+        today = datetime.now(timezone.utc).date().isoformat()
+        daily_result = await db.daily_podcasts.delete_many({"date": {"$ne": today}})
+        custom_result = await db.custom_podcasts.delete_many({})
         return {
-            "deleted_daily": del_result.deleted_count,
-            "languages": results,
-            "filters": {"specialty_id": req.specialty_id, "country": req.country, "exam_location": req.exam_location},
+            "deleted_daily": daily_result.deleted_count,
+            "deleted_custom": custom_result.deleted_count,
+            "message": f"Deleted {daily_result.deleted_count} old daily + {custom_result.deleted_count} custom podcast(s)"
         }
 
     @router.post("/admin/generate")
