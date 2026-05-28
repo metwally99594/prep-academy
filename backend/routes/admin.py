@@ -1,7 +1,7 @@
 """Admin Routes: Import/Export, User Management, Bulk Operations, Stats"""
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, Response, Request
 from typing import Optional
-import uuid, json, re as _re, io, base64 as _b64, os as _os
+import uuid, json, re as _re, io, base64 as _b64, os as _os, asyncio
 from datetime import datetime, timezone
 
 from database import db, logger
@@ -523,26 +523,32 @@ async def import_kp_reports_bulk(admin: dict = Depends(get_admin_user), request:
         protocols = body.get("reports") or body.get("protokolle") or body.get("protocols") or []
     if not isinstance(protocols, list) or len(protocols) == 0:
         raise HTTPException(status_code=400, detail="JSON array or object with 'reports'/'protokolle'/'protocols' array expected")
-    normalized = []
-    for p in protocols:
-        state = p.get("state") or p.get("bundesland") or "Deutschland"
-        main_case = p.get("main_case") or p.get("diagnosis") or "Unbekannt"
-        full_text = p.get("full_text") or p.get("text") or p.get("content") or p.get("bericht") or ""
-        passed = p.get("passed") or p.get("result") or "unbekannt"
-        doc = {
-            "id": p.get("id") or p.get("protocol_id") or str(uuid.uuid4()),
-            "state": state,
-            "date": p.get("date", ""),
-            "year": p.get("year", 2024),
-            "passed": passed,
-            "main_case": main_case,
-            "author": p.get("author", ""),
-            "topics_asked": p.get("topics_asked") or p.get("topics") or p.get("themen") or [],
-            "questions_highlighted": p.get("questions_highlighted") or p.get("highlights") or p.get("fragen") or [],
-            "difficulty": p.get("difficulty", ""),
-            "examiner_notes": p.get("examiner_notes") or p.get("notes") or p.get("notizen") or "",
-            "full_text": full_text,
-        }
-        normalized.append(doc)
-    result = await db.kp_reports.insert_many(normalized, ordered=False)
-    return {"inserted": len(result.inserted_ids)}
+    inserted = 0
+    BATCH_SIZE = 50
+    for i in range(0, len(protocols), BATCH_SIZE):
+        batch = protocols[i:i+BATCH_SIZE]
+        normalized = []
+        for p in batch:
+            state = p.get("state") or p.get("bundesland") or "Deutschland"
+            main_case = p.get("main_case") or p.get("diagnosis") or "Unbekannt"
+            full_text = p.get("full_text") or p.get("text") or p.get("content") or p.get("bericht") or ""
+            passed = p.get("passed") or p.get("result") or "unbekannt"
+            doc = {
+                "id": p.get("id") or p.get("protocol_id") or str(uuid.uuid4()),
+                "state": state,
+                "date": p.get("date", ""),
+                "year": p.get("year", 2024),
+                "passed": passed,
+                "main_case": main_case,
+                "author": p.get("author", ""),
+                "topics_asked": p.get("topics_asked") or p.get("topics") or p.get("themen") or [],
+                "questions_highlighted": p.get("questions_highlighted") or p.get("highlights") or p.get("fragen") or [],
+                "difficulty": p.get("difficulty", ""),
+                "examiner_notes": p.get("examiner_notes") or p.get("notes") or p.get("notizen") or "",
+                "full_text": full_text,
+            }
+            normalized.append(doc)
+        result = await db.kp_reports.insert_many(normalized, ordered=False)
+        inserted += len(result.inserted_ids)
+        await asyncio.sleep(0)
+    return {"inserted": inserted}
