@@ -240,9 +240,12 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
                 if "choices" in data and data["choices"]:
                     content = data["choices"][0]["message"].get("content") or ""
                     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-                    if content:
+                    # Validate: must have at least one [Moderator] or [Host] or [المقدم] etc.
+                    if content and re.search(r'\[?\s*(Moderator|Host|Experte|Expert|المقدم|الخبير|Ведущий|Эксперт|Ведучий|Експерт)\]?', content, re.IGNORECASE):
                         return content
-                logger.warning(f"OpenRouter model {model} no content: {str(data)[:300]}")
+                    logger.warning(f"OpenRouter model {model} returned invalid script (no speaker tags): {content[:200]}")
+                else:
+                    logger.warning(f"OpenRouter model {model} no content: {str(data)[:300]}")
         except Exception as e:
             logger.warning(f"OpenRouter model {model} exception: {e}")
 
