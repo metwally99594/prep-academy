@@ -53,7 +53,7 @@ async def _call_or(system: str, user: str, max_tokens: int = 500, temp: float = 
 async def text_to_speech(text: str, voice: str = "de-DE-KatjaNeural") -> str:
     import edge_tts
     import io as _io
-    communicate = edge_tts.Communicate(text, voice=voice)
+    communicate = edge_tts.Communicate(text, voice=voice, rate="-5%", pitch="+0Hz")
     buf = _io.BytesIO()
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":

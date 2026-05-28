@@ -32,9 +32,9 @@ logger = logging.getLogger("daily-podcast")
 
 # Same speaker presets as the notebook podcast
 PODCAST_SPEAKERS = {
-    "de": ("de-AT-IngridNeural", "de-AT-JonasNeural"),
-    "en": ("en-US-AvaNeural",    "en-US-AndrewNeural"),
-    "ar": ("ar-EG-SalmaNeural",  "ar-EG-ShakirNeural"),
+    "de": ("de-DE-KatjaNeural", "de-DE-ConradNeural"),
+    "en": ("en-US-JennyNeural", "en-US-TonyNeural"),
+    "ar": ("ar-SA-ZariyahNeural","ar-SA-HamedNeural"),
     "ru": ("ru-RU-SvetlanaNeural","ru-RU-DmitryNeural"),
     "uk": ("uk-UA-PolinaNeural", "uk-UA-OstapNeural"),
 }
@@ -295,7 +295,7 @@ async def _synthesize_podcast(script: str, language: str) -> str:
             continue
         voice = mod_voice if speaker == "moderator" else exp_voice
         try:
-            communicate = edge_tts.Communicate(text[:2500], voice)
+            communicate = edge_tts.Communicate(text[:2500], voice, rate="-5%", pitch="+0Hz")
             buf = bytearray()
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
