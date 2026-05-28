@@ -81,6 +81,7 @@ import {
   Play,
   Search,
   FileText,
+  GraduationCap,
 } from "lucide-react";
 
 const SPECIALTIES = [
@@ -603,6 +604,45 @@ function ImportQuestionsTab({ token, onImportComplete }) {
           </div>
         </details>
       </div>
+    </div>
+  );
+}
+
+function MasterclassAdminTab({ token }) {
+  const [seeding, setSeeding] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    setResult(null);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.post(`${API}/admin/masterclass/seed`, {}, { headers });
+      setResult({ ok: true, message: `✅ ${res.data.created} Levels erfolgreich erstellt (insgesamt ${res.data.total_levels})` });
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join("; ") : (detail || "Fehler beim Seed");
+      setResult({ ok: false, message: `❌ ${msg}` });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">Masterclass</h2>
+      <p className="text-muted-foreground">
+        Erstellt 90 Lerneinheiten in der Datenbank (wird übersprungen wenn bereits vorhanden)
+      </p>
+      <Button onClick={handleSeed} disabled={seeding} className="gap-2">
+        {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+        🎓 90 Levels seeden
+      </Button>
+      {result && (
+        <div className={`p-4 rounded-xl text-sm ${result.ok ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+          {result.message}
+        </div>
+      )}
     </div>
   );
 }
@@ -1230,6 +1270,10 @@ export default function AdminPage() {
           <TabsTrigger value="kp-reports" className="gap-2">
             <FileText className="w-4 h-4" />
             KP Protokolle
+          </TabsTrigger>
+          <TabsTrigger value="masterclass" className="gap-2">
+            <GraduationCap className="w-4 h-4" />
+            Masterclass
           </TabsTrigger>
           <TabsTrigger value="access-requests" className="gap-2" data-testid="access-requests-tab">
             <ShieldCheck className="w-4 h-4" />
@@ -2407,6 +2451,10 @@ export default function AdminPage() {
               </p>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="masterclass">
+          <MasterclassAdminTab token={token} />
         </TabsContent>
 
         <TabsContent value="access-requests">
