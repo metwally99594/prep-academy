@@ -705,6 +705,9 @@ export default function AdminPage() {
   const [kpJsonText, setKpJsonText] = useState("");
   const [kpImportResult, setKpImportResult] = useState(null);
   const [kpImporting, setKpImporting] = useState(false);
+  const [kpBulkFile, setKpBulkFile] = useState(null);
+  const [kpBulkImporting, setKpBulkImporting] = useState(false);
+  const [kpBulkResult, setKpBulkResult] = useState(null);
   const batchTotal = React.useMemo(() => Object.values(batchMix).reduce((a, b) => a + b, 0), [batchMix]);
   const PAGE_SIZE = 30;
   const { token } = useAuth();
@@ -782,6 +785,32 @@ export default function AdminPage() {
       toast.error(msg);
     } finally {
       setKpImporting(false);
+    }
+  };
+
+  const handleKpBulkImport = async () => {
+    if (!kpBulkFile) { toast.error("Bitte eine JSON-Datei auswählen"); return; }
+    setKpBulkImporting(true);
+    setKpBulkResult(null);
+    try {
+      const text = await kpBulkFile.text();
+      const data = JSON.parse(text);
+      if (!Array.isArray(data)) {
+        toast.error("JSON muss ein Array sein");
+        setKpBulkImporting(false);
+        return;
+      }
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.post(`${API}/admin/kp-reports/import-bulk`, data, { headers });
+      setKpBulkResult({ message: `${res.data.inserted} Protokolle importiert`, error: false });
+      toast.success(`${res.data.inserted} Protokolle importiert`);
+    } catch (err) {
+      const msg = _safeErr(err, err.message || "Fehler beim Import");
+      setKpBulkResult({ message: msg, error: true });
+      toast.error(msg);
+    } finally {
+      setKpBulkImporting(false);
+      setKpBulkFile(null);
     }
   };
 
@@ -1234,65 +1263,65 @@ export default function AdminPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="questions" className="gap-2">
+        <TabsList style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: '1px solid var(--border)', gap: '2px', marginBottom: '24px', background: 'transparent', padding: 0, height: 'auto' }}>
+          <TabsTrigger value="questions" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <FileQuestion className="w-4 h-4" />
             Fragen
           </TabsTrigger>
-          <TabsTrigger value="users" className="gap-2">
+          <TabsTrigger value="users" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <Users className="w-4 h-4" />
             Benutzer
           </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="gap-2">
+          <TabsTrigger value="leaderboard" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <Trophy className="w-4 h-4" />
             Rangliste
           </TabsTrigger>
-          <TabsTrigger value="export" className="gap-2">
+          <TabsTrigger value="export" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <Download className="w-4 h-4" />
             Export
           </TabsTrigger>
-          <TabsTrigger value="import" className="gap-2" data-testid="import-tab">
+          <TabsTrigger value="import" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="import-tab">
             <Upload className="w-4 h-4" />
             Import
           </TabsTrigger>
-          <TabsTrigger value="duplicates" className="gap-2" data-testid="duplicates-tab" onClick={() => { if (!duplicates) fetchDuplicates(); }}>
+          <TabsTrigger value="duplicates" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="duplicates-tab" onClick={() => { if (!duplicates) fetchDuplicates(); }}>
             <Copy className="w-4 h-4" />
             Duplikate
           </TabsTrigger>
-          <TabsTrigger value="batch-generator" className="gap-2" onClick={() => fetchNotebooks()}>
+          <TabsTrigger value="batch-generator" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" onClick={() => fetchNotebooks()}>
             <Sparkles className="w-4 h-4" />
             Batch Generator
           </TabsTrigger>
-          <TabsTrigger value="reports" className="gap-2" data-testid="reports-tab">
+          <TabsTrigger value="reports" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="reports-tab">
             <Flag className="w-4 h-4" />
             Meldungen
           </TabsTrigger>
-          <TabsTrigger value="kp-reports" className="gap-2">
+          <TabsTrigger value="kp-reports" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <FileText className="w-4 h-4" />
             KP Protokolle
           </TabsTrigger>
-          <TabsTrigger value="masterclass" className="gap-2">
+          <TabsTrigger value="masterclass" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <GraduationCap className="w-4 h-4" />
             Masterclass
           </TabsTrigger>
-          <TabsTrigger value="access-requests" className="gap-2" data-testid="access-requests-tab">
+          <TabsTrigger value="access-requests" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="access-requests-tab">
             <ShieldCheck className="w-4 h-4" />
             Zugang
           </TabsTrigger>
-          <TabsTrigger value="tags" className="gap-2" data-testid="tags-tab">
+          <TabsTrigger value="tags" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="tags-tab">
             <Tag className="w-4 h-4" />
             Tags
           </TabsTrigger>
-          <TabsTrigger value="podcast" className="gap-2" data-testid="podcast-tab">
+          <TabsTrigger value="podcast" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="podcast-tab">
             <Headphones className="w-4 h-4" />
             Daily Podcast
           </TabsTrigger>
-          <TabsTrigger value="online" className="gap-2">
+          <TabsTrigger value="online" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <Wifi className="w-4 h-4" />
             Online
           </TabsTrigger>
           {process.env.REACT_APP_ADVANCED === "true" && (
-            <TabsTrigger value="rag" className="gap-2" data-testid="rag-tab">
+            <TabsTrigger value="rag" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="rag-tab">
               <ShieldCheck className="w-4 h-4" />
               RAG Knowledge
             </TabsTrigger>
@@ -2413,6 +2442,51 @@ export default function AdminPage() {
                   <Button onClick={importKpReportsJson} disabled={kpImporting || !kpJsonText.trim()} className="gap-2">
                     {kpImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     {kpImporting ? "Importiert..." : "JSON importieren"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Bulk Import JSON from File */}
+            <div className="glass-card rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Upload className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-semibold">Bulk Import JSON</h2>
+              </div>
+              <div className="space-y-4">
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-primary/30 rounded-2xl cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-all">
+                  <Upload className="w-8 h-8 text-primary/50 mb-2" />
+                  <span className="text-sm font-medium text-primary">
+                    {kpBulkFile ? kpBulkFile.name : "JSON-Datei auswählen (.json)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files[0];
+                      if (!f) return;
+                      if (!f.name.endsWith('.json')) {
+                        toast.error("Nur JSON-Dateien sind erlaubt");
+                        return;
+                      }
+                      setKpBulkFile(f);
+                      setKpBulkResult(null);
+                    }}
+                  />
+                </label>
+                {kpBulkResult && (
+                  <div className={`p-3 rounded-lg text-sm ${kpBulkResult.error ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+                    {kpBulkResult.message}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => { setKpBulkFile(null); setKpBulkResult(null); }}>
+                    Zurücksetzen
+                  </Button>
+                  <Button onClick={handleKpBulkImport} disabled={kpBulkImporting || !kpBulkFile} className="gap-2">
+                    {kpBulkImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {kpBulkImporting ? "Importiert..." : "📥 Bulk Import JSON"}
                   </Button>
                 </div>
               </div>
