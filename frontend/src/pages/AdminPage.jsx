@@ -1263,65 +1263,65 @@ export default function AdminPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList style={{ display: 'flex', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', borderBottom: '1px solid var(--border)', gap: '2px', marginBottom: '24px', background: 'transparent', padding: 0, height: 'auto' }}>
-          <TabsTrigger value="questions" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+        <TabsList className="flex flex-wrap gap-x-1 gap-y-2 border-b border-border mb-6 bg-transparent p-0 h-auto">
+          <TabsTrigger value="questions" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <FileQuestion className="w-4 h-4" />
             Fragen
           </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+          <TabsTrigger value="users" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <Users className="w-4 h-4" />
             Benutzer
           </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+          <TabsTrigger value="leaderboard" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <Trophy className="w-4 h-4" />
             Rangliste
           </TabsTrigger>
-          <TabsTrigger value="export" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+          <TabsTrigger value="export" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <Download className="w-4 h-4" />
             Export
           </TabsTrigger>
-          <TabsTrigger value="import" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="import-tab">
+          <TabsTrigger value="import" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="import-tab">
             <Upload className="w-4 h-4" />
             Import
           </TabsTrigger>
-          <TabsTrigger value="duplicates" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="duplicates-tab" onClick={() => { if (!duplicates) fetchDuplicates(); }}>
+          <TabsTrigger value="duplicates" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="duplicates-tab" onClick={() => { if (!duplicates) fetchDuplicates(); }}>
             <Copy className="w-4 h-4" />
             Duplikate
           </TabsTrigger>
-          <TabsTrigger value="batch-generator" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" onClick={() => fetchNotebooks()}>
+          <TabsTrigger value="batch-generator" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" onClick={() => fetchNotebooks()}>
             <Sparkles className="w-4 h-4" />
             Batch Generator
           </TabsTrigger>
-          <TabsTrigger value="reports" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="reports-tab">
+          <TabsTrigger value="reports" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="reports-tab">
             <Flag className="w-4 h-4" />
             Meldungen
           </TabsTrigger>
-          <TabsTrigger value="kp-reports" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+          <TabsTrigger value="kp-reports" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <FileText className="w-4 h-4" />
             KP Protokolle
           </TabsTrigger>
-          <TabsTrigger value="masterclass" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+          <TabsTrigger value="masterclass" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <GraduationCap className="w-4 h-4" />
             Masterclass
           </TabsTrigger>
-          <TabsTrigger value="access-requests" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="access-requests-tab">
+          <TabsTrigger value="access-requests" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="access-requests-tab">
             <ShieldCheck className="w-4 h-4" />
             Zugang
           </TabsTrigger>
-          <TabsTrigger value="tags" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="tags-tab">
+          <TabsTrigger value="tags" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="tags-tab">
             <Tag className="w-4 h-4" />
             Tags
           </TabsTrigger>
-          <TabsTrigger value="podcast" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="podcast-tab">
+          <TabsTrigger value="podcast" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="podcast-tab">
             <Headphones className="w-4 h-4" />
             Daily Podcast
           </TabsTrigger>
-          <TabsTrigger value="online" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+          <TabsTrigger value="online" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <Wifi className="w-4 h-4" />
             Online
           </TabsTrigger>
           {process.env.REACT_APP_ADVANCED === "true" && (
-            <TabsTrigger value="rag" className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-colors rounded-none bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none" data-testid="rag-tab">
+            <TabsTrigger value="rag" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="rag-tab">
               <ShieldCheck className="w-4 h-4" />
               RAG Knowledge
             </TabsTrigger>
