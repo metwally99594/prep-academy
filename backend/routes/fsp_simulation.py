@@ -50,6 +50,16 @@ async def _call_or(system: str, user: str, max_tokens: int = 500, temp: float = 
         raise HTTPException(503, f"FSP-AI fehlgeschlagen: {str(d)[:200]}")
 
 
+async def text_to_speech(text: str, voice: str = "de-DE-KatjaNeural") -> str:
+    import edge_tts
+    import io as _io
+    communicate = edge_tts.Communicate(text, voice=voice)
+    buf = _io.BytesIO()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buf.write(chunk["data"])
+    return base64.b64encode(buf.getvalue()).decode()
+
 @router.post("/fsp/start")
 async def fsp_start(body: dict, user: dict = Depends(get_current_user)):
     from database import db
@@ -96,7 +106,8 @@ Regeln:
         "updated_at": now,
     }
     await db.fsp_sessions.insert_one(session)
-    return {"session_id": session_id, "opening_message": opening, "phase": "patient"}
+    audio = await text_to_speech(opening)
+    return {"session_id": session_id, "opening_message": opening, "phase": "patient", "audio": audio}
 
 
 @router.post("/fsp/chat")
@@ -171,11 +182,13 @@ Regeln:
     can_switch = phase == "patient" and patient_msgs >= 5
     can_end = phase == "examiner" and examiner_msgs >= 5
 
+    audio = await text_to_speech(reply)
     return {
         "reply": reply,
         "phase": phase,
         "can_switch": can_switch,
         "can_end": can_end,
+        "audio": audio,
     }
 
 
@@ -210,7 +223,8 @@ Regeln:
         {"session_id": session_id},
         {"$set": {"phase": "examiner", "history": session["history"], "updated_at": now}}
     )
-    return {"examiner_opening": opening, "phase": "examiner"}
+    audio = await text_to_speech(opening, "de-DE-ConradNeural")
+    return {"examiner_opening": opening, "phase": "examiner", "audio": audio}
 
 
 @router.post("/fsp/evaluate")
