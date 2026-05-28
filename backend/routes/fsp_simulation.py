@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
 from typing import Optional
-import uuid, json, os, re as _re, httpx, time as _time, openai
+import uuid, json, os, re as _re, httpx, time as _time
+from groq import Groq
 from datetime import datetime, timezone
 from auth import get_current_user
 
@@ -277,16 +278,16 @@ Antworte NUR mit einem gültigen JSON-Objekt, keinem anderen Text:
 
 @router.post("/fsp/transcribe")
 async def fsp_transcribe(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(503, "Transkription nicht verfügbar — setze OPENAI_API_KEY im Render Dashboard (Whisper läuft nur auf OpenAI, nicht auf OpenRouter)")
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if not groq_key:
+        raise HTTPException(503, "Transkription nicht verfügbar — setze GROQ_API_KEY im Render Dashboard")
     raw = await file.read()
     if not raw:
         raise HTTPException(400, "Leere Audio-Datei")
     try:
-        client = openai.OpenAI(api_key=api_key)
+        client = Groq(api_key=groq_key)
         transcript = client.audio.transcriptions.create(
-            model="whisper-1",
+            model="whisper-large-v3",
             file=("audio.webm", raw, "audio/webm"),
             language="de",
         )
