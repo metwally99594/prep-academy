@@ -51,10 +51,14 @@ async def _call_or(system: str, user: str, max_tokens: int = 500, temp: float = 
 
 
 async def text_to_speech(text: str, voice: str = "de-DE-KatjaNeural") -> str:
-    import edge_tts, re
+    import edge_tts
+    from xml.sax.saxutils import escape
     import io as _io
-    t = re.sub(r'([.!?])\s+', lambda m: m.group(1) + '<break time="350ms"/> ', text)
-    t = re.sub(r',\s+', '<break time="120ms"/> ', t)
+    t = escape(text[:2500])
+    t = t.replace(". ", ".<break time=\"350ms\"/> ")
+    t = t.replace("? ", "?<break time=\"350ms\"/> ")
+    t = t.replace("! ", "!<break time=\"350ms\"/> ")
+    t = t.replace(", ", ",<break time=\"120ms\"/> ")
     ssml = f'<speak version="1.0" xml:lang="de-DE"><prosody rate="-10%" pitch="+0Hz">{t}</prosody></speak>'
     communicate = edge_tts.Communicate(ssml, voice, rate="-10%", pitch="+0Hz")
     buf = _io.BytesIO()
