@@ -277,14 +277,14 @@ Antworte NUR mit einem gültigen JSON-Objekt, keinem anderen Text:
 
 @router.post("/fsp/transcribe")
 async def fsp_transcribe(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
-    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise HTTPException(503, "Transkription nicht verfügbar — OPENAI_API_KEY oder OPENROUTER_API_KEY fehlt")
+        raise HTTPException(503, "Transkription nicht verfügbar — setze OPENAI_API_KEY im Render Dashboard (Whisper läuft nur auf OpenAI, nicht auf OpenRouter)")
     raw = await file.read()
     if not raw:
         raise HTTPException(400, "Leere Audio-Datei")
     try:
-        client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+        client = openai.OpenAI(api_key=api_key)
         transcript = client.audio.transcriptions.create(
             model="whisper-1",
             file=("audio.webm", raw, "audio/webm"),
