@@ -283,31 +283,35 @@ _GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
 
 
 async def _synthesize_podcast(script: str, language: str) -> str:
-    """Generate base64 MP3 using gTTS (works on cloud servers unlike edge-tts)."""
-    lang = _GTTS_LANG.get(language, "de")
-    parts = _split_speaker_parts(script)
-    loop = asyncio.get_running_loop()
-    audio_chunks = []
+    """Generate base64 MP3 using edge-tts — one call per speaker, plain text only, no SSML."""
+    import edge_tts
 
-    for _, text in parts:
+    voices = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])
+    mod_voice, exp_voice = voices
+    parts = _split_speaker_parts(script)
+    if not parts:
+        return ""
+
+    audio_chunks = []
+    for speaker, text in parts:
         if not text:
             continue
-        text = text[:2500]
-
-        def _render(t=text, l=lang):
-            buf = io.BytesIO()
-            gTTS(text=t, lang=l, slow=False).write_to_fp(buf)
-            return buf.getvalue()
-
+        voice = mod_voice if speaker == "moderator" else exp_voice
         try:
-            chunk = await loop.run_in_executor(None, _render)
-            audio_chunks.append(chunk)
+            c = edge_tts.Communicate(text[:2500], voice, rate="-5%")
+            buf = bytearray()
+            async for chunk in c.stream():
+                if chunk["type"] == "audio":
+                    buf.extend(chunk["data"])
+            if buf:
+                audio_chunks.append(bytes(buf))
         except Exception as e:
-            logger.warning(f"gTTS chunk failed for lang={language}: {e}")
+            logger.warning(f"edge-tts failed for {speaker}/{voice}: {e}")
 
     if not audio_chunks:
-        logger.error(f"gTTS produced no audio chunks for language={language}")
-    return base64.b64encode(b"".join(audio_chunks)).decode("ascii") if audio_chunks else ""
+        logger.error(f"edge-tts produced no audio for language={language}")
+        return ""
+    return base64.b64encode(b"".join(audio_chunks)).decode("ascii")
 
 
 async def _get_random_mcq(db) -> Optional[dict]:
