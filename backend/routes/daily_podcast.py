@@ -286,35 +286,43 @@ _GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
 
 
 async def _synthesize_podcast(script: str, language: str) -> str:
-    """Generate base64 MP3 using edge-tts — one call per speaker, plain text only, no SSML."""
+    """Generate base64 MP3 — try edge-tts first, fall back to gTTS."""
     import edge_tts
 
-    voices = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])
-    mod_voice, exp_voice = voices
     parts = _split_speaker_parts(script)
     if not parts:
         return ""
 
-    audio_chunks = []
-    for speaker, text in parts:
-        if not text:
-            continue
-        voice = mod_voice if speaker == "moderator" else exp_voice
-        try:
-            c = edge_tts.Communicate(text[:2500], voice, rate="-5%")
-            buf = bytearray()
-            async for chunk in c.stream():
-                if chunk["type"] == "audio":
-                    buf.extend(chunk["data"])
-            if buf:
-                audio_chunks.append(bytes(buf))
-        except Exception as e:
-            logger.warning(f"edge-tts failed for {speaker}/{voice}: {e}")
-
-    if not audio_chunks:
-        logger.error(f"edge-tts produced no audio for language={language}")
+    full = " ".join(text[:2500] for _, text in parts if text)
+    if not full:
         return ""
-    return base64.b64encode(b"".join(audio_chunks)).decode("ascii")
+
+    voice = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])[0]
+    try:
+        c = edge_tts.Communicate(full, voice, rate="-5%")
+        buf = bytearray()
+        async for chunk in c.stream():
+            if chunk["type"] == "audio":
+                buf.extend(chunk["data"])
+        if buf:
+            logger.info(f"edge-tts OK: {len(buf)} bytes")
+            return base64.b64encode(bytes(buf)).decode("ascii")
+    except Exception as e:
+        logger.warning(f"edge-tts failed, fallback to gTTS: {e}")
+
+    # Fallback to gTTS
+    lang = _GTTS_LANG.get(language, "de")
+    loop = asyncio.get_running_loop()
+    try:
+        buf = io.BytesIO()
+        await loop.run_in_executor(None, lambda: gTTS(text=full[:2500], lang=lang, slow=False).write_to_fp(buf))
+        audio = buf.getvalue()
+        if audio:
+            logger.info(f"gTTS fallback OK: {len(audio)} bytes")
+            return base64.b64encode(audio).decode("ascii")
+    except Exception as e:
+        logger.error(f"gTTS also failed: {e}")
+    return ""
 
 
 async def _get_random_mcq(db) -> Optional[dict]:
