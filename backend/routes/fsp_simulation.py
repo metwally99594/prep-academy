@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
 from typing import Optional
-import uuid, json, os, re as _re, httpx, time as _time
+import uuid, json, os, re as _re, httpx, time as _time, openai
 from datetime import datetime, timezone
 from auth import get_current_user
 
@@ -277,23 +277,22 @@ Antworte NUR mit einem gültigen JSON-Objekt, keinem anderen Text:
 
 @router.post("/fsp/transcribe")
 async def fsp_transcribe(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
-    if not OR_KEY:
-        raise HTTPException(503, "Transkription nicht verfügbar — OPENROUTER_API_KEY fehlt")
+    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(503, "Transkription nicht verfügbar — OPENAI_API_KEY oder OPENROUTER_API_KEY fehlt")
     raw = await file.read()
     if not raw:
         raise HTTPException(400, "Leere Audio-Datei")
     try:
-        async with httpx.AsyncClient(timeout=30.0) as cl:
-            r = await cl.post(
-                "https://openrouter.ai/api/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {OR_KEY}"},
-                files={"file": ("audio.webm", raw, "audio/webm")},
-                data={"model": "whisper-1", "language": "de"},
-            )
-            data = r.json()
-            text = data.get("text") or data.get("transcript") or ""
-            if not text:
-                raise HTTPException(502, f"Transkription fehlgeschlagen: {str(data)[:200]}")
-            return {"transcript": text}
-    except httpx.TimeoutException:
-        raise HTTPException(504, "Transkription zeitüberschreitung")
+        client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=("audio.webm", raw, "audio/webm"),
+            language="de",
+        )
+        text = transcript.text or ""
+        if not text:
+            raise HTTPException(502, "Transkription fehlgeschlagen — kein Text erhalten")
+        return {"transcript": text}
+    except Exception as e:
+        raise HTTPException(500, f"Transkription fehlgeschlagen: {str(e)[:200]}")
