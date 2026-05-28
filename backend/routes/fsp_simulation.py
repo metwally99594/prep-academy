@@ -295,4 +295,5 @@ async def fsp_transcribe(file: UploadFile = File(...), user: dict = Depends(get_
             raise HTTPException(502, "Transkription fehlgeschlagen — kein Text erhalten")
         return {"transcript": text}
     except Exception as e:
-        raise HTTPException(500, f"Transkription fehlgeschlagen: {str(e)[:200]}")
+        print(f"TRANSCRIBE ERROR: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
