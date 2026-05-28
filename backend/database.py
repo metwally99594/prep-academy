@@ -8,16 +8,9 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-mongo_url = os.environ.get('MONGO_URL')
-if not mongo_url:
-    raise RuntimeError(
-        "FATAL: MONGO_URL environment variable is not set. "
-        "Set it in Render Dashboard → Environment Variables → MONGO_URL.\n"
-        "Example: mongodb+srv://user:pass@cluster.mongodb.net/medprep_prod?retryWrites=true&w=majority"
-    )
-db_name = os.environ.get('DB_NAME', 'medprep_prod')
+mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
-db = client[db_name]
+db = client[os.environ['DB_NAME']]
 
 # JWT settings — required in production, auto-generated ephemeral secret in dev
 _ENV = os.environ.get('ENV', 'production').lower()
