@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function VoiceInputButton({ onTranscribed }) {
   const [state, setState] = useState("idle");
@@ -41,9 +42,12 @@ export default function VoiceInputButton({ onTranscribed }) {
           const data = await transcribeAudio(blob);
           if (data?.transcript) {
             onTranscribed(data.transcript);
+          } else {
+            toast.error("Kein Transkript erhalten");
           }
-        } catch {
-          // silent
+        } catch (err) {
+          const msg = err?.response?.data?.detail || err?.message || "Transkription fehlgeschlagen";
+          toast.error(msg);
         }
         setState("idle");
       };
@@ -51,12 +55,22 @@ export default function VoiceInputButton({ onTranscribed }) {
       recorder.onerror = () => {
         stream.getTracks().forEach(t => t.stop());
         setState("idle");
+        toast.error("Aufnahmefehler");
       };
 
       recorder.start();
       setState("recording");
-    } catch {
+    } catch (err) {
       setState("idle");
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+        toast.error("Mikrofon-Zugriff verweigert — bitte erlauben in den Browser-Einstellungen");
+      } else if (err?.name === "NotFoundError") {
+        toast.error("Kein Mikrofon gefunden");
+      } else if (err?.name === "NotReadableError") {
+        toast.error("Mikrofon wird von einer anderen App verwendet");
+      } else {
+        toast.error(err?.message || "Mikrofon-Zugriff fehlgeschlagen");
+      }
     }
   }, [state, onTranscribed]);
 
