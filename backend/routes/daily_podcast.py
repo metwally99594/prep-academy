@@ -332,9 +332,8 @@ async def _synthesize_podcast(script: str, language: str) -> str:
         return ""
 
 
-async def _get_random_mcq(db) -> Optional[dict]:
-    """Pick a random unused MCQ from the database. Avoids re-using questions used in the last 30 days."""
-    # Get questions used in last 30 days to skip them
+async def _get_random_mcq(db, specialty_id: str = None, country: str = None, exam_location: str = None) -> Optional[dict]:
+    """Pick a random unused MCQ from the database. Optionally filter by specialty/country/location."""
     thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     used = set()
     async for d in db.daily_podcasts.find(
@@ -344,21 +343,25 @@ async def _get_random_mcq(db) -> Optional[dict]:
         if d.get("source_question_id"):
             used.add(d["source_question_id"])
 
-    # Random sample from questions collection (use $sample aggregation)
+    match_and = [
+        {"$or": [
+            {"choices": {"$exists": True, "$ne": []}},
+            {"choices_de": {"$exists": True, "$ne": []}},
+        ]},
+        {"$or": [
+            {"question_text": {"$exists": True, "$ne": ""}},
+            {"question_text_de": {"$exists": True, "$ne": ""}},
+        ]},
+    ]
+    if specialty_id:
+        match_and.append({"specialty_id": specialty_id})
+    if country:
+        match_and.append({"country": country})
+    if exam_location:
+        match_and.append({"exam_location": exam_location})
+
     pipeline = [
-        {"$match": {
-            "$and": [
-                {"$or": [
-                    {"choices": {"$exists": True, "$ne": []}},
-                    {"choices_de": {"$exists": True, "$ne": []}},
-                ]},
-                {"$or": [
-                    {"question_text": {"$exists": True, "$ne": ""}},
-                    {"question_text_de": {"$exists": True, "$ne": ""}},
-                ]},
-            ],
-            "id": {"$nin": list(used)},
-        }},
+        {"$match": {"$and": match_and, "id": {"$nin": list(used)}}},
         {"$sample": {"size": 1}},
         {"$project": {"_id": 0}},
     ]
@@ -398,10 +401,11 @@ async def _format_mcq_for_prompt(q: dict, db) -> dict:
     }
 
 
-async def generate_daily_podcast(db, language: str, specialty: str = None, force: bool = False) -> Optional[dict]:
+async def generate_daily_podcast(db, language: str, specialty: str = None, force: bool = False,
+                                  specialty_id: str = None, country: str = None, exam_location: str = None) -> Optional[dict]:
     """
     Generate one daily podcast for a language. Returns the saved doc or None on failure.
-    Now sources real MCQ questions from the database and builds a clinical case around them.
+    Sources real MCQ questions from the database.
     """
     today = datetime.now(timezone.utc).date().isoformat()
     if not force:
@@ -413,8 +417,8 @@ async def generate_daily_podcast(db, language: str, specialty: str = None, force
             logger.info(f"Daily podcast already exists for {today}/{language}")
             return existing
 
-    # 1. Get a real MCQ from the database
-    mcq = await _get_random_mcq(db)
+    # 1. Get a real MCQ from the database (with optional filters)
+    mcq = await _get_random_mcq(db, specialty_id=specialty_id, country=country, exam_location=exam_location)
     if mcq:
         mcq_data = await _format_mcq_for_prompt(mcq, db)
         specialty = mcq_data["specialty"]
@@ -596,18 +600,35 @@ def make_router(db, get_current_user):
         language: str = "de"
         force: bool = True
 
-    @router.post("/admin/cleanup")
-    async def admin_cleanup_podcasts(user: dict = Depends(get_current_user)):
-        """Delete all daily podcasts except today's. Admin only."""
+    class ReseedRequest(BaseModel):
+        specialty_id: Optional[str] = "surgery"
+        country: Optional[str] = "austria"
+        exam_location: Optional[str] = None
+        languages: Optional[list[str]] = None  # defaults to all supported
+
+    @router.post("/admin/reseed")
+    async def admin_reseed(req: ReseedRequest, user: dict = Depends(get_current_user)):
+        """Admin: delete ALL daily podcasts and regenerate using filtered questions."""
         if not user.get("is_admin"):
             raise HTTPException(status_code=403, detail="Admin only")
-        today = datetime.now(timezone.utc).date().isoformat()
-        daily_result = await db.daily_podcasts.delete_many({"date": {"$ne": today}})
-        custom_result = await db.custom_podcasts.delete_many({})
+        # Delete ALL daily podcasts (every date, every language)
+        del_result = await db.daily_podcasts.delete_many({})
+        await db.custom_podcasts.delete_many({})
+        langs = req.languages or SUPPORTED_LANGS
+        results = {}
+        for lang in langs:
+            doc = await generate_daily_podcast(
+                db, lang, force=True,
+                specialty_id=req.specialty_id,
+                country=req.country,
+                exam_location=req.exam_location,
+            )
+            results[lang] = {"success": doc is not None, "title": doc.get("title") if doc else None}
+            await asyncio.sleep(2)
         return {
-            "deleted_daily": daily_result.deleted_count,
-            "deleted_custom": custom_result.deleted_count,
-            "message": f"Deleted {daily_result.deleted_count} old daily + {custom_result.deleted_count} custom podcast(s)"
+            "deleted_daily": del_result.deleted_count,
+            "languages": results,
+            "filters": {"specialty_id": req.specialty_id, "country": req.country, "exam_location": req.exam_location},
         }
 
     @router.post("/admin/generate")
