@@ -240,10 +240,13 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
                 if "choices" in data and data["choices"]:
                     content = data["choices"][0]["message"].get("content") or ""
                     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-                    # Validate: must have at least one [Moderator] or [Host] or [المقدم] etc.
-                    if content and re.search(r'\[?\s*(Moderator|Host|Experte|Expert|المقدم|الخبير|Ведущий|Эксперт|Ведучий|Експерт)\]?', content, re.IGNORECASE):
+                    # Validate: must START with a speaker tag and have >=2 speaker turns
+                    tag_re = r'^\[?\s*(Moderator|Host|Experte|Expert|المقدم|الخبير|Ведущий|Эксперт|Ведучий|Експерт)\]?'
+                    first_line = content.split('\n')[0].strip()
+                    tag_count = len(re.findall(r'\[?\s*(Moderator|Host|Experte|Expert|المقدم|الخبير|Ведущий|Эксперт|Ведучий|Експерт)\]?', content, re.IGNORECASE))
+                    if content and re.match(tag_re, first_line, re.IGNORECASE) and tag_count >= 2:
                         return content
-                    logger.warning(f"OpenRouter model {model} returned invalid script (no speaker tags): {content[:200]}")
+                    logger.warning(f"OpenRouter model {model} invalid script (tags={tag_count}): {content[:200]}")
                 else:
                     logger.warning(f"OpenRouter model {model} no content: {str(data)[:300]}")
         except Exception as e:
