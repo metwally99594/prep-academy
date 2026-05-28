@@ -282,6 +282,14 @@ def _split_speaker_parts(script: str):
 _GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
 
 
+def _ssml(text: str, voice: str, rate: str = "-10%") -> str:
+    """Wrap text in SSML with natural breaks for realistic speech."""
+    import re
+    t = re.sub(r'([.!?])\s+', lambda m: m.group(1) + '<break time="350ms"/> ', text)
+    t = re.sub(r',\s+', '<break time="120ms"/> ', t)
+    t = re.sub(r'[:;]\s+', '<break time="200ms"/> ', t)
+    return f'<speak version="1.0" xml:lang="de-DE"><prosody rate="{rate}" pitch="+0Hz">{t}</prosody></speak>'
+
 async def _synthesize_podcast(script: str, language: str) -> str:
     """Generate base64 MP3 using edge-tts with dual voices (moderator + expert)."""
     import edge_tts
@@ -295,7 +303,8 @@ async def _synthesize_podcast(script: str, language: str) -> str:
             continue
         voice = mod_voice if speaker == "moderator" else exp_voice
         try:
-            communicate = edge_tts.Communicate(text[:2500], voice, rate="-5%", pitch="+0Hz")
+            ssml = _ssml(text[:2500], voice)
+            communicate = edge_tts.Communicate(ssml, voice, rate="-10%", pitch="+0Hz")
             buf = bytearray()
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":

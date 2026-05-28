@@ -51,9 +51,12 @@ async def _call_or(system: str, user: str, max_tokens: int = 500, temp: float = 
 
 
 async def text_to_speech(text: str, voice: str = "de-DE-KatjaNeural") -> str:
-    import edge_tts
+    import edge_tts, re
     import io as _io
-    communicate = edge_tts.Communicate(text, voice=voice, rate="-5%", pitch="+0Hz")
+    t = re.sub(r'([.!?])\s+', lambda m: m.group(1) + '<break time="350ms"/> ', text)
+    t = re.sub(r',\s+', '<break time="120ms"/> ', t)
+    ssml = f'<speak version="1.0" xml:lang="de-DE"><prosody rate="-10%" pitch="+0Hz">{t}</prosody></speak>'
+    communicate = edge_tts.Communicate(ssml, voice, rate="-10%", pitch="+0Hz")
     buf = _io.BytesIO()
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
