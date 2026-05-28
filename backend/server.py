@@ -7291,23 +7291,11 @@ async def _start_trial_system():
 # allow_credentials=True cannot be used with allow_origins=["*"].
 # Use explicit origin list or dynamic origin matching.
 
-cors_origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://frontend-three-psi-16.vercel.app",
-    "https://prepacademy-med.com",
-    "https://www.prepacademy-med.com",
-]
-
-cors_origins_env = os.environ.get('CORS_ORIGINS', '')
-if cors_origins_env and cors_origins_env != '*':
-    cors_origins.extend([o.strip() for o in cors_origins_env.split(',') if o.strip()])
-
+# TEMP: allow all origins for debugging CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=cors_origins,
-    allow_origin_regex=r"https://(.*\.vercel\.app|prepacademy-med\.com|.*\.prepacademy-med\.com)",
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
