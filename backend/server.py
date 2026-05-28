@@ -7232,6 +7232,18 @@ app.include_router(export_router)
 from routes.kp_reports import router as kp_reports_router
 app.include_router(kp_reports_router)
 
+# Include FSP Simulation router
+from routes.fsp_simulation import router as fsp_router
+app.include_router(fsp_router)
+
+# Include Arztbrief router
+from routes.arztbrief import router as arztbrief_router
+app.include_router(arztbrief_router)
+
+# Include Masterclass router
+from routes.masterclass import router as masterclass_router
+app.include_router(masterclass_router)
+
 # Include messaging router
 from routes.messaging import router as messaging_router
 app.include_router(messaging_router)

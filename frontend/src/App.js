@@ -57,6 +57,10 @@ const ModerationQueuePage = lazy(() => import("@/pages/ModerationQueuePage"));
 const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"));
 const KpReportsPage = lazy(() => import("@/pages/KpReportsPage"));
 const KpReportDetailPage = lazy(() => import("@/pages/KpReportDetailPage"));
+const GermanyHomePage = lazy(() => import("@/pages/Germany/GermanyHomePage"));
+const FSPSimulationPage = lazy(() => import("@/pages/Germany/FSPSimulationPage"));
+const ArztbriefPage = lazy(() => import("@/pages/Germany/ArztbriefPage"));
+const MasterclassPage = lazy(() => import("@/pages/Germany/MasterclassPage"));
 
 // API base URL for legacy raw axios calls in pages
 import { API } from "@/lib/api";
@@ -336,6 +340,18 @@ function AppRouter() {
           } />
           <Route path="/community/:postId" element={
             <ProtectedRoute><CommunityPostPage /></ProtectedRoute>
+          } />
+          <Route path="/de" element={
+            <ProtectedRoute><GermanyHomePage /></ProtectedRoute>
+          } />
+          <Route path="/de/fsp" element={
+            <ProtectedRoute><FSPSimulationPage /></ProtectedRoute>
+          } />
+          <Route path="/de/arztbrief" element={
+            <ProtectedRoute><ArztbriefPage /></ProtectedRoute>
+          } />
+          <Route path="/de/masterclass" element={
+            <ProtectedRoute><MasterclassPage /></ProtectedRoute>
           } />
           <Route path="/kp-reports" element={<KpReportsPage />} />
           <Route path="/kp-reports/:reportId" element={<KpReportDetailPage />} />

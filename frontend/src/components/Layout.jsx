@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth, useTheme, API } from "@/App";
 import { Button } from "@/components/ui/button";
 import {
@@ -188,6 +188,7 @@ export const Layout = () => {
   const { user, token, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -538,6 +539,20 @@ export const Layout = () => {
               )}
             </nav>
 
+            {/* Country Switcher */}
+            <div className="hidden md:flex items-center mr-2 border-r border-border/40 pr-3">
+              <Link to="/dashboard">
+                <Button variant="ghost" size="sm" className={`gap-1 px-2 text-xs ${location.pathname === "/dashboard" ? "bg-primary/15 text-primary" : ""}`} data-testid="country-at-btn">
+                  🇦🇹 AT
+                </Button>
+              </Link>
+              <Link to="/de">
+                <Button variant="ghost" size="sm" className={`gap-1 px-2 text-xs ${location.pathname.startsWith("/de") ? "bg-primary/15 text-primary" : ""}`} data-testid="country-de-btn">
+                  🇩🇪 DE
+                </Button>
+              </Link>
+            </div>
+
             {/* User Menu */}
             <div className="flex items-center gap-1">
               {/* Dark Mode Toggle */}
@@ -630,6 +645,18 @@ export const Layout = () => {
 
         {mobileMenuOpen && user && (
           <div className="md:hidden border-t border-border/50 py-4 px-4 space-y-2">
+            <div className="flex gap-2 pb-2 border-b border-border/40 mb-2">
+              <Link to="/dashboard" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${location.pathname === "/dashboard" ? "bg-primary/15 text-primary" : ""}`}>
+                  🇦🇹 AT
+                </Button>
+              </Link>
+              <Link to="/de" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${location.pathname.startsWith("/de") ? "bg-primary/15 text-primary" : ""}`}>
+                  🇩🇪 DE
+                </Button>
+              </Link>
+            </div>
             <Button
               variant="ghost"
               className="w-full justify-start gap-2"

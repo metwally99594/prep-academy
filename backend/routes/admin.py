@@ -442,3 +442,71 @@ async def export_questions(admin: dict = Depends(get_admin_user), specialty_id: 
             status_code=500,
             detail=f"Export fehlgeschlagen ({type(e).__name__}): {str(e)}",
         )
+
+
+CHAPTER_TOPICS = [
+    # Chapter 1 (1-10): Basics
+    ["Begrüßung", "Anamnese-Grundstruktur", "Hauptbeschwerde", "Schmerzanamnese",
+     "Zeitlicher Verlauf", "Begleitsymptome", "Vorerkrankungen", "Medikamente",
+     "Allergien", "Familienanamnese"],
+    # Chapter 2 (11-20): Untersuchung
+    ["Sozialanamnese", "Vegetative Anamnese", "Körperliche Untersuchung", "Vitalzeichen",
+     "Dokumentation", "Diagnose stellen", "Differentialdiagnosen", "Therapiegespräch",
+     "Aufklärung", "Einwilligung"],
+    # Chapter 3 (21-30): Klinische Grundlagen
+    ["Kardiologie Basics", "Pneumologie Basics", "Gastroenterologie Basics",
+     "Neurologie Basics", "Orthopädie Basics", "Notaufnahme", "Arztbrief Struktur",
+     "Arztbrief Sprache", "Arztbrief Diagnosen", "Arztbrief Befunde"],
+    # Chapter 4 (31-40): Kardiologie & Angiologie
+    ["Kardiovaskuläre Risikofaktoren", "Herzinsuffizienz", "Koronare Herzkrankheit",
+     "Herzrhythmusstörungen", "Hypertonie", "Periphere Arterielle Verschlusskrankheit",
+     "Venöse Erkrankungen", "Endokarditis", "Kardiomyopathien", "Notfälle Kardiologie"],
+    # Chapter 5 (41-50): Pneumologie & Gastroenterologie
+    ["Asthma bronchiale", "COPD", "Pneumonie", "Lungenembolie", "Interstitielle Lungenerkrankungen",
+     "Gastroösophageale Refluxkrankheit", "Ulkuskrankheit", "Chronisch-entzündliche Darmerkrankungen",
+     "Lebererkrankungen", "Pankreatitis"],
+    # Chapter 6 (51-60): Neurologie & Psychiatrie
+    ["Schlaganfall", "Epilepsie", "Multiple Sklerose", "Kopfschmerzerkrankungen",
+     "Parkinson", "Demenz", "Depression", "Angststörungen", "Psychosomatik",
+     "Notfälle Neurologie"],
+    # Chapter 7 (61-70): Orthopädie & Rheumatologie
+    ["Rückenschmerzen", "Arthrose", "Rheumatoide Arthritis", "Osteoporose",
+     "Schultererkrankungen", "Knieerkrankungen", "Hüfterkrankungen", "Sportverletzungen",
+     "Gicht", "Fibromyalgie"],
+    # Chapter 8 (71-80): Endokrinologie & Nephrologie
+    ["Diabetes mellitus", "Schilddrüsenerkrankungen", "Nebennierenerkrankungen",
+     "Akutes Nierenversagen", "Chronische Niereninsuffizienz", "Elektrolytstörungen",
+     "Säure-Basen-Haushalt", "Glomerulonephritis", "Nephrotisches Syndrom",
+     "Notfälle Nephrologie"],
+    # Chapter 9 (81-90): Prüfungsvorbereitung
+    ["FSP-Gesprächsführung", "Komplexe Anamnese", "Schwierige Patientengespräche",
+     "Interkulturelle Kommunikation", "Ethik in der Medizin", "Patientenverfügung",
+     "Gutachten", "Qualitätsmanagement", "Prüfungssimulation", "Abschlussprüfung"],
+]
+
+
+@router.post("/admin/masterclass/seed")
+async def seed_masterclass(admin: dict = Depends(get_admin_user)):
+    from database import db
+    existing = await db.masterclass_levels.count_documents({})
+    if existing >= 90:
+        await db.masterclass_levels.delete_many({})
+    created = 0
+    for ch_idx, topics in enumerate(CHAPTER_TOPICS):
+        chapter = ch_idx + 1
+        for t_idx, topic in enumerate(topics):
+            level_number = ch_idx * 10 + t_idx + 1
+            exists = await db.masterclass_levels.find_one({"level_number": level_number})
+            if not exists:
+                await db.masterclass_levels.insert_one({
+                    "level_number": level_number,
+                    "title": f"Level {level_number}: {topic}",
+                    "description": f"Lerne {topic} — ein wichtiges Thema für die Kenntnisprüfung.",
+                    "content": f"Inhalt für {topic} folgt in Kürze.",
+                    "chapter": chapter,
+                    "topic": topic,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                created += 1
+    total = await db.masterclass_levels.count_documents({})
+    return {"created": created, "total_levels": total, "message": f"{created} neue Level erstellt, insgesamt {total}"}

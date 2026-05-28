@@ -56,4 +56,78 @@ export function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   return axios.get(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
+// ── FSP Simulation ────────────────────────────────────────────────
+
+export async function startFSP(specialty, difficulty) {
+  const { data } = await apiClient.post("/fsp/start", { specialty, difficulty });
+  return data;
+}
+
+export async function chatFSP(sessionId, message) {
+  const { data } = await apiClient.post("/fsp/chat", { session_id: sessionId, message });
+  return data;
+}
+
+export async function switchToExaminer(sessionId) {
+  const { data } = await apiClient.post("/fsp/switch-examiner", { session_id: sessionId });
+  return data;
+}
+
+export async function evaluateFSP(sessionId) {
+  const { data } = await apiClient.post("/fsp/evaluate", { session_id: sessionId });
+  return data;
+}
+
+// ── FSP Transcribe ────────────────────────────────────────────────
+
+export async function transcribeAudio(audioBlob) {
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : null;
+  const formData = new FormData();
+  formData.append("file", audioBlob, "recording.webm");
+  const { data } = await axios.post(`${API}/fsp/transcribe`, formData, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return data;
+}
+
+// ── Arztbrief ─────────────────────────────────────────────────────
+
+export async function analyzeArztbrief(file) {
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : null;
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await axios.post(`${API}/arztbrief/analyze`, formData, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return data;
+}
+
+// ── Masterclass ───────────────────────────────────────────────────
+
+export async function getMasterclassLevels() {
+  const { data } = await apiClient.get("/masterclass/levels");
+  return data;
+}
+
+export async function getMasterclassLevel(levelNumber) {
+  const { data } = await apiClient.get(`/masterclass/levels/${levelNumber}`);
+  return data;
+}
+
+export async function completeLevel(levelNumber) {
+  const { data } = await apiClient.post(`/masterclass/levels/${levelNumber}/complete`);
+  return data;
+}
+
+export async function getMasterclassProgress() {
+  const { data } = await apiClient.get("/masterclass/progress");
+  return data;
+}
+
 export default apiClient;
