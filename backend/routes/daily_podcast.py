@@ -606,6 +606,20 @@ def make_router(db, get_current_user):
             "message": f"Deleted {daily_result.deleted_count} old daily + {custom_result.deleted_count} custom podcast(s)"
         }
 
+    @router.post("/admin/force-reseed")
+    async def admin_force_reseed(user: dict = Depends(get_current_user)):
+        """Delete ALL daily podcasts (including today) and regenerate for all languages."""
+        if not user.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin only")
+        del_result = await db.daily_podcasts.delete_many({})
+        await db.custom_podcasts.delete_many({})
+        results = {}
+        for lang in SUPPORTED_LANGS:
+            doc = await generate_daily_podcast(db, lang, force=True)
+            results[lang] = {"success": doc is not None, "title": doc.get("title") if doc else None}
+            await asyncio.sleep(2)
+        return {"deleted": del_result.deleted_count, "results": results}
+
     @router.post("/admin/generate")
     async def admin_trigger(req: TriggerRequest, user: dict = Depends(get_current_user)):
         """Admin manual trigger — cleanup old podcasts first, then generate new one."""
