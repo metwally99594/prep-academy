@@ -4046,16 +4046,49 @@ async def admin_import_history(
 @api_router.post("/ai/tutor")
 @limiter.limit("10/minute;100/hour;300/day")
 async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(get_current_user)):
-    """Medical AI tutor with RAG — searches 3112 exam questions + Wikipedia medical knowledge"""
+    """Medical AI tutor with persistent conversation memory"""
+    import uuid as _uuid
     await check_ai_access(user)
     await _check_ai_quota(user["id"])
     try:
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Load or create conversation
+        conversation_id = body.conversation_id
+        if conversation_id:
+            conv = await db.tutor_conversations.find_one({"id": conversation_id, "user_id": user["id"]})
+            if not conv:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+        else:
+            conversation_id = str(_uuid.uuid4())
+            title = body.user_message[:60] + ("..." if len(body.user_message) > 60 else "")
+            conv = {
+                "id": conversation_id,
+                "user_id": user["id"],
+                "title": title,
+                "model": body.model,
+                "language": body.language,
+                "messages": [],
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.tutor_conversations.insert_one(conv)
+
+        # Build conversation history (last 10 exchanges)
+        history = conv.get("messages", [])
+        history_block = ""
+        for m in history[-20:]:
+            role = "Student" if m["role"] == "user" else "KI-Tutor"
+            history_block += f"\n{role}: {m['content'][:500]}"
+
+        # RAG search in parallel
         lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
-        # Search both sources in parallel
         relevant_questions, relevant_knowledge = await asyncio.gather(
             _search_questions_internal(body.user_message, limit=2),
             _search_medical_knowledge(body.user_message, limit=6),
         )
+
+        # Build RAG context
         context_parts = []
         for idx, q in enumerate(relevant_questions[:2], 1):
             q_text = (q.get("question_text_de") or q.get("question_text", ""))[:300]
@@ -4068,9 +4101,9 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
             )
             correct_str = ", ".join(correct)
             if expl:
-                context_parts.append(f"📝 Frage {idx}:\n{q_text}\n{choices_str}\n✅ {correct_str}\n📖 {expl[:300]}")
+                context_parts.append(f"Frage {idx}:\n{q_text}\n{choices_str}\nRichtig: {correct_str}\nErklärung: {expl[:300]}")
             else:
-                context_parts.append(f"📝 Frage {idx}:\n{q_text}\n{choices_str}\n✅ {correct_str}")
+                context_parts.append(f"Frage {idx}:\n{q_text}\n{choices_str}\nRichtig: {correct_str}")
         for idx, k in enumerate(relevant_knowledge[:6], 1):
             title = k.get("title", "")
             content_text = k.get("content") or k.get("summary", "")[:800]
@@ -4080,16 +4113,19 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
             if source == "pubmed":
                 journal = k.get("journal", "")
                 pubdate = k.get("pubdate", "")
-                context_parts.append(f"🔬 PubMed-Studie {idx}:\n{title}\n{content_text}\nQuelle: {journal} ({pubdate})")
+                context_parts.append(f"PubMed-Studie {idx}:\n{title}\n{content_text}\nQuelle: {journal} ({pubdate})")
             else:
                 category = k.get("category", "medical")
-                context_parts.append(f"📚 Medizinisches Wissen {idx} ({category}):\n{title}\n{content_text}")
+                context_parts.append(f"Medizinisches Wissen {idx} ({category}):\n{title}\n{content_text}")
         context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen zu diesem Thema gefunden."
+
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
 
 WISSENSBASIS (Prüfungsfragen + Wikipedia + PubMed):
 {context_str}
+
+VERLAUF DER KONVERSATION:{history_block}
 
 REGELN:
 1. Nutze Prüfungsfragen, Wikipedia UND PubMed-Studien als Grundlage
@@ -4099,17 +4135,84 @@ REGELN:
 5. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert, evidenzbasiert
 6. Wenn du PubMed-Studien zitierst, nenne Journal und Jahr
 7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen
-8. Der Benutzer sieht nach deiner Antwort medizinische Bilder von Wikimedia Commons. Du kannst im Text darauf hinweisen, z.B. "siehe Abbildung unten" oder "die Bilder unten zeigen..."."""
+8. Der Benutzer sieht nach deiner Antwort medizinische Bilder von Wikimedia Commons. Du kannst im Text darauf hinweisen, z.B. 'siehe Abbildung unten' oder 'die Bilder unten zeigen...'."""
+
         response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
         images = await _search_medical_images(body.user_message)
         await _increment_ai_quota(user["id"])
-        return {"response": response, "images": images, "model": body.model, "language": body.language,
-                "sources_questions": len(relevant_questions), "sources_knowledge": len(relevant_knowledge)}
+
+        # Persist both messages
+        user_msg_doc = {"role": "user", "content": body.user_message, "timestamp": now}
+        assistant_msg_doc = {"role": "assistant", "content": response, "model": body.model, "images": images, "timestamp": datetime.now(timezone.utc).isoformat()}
+        await db.tutor_conversations.update_one(
+            {"id": conversation_id},
+            {
+                "$push": {"messages": {"$each": [user_msg_doc, assistant_msg_doc]}},
+                "$set": {"updated_at": assistant_msg_doc["timestamp"], "model": body.model, "language": body.language},
+            },
+        )
+
+        return {
+            "response": response,
+            "images": images,
+            "model": body.model,
+            "language": body.language,
+            "conversation_id": conversation_id,
+            "sources_questions": len(relevant_questions),
+            "sources_knowledge": len(relevant_knowledge),
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"AI tutor error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get AI response")
+
+
+@api_router.get("/ai/tutor/conversations")
+async def list_tutor_conversations(user: dict = Depends(get_current_user)):
+    """List user's tutor conversations, sorted by most recent."""
+    cursor = db.tutor_conversations.find(
+        {"user_id": user["id"]},
+        {"_id": 0, "id": 1, "title": 1, "model": 1, "language": 1, "message_count": {"$size": "$messages"}, "created_at": 1, "updated_at": 1},
+    ).sort("updated_at", -1)
+    convs = await cursor.to_list(100)
+    return {"conversations": convs}
+
+
+@api_router.get("/ai/tutor/conversations/{conversation_id}")
+async def get_tutor_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+    """Get a single conversation with all messages."""
+    conv = await db.tutor_conversations.find_one(
+        {"id": conversation_id, "user_id": user["id"]},
+        {"_id": 0},
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conv
+
+
+@api_router.delete("/ai/tutor/conversations/{conversation_id}")
+async def delete_tutor_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+    """Delete a tutor conversation."""
+    result = await db.tutor_conversations.delete_one({"id": conversation_id, "user_id": user["id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"deleted": True}
+
+
+@api_router.patch("/ai/tutor/conversations/{conversation_id}/rename")
+async def rename_tutor_conversation(conversation_id: str, body: dict, user: dict = Depends(get_current_user)):
+    """Rename a tutor conversation."""
+    title = body.get("title", "").strip()[:200]
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+    result = await db.tutor_conversations.update_one(
+        {"id": conversation_id, "user_id": user["id"]},
+        {"$set": {"title": title, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"title": title}
 
 
 # ============ PDF NOTEBOOK (NotebookLM-like) - PREMIUM ============

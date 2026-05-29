@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import axios from "axios";
 import { API, useAuth } from "@/App";
-import { 
+import {
   Sparkles, Send, X, Loader2, Bot, User, ChevronDown, Globe, BookOpen,
+  Plus, MessageSquare, Trash2, Pencil, Check, PanelLeftClose, PanelLeft,
 } from "lucide-react";
 
 const MODELS = [
@@ -34,6 +35,13 @@ const PLACEHOLDERS = {
   ru: "Напишите свой вопрос здесь...",
 };
 
+const GREETINGS = {
+  de: "Hallo! Ich bin Ihr medizinischer KI-Tutor mit Zugriff auf tausende Prüfungsfragen.\n\nStellen Sie mir jede beliebige medizinische Frage — ich merke mir den Verlauf und helfe Ihnen Schritt für Schritt.",
+  en: "Hello! I'm your medical AI tutor with access to thousands of exam questions.\n\nAsk me any medical question — I remember our conversation and help you step by step.",
+  ar: "مرحباً! أنا معلمك الطبي الذكي مع إمكانية الوصول إلى آلاف أسئلة الامتحان.\n\nاسألني أي سؤال طبي — أتذكر محادثتنا وأساعدك خطوة بخطوة.",
+  ru: "Здравствуйте! Я ваш медицинский ИИ-репетитор с доступом к тысячам экзаменационных вопросов.\n\nЗадайте любой медицинский вопрос — я помню историю и помогаю шаг за шагом.",
+};
+
 export default function AIChat({ question, isOpen, onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -42,6 +50,12 @@ export default function AIChat({ question, isOpen, onClose }) {
   const [selectedLang, setSelectedLang] = useState("de");
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [conversationId, setConversationId] = useState(null);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
   const { token } = useAuth();
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -50,55 +64,89 @@ export default function AIChat({ question, isOpen, onClose }) {
   const currentModel = MODELS.find(m => m.id === selectedModel) || MODELS[0];
   const currentLang = LANGUAGES.find(l => l.id === selectedLang) || LANGUAGES[0];
 
+  const headers = { Authorization: `Bearer ${token}` };
+
+  // Fetch conversations on mount (tutor only)
+  useEffect(() => {
+    if (!isOpen || !isTutor || !token) return;
+    setConversationsLoading(true);
+    axios.get(`${API}/ai/tutor/conversations`, { headers })
+      .then(r => setConversations(r.data.conversations))
+      .catch(() => {})
+      .finally(() => setConversationsLoading(false));
+  }, [isOpen, isTutor, token]);
+
+  // Set greeting for new conversation (no messages loaded)
   useEffect(() => {
     if (!isOpen) return;
-    if (isTutor) {
-      const greetings = {
-        de: "👨‍⚕️ Hallo! Ich bin Ihr medizinischer KI-Tutor mit Zugriff auf 3.112 Prüfungsfragen.\n\nStellen Sie mir jede beliebige medizinische Frage — ich suche in der Prüfungsdatenbank und gebe Ihnen eine fundierte Antwort, verknüpft mit den offiziellen Erklärungen.",
-        en: "👨‍⚕️ Hello! I'm your medical AI tutor with access to 3,112 exam questions.\n\nAsk me any medical question — I'll search the exam database and give you a well-founded answer linked to official explanations.",
-        ar: "👨‍⚕️ مرحباً! أنا معلمك الطبي الذكي مع إمكانية الوصول إلى 3,112 سؤال امتحان.\n\nاسألني أي سؤال طبي — سأبحث في قاعدة بيانات الامتحانات وأعطيك إجابة مدعومة بالشروحات الرسمية.",
-        ru: "👨‍⚕️ Здравствуйте! Я ваш медицинский ИИ-репетитор с доступом к 3,112 экзаменационным вопросам.\n\nЗадайте любой медицинский вопрос — я найду в базе экзаменов и дам ответ, подкреплённый официальными объяснениями.",
-      };
-      setMessages([{ role: "assistant", content: greetings[selectedLang] || greetings.de }]);
-    } else if (question) {
-      const questionText = question.question_text_de || question.question_text;
-      const greetings = {
-        de: `Hallo! Ich bin Ihr medizinischer KI-Assistent.\n\nIch helfe Ihnen gerne bei dieser Frage:\n\n"${questionText}"\n\nStellen Sie mir eine Frage zu diesem Thema!`,
-        en: `Hello! I'm your medical AI assistant.\n\nI'm happy to help with this question:\n\n"${questionText}"\n\nAsk me anything about this topic!`,
-        ar: `مرحباً! أنا مساعدك الطبي الذكي.\n\nسأساعدك في هذا السؤال:\n\n"${questionText}"\n\nاسألني أي شيء عن هذا الموضوع!`,
-        ru: `Здравствуйте! Я ваш медицинский ИИ-ассистент.\n\nЯ помогу вам с этим вопросом:\n\n"${questionText}"\n\nЗадайте мне вопрос по этой теме!`,
-      };
-      setMessages([{ role: "assistant", content: greetings[selectedLang] || greetings.de }]);
+    if (isTutor && messages.length === 0 && !loading) {
+      setMessages([{ role: "assistant", content: GREETINGS[selectedLang] || GREETINGS.de }]);
+    } else if (!isTutor && question && messages.length === 0) {
+      const qText = question.question_text_de || question.question_text;
+      setMessages([{
+        role: "assistant",
+        content: `Hallo! Ich helfe Ihnen gerne bei dieser Frage:\n\n"${qText}"\n\nStellen Sie mir eine Frage zu diesem Thema!`,
+      }]);
     }
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, [isOpen, question, isTutor]); // eslint-disable-line
-
-  useEffect(() => {
-    if (!isOpen || !messages.length) return;
-    if (isTutor && messages.length === 1 && messages[0].role === "assistant") {
-      const greetings = {
-        de: "👨‍⚕️ Hallo! Ich bin Ihr medizinischer KI-Tutor mit Zugriff auf 3.112 Prüfungsfragen.\n\nStellen Sie mir jede beliebige medizinische Frage — ich suche in der Prüfungsdatenbank und gebe Ihnen eine fundierte Antwort, verknüpft mit den offiziellen Erklärungen.",
-        en: "👨‍⚕️ Hello! I'm your medical AI tutor with access to 3,112 exam questions.\n\nAsk me any medical question — I'll search the exam database and give you a well-founded answer linked to official explanations.",
-        ar: "👨‍⚕️ مرحباً! أنا معلمك الطبي الذكي مع إمكانية الوصول إلى 3,112 سؤال امتحان.\n\nاسألني أي سؤال طبي — سأبحث في قاعدة بيانات الامتحانات وأعطيك إجابة مدعومة بالشروحات الرسمية.",
-        ru: "👨‍⚕️ Здравствуйте! Я ваш медицинский ИИ-репетитор с доступом к 3,112 экзаменационным вопросам.\n\nЗадайте любой медицинский вопрос — я найду в базе экзаменов и дам ответ, подкреплённый официальными объяснениями.",
-      };
-      setMessages([{ role: "assistant", content: greetings[selectedLang] || greetings.de }]);
-    } else if (!isTutor && question && messages.length === 1 && messages[0].role === "assistant") {
-      const questionText = question.question_text_de || question.question_text;
-      const greetings = {
-        de: `Hallo! Ich bin Ihr medizinischer KI-Assistent.\n\nIch helfe Ihnen gerne bei dieser Frage:\n\n"${questionText}"\n\nStellen Sie mir eine Frage zu diesem Thema!`,
-        en: `Hello! I'm your medical AI assistant.\n\nI'm happy to help with this question:\n\n"${questionText}"\n\nAsk me anything about this topic!`,
-        ar: `مرحباً! أنا مساعدك الطبي الذكي.\n\nسأساعدك في هذا السؤال:\n\n"${questionText}"\n\nاسألني أي شيء عن هذا الموضوع!`,
-        ru: `Здравствуйте! Я ваш медицинский ИИ-ассистент.\n\nЯ помогу вам с этим вопросом:\n\n"${questionText}"\n\nЗадайте мне вопрос по этой теме!`,
-      };
-      setMessages([{ role: "assistant", content: greetings[selectedLang] || greetings.de }]);
-    }
-  }, [selectedLang]); // eslint-disable-line
+  }, [isOpen, isTutor, question, selectedLang, messages.length, loading]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  // Start a new conversation
+  const startNewConversation = useCallback(() => {
+    setConversationId(null);
+    setMessages([{ role: "assistant", content: GREETINGS[selectedLang] || GREETINGS.de }]);
+  }, [selectedLang]);
+
+  // Load a conversation from backend
+  const loadConversation = useCallback(async (convId) => {
+    if (!convId) return;
+    setLoading(true);
+    try {
+      const r = await axios.get(`${API}/ai/tutor/conversations/${convId}`, { headers });
+      const conv = r.data;
+      setConversationId(conv.id);
+      setMessages(conv.messages && conv.messages.length > 0
+        ? conv.messages
+        : [{ role: "assistant", content: GREETINGS[selectedLang] || GREETINGS.de }]
+      );
+      setSelectedModel(conv.model || "deepseek-chat");
+      setSelectedLang(conv.language || "de");
+    } catch (e) {
+      console.error("Failed to load conversation", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [headers, selectedLang]);
+
+  // Delete a conversation
+  const deleteConversation = async (convId, e) => {
+    e.stopPropagation();
+    try {
+      await axios.delete(`${API}/ai/tutor/conversations/${convId}`, { headers });
+      setConversations(prev => prev.filter(c => c.id !== convId));
+      if (conversationId === convId) startNewConversation();
+    } catch (err) {
+      console.error("Failed to delete conversation", err);
+    }
+  };
+
+  // Rename a conversation
+  const renameConversation = async (convId) => {
+    const title = renameValue.trim();
+    if (!title) { setRenamingId(null); return; }
+    try {
+      await axios.patch(`${API}/ai/tutor/conversations/${convId}/rename`, { title }, { headers });
+      setConversations(prev => prev.map(c => c.id === convId ? { ...c, title } : c));
+    } catch (err) {
+      console.error("Failed to rename conversation", err);
+    }
+    setRenamingId(null);
+  };
+
+  // Send message
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     const userMessage = input.trim();
@@ -107,11 +155,11 @@ export default function AIChat({ question, isOpen, onClose }) {
     setLoading(true);
 
     try {
-      const endpoint = isTutor ? `${API}/ai/tutor` : `${API}/ai/chat`;
       const payload = isTutor ? {
         user_message: userMessage,
         model: selectedModel,
         language: selectedLang,
+        conversation_id: conversationId,
       } : {
         question_id: question.id,
         user_message: userMessage,
@@ -119,10 +167,19 @@ export default function AIChat({ question, isOpen, onClose }) {
         language: selectedLang,
         context: messages.map(m => `${m.role}: ${m.content}`).join('\n'),
       };
-      const response = await axios.post(endpoint, payload, { headers: { Authorization: `Bearer ${token}` }, timeout: 300000 });
+      const endpoint = isTutor ? `${API}/ai/tutor` : `${API}/ai/chat`;
+      const response = await axios.post(endpoint, payload, { headers, timeout: 300000 });
 
       const images = response.data.images || [];
       setMessages(prev => [...prev, { role: "assistant", content: response.data.response, model: selectedModel, images }]);
+
+      if (isTutor && response.data.conversation_id) {
+        setConversationId(response.data.conversation_id);
+        // Refresh conversation list
+        axios.get(`${API}/ai/tutor/conversations`, { headers })
+          .then(r => setConversations(r.data.conversations))
+          .catch(() => {});
+      }
     } catch (error) {
       console.error("AI chat error:", error);
       const errorMsgs = {
@@ -143,156 +200,220 @@ export default function AIChat({ question, isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-5xl h-[85vh] min-h-[500px] max-h-[90vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden animate-fadeIn"
+      <div className="w-full max-w-6xl h-[85vh] min-h-[500px] max-h-[90vh] rounded-2xl border shadow-2xl flex overflow-hidden animate-fadeIn"
         style={{ background: '#0c1229', borderColor: 'rgba(59,130,246,0.15)' }}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(59, 130, 246, 0.03)' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: isTutor ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.1)' }}>
-              {isTutor ? <BookOpen className="w-5 h-5" style={{ color: '#f59e0b' }} /> : <Sparkles className="w-5 h-5" style={{ color: '#3b82f6' }} />}
-            </div>
-            <div>
-              <h3 className="font-semibold text-white text-sm">{isTutor ? "Medizinischer KI-Tutor" : "Medizinischer KI-Assistent"}</h3>
-              <div className="flex items-center gap-2">
-                {/* Model Picker */}
-                <div className="relative">
-                  <button onClick={() => { setShowModelPicker(!showModelPicker); setShowLangPicker(false); }}
-                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors hover:bg-white/5"
-                    style={{ color: currentModel.color }} data-testid="model-picker-btn">
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: currentModel.color }} />
-                    {currentModel.name}
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
-                  {showModelPicker && (
-                    <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[180px]"
-                      style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }} data-testid="model-picker-dropdown">
-                      {MODELS.map(m => (
-                        <button key={m.id} onClick={() => { setSelectedModel(m.id); setShowModelPicker(false); }}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedModel === m.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
-                          data-testid={`model-${m.id}`}>
-                          <span className="w-2 h-2 rounded-full" style={{ background: m.color }} />
-                          <div>
-                            <span className="text-white font-medium">{m.name}</span>
-                            <span className="text-white/30 text-xs ml-2">{m.provider}</span>
-                          </div>
-                          {selectedModel === m.id && <span className="ml-auto text-xs" style={{ color: '#3b82f6' }}>&#10003;</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <span className="text-white/10">|</span>
-
-                {/* Language Picker */}
-                <div className="relative">
-                  <button onClick={() => { setShowLangPicker(!showLangPicker); setShowModelPicker(false); }}
-                    className="flex items-center gap-1 text-[11px] text-white/50 px-2 py-0.5 rounded-md transition-colors hover:bg-white/5"
-                    data-testid="lang-picker-btn">
-                    <Globe className="w-3 h-3" />
-                    {currentLang.name}
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
-                  {showLangPicker && (
-                    <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[160px]"
-                      style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }} data-testid="lang-picker-dropdown">
-                      {LANGUAGES.map(l => (
-                        <button key={l.id} onClick={() => { setSelectedLang(l.id); setShowLangPicker(false); }}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedLang === l.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
-                          data-testid={`lang-${l.id}`}>
-                          <span>{FLAG_EMOJI[l.flag]}</span>
-                          <span className="text-white">{l.name}</span>
-                          {selectedLang === l.id && <span className="ml-auto text-xs" style={{ color: '#3b82f6' }}>&#10003;</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+        {/* ── Sidebar (tutor only) ── */}
+        {isTutor && sidebarOpen && (
+          <div className="w-64 flex-shrink-0 border-r flex flex-col" style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(0,0,0,0.15)' }}>
+            <div className="flex items-center justify-between px-3 py-3 border-b" style={{ borderColor: 'rgba(59,130,246,0.1)' }}>
+              <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">Verlauf</span>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="w-7 h-7" onClick={startNewConversation} title="Neue Konversation">
+                  <Plus className="w-4 h-4 text-white/60" />
+                </Button>
+                <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setSidebarOpen(false)} title="Sidebar ausblenden">
+                  <PanelLeftClose className="w-4 h-4 text-white/40" />
+                </Button>
               </div>
             </div>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-white/40 hover:text-white" data-testid="close-ai-chat">
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Messages */}
-        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-          <div className="space-y-4">
-            {messages.map((message, index) => (
-              <div key={index} className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`} data-testid={`chat-message-${index}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  message.role === "user" ? "bg-white/10" : ""
-                }`} style={message.role !== "user" ? { background: `${(MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#3b82f6')}15` } : {}}>
-                  {message.role === "user"
-                    ? <User className="w-4 h-4 text-white/60" />
-                    : <Bot className="w-4 h-4" style={{ color: MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#3b82f6' }} />
-                  }
+            <ScrollArea className="flex-1 p-2">
+              {conversationsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-white/30" />
                 </div>
-                <div className={`flex-1 p-4 rounded-2xl text-sm leading-relaxed ${
-                  message.role === "user" ? "rounded-tr-sm text-white/90" : "rounded-tl-sm text-white/80"
-                }`} style={{ background: message.role === "user" ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
-                  <p className="whitespace-pre-wrap" style={{ direction: selectedLang === 'ar' ? 'rtl' : 'ltr' }}>{message.content}</p>
-                  {message.images && message.images.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                      {message.images.map((img, i) => (
-                        <div key={i} className="relative">
-                          <a href={img.url} target="_blank" rel="noopener noreferrer"
-                            className="block rounded-lg overflow-hidden border transition-opacity hover:opacity-80"
-                            style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}>
-                            <img src={img.thumbnail} alt={img.title} loading="lazy"
-                              className="w-full h-full object-cover"
-                              onError={e => { e.target.style.display = 'none'; }} />
-                          </a>
-                          {img._source && (
-                            <span className="absolute bottom-0 right-0 text-[9px] px-1 py-[1px] rounded-tl leading-tight"
-                              style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.6)' }}>
-                              {img._source === 'local_db' ? '●' : '◌'} {img._source}
-                            </span>
-                          )}
+              ) : conversations.length === 0 ? (
+                <p className="text-xs text-white/30 text-center py-8">Noch keine Konversationen</p>
+              ) : (
+                <div className="space-y-1">
+                  {conversations.map(c => (
+                    <div key={c.id}
+                      className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer text-sm transition-colors ${
+                        conversationId === c.id ? 'bg-white/10' : 'hover:bg-white/5'
+                      }`}
+                      onClick={() => loadConversation(c.id)}
+                      style={conversationId === c.id ? { border: '1px solid rgba(59,130,246,0.2)' } : {}}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-white/30" />
+                      {renamingId === c.id ? (
+                        <div className="flex-1 flex items-center gap-1">
+                          <input
+                            value={renameValue}
+                            onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') renameConversation(c.id); if (e.key === 'Escape') setRenamingId(null); }}
+                            className="flex-1 text-xs bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white outline-none"
+                            autoFocus
+                            onClick={e => e.stopPropagation()}
+                          />
+                          <button onClick={e => { e.stopPropagation(); renameConversation(c.id); }} className="text-green-400 hover:text-green-300">
+                            <Check className="w-3 h-3" />
+                          </button>
                         </div>
-                      ))}
+                      ) : (
+                        <>
+                          <span className="flex-1 truncate text-white/70 group-hover:text-white/90">{c.title}</span>
+                          <div className="hidden group-hover:flex items-center gap-0.5">
+                            <button onClick={e => { e.stopPropagation(); setRenamingId(c.id); setRenameValue(c.title); }} className="p-0.5 text-white/30 hover:text-white/60">
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button onClick={e => deleteConversation(c.id, e)} className="p-0.5 text-red-400/50 hover:text-red-400">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
+              )}
+            </ScrollArea>
+          </div>
+        )}
+
+        {/* ── Main Chat Area ── */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(59, 130, 246, 0.03)' }}>
+            <div className="flex items-center gap-3">
+              {isTutor && !sidebarOpen && (
+                <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setSidebarOpen(true)} title="Sidebar einblenden">
+                  <PanelLeft className="w-4 h-4 text-white/40" />
+                </Button>
+              )}
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: isTutor ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.1)' }}>
+                {isTutor ? <BookOpen className="w-5 h-5" style={{ color: '#f59e0b' }} /> : <Sparkles className="w-5 h-5" style={{ color: '#3b82f6' }} />}
               </div>
-            ))}
-            {loading && (
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${currentModel.color}15` }}>
-                  <Bot className="w-4 h-4" style={{ color: currentModel.color }} />
-                </div>
-                <div className="flex-1 p-4 rounded-2xl rounded-tl-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div className="flex items-center gap-2 text-sm text-white/40">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {currentModel.name} ...
+              <div>
+                <h3 className="font-semibold text-white text-sm">{isTutor ? "Medizinischer KI-Tutor" : "Medizinischer KI-Assistent"}</h3>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button onClick={() => { setShowModelPicker(!showModelPicker); setShowLangPicker(false); }}
+                      className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors hover:bg-white/5"
+                      style={{ color: currentModel.color }} data-testid="model-picker-btn">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: currentModel.color }} />
+                      {currentModel.name}
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {showModelPicker && (
+                      <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[180px]"
+                        style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }}>
+                        {MODELS.map(m => (
+                          <button key={m.id} onClick={() => { setSelectedModel(m.id); setShowModelPicker(false); }}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedModel === m.id ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                            <span className="w-2 h-2 rounded-full" style={{ background: m.color }} />
+                            <div>
+                              <span className="text-white font-medium">{m.name}</span>
+                              <span className="text-white/30 text-xs ml-2">{m.provider}</span>
+                            </div>
+                            {selectedModel === m.id && <span className="ml-auto text-xs" style={{ color: '#3b82f6' }}>&#10003;</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-white/10">|</span>
+                  <div className="relative">
+                    <button onClick={() => { setShowLangPicker(!showLangPicker); setShowModelPicker(false); }}
+                      className="flex items-center gap-1 text-[11px] text-white/50 px-2 py-0.5 rounded-md transition-colors hover:bg-white/5">
+                      <Globe className="w-3 h-3" />
+                      {currentLang.name}
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {showLangPicker && (
+                      <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[160px]"
+                        style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }}>
+                        {LANGUAGES.map(l => (
+                          <button key={l.id} onClick={() => { setSelectedLang(l.id); setShowLangPicker(false); }}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedLang === l.id ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                            <span>{FLAG_EMOJI[l.flag]}</span>
+                            <span className="text-white">{l.name}</span>
+                            {selectedLang === l.id && <span className="ml-auto text-xs" style={{ color: '#3b82f6' }}>&#10003;</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </ScrollArea>
-
-        {/* Input */}
-        <div className="p-4 border-t" style={{ borderColor: 'rgba(59,130,246,0.08)', background: 'rgba(0,0,0,0.2)' }}>
-          <div className="flex gap-2">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder={PLACEHOLDERS[selectedLang] || PLACEHOLDERS.de}
-              className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#3b82f6]/30"
-              disabled={loading}
-              dir={selectedLang === 'ar' ? 'rtl' : 'ltr'}
-              data-testid="ai-chat-input"
-            />
-            <Button onClick={sendMessage} disabled={loading || !input.trim()}
-              className="border-0" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}
-              data-testid="ai-chat-send">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} className="text-white/40 hover:text-white">
+              <X className="w-5 h-5" />
             </Button>
+          </div>
+
+          {/* Messages */}
+          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+            <div className="space-y-4">
+              {messages.map((message, index) => (
+                <div key={index} className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    message.role === "user" ? "bg-white/10" : ""
+                  }`} style={message.role !== "user" ? { background: `${(MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#3b82f6')}15` } : {}}>
+                    {message.role === "user"
+                      ? <User className="w-4 h-4 text-white/60" />
+                      : <Bot className="w-4 h-4" style={{ color: MODELS.find(m => m.id === (message.model || selectedModel))?.color || '#3b82f6' }} />
+                    }
+                  </div>
+                  <div className={`flex-1 p-4 rounded-2xl text-sm leading-relaxed ${
+                    message.role === "user" ? "rounded-tr-sm text-white/90" : "rounded-tl-sm text-white/80"
+                  }`} style={{ background: message.role === "user" ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
+                    <p className="whitespace-pre-wrap" style={{ direction: selectedLang === 'ar' ? 'rtl' : 'ltr' }}>{message.content}</p>
+                    {message.images && message.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                        {message.images.map((img, i) => (
+                          <div key={i} className="relative">
+                            <a href={img.url} target="_blank" rel="noopener noreferrer"
+                              className="block rounded-lg overflow-hidden border transition-opacity hover:opacity-80"
+                              style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}>
+                              <img src={img.thumbnail} alt={img.title} loading="lazy" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
+                            </a>
+                            {img._source && (
+                              <span className="absolute bottom-0 right-0 text-[9px] px-1 py-[1px] rounded-tl leading-tight"
+                                style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.6)' }}>
+                                {img._source === 'local_db' ? '●' : '◌'} {img._source}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${currentModel.color}15` }}>
+                    <Bot className="w-4 h-4" style={{ color: currentModel.color }} />
+                  </div>
+                  <div className="flex-1 p-4 rounded-2xl rounded-tl-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div className="flex items-center gap-2 text-sm text-white/40">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {currentModel.name} ...
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          {/* Input */}
+          <div className="p-4 border-t" style={{ borderColor: 'rgba(59,130,246,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+            <div className="flex gap-2">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder={PLACEHOLDERS[selectedLang] || PLACEHOLDERS.de}
+                className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[#3b82f6]/30"
+                disabled={loading}
+                dir={selectedLang === 'ar' ? 'rtl' : 'ltr'}
+              />
+              <Button onClick={sendMessage} disabled={loading || !input.trim()}
+                className="border-0" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
