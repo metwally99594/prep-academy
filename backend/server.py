@@ -7287,11 +7287,17 @@ async def _start_trial_system():
     asyncio.create_task(trial_loop(db))
     logger.info("Trial system started")
 
-# CORS Configuration — temporary wide open for debugging (like FSP)
+# CORS Configuration — production origins
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=False,
-    allow_origins=["*"],
+    allow_credentials=True,
+    allow_origins=[
+        "https://prepacademy-med.com",
+        "https://www.prepacademy-med.com",
+        "https://prep-academy-rho.vercel.app",
+        "https://prep-academy.vercel.app",
+        "http://localhost:3000",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
