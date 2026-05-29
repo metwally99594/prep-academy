@@ -1,10 +1,10 @@
-import { useEffect, useState, useContext, useRef } from "react";
+import { useEffect, useState, useContext } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { AuthContext, API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Play, Pause, SkipBack, SkipForward, Calendar, Sparkles, Headphones, RotateCcw, Lock } from "lucide-react";
+import { Loader2, Play, Pause, Calendar, Sparkles, Headphones, RotateCcw, Lock } from "lucide-react";
 
 const LANGS = [
   { id: "de", label: "🇩🇪 Deutsch" },
@@ -14,22 +14,17 @@ const LANGS = [
   { id: "uk", label: "🇺🇦 Українська" },
 ];
 
-const SPEAKER_TAG_RE = /\[(Moderator|Experte|Host|Expert|المقدم|الخبير|Ведущий|Эксперт|Ведучий|Експерт)\]\s*/gi;
-
 function parseScript(script) {
-  const parts = script.split(SPEAKER_TAG_RE);
   const segments = [];
-  const modWords = new Set(["moderator", "host", "المقدم", "ведущий", "ведучий"]);
-  for (let i = 0; i < parts.length; i++) {
-    const tag = parts[i]?.toLowerCase();
-    if (modWords.has(tag) && i + 1 < parts.length) {
-      segments.push({ role: "moderator", text: parts[i + 1].trim() });
-      i++;
-    } else if (["experte", "expert", "الخبير", "эксперт", "експерт"].includes(tag) && i + 1 < parts.length) {
-      segments.push({ role: "experte", text: parts[i + 1].trim() });
-      i++;
+  const parts = script.split(/(\[Moderator\]|\[Experte\])/);
+  let currentRole = null;
+  parts.forEach(part => {
+    if (part === '[Moderator]') currentRole = 'moderator';
+    else if (part === '[Experte]') currentRole = 'experte';
+    else if (part.trim() && currentRole) {
+      segments.push({ role: currentRole, text: part.trim() });
     }
-  }
+  });
   if (segments.length === 0 && script.trim()) segments.push({ role: "moderator", text: script.trim() });
   return segments;
 }
@@ -44,9 +39,7 @@ export default function DailyPodcastPage() {
   const [playing, setPlaying] = useState(false);
   const [segments, setSegments] = useState([]);
   const [currentSegment, setCurrentSegment] = useState(-1);
-  const speechRef = useRef(null);
-  const segmentsRef = useRef([]);
-  const indexRef = useRef(0);
+
 
   const [showScript, setShowScript] = useState(false);
   const [showCustomScript, setShowCustomScript] = useState(false);
@@ -60,43 +53,30 @@ export default function DailyPodcastPage() {
     window.speechSynthesis?.cancel();
     setPlaying(false);
     setCurrentSegment(-1);
-    indexRef.current = -1;
-  };
-
-  const speakNext = () => {
-    const idx = indexRef.current;
-    if (idx < 0 || idx >= segmentsRef.current.length) {
-      stopSpeech();
-      return false;
-    }
-    const seg = segmentsRef.current[idx];
-    const u = new SpeechSynthesisUtterance(seg.text || " ");
-    u.lang = language === "de" ? "de-DE" : language === "en" ? "en-US" : language === "ar" ? "ar-SA" : language === "ru" ? "ru-RU" : "uk-UA";
-    u.rate = 0.9;
-    u.pitch = seg.role === "moderator" ? 1.2 : 0.8;
-    u.onstart = () => { setCurrentSegment(idx); setPlaying(true); };
-    u.onerror = () => {
-      indexRef.current = idx + 1;
-      if (indexRef.current < segmentsRef.current.length) speakNext();
-      else stopSpeech();
-    };
-    u.onend = () => {
-      indexRef.current = idx + 1;
-      if (indexRef.current < segmentsRef.current.length) speakNext();
-      else stopSpeech();
-    };
-    speechRef.current = u;
-    window.speechSynthesis.speak(u);
-    return true;
   };
 
   const speakScript = (script) => {
     window.speechSynthesis?.cancel();
     const segs = parseScript(script);
     if (segs.length === 0) return;
-    segmentsRef.current = segs;
     setSegments(segs);
-    indexRef.current = 0;
+    let index = 0;
+    const speakNext = () => {
+      if (index >= segs.length) { stopSpeech(); return; }
+      const { role, text } = segs[index];
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = language === "de" ? "de-DE" : language === "en" ? "en-US" : language === "ar" ? "ar-SA" : language === "ru" ? "ru-RU" : "uk-UA";
+      u.rate = 0.9;
+      u.pitch = role === "moderator" ? 0.8 : 1.3;
+      u.onstart = () => { setCurrentSegment(index); setPlaying(true); };
+      u.onend = () => {
+        setCurrentSegment(index);
+        index++;
+        if (index < segs.length) speakNext();
+        else stopSpeech();
+      };
+      window.speechSynthesis.speak(u);
+    };
     speakNext();
   };
 
