@@ -4368,15 +4368,17 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
                     })
                 except Exception:
                     continue
+
+        # Extract TOC BEFORE closing doc
+        import re as _re_ch
+        toc = doc.get_toc()
         doc.close()
 
         words = full_text.split()
         total_words = len(words)
 
         # === Smart chapter detection: TOC > heading scan > page chunks ===
-        import re as _re_ch
         chapters = []
-        toc = doc.get_toc()  # list of [level, title, page]
 
         if toc and len(toc) >= 2:
             # Use PDF table of contents — group by top-level entries
