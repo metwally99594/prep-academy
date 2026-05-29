@@ -66,7 +66,7 @@ async def complete_masterclass_level(level_number: int, user: dict = Depends(get
             {
                 "$addToSet": {"completed_levels": level_number},
                 "$set": {"current_level": level_number + 1, "last_activity": now},
-                "$setOnInsert": {"user_id": user["id"], "completed_levels": []},
+                "$setOnInsert": {"user_id": user["id"]},
             },
             upsert=True,
         )
