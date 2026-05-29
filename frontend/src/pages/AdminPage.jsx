@@ -82,6 +82,9 @@ import {
   Search,
   FileText,
   GraduationCap,
+  Database,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
 const SPECIALTIES = [
@@ -666,6 +669,123 @@ function MasterclassAdminTab({ token }) {
           {result.message}
         </div>
       )}
+    </div>
+  );
+}
+
+function TutorDocsAdminTab({ token }) {
+  const [docs, setDocs] = useState([]);
+  const [specialties, setSpecialties] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const fetchDocs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [docsRes, specRes] = await Promise.all([
+        axios.get(`${API}/tutor/documents`, { headers }),
+        axios.get(`${API}/specialties`, { headers }),
+      ]);
+      setDocs(docsRes.data.documents || []);
+      setSpecialties(specRes.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedSpecialty) { setUploadResult({ ok: false, message: "Bitte Fach und PDF auswählen" }); return; }
+    setUploading(true);
+    setUploadResult(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("specialty_id", selectedSpecialty);
+      const res = await axios.post(`${API}/tutor/documents/upload`, form, { headers });
+      setUploadResult({ ok: true, message: `✅ ${res.data.filename} hochgeladen (${res.data.pages} Seiten, ${res.data.chunks} Abschnitte)` });
+      e.target.value = "";
+      fetchDocs();
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Fehler beim Upload";
+      setUploadResult({ ok: false, message: `❌ ${msg}` });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (docId) => {
+    try {
+      await axios.delete(`${API}/tutor/documents/${docId}`, { headers });
+      fetchDocs();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold flex items-center gap-2"><Database className="w-5 h-5" /> Tutor Dokumente</h2>
+
+      {/* Upload */}
+      <div className="glass-card rounded-2xl p-6">
+        <h3 className="font-medium mb-4">PDF hochladen</h3>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm text-muted-foreground mb-1">Fach</label>
+            <select value={selectedSpecialty} onChange={e => setSelectedSpecialty(e.target.value)}
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm">
+              <option value="">— Fach wählen —</option>
+              {specialties.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm text-muted-foreground mb-1">PDF Datei</label>
+            <input type="file" accept=".pdf" onChange={handleUpload} disabled={uploading}
+              className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20" />
+          </div>
+        </div>
+        {uploading && <p className="text-sm text-muted-foreground mt-2"><Loader2 className="w-4 h-4 inline animate-spin" /> Verarbeite PDF...</p>}
+        {uploadResult && (
+          <p className={`text-sm mt-2 ${uploadResult.ok ? 'text-green-500' : 'text-red-500'}`}>
+            {uploadResult.ok ? <CheckCircle className="w-4 h-4 inline" /> : <XCircle className="w-4 h-4 inline" />} {uploadResult.message}
+          </p>
+        )}
+      </div>
+
+      {/* Document List */}
+      <div className="glass-card rounded-2xl p-6">
+        <h3 className="font-medium mb-4">Hochgeladene Dokumente ({docs.length})</h3>
+        {loading ? (
+          <p className="text-muted-foreground">Lade...</p>
+        ) : docs.length === 0 ? (
+          <p className="text-muted-foreground">Keine Dokumente hochgeladen</p>
+        ) : (
+          <div className="space-y-2">
+            {docs.map(doc => (
+              <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border bg-background/50">
+                <div>
+                  <p className="font-medium text-sm">{doc.filename}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {specialties.find(s => s.id === doc.specialty_id)?.name || doc.specialty_id}
+                    {" · "}{doc.page_count} Seiten · {doc.chunk_count} Abschnitte · {doc.word_count} Wörter
+                  </p>
+                </div>
+                <button onClick={() => handleDelete(doc.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1342,6 +1462,10 @@ export default function AdminPage() {
           <TabsTrigger value="online" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
             <Wifi className="w-4 h-4" />
             Online
+          </TabsTrigger>
+          <TabsTrigger value="tutor-docs" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
+            <Database className="w-4 h-4" />
+            Tutor Docs
           </TabsTrigger>
           {process.env.REACT_APP_ADVANCED === "true" && (
             <TabsTrigger value="rag" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="rag-tab">
@@ -2612,6 +2736,10 @@ export default function AdminPage() {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="tutor-docs">
+          <TutorDocsAdminTab token={token} />
         </TabsContent>
 
         {process.env.REACT_APP_ADVANCED === "true" && (
