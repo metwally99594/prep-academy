@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { AuthContext, API } from "@/App";
@@ -55,6 +55,24 @@ export default function DailyPodcastPage() {
     setCurrentSegment(-1);
   };
 
+  const _voices = useRef([]);
+  useEffect(() => {
+    const grab = () => { _voices.current = window.speechSynthesis?.getVoices() || []; };
+    grab();
+    window.speechSynthesis?.addEventListener("voiceschanged", grab);
+    return () => window.speechSynthesis?.removeEventListener("voiceschanged", grab);
+  }, []);
+
+  const _pickVoice = (role) => {
+    const lang = language === "de" ? "de" : language === "en" ? "en" : language === "ar" ? "ar" : language === "ru" ? "ru" : "uk";
+    const all = _voices.current.filter(v => v.lang.startsWith(lang));
+    if (role === "moderator") {
+      return all.find(v => /male|david|christoph|stefan|heiner|markus/i.test(v.name)) || all[0] || null;
+    } else {
+      return all.find(v => /female|zira|hedda|katja|elke|sabina|hanna/i.test(v.name)) || all[0] || null;
+    }
+  };
+
   const speakScript = (script) => {
     window.speechSynthesis?.cancel();
     const segs = parseScript(script);
@@ -67,7 +85,8 @@ export default function DailyPodcastPage() {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = language === "de" ? "de-DE" : language === "en" ? "en-US" : language === "ar" ? "ar-SA" : language === "ru" ? "ru-RU" : "uk-UA";
       u.rate = 0.9;
-      u.pitch = role === "moderator" ? 0.8 : 1.3;
+      u.voice = _pickVoice(role);
+      u.pitch = role === "moderator" ? 0.85 : 1.25;
       u.onstart = () => { setCurrentSegment(index); setPlaying(true); };
       u.onend = () => {
         setCurrentSegment(index);
