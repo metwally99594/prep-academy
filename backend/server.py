@@ -4049,11 +4049,12 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> l
     """Search uploaded documents for a specialty. Uses $regex (doesn't need text index)."""
     if not query or len(query) < 2:
         return []
-    q_words = [w for w in query.lower().split() if len(w) > 2]
+    # Strip punctuation and split into words, keep meaningful ones
+    import re as _re
+    q_words = [w for w in _re.sub(r'[^\w\sßäöüÄÖÜ]', '', query.lower()).split() if len(w) > 2]
     if not q_words:
         return []
     try:
-        # Build a regex that matches any of the query words
         pattern = "|".join(re.escape(w) for w in q_words)
         match = {"chunks.text": {"$regex": pattern, "$options": "i"}}
         if specialty_id:
