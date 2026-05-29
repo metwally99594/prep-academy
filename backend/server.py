@@ -17,6 +17,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import os
 import json
+import re
 from typing import List, Optional
 import uuid
 import secrets
@@ -195,11 +196,12 @@ async def _background_db_sync():
             await db.specialties.insert_many(SPECIALTIES)
             logger.info("Background: Seeded specialties")
         else:
-            # Ensure pharma specialty exists
-            pharma = await db.specialties.find_one({"id": "pharma"})
-            if not pharma:
-                await db.specialties.insert_one({"id": "pharma", "name": "Pharma", "name_de": "Pharmakologie & Rezeptierkunde", "icon": "Pill"})
-                logger.info("Background: Added Pharma specialty")
+            # Ensure all individual specialties exist (for incremental additions)
+            for spec in SPECIALTIES:
+                existing = await db.specialties.find_one({"id": spec["id"]})
+                if not existing:
+                    await db.specialties.insert_one(spec)
+                    logger.info(f"Background: Added {spec['id']} specialty")
     except Exception as e:
         logger.error(f"Background specialties error: {e}")
 
@@ -4044,13 +4046,18 @@ async def admin_import_history(
 
 
 async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> list:
-    """Search uploaded documents for a specialty. Falls back to all docs if specialty_id is empty."""
+    """Search uploaded documents for a specialty. Uses $regex (doesn't need text index)."""
     if not query or len(query) < 2:
         return []
-    match = {"$text": {"$search": query}} if specialty_id else {}
-    if specialty_id:
-        match["specialty_id"] = specialty_id
+    q_words = [w for w in query.lower().split() if len(w) > 2]
+    if not q_words:
+        return []
     try:
+        # Build a regex that matches any of the query words
+        pattern = "|".join(re.escape(w) for w in q_words)
+        match = {"chunks.text": {"$regex": pattern, "$options": "i"}}
+        if specialty_id:
+            match["specialty_id"] = specialty_id
         docs = await db.tutor_documents.find(
             match,
             {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chunks": 1},
@@ -4063,9 +4070,8 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> l
                 text = chunk.get("text", "")
                 if not text:
                     continue
-                q_lower = query.lower()
                 chunk_lower = text.lower()
-                score = sum(1 for word in q_lower.split() if word in chunk_lower)
+                score = sum(1 for word in q_words if word in chunk_lower)
                 if score > 0:
                     results.append({
                         "document_id": doc["id"],
@@ -4348,37 +4354,10 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
                     continue
         doc.close()
 
-        # Describe extracted images using AI so the tutor can "read" them
+        # Store images without descriptions (background task will add them)
         if extracted_images:
-            or_key = os.environ.get("OPENROUTER_API_KEY")
-            if or_key:
-                async def _describe(b64img):
-                    try:
-                        async with httpx.AsyncClient(timeout=15.0) as cl:
-                            r = await cl.post(
-                                "https://openrouter.ai/api/v1/chat/completions",
-                                headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json"},
-                                json={
-                                    "model": "openai/gpt-4o-mini",
-                                    "messages": [{"role": "user", "content": [
-                                        {"type": "text", "text": "Beschreibe auf Deutsch, was in diesem medizinische Bild zu sehen ist. Nenne alle wichtigen Details: Organe, Strukturen, Beschriftungen, Diagramme, Pfeile, Farben. Wenn es ein Diagramm oder eine Tabelle ist, erkläre die dargestellten Zusammenhänge."},
-                                        {"type": "image_url", "image_url": {"url": f"data:image/{b64img['ext']};base64,{b64img['data']}"}},
-                                    ]}],
-                                    "max_tokens": 300,
-                                },
-                            )
-                            d = r.json()
-                            desc = (d.get("choices") or [{}])[0].get("message", {}).get("content", "")
-                            return desc.strip() or "Keine Beschreibung verfügbar."
-                    except Exception:
-                        return ""
-                tasks = [_describe(img) for img in extracted_images]
-                descs = await asyncio.gather(*tasks, return_exceptions=True)
-                for i, img in enumerate(extracted_images):
-                    desc = descs[i] if isinstance(descs[i], str) and descs[i] else ""
-                    img["description"] = desc
-                    if desc:
-                        text_pages[img["page"] - 1] += f"\n\n[BILD Page {img['page']}]: {desc}"
+            await db.tutor_doc_images.insert_many(extracted_images)
+            await db.tutor_doc_images.create_index([("doc_id", 1)])
 
         words = full_text.split()
         total_words = len(words)
@@ -4408,11 +4387,61 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
             "id": doc_id, "user_id": user["id"], "specialty_id": specialty_id, "filename": file.filename,
             "chunks": chunks, "chunk_count": len(chunks), "page_count": len(text_pages), "word_count": total_words,
             "has_images": len(extracted_images) > 0,
+            "descriptions_pending": len(extracted_images) > 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
         if extracted_images:
             await db.tutor_doc_images.insert_many(extracted_images)
             await db.tutor_doc_images.create_index([("doc_id", 1)])
+            # Background task: describe images with AI
+            async def _describe_images():
+                or_key = os.environ.get("OPENROUTER_API_KEY")
+                if not or_key:
+                    await db.tutor_documents.update_one({"id": doc_id}, {"$set": {"descriptions_pending": False}})
+                    return
+                try:
+                    import httpx
+                    cursor = db.tutor_doc_images.find({"doc_id": doc_id}, {"_id": 0})
+                    imgs = await cursor.to_list(100)
+                    if not imgs:
+                        return
+                    # Describe in batches of 5 to avoid rate limits
+                    for i in range(0, len(imgs), 5):
+                        batch = imgs[i:i+5]
+                        async def _describe_one(img):
+                            try:
+                                async with httpx.AsyncClient(timeout=20.0) as cl:
+                                    r = await cl.post(
+                                        "https://openrouter.ai/api/v1/chat/completions",
+                                        headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json"},
+                                        json={
+                                            "model": "openai/gpt-4o-mini",
+                                            "messages": [{"role": "user", "content": [
+                                                {"type": "text", "text": "Beschreibe auf Deutsch kurz, was in diesem medizinischen Bild zu sehen ist. Maximal 2 Sätze."},
+                                                {"type": "image_url", "image_url": {"url": f"data:image/{img['ext']};base64,{img['data']}"}},
+                                            ]}],
+                                            "max_tokens": 200,
+                                        },
+                                    )
+                                    d = r.json()
+                                    desc = (d.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+                                    return desc or ""
+                            except Exception:
+                                return ""
+                        descs = await asyncio.gather(*[_describe_one(img) for img in batch], return_exceptions=True)
+                        for j, img in enumerate(batch):
+                            desc = descs[j] if isinstance(descs[j], str) and descs[j] else ""
+                            if desc:
+                                await db.tutor_doc_images.update_one({"id": img["id"]}, {"$set": {"description": desc}})
+                                await db.tutor_documents.update_one(
+                                    {"id": doc_id, "chunks.page_start": {"$lte": img["page"]}, "chunks.page_end": {"$gte": img["page"]}},
+                                    {"$set": {f"chunks.$[elem].has_images_on_page": True}},
+                                    array_filters=[{"elem.page_start": {"$lte": img["page"]}, "elem.page_end": {"$gte": img["page"]}}],
+                                )
+                    await db.tutor_documents.update_one({"id": doc_id}, {"$set": {"descriptions_pending": False}})
+                except Exception:
+                    await db.tutor_documents.update_one({"id": doc_id}, {"$set": {"descriptions_pending": False}})
+            asyncio.create_task(_describe_images())
         await db.tutor_documents.create_index([("specialty_id", 1)])
         return {"id": doc_id, "filename": file.filename, "specialty_id": specialty_id, "chunks": len(chunks), "pages": len(text_pages), "words": total_words, "images_extracted": len(extracted_images)}
     except HTTPException:
@@ -4426,9 +4455,22 @@ async def list_tutor_documents(specialty_id: Optional[str] = None, user: dict = 
     query = {}
     if specialty_id:
         query["specialty_id"] = specialty_id
-    cursor = db.tutor_documents.find(query, {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chunk_count": 1, "page_count": 1, "word_count": 1, "created_at": 1}).sort("created_at", -1)
+    cursor = db.tutor_documents.find(query, {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chunk_count": 1, "page_count": 1, "word_count": 1, "has_images": 1, "descriptions_pending": 1, "created_at": 1}).sort("created_at", -1)
     docs = await cursor.to_list(200)
     return {"documents": docs}
+
+
+@api_router.get("/tutor/documents/{doc_id}")
+async def get_tutor_document(doc_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.tutor_documents.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
+    # Return chunks with full text (admin only: full text; others: truncated)
+    if user.get("is_admin"):
+        return doc
+    for c in doc.get("chunks", []):
+        c["text"] = c.get("text", "")[:500]
+    return doc
 
 
 @api_router.delete("/tutor/documents/{doc_id}")

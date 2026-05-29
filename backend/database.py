@@ -59,6 +59,7 @@ SPECIALTIES = [
     {"id": "obgyn", "name": "Gynäkologie", "name_de": "Gynäkologie", "icon": "HeartPulse"},
     {"id": "neurology", "name": "Neurologie", "name_de": "Neurologie", "icon": "Brain"},
     {"id": "psychiatry", "name": "Psychiatrie", "name_de": "Psychiatrie", "icon": "Activity"},
+    {"id": "urologie", "name": "Urologie", "name_de": "Urologie", "icon": "Kidney"},
     {"id": "pharma", "name": "Pharma", "name_de": "Pharmakologie & Rezeptierkunde", "icon": "Pill"},
     {"id": "special", "name": "Special", "name_de": "Special", "icon": "Star"},
 ]
