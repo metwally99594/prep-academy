@@ -43,6 +43,23 @@ export default function FSPSimulationPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const speakText = useCallback((text, role) => {
+    if (!text || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "de-DE";
+    u.rate = 0.9;
+    u.pitch = role === "patient" ? 1.2 : 0.9;
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (last && last.role !== "user" && last.role !== "system" && last.message) {
+      speakText(last.message, last.role);
+    }
+  }, [messages, speakText]);
+
   const handleStart = useCallback(async () => {
     setLoading(true);
     try {

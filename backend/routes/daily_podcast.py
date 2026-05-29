@@ -4,12 +4,13 @@ Daily Podcast — generates a short 5-min medical case podcast each day.
 Architecture:
 1. A scheduled background job (run on backend startup once daily) creates a podcast
    per supported language using a randomly picked specialty.
-2. Audio is stored in MongoDB (collection: `daily_podcasts`).
+2. Script is stored in MongoDB (collection: `daily_podcasts`).
 3. Frontend `GET /api/podcast/daily?language=de` returns the latest podcast for that language.
-4. Users can navigate prev/next podcasts via `GET /api/podcast/list`.
+4. Frontend uses Web Speech API (browser TTS) to read the script with dual voices.
+5. Users can navigate prev/next podcasts via `GET /api/podcast/list`.
 
 This generates value EVERY morning without using the Emergent budget for image AI
-(it uses OpenRouter Qwen + Edge TTS — both free/cheap) and creates a steady stream
+(it uses OpenRouter Qwen — free) and creates a steady stream
 of fresh content for SEO and re-engagement.
 """
 import os
@@ -18,26 +19,14 @@ import uuid
 import asyncio
 import logging
 import random
-import base64
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import httpx
-import io
-from gtts import gTTS
 
 logger = logging.getLogger("daily-podcast")
-
-# Same speaker presets as the notebook podcast
-PODCAST_SPEAKERS = {
-    "de": ("de-AT-IngridNeural", "de-AT-JonasNeural"),
-    "en": ("en-US-AvaNeural",    "en-US-AndrewNeural"),
-    "ar": ("ar-EG-SalmaNeural",  "ar-EG-ShakirNeural"),
-    "ru": ("ru-RU-SvetlanaNeural","ru-RU-DmitryNeural"),
-    "uk": ("uk-UA-PolinaNeural", "uk-UA-OstapNeural"),
-}
 
 SUPPORTED_LANGS = ["de", "en", "ar", "ru", "uk"]
 SPECIALTIES_POOL = [
@@ -256,75 +245,8 @@ async def _llm_qwen(system: str, user: str, max_tokens: int = 1500) -> Optional[
     return None
 
 
-def _split_speaker_parts(script: str):
-    import re
-    all_words = ["moderator", "experte", "host", "expert", "ведущий", "ведущая", "эксперт",
-                 "ведучий", "ведуча", "експерт", "المقدم", "الخبير", "doctor"]
-    pattern = "|".join(re.escape(w) for w in sorted(all_words, key=len, reverse=True))
-    parts = []
-    speaker = None
-    buffer = []
-    mod_words = {"moderator", "host", "ведущий", "ведущая", "ведучий", "ведуча", "المقدم"}
-    for line in script.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        m = re.match(rf"\[?\s*({pattern})\s*\]?\s*[:\-]?\s*(.*)", line, re.IGNORECASE)
-        if m:
-            if speaker and buffer:
-                parts.append((speaker, " ".join(buffer).strip()))
-            tag = m.group(1).lower()
-            speaker = "moderator" if tag in mod_words else "experte"
-            buffer = [m.group(2)] if m.group(2) else []
-        else:
-            buffer.append(line)
-    if speaker and buffer:
-        parts.append((speaker, " ".join(buffer).strip()))
-    if not parts and script.strip():
-        parts = [("moderator", script.strip())]
-    return parts
-
-
-_GTTS_LANG = {"de": "de", "en": "en", "ar": "ar", "ru": "ru", "uk": "uk"}
-
-
 async def _synthesize_podcast(script: str, language: str) -> str:
-    """Generate base64 MP3 — try edge-tts first, fall back to gTTS."""
-    import edge_tts
-
-    parts = _split_speaker_parts(script)
-    if not parts:
-        return ""
-
-    full = " ".join(text[:2500] for _, text in parts if text)
-    if not full:
-        return ""
-
-    voice = PODCAST_SPEAKERS.get(language, PODCAST_SPEAKERS["de"])[0]
-    try:
-        c = edge_tts.Communicate(full, voice, rate="-5%")
-        buf = bytearray()
-        async for chunk in c.stream():
-            if chunk["type"] == "audio":
-                buf.extend(chunk["data"])
-        if buf:
-            logger.info(f"edge-tts OK: {len(buf)} bytes")
-            return base64.b64encode(bytes(buf)).decode("ascii")
-    except Exception as e:
-        logger.warning(f"edge-tts failed, fallback to gTTS: {e}")
-
-    # Fallback to gTTS
-    lang = _GTTS_LANG.get(language, "de")
-    loop = asyncio.get_running_loop()
-    try:
-        buf = io.BytesIO()
-        await loop.run_in_executor(None, lambda: gTTS(text=full[:2500], lang=lang, slow=False).write_to_fp(buf))
-        audio = buf.getvalue()
-        if audio:
-            logger.info(f"gTTS fallback OK: {len(audio)} bytes")
-            return base64.b64encode(audio).decode("ascii")
-    except Exception as e:
-        logger.error(f"gTTS also failed: {e}")
+    """No-op: audio generation moved to frontend Web Speech API."""
     return ""
 
 
@@ -430,11 +352,7 @@ async def generate_daily_podcast(db, language: str, specialty: str = None, force
         logger.error(f"Failed to generate script for {language}/{specialty}")
         return None
 
-    # 3. Generate audio
-    audio_b64 = await _synthesize_podcast(script, language)
-    if not audio_b64:
-        logger.error(f"Failed to synthesize audio for {language}")
-        return None
+    # 3. Audio is generated client-side via Web Speech API — skip server TTS
 
     # 4. Generate title and summary IN THE SAME LANGUAGE
     title_prompts = {
@@ -463,8 +381,6 @@ async def generate_daily_podcast(db, language: str, specialty: str = None, force
         "title": title[:120],
         "summary": summary[:500],
         "script": script,
-        "audio_base64": audio_b64,
-        "audio_size": len(audio_b64),
         "source_mode": source_mode,
         "source_question_id": mcq_data["id"] if mcq_data else None,
         "source_year": mcq_data["year"] if mcq_data else None,
@@ -476,7 +392,7 @@ async def generate_daily_podcast(db, language: str, specialty: str = None, force
         {"$set": doc},
         upsert=True,
     )
-    logger.info(f"✅ Daily podcast [{language}]: {today} — {title} ({len(audio_b64) / 1024:.0f} KB) | source={source_mode}")
+    logger.info(f"✅ Daily podcast [{language}]: {today} — {title} | source={source_mode}")
     return doc
 
 
@@ -546,7 +462,7 @@ def make_router(db, get_current_user):
             language = "de"
         cursor = db.daily_podcasts.find(
             {"language": language},
-            {"_id": 0, "audio_base64": 0, "script": 0},
+            {"_id": 0, "script": 0},
         ).sort("created_at", -1).limit(min(limit, 30))
         items = []
         async for d in cursor:
@@ -564,7 +480,7 @@ def make_router(db, get_current_user):
             query["language"] = language
         cursor = db.custom_podcasts.find(
             query,
-            {"_id": 0, "audio_base64": 0, "script": 0},
+            {"_id": 0, "script": 0},
         ).sort("created_at", -1).limit(min(limit, 50))
         items = []
         async for d in cursor:
@@ -631,10 +547,7 @@ def make_router(db, get_current_user):
         doc = await generate_daily_podcast(db, req.language, force=req.force)
         if not doc:
             raise HTTPException(status_code=500, detail="Generation failed")
-        # Don't return the audio in admin response
-        slim = {k: v for k, v in doc.items() if k not in ("audio_base64",)}
-        slim["audio_size"] = doc.get("audio_size", 0)
-        return slim
+        return doc
 
     class CustomRequest(BaseModel):
         language: str = "de"
@@ -668,12 +581,6 @@ Format:
         if not script:
             raise HTTPException(status_code=500, detail="Script generation failed")
 
-        audio_b64 = await _synthesize_podcast(script, language)
-        if not audio_b64:
-            raise HTTPException(status_code=500, detail="Audio synthesis failed")
-
-        title = req.title or "Custom Case"
-
         doc = {
             "id": str(uuid.uuid4()),
             "date": datetime.now(timezone.utc).date().isoformat(),
@@ -682,13 +589,11 @@ Format:
             "title": title[:120],
             "summary": req.case_text[:500],
             "script": script,
-            "audio_base64": audio_b64,
-            "audio_size": len(audio_b64),
             "source_mode": "custom",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.custom_podcasts.insert_one(doc)
-        logger.info(f"✅ Custom podcast [{language}]: {title} ({len(audio_b64) / 1024:.0f} KB)")
+        logger.info(f"✅ Custom podcast [{language}]: {title}")
 
         doc.pop("_id", None)
         return doc
@@ -724,10 +629,6 @@ Format:
         if not script:
             raise HTTPException(status_code=500, detail="Script generation failed")
 
-        audio_b64 = await _synthesize_podcast(script, language)
-        if not audio_b64:
-            raise HTTPException(status_code=500, detail="Audio synthesis failed")
-
         title = req.title or "Custom Case"
 
         doc = {
@@ -738,8 +639,6 @@ Format:
             "title": title[:120],
             "summary": req.case_text[:500],
             "script": script,
-            "audio_base64": audio_b64,
-            "audio_size": len(audio_b64),
             "source_mode": "user_generated",
             "user_id": user["id"],
             "created_at": datetime.now(timezone.utc).isoformat(),

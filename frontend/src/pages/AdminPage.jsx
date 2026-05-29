@@ -610,6 +610,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
 
 function MasterclassAdminTab({ token }) {
   const [seeding, setSeeding] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState(null);
 
   const handleSeed = async () => {
@@ -628,16 +629,38 @@ function MasterclassAdminTab({ token }) {
     }
   };
 
+  const handleGenerateContent = async () => {
+    setGenerating(true);
+    setResult(null);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.post(`${API}/admin/masterclass/generate-content`, {}, { headers });
+      setResult({ ok: true, message: `✅ ${res.data.updated} Levels mit Inhalt befüllt (${res.data.failed} Kapitel fehlgeschlagen)` });
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join("; ") : (detail || "Fehler bei Generierung");
+      setResult({ ok: false, message: `❌ ${msg}` });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">Masterclass</h2>
       <p className="text-muted-foreground">
-        Erstellt 90 Lerneinheiten in der Datenbank (wird übersprungen wenn bereits vorhanden)
+        Erstellt 90 Lerneinheiten in der Datenbank und generiert echte Inhalte per KI
       </p>
-      <Button onClick={handleSeed} disabled={seeding} className="gap-2">
-        {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-        🎓 90 Levels seeden
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={handleSeed} disabled={seeding} className="gap-2">
+          {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          🎓 90 Levels seeden
+        </Button>
+        <Button onClick={handleGenerateContent} disabled={generating} className="gap-2" variant="outline">
+          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          🤖 Inhalt generieren (9 KI-Aufrufe)
+        </Button>
+      </div>
       {result && (
         <div className={`p-4 rounded-xl text-sm ${result.ok ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
           {result.message}

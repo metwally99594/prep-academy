@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
-import math
+import math, logging
 from datetime import datetime, timezone
 from auth import get_current_user
+
+logger = logging.getLogger("masterclass")
 
 router = APIRouter(prefix="/api", tags=["masterclass"])
 
@@ -53,21 +55,27 @@ async def get_masterclass_level(level_number: int, user: dict = Depends(get_curr
 @router.post("/masterclass/levels/{level_number}/complete")
 async def complete_masterclass_level(level_number: int, user: dict = Depends(get_current_user)):
     from database import db
-    lv = await db.masterclass_levels.find_one({"level_number": level_number})
-    if not lv:
-        raise HTTPException(404, "Level nicht gefunden")
+    try:
+        lv = await db.masterclass_levels.find_one({"level_number": level_number})
+        if not lv:
+            raise HTTPException(404, "Level nicht gefunden")
 
-    now = datetime.now(timezone.utc).isoformat()
-    await db.masterclass_progress.update_one(
-        {"user_id": user["id"]},
-        {
-            "$addToSet": {"completed_levels": level_number},
-            "$set": {"current_level": level_number + 1, "last_activity": now},
-            "$setOnInsert": {"user_id": user["id"], "completed_levels": []},
-        },
-        upsert=True,
-    )
-    return {"next_level": level_number + 1}
+        now = datetime.now(timezone.utc).isoformat()
+        await db.masterclass_progress.update_one(
+            {"user_id": user["id"]},
+            {
+                "$addToSet": {"completed_levels": level_number},
+                "$set": {"current_level": level_number + 1, "last_activity": now},
+                "$setOnInsert": {"user_id": user["id"], "completed_levels": []},
+            },
+            upsert=True,
+        )
+        return {"next_level": level_number + 1}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("complete_level(%d) failed: %s", level_number, str(e))
+        raise HTTPException(status_code=500, detail=f"Fehler beim Abschließen: {str(e)}")
 
 
 @router.get("/masterclass/progress")

@@ -14,6 +14,26 @@ const LANGS = [
   { id: "uk", label: "🇺🇦 Українська" },
 ];
 
+const SPEAKER_TAG_RE = /\[(Moderator|Experte|Host|Expert|المقدم|الخبير|Ведущий|Эксперт|Ведучий|Експерт)\]\s*/gi;
+
+function parseScript(script) {
+  const parts = script.split(SPEAKER_TAG_RE);
+  const segments = [];
+  const modWords = new Set(["moderator", "host", "المقدم", "ведущий", "ведучий"]);
+  for (let i = 0; i < parts.length; i++) {
+    const tag = parts[i]?.toLowerCase();
+    if (modWords.has(tag) && i + 1 < parts.length) {
+      segments.push({ role: "moderator", text: parts[i + 1].trim() });
+      i++;
+    } else if (["experte", "expert", "الخبير", "эксперт", "експерт"].includes(tag) && i + 1 < parts.length) {
+      segments.push({ role: "experte", text: parts[i + 1].trim() });
+      i++;
+    }
+  }
+  if (segments.length === 0 && script.trim()) segments.push({ role: "moderator", text: script.trim() });
+  return segments;
+}
+
 export default function DailyPodcastPage() {
   const { token } = useContext(AuthContext) || {};
   const [language, setLanguage] = useState(() => localStorage.getItem("podcast_lang") || "de");
@@ -22,29 +42,91 @@ export default function DailyPodcastPage() {
   const [loading, setLoading] = useState(true);
   const [locked, setLocked] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [segments, setSegments] = useState([]);
+  const [currentSegment, setCurrentSegment] = useState(-1);
+  const speechRef = useRef(null);
+  const segmentsRef = useRef([]);
+  const indexRef = useRef(0);
+
   const [showScript, setShowScript] = useState(false);
   const [showCustomScript, setShowCustomScript] = useState(false);
-  const audioRef = useRef(null);
-
   const [customPodcasts, setCustomPodcasts] = useState([]);
-  const [customAudio, setCustomAudio] = useState(null);
   const [customPlaying, setCustomPlaying] = useState(null);
   const [customScript, setCustomScript] = useState(null);
 
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
+  const stopSpeech = () => {
+    window.speechSynthesis?.cancel();
+    setPlaying(false);
+    setCurrentSegment(-1);
+    indexRef.current = -1;
+  };
+
+  const speakNext = () => {
+    const idx = indexRef.current;
+    if (idx < 0 || idx >= segmentsRef.current.length) {
+      stopSpeech();
+      return false;
+    }
+    const seg = segmentsRef.current[idx];
+    const u = new SpeechSynthesisUtterance(seg.text || " ");
+    u.lang = language === "de" ? "de-DE" : language === "en" ? "en-US" : language === "ar" ? "ar-SA" : language === "ru" ? "ru-RU" : "uk-UA";
+    u.rate = 0.9;
+    u.pitch = seg.role === "moderator" ? 1.2 : 0.8;
+    u.onstart = () => { setCurrentSegment(idx); setPlaying(true); };
+    u.onerror = () => {
+      indexRef.current = idx + 1;
+      if (indexRef.current < segmentsRef.current.length) speakNext();
+      else stopSpeech();
+    };
+    u.onend = () => {
+      indexRef.current = idx + 1;
+      if (indexRef.current < segmentsRef.current.length) speakNext();
+      else stopSpeech();
+    };
+    speechRef.current = u;
+    window.speechSynthesis.speak(u);
+    return true;
+  };
+
+  const speakScript = (script) => {
+    window.speechSynthesis?.cancel();
+    const segs = parseScript(script);
+    if (segs.length === 0) return;
+    segmentsRef.current = segs;
+    setSegments(segs);
+    indexRef.current = 0;
+    speakNext();
+  };
+
+  const togglePlay = () => {
+    if (playing) {
+      stopSpeech();
+    } else {
+      speakScript(current?.script || "");
+    }
+  };
+
+  const segmentProgress = segments.length > 0 && currentSegment >= 0
+    ? Math.round(((currentSegment + 1) / segments.length) * 100) : 0;
+
   useEffect(() => { localStorage.setItem("podcast_lang", language); }, [language]);
+
+  useEffect(() => {
+    return () => { window.speechSynthesis?.cancel(); };
+  }, []);
 
   const loadDaily = async (id = null) => {
     setLoading(true);
     setCurrent(null);
     setLocked(false);
+    stopSpeech();
     try {
       const url = id ? `${API}/podcast/${id}` : `${API}/podcast/daily?language=${language}`;
       const res = await axios.get(url, { headers });
       setCurrent(res.data);
+      setSegments(parseScript(res.data.script || ""));
     } catch (err) {
       if (err?.response?.status === 403) setLocked(true);
       else setCurrent(null);
@@ -63,44 +145,26 @@ export default function DailyPodcastPage() {
   const loadCustom = async () => {
     try {
       const res = await axios.get(`${API}/podcast/custom?limit=10`, { headers });
-      console.log("custom podcasts:", res.data);
       setCustomPodcasts(res.data.items || []);
-    } catch (e) {
-      console.error("loadCustom failed:", e?.response?.status, e?.message);
-      setCustomPodcasts([]);
-    }
+    } catch { setCustomPodcasts([]); }
   };
 
   useEffect(() => { loadDaily(); loadList(); loadCustom(); /* eslint-disable-next-line */ }, [language]);
 
   const playCustom = async (item) => {
-    if (customPlaying === item.id) { customAudio?.pause(); setCustomPlaying(null); return; }
+    if (customPlaying === item.id) {
+      stopSpeech();
+      setCustomPlaying(null);
+      setCustomScript(null);
+      return;
+    }
+    stopSpeech();
     try {
       const res = await axios.get(`${API}/podcast/custom/${item.id}`, { headers });
-      if (customAudio) customAudio.pause();
-      const audio = new Audio(`data:audio/mp3;base64,${res.data.audio_base64}`);
-      setCustomAudio(audio);
       setCustomPlaying(item.id);
       setCustomScript(res.data.script || null);
-      audio.play();
-      audio.onended = () => { setCustomPlaying(null); setCustomScript(null); };
-    } catch { setCustomPlaying(null); setCustomScript(null); }
-  };
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (playing) audioRef.current.pause(); else audioRef.current.play();
-  };
-
-  const seek = (delta) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = Math.max(0, Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + delta));
-  };
-
-  const fmt = (s) => {
-    if (!s || isNaN(s)) return "0:00";
-    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+      speakScript(res.data.script || "");
+    } catch { setCustomPlaying(null); }
   };
 
   return (
@@ -164,55 +228,39 @@ export default function DailyPodcastPage() {
             </h2>
             {current.summary && <p className="text-muted-foreground text-sm md:text-base mb-6 leading-relaxed">{current.summary}</p>}
 
-            <audio
-              ref={audioRef}
-              src={`data:audio/mp3;base64,${current.audio_base64}`}
-              onPlay={() => setPlaying(true)}
-              onPause={() => setPlaying(false)}
-              onTimeUpdate={(e) => setProgress(e.target.currentTime)}
-              onLoadedMetadata={(e) => setDuration(e.target.duration)}
-              onEnded={() => setPlaying(false)}
-            />
-
+            {/* Web Speech API player */}
             <div className="space-y-4">
-              <div className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer" onClick={(e) => {
-                if (!audioRef.current?.duration) return;
-                const rect = e.currentTarget.getBoundingClientRect();
-                audioRef.current.currentTime = ((e.clientX - rect.left) / rect.width) * audioRef.current.duration;
-              }}>
-                <div className="h-full bg-amber-500 transition-all" style={{ width: duration ? `${(progress / duration) * 100}%` : '0%' }} />
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-amber-500 transition-all" style={{ width: `${segmentProgress}%` }} />
               </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
-                <span>{fmt(progress)}</span>
-                <span>{fmt(duration)}</span>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{playing && currentSegment >= 0 ? `${currentSegment + 1}/${segments.length}` : ""}</span>
+                <span>{segments.length} Abschnitte</span>
               </div>
 
               <div className="flex items-center justify-center gap-3">
-                <Button variant="outline" size="icon" onClick={() => seek(-10)} className="h-12 w-12 rounded-full" data-testid="seek-back-btn">
-                  <SkipBack className="w-5 h-5" />
-                </Button>
                 <Button onClick={togglePlay} className="h-16 w-16 rounded-full bg-amber-500 hover:bg-amber-600 text-amber-950" data-testid="play-pause-btn">
                   {playing ? <Pause className="w-7 h-7" fill="currentColor" /> : <Play className="w-7 h-7 ml-1" fill="currentColor" />}
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => seek(10)} className="h-12 w-12 rounded-full" data-testid="seek-forward-btn">
-                  <SkipForward className="w-5 h-5" />
                 </Button>
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-border/30 flex items-center justify-between text-sm">
-              <button onClick={() => setShowScript(s => !s)} className="text-muted-foreground hover:text-foreground" data-testid="toggle-script-btn">
+            {/* Script toggle */}
+            <div className="mt-6 pt-4 border-t border-border/30">
+              <button onClick={() => setShowScript(s => !s)} className="text-sm text-muted-foreground hover:text-foreground" data-testid="toggle-script-btn">
                 {showScript ? "Skript ausblenden" : "Skript anzeigen"}
               </button>
-              <a href={`data:audio/mp3;base64,${current.audio_base64}`} download={`podcast-${current.date}-${current.language}.mp3`} className="text-amber-500 hover:text-amber-400 text-sm font-medium" data-testid="download-mp3-btn">
-                MP3 herunterladen
-              </a>
             </div>
 
             {showScript && current.script && (
-              <pre className="mt-4 p-4 bg-muted/50 rounded-lg text-xs overflow-auto max-h-96 whitespace-pre-wrap font-sans leading-relaxed">
-                {current.script}
-              </pre>
+              <div className="mt-4 space-y-2">
+                {segments.map((seg, i) => (
+                  <div key={i} className={`p-3 rounded-lg text-sm leading-relaxed ${i === currentSegment && playing ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-muted/30'} ${seg.role === "moderator" ? "border-l-4 border-l-blue-400" : "border-l-4 border-l-amber-400"}`}>
+                    <span className="text-xs font-semibold uppercase text-muted-foreground">{seg.role}</span>
+                    <p className="mt-1">{seg.text}</p>
+                  </div>
+                ))}
+              </div>
             )}
           </Card>
 
@@ -247,7 +295,7 @@ export default function DailyPodcastPage() {
                     <div className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-amber-500/40 transition-all">
                       <button onClick={() => playCustom(item)}
                         className="h-9 w-9 rounded-full flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 shrink-0 transition-all">
-                        {customPlaying === item.id ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
+                        {customPlaying === item.id && playing ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
                       </button>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{item.title}</div>
@@ -276,7 +324,7 @@ export default function DailyPodcastPage() {
 
       <div className="mt-8 text-center">
         <p className="text-xs text-muted-foreground">
-          🎙️ Generiert mit Qwen3-235B (Alibaba) + Microsoft Edge TTS · Aktualisiert alle 24 Stunden
+          🎙️ Generiert mit Qwen3-235B (Alibaba) · Webbasierte Sprachausgabe (Web Speech API) · Aktualisiert alle 24 Stunden
         </p>
         <Link to="/" className="text-amber-500 hover:text-amber-400 text-sm font-medium" data-testid="back-home">← Zurück zur Startseite</Link>
       </div>

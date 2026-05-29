@@ -1,7 +1,7 @@
 """Admin Routes: Import/Export, User Management, Bulk Operations, Stats"""
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, Response, Request
 from typing import Optional
-import uuid, json, re as _re, io, base64 as _b64, os as _os, asyncio
+import uuid, json, re as _re, io, base64 as _b64, os as _os, asyncio, httpx
 from datetime import datetime, timezone
 
 from database import db, logger
@@ -510,6 +510,90 @@ async def seed_masterclass(admin: dict = Depends(get_admin_user)):
                 created += 1
     total = await db.masterclass_levels.count_documents({})
     return {"created": created, "total_levels": total, "message": f"{created} neue Level erstellt, insgesamt {total}"}
+
+
+async def _llm_generate(system: str, user: str) -> str:
+    """Call OpenRouter free models for masterclass content generation."""
+    or_key = _os.environ.get("OPENROUTER_API_KEY")
+    if not or_key:
+        raise HTTPException(500, "OPENROUTER_API_KEY not set")
+    models = ["openrouter/free", "google/gemini-2.0-flash-exp:free", "meta-llama/llama-4-maverick:free"]
+    for model in models:
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {or_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://mcq-medical-prep.academy",
+                        "X-Title": "PrepAcademy Masterclass",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        "max_tokens": 3000,
+                        "temperature": 0.7,
+                    },
+                )
+                if r.status_code != 200:
+                    continue
+                data = r.json()
+                if "choices" in data and data["choices"]:
+                    content = data["choices"][0]["message"].get("content") or ""
+                    if len(content) > 50:
+                        return content
+        except Exception:
+            continue
+    raise HTTPException(500, "Alle OpenRouter-Modelle fehlgeschlagen — kann Inhalt nicht generieren")
+
+
+@router.post("/admin/masterclass/generate-content")
+async def generate_masterclass_content(admin: dict = Depends(get_admin_user)):
+    from database import db
+    total = 0
+    errors = 0
+    for ch_idx, topics in enumerate(CHAPTER_TOPICS):
+        chapter = ch_idx + 1
+        start_lv = chapter * 10 - 9
+        end_lv = chapter * 10
+        topics_list = "\n".join(f"{i+1}. {t}" for i, t in enumerate(topics))
+        system = "Du bist ein erfahrener Medizindozent für die deutsche Kenntnisprüfung (FSP). Antworte NUR auf Deutsch."
+        prompt = (
+            f"Erstelle für jedes der folgenden 10 Themen eine kurze Lerneinheit (80-120 Wörter pro Thema) "
+            f"für Kapitel {chapter} der Masterclass. Jede Lerneinheit soll prüfungsrelevantes Wissen vermitteln.\n\n"
+            f"Themen:\n{topics_list}\n\n"
+            f"Format: Jede Lerneinheit beginnt mit '### LEVEL X ###' (X = Nummer von {start_lv} bis {end_lv}). "
+            f"Dann kommt der Lerntext. Beispiel:\n\n"
+            f"### LEVEL {start_lv} ###\n[Lerntext für Thema 1]\n\n"
+            f"### LEVEL {start_lv+1} ###\n[Lerntext für Thema 2]"
+        )
+        try:
+            text = await _llm_generate(system, prompt)
+            for lv in range(start_lv, end_lv + 1):
+                marker = f"### LEVEL {lv} ###"
+                start = text.find(marker)
+                if start == -1:
+                    continue
+                start += len(marker)
+                next_lv = lv + 1
+                next_marker = f"### LEVEL {next_lv} ###"
+                end = text.find(next_marker, start)
+                lesson = text[start:end].strip() if end != -1 else text[start:].strip()
+                if lesson:
+                    await db.masterclass_levels.update_one(
+                        {"level_number": lv},
+                        {"$set": {"content": lesson}}
+                    )
+                    total += 1
+            await asyncio.sleep(0)
+        except Exception as e:
+            errors += 1
+            logger.warning("Kapitel %d fehlgeschlagen: %s", chapter, str(e))
+    return {"updated": total, "failed": errors, "message": f"{total} Level mit Inhalt befüllt, {errors} Kapitel fehlgeschlagen"}
 
 
 @router.post("/admin/kp-reports/import-bulk")
