@@ -93,22 +93,20 @@ export default function AIChat({ question, isOpen, onClose }) {
       .catch(() => {});
   }, [isOpen, isTutor, token]);
 
-  // Fetch chapters when specialty changes
+  // Fetch chapters from uploaded documents
   useEffect(() => {
-    if (!isOpen || !isTutor || !token || !selectedSpecialty) {
+    if (!isOpen || !isTutor || !token) {
       setChapters([]);
       setSelectedChapter(null);
       return;
     }
-    axios.get(`${API}/tutor/documents?specialty_id=${selectedSpecialty}`, { headers })
+    axios.get(`${API}/tutor/documents`, { headers })
       .then(r => {
         const docs = r.data.documents || [];
-        if (docs.length > 0) {
-          // Fetch chapters from the most recent document
-          const docId = docs[0].id;
-          return axios.get(`${API}/tutor/documents/${docId}/chapters`, { headers });
-        }
-        return null;
+        if (docs.length === 0) { setChapters([]); return null; }
+        // Fetch chapters from the most recent document
+        const docId = docs[0].id;
+        return axios.get(`${API}/tutor/documents/${docId}/chapters`, { headers });
       })
       .then(r => {
         if (r && r.data?.chapters) {
@@ -118,7 +116,7 @@ export default function AIChat({ question, isOpen, onClose }) {
         }
       })
       .catch(() => setChapters([]));
-  }, [isOpen, isTutor, token, selectedSpecialty]);
+  }, [isOpen, isTutor, token]);
 
   // Set greeting for new conversation (no messages loaded)
   useEffect(() => {
