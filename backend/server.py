@@ -4074,6 +4074,8 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> l
                         "chunk_title": chunk.get("title", ""),
                         "text": text[:2000],
                         "score": score,
+                        "page_start": chunk.get("page_start", 1),
+                        "page_end": chunk.get("page_end", 1),
                     })
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:limit]
@@ -4126,6 +4128,7 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
         doc_results = await _search_tutor_docs(body.user_message, body.specialty_id)
         doc_source_block = ""
         doc_count = 0
+        doc_images = []
         if doc_results:
             doc_parts = []
             for i, d in enumerate(doc_results, 1):
@@ -4133,6 +4136,30 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
             doc_source_block = "\n\n".join(doc_parts)
             doc_count = len(doc_results)
             logger.info(f"[Tutor] Found {doc_count} doc chunks for '{body.specialty_id or 'all'}': {body.user_message[:60]}")
+            # Fetch images from matching pages
+            doc_ids = set(r["document_id"] for r in doc_results)
+            for doc_id in doc_ids:
+                page_set = set()
+                for r in doc_results:
+                    if r["document_id"] == doc_id:
+                        for p in range(r.get("page_start", 1), r.get("page_end", 1) + 1):
+                            page_set.add(p)
+                if page_set:
+                    img_cursor = db.tutor_doc_images.find(
+                        {"doc_id": doc_id, "page": {"$in": list(page_set)}},
+                        {"_id": 0, "id": 1, "page": 1, "ext": 1, "width": 1, "height": 1, "data": 1},
+                    )
+                    async for img in img_cursor:
+                        doc_images.append({
+                            "id": img["id"],
+                            "page": img["page"],
+                            "ext": img["ext"],
+                            "width": img["width"],
+                            "height": img["height"],
+                            "data": f"data:image/{img['ext']};base64,{img['data']}",
+                            "_source": "document",
+                            "title": f"Seite {img['page']} — {doc_results[0]['filename']}",
+                        })
 
         # 2. SECOND (fallback): Search exam questions + medical knowledge
         relevant_questions, relevant_knowledge = [], []
@@ -4192,7 +4219,7 @@ REGELN:
 7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen."""
 
         response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
-        images = await _search_medical_images(body.user_message) if not doc_results else []
+        images = await _search_medical_images(body.user_message) if not doc_results else doc_images
         await _increment_ai_quota(user["id"])
 
         # Persist both messages
@@ -4282,16 +4309,77 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
     content = await file.read()
     if len(content) > 30 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Datei zu gross (max 30MB)")
-    import fitz
+    import fitz, base64
     try:
         doc = fitz.open(stream=content, filetype="pdf")
         text_pages = []
         for page in doc:
             text_pages.append(page.get_text())
         full_text = "\n\n".join(text_pages)
-        doc.close()
         if not full_text.strip():
+            doc.close()
             raise HTTPException(status_code=400, detail="PDF enthalt keinen lesbaren Text")
+
+        # Extract images from each page before closing doc
+        import uuid as _uuid
+        doc_id = str(_uuid.uuid4())
+        extracted_images = []
+        for page_num, page in enumerate(doc):
+            page_images = page.get_images(full=True)
+            for img_idx, img_info in enumerate(page_images):
+                try:
+                    base_image = doc.extract_image(img_info[0])
+                    img_bytes = base_image["image"]
+                    img_ext = base_image["ext"]
+                    img_w, img_h = base_image["width"], base_image["height"]
+                    if img_w < 50 or img_h < 50:
+                        continue
+                    b64 = base64.b64encode(img_bytes).decode("utf-8")
+                    extracted_images.append({
+                        "id": str(_uuid.uuid4()),
+                        "doc_id": doc_id,
+                        "page": page_num + 1,
+                        "ext": img_ext,
+                        "width": img_w,
+                        "height": img_h,
+                        "data": b64,
+                    })
+                except Exception:
+                    continue
+        doc.close()
+
+        # Describe extracted images using AI so the tutor can "read" them
+        if extracted_images:
+            or_key = os.environ.get("OPENROUTER_API_KEY")
+            if or_key:
+                async def _describe(b64img):
+                    try:
+                        async with httpx.AsyncClient(timeout=15.0) as cl:
+                            r = await cl.post(
+                                "https://openrouter.ai/api/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json"},
+                                json={
+                                    "model": "openai/gpt-4o-mini",
+                                    "messages": [{"role": "user", "content": [
+                                        {"type": "text", "text": "Beschreibe auf Deutsch, was in diesem medizinische Bild zu sehen ist. Nenne alle wichtigen Details: Organe, Strukturen, Beschriftungen, Diagramme, Pfeile, Farben. Wenn es ein Diagramm oder eine Tabelle ist, erkläre die dargestellten Zusammenhänge."},
+                                        {"type": "image_url", "image_url": {"url": f"data:image/{b64img['ext']};base64,{b64img['data']}"}},
+                                    ]}],
+                                    "max_tokens": 300,
+                                },
+                            )
+                            d = r.json()
+                            desc = (d.get("choices") or [{}])[0].get("message", {}).get("content", "")
+                            return desc.strip() or "Keine Beschreibung verfügbar."
+                    except Exception:
+                        return ""
+                tasks = [_describe(img) for img in extracted_images]
+                descs = await asyncio.gather(*tasks, return_exceptions=True)
+                for i, img in enumerate(extracted_images):
+                    desc = descs[i] if isinstance(descs[i], str) and descs[i] else ""
+                    img["description"] = desc
+                    if desc:
+                        text_pages[img["page"] - 1] += f"\n\n[BILD Page {img['page']}]: {desc}"
+
         words = full_text.split()
         total_words = len(words)
         chunk_size = 3000
@@ -4316,15 +4404,17 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
                     current_chunk_words += page_words
             if current_chunk_text.strip():
                 chunks.append({"index": chunk_idx, "title": f"Abschnitt {chunk_idx + 1} (S. {chunk_start_page}-{len(text_pages)})", "text": current_chunk_text.strip(), "word_count": current_chunk_words, "page_start": chunk_start_page, "page_end": len(text_pages)})
-        import uuid as _uuid
-        doc_id = str(_uuid.uuid4())
         await db.tutor_documents.insert_one({
             "id": doc_id, "user_id": user["id"], "specialty_id": specialty_id, "filename": file.filename,
             "chunks": chunks, "chunk_count": len(chunks), "page_count": len(text_pages), "word_count": total_words,
+            "has_images": len(extracted_images) > 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
+        if extracted_images:
+            await db.tutor_doc_images.insert_many(extracted_images)
+            await db.tutor_doc_images.create_index([("doc_id", 1)])
         await db.tutor_documents.create_index([("specialty_id", 1)])
-        return {"id": doc_id, "filename": file.filename, "specialty_id": specialty_id, "chunks": len(chunks), "pages": len(text_pages), "words": total_words}
+        return {"id": doc_id, "filename": file.filename, "specialty_id": specialty_id, "chunks": len(chunks), "pages": len(text_pages), "words": total_words, "images_extracted": len(extracted_images)}
     except HTTPException:
         raise
     except Exception as e:
