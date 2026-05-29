@@ -67,6 +67,7 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
                 "image_base64": q.get("image_base64", q.get("image", None)),
                 "interactive_data": q.get("interactive_data", None),
                 "tags": q.get("tags", []),
+                "status": q.get("status", "published"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             if not normalized["question_text_de"]:
@@ -601,6 +602,34 @@ async def generate_masterclass_content(admin: dict = Depends(get_admin_user)):
             logger.warning("Kapitel %d fehlgeschlagen: %s", chapter, str(e))
             continue
     return {"updated": total, "total_levels": 90, "message": f"{total} von 90 Levels mit Inhalt befüllt"}
+
+
+@router.post("/admin/masterclass/seed-specialty")
+async def seed_fachsprache_specialty(admin: dict = Depends(get_admin_user)):
+    from database import db
+    existing = await db.specialties.find_one({"id": "fachsprache"})
+    if not existing:
+        await db.specialties.insert_one({
+            "id": "fachsprache",
+            "name": "Fachsprache",
+            "name_de": "Medizinische Fachsprache",
+            "country": "DE",
+            "icon": "📖",
+            "question_count": await db.questions.count_documents({"specialty_id": "fachsprache"}),
+        })
+    result = await db.questions.update_many(
+        {"specialty_id": "fachsprache", "status": {"$exists": False}},
+        {"$set": {"status": "published"}},
+    )
+    updated_counts = await db.specialties.update_one(
+        {"id": "fachsprache"},
+        {"$set": {"question_count": await db.questions.count_documents({"specialty_id": "fachsprache"})}},
+    )
+    return {
+        "specialty_created": existing is None,
+        "questions_fixed": result.modified_count,
+        "total_fachsprache": await db.questions.count_documents({"specialty_id": "fachsprache"}),
+    }
 
 
 @router.post("/admin/kp-reports/import-bulk")
