@@ -4217,15 +4217,16 @@ INFORMATIONEN:{context_str}
 VERLAUF DER KONVERSATION:{history_block}
 
 REGELN:
-1. Wenn DOKUMENTE oben stehen: Beantworte basierend auf diesen Dokumenten. Zitiere sie mit [DOKUMENT N].
-2. Sonst: Nutze Prüfungsfragen und medizinisches Wissen als Grundlage.
-3. Verknüpfe Konzepte mit Prüfungsrelevanz — sag dem Studenten was wichtig ist.
-4. Erkläre klar mit klinischen Beispielen, differentialdiagnostisch wenn sinnvoll.
-5. Bei Medikamenten: nenne Wirkstoff, Dosierung (wenn relevant), Nebenwirkungen.
-6. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert, evidenzbasiert.
-7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen."""
+1. HOCHGELADENE DOKUMENTE sind die EINZIGE Quelle wenn sie oben stehen. Antworte NUR mit dem Inhalt aus diesen Dokumenten. Füge NIE eigenes Wissen hinzu. Zitiere mit [DOKUMENT N].
+2. Wenn KEINE Dokumente vorhanden sind: Nutze Prüfungsfragen und medizinisches Wissen.
+3. Verknüpfe Konzepte mit Prüfungsrelevanz.
+4. Erkläre klar mit klinischen Beispielen.
+5. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in den Dokumenten stehen.
+6. Sei präzise, akademisch aber freundlich."""
 
-        response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
+        # When documents are found, use gpt-4o-mini (follows instructions better)
+        doc_model = "gpt-4o-mini" if doc_results else body.model
+        response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=doc_model)
         images = await _search_medical_images(body.user_message) if not doc_results else doc_images
         await _increment_ai_quota(user["id"])
 
