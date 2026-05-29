@@ -58,6 +58,7 @@ export default function AIChat({ question, isOpen, onClose }) {
   const [renameValue, setRenameValue] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [specialties, setSpecialties] = useState([]);
+  const [showSpecialtyPicker, setShowSpecialtyPicker] = useState(false);
   const [documentsCount, setDocumentsCount] = useState(0);
   const [chapters, setChapters] = useState([]);
   const [selectedChapter, setSelectedChapter] = useState(null);
