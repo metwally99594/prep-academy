@@ -513,14 +513,15 @@ async def seed_masterclass(admin: dict = Depends(get_admin_user)):
 
 
 async def _llm_generate(system: str, user: str) -> str:
-    """Call OpenRouter free models for masterclass content generation."""
+    """Call OpenRouter free models for masterclass content generation. Returns None if all fail."""
     or_key = _os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
-        raise HTTPException(500, "OPENROUTER_API_KEY not set")
+        logger.error("OPENROUTER_API_KEY not set")
+        return None
     models = ["openrouter/free", "google/gemini-2.0-flash-exp:free", "meta-llama/llama-4-maverick:free"]
     for model in models:
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
+            async with httpx.AsyncClient(timeout=9) as client:
                 r = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -548,14 +549,13 @@ async def _llm_generate(system: str, user: str) -> str:
                         return content
         except Exception:
             continue
-    raise HTTPException(500, "Alle OpenRouter-Modelle fehlgeschlagen — kann Inhalt nicht generieren")
+    return None
 
 
 @router.post("/admin/masterclass/generate-content")
 async def generate_masterclass_content(admin: dict = Depends(get_admin_user)):
     from database import db
     total = 0
-    errors = 0
     for ch_idx, topics in enumerate(CHAPTER_TOPICS):
         chapter = ch_idx + 1
         start_lv = chapter * 10 - 9
@@ -572,7 +572,11 @@ async def generate_masterclass_content(admin: dict = Depends(get_admin_user)):
             f"### LEVEL {start_lv+1} ###\n[Lerntext für Thema 2]"
         )
         try:
-            text = await _llm_generate(system, prompt)
+            async with asyncio.timeout(10):
+                text = await _llm_generate(system, prompt)
+            if not text:
+                logger.warning("Kapitel %d: _llm_generate returned None", chapter)
+                continue
             for lv in range(start_lv, end_lv + 1):
                 marker = f"### LEVEL {lv} ###"
                 start = text.find(marker)
@@ -590,10 +594,13 @@ async def generate_masterclass_content(admin: dict = Depends(get_admin_user)):
                     )
                     total += 1
             await asyncio.sleep(0)
+        except asyncio.TimeoutError:
+            logger.warning("Kapitel %d timeout nach 10s — überspringe", chapter)
+            continue
         except Exception as e:
-            errors += 1
             logger.warning("Kapitel %d fehlgeschlagen: %s", chapter, str(e))
-    return {"updated": total, "failed": errors, "message": f"{total} Level mit Inhalt befüllt, {errors} Kapitel fehlgeschlagen"}
+            continue
+    return {"updated": total, "total_levels": 90, "message": f"{total} von 90 Levels mit Inhalt befüllt"}
 
 
 @router.post("/admin/kp-reports/import-bulk")
