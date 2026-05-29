@@ -4153,7 +4153,7 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
         if doc_results:
             doc_parts = []
             for i, d in enumerate(doc_results, 1):
-                doc_parts.append(f"[DOKUMENT {i}] {d['filename']} - {d['chunk_title']}:\n{d['text']}")
+                doc_parts.append(f"[DOKUMENT {i}] {d['filename']} - {d.get('chapter_title', d.get('chunk_title', ''))}:\n{d['text']}")
             doc_source_block = "\n\n".join(doc_parts)
             doc_count = len(doc_results)
             logger.info(f"[Tutor] Found {doc_count} doc chunks for '{body.specialty_id or 'all'}': {body.user_message[:60]}")
