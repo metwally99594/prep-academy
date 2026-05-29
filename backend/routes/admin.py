@@ -632,6 +632,68 @@ async def seed_fachsprache_specialty(admin: dict = Depends(get_admin_user)):
     }
 
 
+MIGRATE_COUNTRY_MAP = {
+    "germany": "DE", "deutschland": "DE", "de": "DE",
+    "austria": "AT", "österreich": "AT", "at": "AT",
+}
+
+
+@router.post("/admin/migrate-all")
+async def migrate_all(admin: dict = Depends(get_admin_user)):
+    """
+    One-shot production migration:
+    1. Set status=published on all questions missing it
+    2. Normalize country values (germany→DE, austria→AT, etc.)
+    3. Ensure fachsprache specialty exists
+    """
+    results = {}
+
+    # 1. Status fix
+    missing_status = await db.questions.count_documents({"status": {"$exists": False}})
+    if missing_status:
+        r = await db.questions.update_many(
+            {"status": {"$exists": False}},
+            {"$set": {"status": "published"}},
+        )
+        results["status_fixed"] = r.modified_count
+    else:
+        results["status_fixed"] = 0
+
+    # 2. Country normalization
+    country_fixed = 0
+    for old_val, new_val in MIGRATE_COUNTRY_MAP.items():
+        r = await db.questions.update_many(
+            {"country": old_val},
+            {"$set": {"country": new_val}},
+        )
+        country_fixed += r.modified_count
+    results["country_normalized"] = country_fixed
+
+    # 3. Ensure fachsprache specialty
+    existing = await db.specialties.find_one({"id": "fachsprache"})
+    fach_count = await db.questions.count_documents({"specialty_id": "fachsprache"})
+    if not existing:
+        await db.specialties.insert_one({
+            "id": "fachsprache",
+            "name": "Fachsprache",
+            "name_de": "Medizinische Fachsprache",
+            "country": "DE",
+            "icon": "book",
+            "question_count": fach_count,
+        })
+        results["specialty_created"] = True
+    else:
+        await db.specialties.update_one(
+            {"id": "fachsprache"},
+            {"$set": {"question_count": fach_count}},
+        )
+        results["specialty_updated"] = True
+
+    results["total_questions"] = await db.questions.count_documents({})
+    results["fachsprache_questions"] = fach_count
+    return results
+
+
 @router.post("/admin/kp-reports/import-bulk")
 async def import_kp_reports_bulk(admin: dict = Depends(get_admin_user), request: Request = None):
     if request is None:
