@@ -152,7 +152,7 @@ export default function MasterclassPage() {
       {modalLevel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setModalLevel(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative max-w-lg w-full rounded-2xl border border-border/60 bg-card p-6 shadow-2xl"
+          <div className="relative max-w-4xl w-full rounded-2xl border border-border/60 bg-card p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
