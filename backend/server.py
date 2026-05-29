@@ -4367,11 +4367,6 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
                     continue
         doc.close()
 
-        # Store images without descriptions (background task will add them)
-        if extracted_images:
-            await db.tutor_doc_images.insert_many(extracted_images)
-            await db.tutor_doc_images.create_index([("doc_id", 1)])
-
         words = full_text.split()
         total_words = len(words)
         chunk_size = 3000
