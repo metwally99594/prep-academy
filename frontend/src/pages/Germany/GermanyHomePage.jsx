@@ -25,6 +25,12 @@ const CARDS = [
     path: "/kp-reports",
     emoji: "🩺",
   },
+  {
+    title: "Fachsprache",
+    desc: "1500+ medizinische Fachbegriffe Deutsch — Latein",
+    path: "/quiz/fachsprache?country=DE&mode=study",
+    emoji: "📖",
+  },
 ];
 
 export default function GermanyHomePage() {
