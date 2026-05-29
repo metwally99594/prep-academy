@@ -156,6 +156,7 @@ class AITutorRequest(BaseModel):
     language: Optional[str] = "de"
     conversation_id: Optional[str] = None
     specialty_id: Optional[str] = None
+    chapter_index: Optional[int] = None  # Search within a specific chapter
 
 class CustomQuizRequest(BaseModel):
     specialties: List[str] = []

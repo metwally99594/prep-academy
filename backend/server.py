@@ -4045,39 +4045,41 @@ async def admin_import_history(
     return {"logs": logs, "total": len(logs)}
 
 
-async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> list:
+async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chapter_index: int = None) -> list:
     """Search uploaded documents for a specialty. Uses $regex (doesn't need text index)."""
     if not query or len(query) < 2:
         return []
-    # Strip punctuation and split into words, keep meaningful ones
     import re as _re
     q_words = [w for w in _re.sub(r'[^\w\sßäöüÄÖÜ]', '', query.lower()).split() if len(w) > 2]
     if not q_words:
         return []
     try:
         pattern = "|".join(re.escape(w) for w in q_words)
-        match = {"chunks.text": {"$regex": pattern, "$options": "i"}}
+        match = {"chapters.text": {"$regex": pattern, "$options": "i"}}
         if specialty_id:
             match["specialty_id"] = specialty_id
+        if chapter_index is not None:
+            match["chapters.index"] = chapter_index
         docs = await db.tutor_documents.find(
             match,
-            {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chunks": 1},
+            {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chapters": 1},
         ).limit(limit).to_list(limit)
         if not docs:
             return []
         results = []
         for doc in docs:
-            for chunk in (doc.get("chunks") or []):
-                text = chunk.get("text", "")
+            for ch in (doc.get("chapters") or []):
+                if chapter_index is not None and ch.get("index") != chapter_index:
+                    continue
+                text = ch.get("text", "")
                 if not text:
                     continue
-                chunk_lower = text.lower()
-                score = sum(1 for word in q_words if word in chunk_lower)
+                ch_lower = text.lower()
+                score = sum(1 for word in q_words if word in ch_lower)
                 if score > 0:
-                    # Find the relevant section around the first matched keyword
                     snippet = text
                     if len(text) > 3000:
-                        idx = min((chunk_lower.find(w) for w in q_words if w in chunk_lower), default=0)
+                        idx = min((ch_lower.find(w) for w in q_words if w in ch_lower), default=0)
                         start = max(0, idx - 500)
                         end = min(len(text), idx + 1500)
                         snippet = text[start:end]
@@ -4089,11 +4091,12 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> l
                         "document_id": doc["id"],
                         "specialty_id": doc.get("specialty_id", ""),
                         "filename": doc.get("filename", "Unbekannt"),
-                        "chunk_title": chunk.get("title", ""),
+                        "chapter_title": ch.get("title", ""),
+                        "chapter_index": ch.get("index"),
                         "text": snippet,
                         "score": score,
-                        "page_start": chunk.get("page_start", 1),
-                        "page_end": chunk.get("page_end", 1),
+                        "page_start": ch.get("page_start", 1),
+                        "page_end": ch.get("page_end", 1),
                     })
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:limit]
@@ -4143,7 +4146,7 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
         lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
 
         # 1. FIRST: Search uploaded subject documents
-        doc_results = await _search_tutor_docs(body.user_message, body.specialty_id)
+        doc_results = await _search_tutor_docs(body.user_message, body.specialty_id, chapter_index=body.chapter_index)
         doc_source_block = ""
         doc_count = 0
         doc_images = []
@@ -4369,31 +4372,77 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
 
         words = full_text.split()
         total_words = len(words)
-        chunk_size = 3000
-        chunks = []
-        if total_words <= chunk_size:
-            chunks.append({"index": 0, "title": "Gesamtes Dokument", "text": full_text, "word_count": total_words, "page_start": 1, "page_end": len(text_pages)})
-        else:
-            current_chunk_text = ""
-            current_chunk_words = 0
-            chunk_start_page = 1
-            chunk_idx = 0
-            for page_num, page_text in enumerate(text_pages):
-                page_words = len(page_text.split())
-                if current_chunk_words + page_words > chunk_size and current_chunk_text:
-                    chunks.append({"index": chunk_idx, "title": f"Abschnitt {chunk_idx + 1} (S. {chunk_start_page}-{page_num})", "text": current_chunk_text.strip(), "word_count": current_chunk_words, "page_start": chunk_start_page, "page_end": page_num})
-                    chunk_idx += 1
-                    current_chunk_text = page_text + "\n\n"
-                    current_chunk_words = page_words
-                    chunk_start_page = page_num + 1
-                else:
-                    current_chunk_text += page_text + "\n\n"
-                    current_chunk_words += page_words
-            if current_chunk_text.strip():
-                chunks.append({"index": chunk_idx, "title": f"Abschnitt {chunk_idx + 1} (S. {chunk_start_page}-{len(text_pages)})", "text": current_chunk_text.strip(), "word_count": current_chunk_words, "page_start": chunk_start_page, "page_end": len(text_pages)})
+
+        # === Smart chapter detection: TOC > heading scan > page chunks ===
+        import re as _re_ch
+        chapters = []
+        toc = doc.get_toc()  # list of [level, title, page]
+
+        if toc and len(toc) >= 2:
+            # Use PDF table of contents — group by top-level entries
+            top = [e for e in toc if e[0] == 1]
+            if len(top) >= 2:
+                for i, entry in enumerate(top):
+                    pg_start = entry[2]
+                    pg_end = top[i + 1][2] - 1 if i + 1 < len(top) else len(text_pages)
+                    chap_text = "\n\n".join(text_pages[pg_start - 1:pg_end])
+                    chapters.append({
+                        "index": i, "title": entry[1].strip(),
+                        "page_start": pg_start, "page_end": pg_end,
+                        "text": chap_text, "word_count": len(chap_text.split()),
+                    })
+
+        if not chapters:
+            # Scan for heading lines on each page
+            heading_patterns = [
+                r'^[A-ZÄÖÜ][a-zäöüß].*(?:\+\+\+|\+\+|\[.*\]|\b(Definition|Ätiologie|Symptome|Diagnostik|Therapie|Klassifikation|Komplikationen|Prophylaxe|Differentialdiagnosen|Pathologie|Prävention|Klassifikation)\b)',
+                r'^[A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\/\-]+\s*(\+\+\+|\+\+|\+[-\+]|\[-)?\s*$',
+            ]
+            page_headings = []
+            for pg_num, pg_text in enumerate(text_pages, 1):
+                for line in pg_text.split('\n'):
+                    ls = line.strip()
+                    if len(ls) < 4 or len(ls) > 120:
+                        continue
+                    if any(_re_ch.search(pat, ls) for pat in heading_patterns):
+                        # Clean heading
+                        title = _re_ch.sub(r'\s*[\+\-\[\]]+\s*', '', ls).strip()
+                        if title and len(title) > 2:
+                            page_headings.append((pg_num, title, ls))
+
+            if len(page_headings) >= 3:
+                # Merge consecutive headings on same page, group pages
+                merged = [page_headings[0]]
+                for pg, title, raw in page_headings[1:]:
+                    if pg == merged[-1][0]:
+                        continue  # skip multiple on same page
+                    merged.append((pg, title, raw))
+                for i, (pg, title, raw) in enumerate(merged):
+                    pg_start = pg
+                    pg_end = merged[i + 1][0] - 1 if i + 1 < len(merged) else len(text_pages)
+                    chap_text = "\n\n".join(text_pages[pg_start - 1:pg_end])
+                    chapters.append({
+                        "index": i, "title": title,
+                        "page_start": pg_start, "page_end": pg_end,
+                        "text": chap_text, "word_count": len(chap_text.split()),
+                    })
+
+        if not chapters:
+            # Last resort: split by page groups (~3 pages per chapter)
+            group_size = max(1, len(text_pages) // 12)  # aim for ~12 chapters
+            for i in range(0, len(text_pages), group_size):
+                pg_start = i + 1
+                pg_end = min(i + group_size, len(text_pages))
+                chap_text = "\n\n".join(text_pages[i:pg_end])
+                chapters.append({
+                    "index": len(chapters), "title": f"Seite {pg_start}–{pg_end}",
+                    "page_start": pg_start, "page_end": pg_end,
+                    "text": chap_text, "word_count": len(chap_text.split()),
+                })
+
         await db.tutor_documents.insert_one({
             "id": doc_id, "user_id": user["id"], "specialty_id": specialty_id, "filename": file.filename,
-            "chunks": chunks, "chunk_count": len(chunks), "page_count": len(text_pages), "word_count": total_words,
+            "chapters": chapters, "chapter_count": len(chapters), "page_count": len(text_pages), "word_count": total_words,
             "has_images": len(extracted_images) > 0,
             "descriptions_pending": len(extracted_images) > 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -4442,8 +4491,8 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
                             if desc:
                                 await db.tutor_doc_images.update_one({"id": img["id"]}, {"$set": {"description": desc}})
                                 await db.tutor_documents.update_one(
-                                    {"id": doc_id, "chunks.page_start": {"$lte": img["page"]}, "chunks.page_end": {"$gte": img["page"]}},
-                                    {"$set": {f"chunks.$[elem].has_images_on_page": True}},
+                                    {"id": doc_id, "chapters.page_start": {"$lte": img["page"]}, "chapters.page_end": {"$gte": img["page"]}},
+                                    {"$set": {f"chapters.$[elem].has_images_on_page": True}},
                                     array_filters=[{"elem.page_start": {"$lte": img["page"]}, "elem.page_end": {"$gte": img["page"]}}],
                                 )
                     await db.tutor_documents.update_one({"id": doc_id}, {"$set": {"descriptions_pending": False}})
@@ -4451,7 +4500,7 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
                     await db.tutor_documents.update_one({"id": doc_id}, {"$set": {"descriptions_pending": False}})
             asyncio.create_task(_describe_images())
         await db.tutor_documents.create_index([("specialty_id", 1)])
-        return {"id": doc_id, "filename": file.filename, "specialty_id": specialty_id, "chunks": len(chunks), "pages": len(text_pages), "words": total_words, "images_extracted": len(extracted_images)}
+        return {"id": doc_id, "filename": file.filename, "specialty_id": specialty_id, "chapters": len(chapters), "pages": len(text_pages), "words": total_words, "images_extracted": len(extracted_images)}
     except HTTPException:
         raise
     except Exception as e:
@@ -4463,7 +4512,7 @@ async def list_tutor_documents(specialty_id: Optional[str] = None, user: dict = 
     query = {}
     if specialty_id:
         query["specialty_id"] = specialty_id
-    cursor = db.tutor_documents.find(query, {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chunk_count": 1, "page_count": 1, "word_count": 1, "has_images": 1, "descriptions_pending": 1, "created_at": 1}).sort("created_at", -1)
+    cursor = db.tutor_documents.find(query, {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chapter_count": 1, "page_count": 1, "word_count": 1, "has_images": 1, "descriptions_pending": 1, "created_at": 1}).sort("created_at", -1)
     docs = await cursor.to_list(200)
     return {"documents": docs}
 
@@ -4473,11 +4522,20 @@ async def get_tutor_document(doc_id: str, user: dict = Depends(get_current_user)
     doc = await db.tutor_documents.find_one({"id": doc_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
-    # Return chunks with full text (admin only: full text; others: truncated)
+    # Return chapters with full text (admin only: full text; others: truncated)
     if user.get("is_admin"):
         return doc
-    for c in doc.get("chunks", []):
+    for c in doc.get("chapters", []):
         c["text"] = c.get("text", "")[:500]
+    return doc
+
+
+@api_router.get("/tutor/documents/{doc_id}/chapters")
+async def get_document_chapters(doc_id: str, user: dict = Depends(get_current_user)):
+    """Return just the chapter index (titles + page ranges), no full text."""
+    doc = await db.tutor_documents.find_one({"id": doc_id}, {"_id": 0, "chapters.index": 1, "chapters.title": 1, "chapters.page_start": 1, "chapters.page_end": 1, "chapters.word_count": 1, "filename": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
     return doc
 
 

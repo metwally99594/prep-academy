@@ -710,7 +710,7 @@ function TutorDocsAdminTab({ token }) {
       form.append("file", file);
       form.append("specialty_id", selectedSpecialty);
       const res = await axios.post(`${API}/tutor/documents/upload`, form, { headers, timeout: 120000 });
-      setUploadResult({ ok: true, message: `✅ ${res.data.filename} hochgeladen (${res.data.pages} Seiten, ${res.data.chunks} Abschnitte${res.data.images_extracted ? `, ${res.data.images_extracted} Bilder werden im Hintergrund beschrieben` : ''})` });
+      setUploadResult({ ok: true, message: `✅ ${res.data.filename} hochgeladen (${res.data.pages} Seiten, ${res.data.chapters} Kapitel${res.data.images_extracted ? `, ${res.data.images_extracted} Bilder` : ''})` });
       e.target.value = "";
       fetchDocs();
     } catch (err) {
@@ -775,7 +775,7 @@ function TutorDocsAdminTab({ token }) {
                     <p className="font-medium text-sm">{doc.filename}</p>
                     <p className="text-xs text-muted-foreground">
                       {specialties.find(s => s.id === doc.specialty_id)?.name || doc.specialty_id}
-                      {" · "}{doc.page_count} Seiten · {doc.chunk_count} Abschnitte · {doc.word_count} Wörter
+                      {" · "}{doc.page_count} Seiten · {doc.chapter_count || doc.chunk_count} Kapitel · {doc.word_count} Wörter
                       {doc.has_images && (
                         doc.descriptions_pending
                           ? <span className="text-amber-500 ml-2">⏳ Bilder werden beschrieben...</span>

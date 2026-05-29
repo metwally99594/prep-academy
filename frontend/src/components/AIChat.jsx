@@ -58,8 +58,10 @@ export default function AIChat({ question, isOpen, onClose }) {
   const [renameValue, setRenameValue] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [specialties, setSpecialties] = useState([]);
-  const [showSpecialtyPicker, setShowSpecialtyPicker] = useState(false);
   const [documentsCount, setDocumentsCount] = useState(0);
+  const [chapters, setChapters] = useState([]);
+  const [selectedChapter, setSelectedChapter] = useState(null);
+  const [showChapterPicker, setShowChapterPicker] = useState(false);
   const { token } = useAuth();
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -91,6 +93,33 @@ export default function AIChat({ question, isOpen, onClose }) {
       .catch(() => {});
   }, [isOpen, isTutor, token]);
 
+  // Fetch chapters when specialty changes
+  useEffect(() => {
+    if (!isOpen || !isTutor || !token || !selectedSpecialty) {
+      setChapters([]);
+      setSelectedChapter(null);
+      return;
+    }
+    axios.get(`${API}/tutor/documents?specialty_id=${selectedSpecialty}`, { headers })
+      .then(r => {
+        const docs = r.data.documents || [];
+        if (docs.length > 0) {
+          // Fetch chapters from the most recent document
+          const docId = docs[0].id;
+          return axios.get(`${API}/tutor/documents/${docId}/chapters`, { headers });
+        }
+        return null;
+      })
+      .then(r => {
+        if (r && r.data?.chapters) {
+          setChapters(r.data.chapters);
+        } else {
+          setChapters([]);
+        }
+      })
+      .catch(() => setChapters([]));
+  }, [isOpen, isTutor, token, selectedSpecialty]);
+
   // Set greeting for new conversation (no messages loaded)
   useEffect(() => {
     if (!isOpen) return;
@@ -113,6 +142,8 @@ export default function AIChat({ question, isOpen, onClose }) {
   const startNewConversation = useCallback(() => {
     setConversationId(null);
     setMessages([{ role: "assistant", content: GREETINGS[selectedLang] || GREETINGS.de }]);
+    setSelectedChapter(null);
+    setChapters([]);
   }, [selectedLang]);
 
   // Load a conversation from backend
@@ -176,6 +207,7 @@ export default function AIChat({ question, isOpen, onClose }) {
         language: selectedLang,
         conversation_id: conversationId,
         specialty_id: selectedSpecialty || null,
+        chapter_index: selectedChapter ?? null,
       } : {
         question_id: question.id,
         user_message: userMessage,
@@ -362,6 +394,37 @@ export default function AIChat({ question, isOpen, onClose }) {
                           </div>
                         )}
                       </div>
+                      {chapters.length > 0 && (
+                        <>
+                          <span className="text-white/10">|</span>
+                          <div className="relative">
+                            <button onClick={() => { setShowChapterPicker(!showChapterPicker); setShowModelPicker(false); setShowLangPicker(false); setShowSpecialtyPicker(false); }}
+                              className="flex items-center gap-1 text-[11px] text-white/50 px-2 py-0.5 rounded-md transition-colors hover:bg-white/5">
+                              <BookOpen className="w-3 h-3" />
+                              {selectedChapter !== null ? (chapters.find(c => c.index === selectedChapter)?.title || `Kapitel ${selectedChapter + 1}`) : "Ganzes Dokument"}
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                            {showChapterPicker && (
+                              <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[220px] max-h-[300px] overflow-y-auto"
+                                style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }}>
+                                <button onClick={() => { setSelectedChapter(null); setShowChapterPicker(false); }}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedChapter === null ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                                  <BookOpen className="w-3.5 h-3.5 text-white/40" />
+                                  <span className="text-white">Ganzes Dokument</span>
+                                </button>
+                                {chapters.map(ch => (
+                                  <button key={ch.index} onClick={() => { setSelectedChapter(ch.index); setShowChapterPicker(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedChapter === ch.index ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                                    <span className="text-white/40 text-xs w-5">{ch.index + 1}.</span>
+                                    <span className="text-white truncate">{ch.title}</span>
+                                    <span className="ml-auto text-[10px] text-white/30">S. {ch.page_start}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                   <span className="text-white/10">|</span>
