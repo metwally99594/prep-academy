@@ -4074,12 +4074,23 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> l
                 chunk_lower = text.lower()
                 score = sum(1 for word in q_words if word in chunk_lower)
                 if score > 0:
+                    # Find the relevant section around the first matched keyword
+                    snippet = text
+                    if len(text) > 3000:
+                        idx = min((chunk_lower.find(w) for w in q_words if w in chunk_lower), default=0)
+                        start = max(0, idx - 500)
+                        end = min(len(text), idx + 1500)
+                        snippet = text[start:end]
+                        if start > 0:
+                            snippet = "[...]\n" + snippet
+                        if end < len(text):
+                            snippet = snippet + "\n[...]"
                     results.append({
                         "document_id": doc["id"],
                         "specialty_id": doc.get("specialty_id", ""),
                         "filename": doc.get("filename", "Unbekannt"),
                         "chunk_title": chunk.get("title", ""),
-                        "text": text[:2000],
+                        "text": snippet,
                         "score": score,
                         "page_start": chunk.get("page_start", 1),
                         "page_end": chunk.get("page_end", 1),
