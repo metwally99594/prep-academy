@@ -4043,10 +4043,49 @@ async def admin_import_history(
     return {"logs": logs, "total": len(logs)}
 
 
+async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5) -> list:
+    """Search uploaded documents for a specialty. Falls back to all docs if specialty_id is empty."""
+    if not query or len(query) < 2:
+        return []
+    match = {"$text": {"$search": query}} if specialty_id else {}
+    if specialty_id:
+        match["specialty_id"] = specialty_id
+    try:
+        docs = await db.tutor_documents.find(
+            match,
+            {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chunks": 1},
+        ).limit(limit).to_list(limit)
+        if not docs:
+            return []
+        results = []
+        for doc in docs:
+            for chunk in (doc.get("chunks") or []):
+                text = chunk.get("text", "")
+                if not text:
+                    continue
+                q_lower = query.lower()
+                chunk_lower = text.lower()
+                score = sum(1 for word in q_lower.split() if word in chunk_lower)
+                if score > 0:
+                    results.append({
+                        "document_id": doc["id"],
+                        "specialty_id": doc.get("specialty_id", ""),
+                        "filename": doc.get("filename", "Unbekannt"),
+                        "chunk_title": chunk.get("title", ""),
+                        "text": text[:2000],
+                        "score": score,
+                    })
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return results[:limit]
+    except Exception as e:
+        logger.warning(f"Tutor doc search error: {e}")
+        return []
+
+
 @api_router.post("/ai/tutor")
 @limiter.limit("10/minute;100/hour;300/day")
 async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(get_current_user)):
-    """Medical AI tutor with persistent conversation memory"""
+    """Medical AI tutor with document bank + persistent conversation memory"""
     import uuid as _uuid
     await check_ai_access(user)
     await _check_ai_quota(user["id"])
@@ -4081,15 +4120,32 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
             role = "Student" if m["role"] == "user" else "KI-Tutor"
             history_block += f"\n{role}: {m['content'][:500]}"
 
-        # RAG search in parallel
         lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
-        relevant_questions, relevant_knowledge = await asyncio.gather(
-            _search_questions_internal(body.user_message, limit=2),
-            _search_medical_knowledge(body.user_message, limit=6),
-        )
+
+        # 1. FIRST: Search uploaded subject documents
+        doc_results = await _search_tutor_docs(body.user_message, body.specialty_id)
+        doc_source_block = ""
+        doc_count = 0
+        if doc_results:
+            doc_parts = []
+            for i, d in enumerate(doc_results, 1):
+                doc_parts.append(f"[DOKUMENT {i}] {d['filename']} - {d['chunk_title']}:\n{d['text']}")
+            doc_source_block = "\n\n".join(doc_parts)
+            doc_count = len(doc_results)
+            logger.info(f"[Tutor] Found {doc_count} doc chunks for '{body.specialty_id or 'all'}': {body.user_message[:60]}")
+
+        # 2. SECOND (fallback): Search exam questions + medical knowledge
+        relevant_questions, relevant_knowledge = [], []
+        if not doc_results:
+            relevant_questions, relevant_knowledge = await asyncio.gather(
+                _search_questions_internal(body.user_message, limit=2),
+                _search_medical_knowledge(body.user_message, limit=6),
+            )
 
         # Build RAG context
         context_parts = []
+        if doc_source_block:
+            context_parts.append(f"HOCHGELADENE DOKUMENTE (Fach: {body.specialty_id or 'Alle'}):\n{doc_source_block}")
         for idx, q in enumerate(relevant_questions[:2], 1):
             q_text = (q.get("question_text_de") or q.get("question_text", ""))[:300]
             choices = q.get("choices") or q.get("choices_de") or []
@@ -4122,23 +4178,21 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
 
-WISSENSBASIS (Prüfungsfragen + Wikipedia + PubMed):
-{context_str}
+INFORMATIONEN:{context_str}
 
 VERLAUF DER KONVERSATION:{history_block}
 
 REGELN:
-1. Nutze Prüfungsfragen, Wikipedia UND PubMed-Studien als Grundlage
-2. Verknüpfe Konzepte mit Prüfungsrelevanz — sag dem Studenten was wichtig ist
-3. Erkläre klar mit klinischen Beispielen, differentialdiagnostisch wenn sinnvoll
-4. Bei Medikamenten: nenne Wirkstoff, Dosierung (wenn relevant), Nebenwirkungen
-5. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert, evidenzbasiert
-6. Wenn du PubMed-Studien zitierst, nenne Journal und Jahr
-7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen
-8. Der Benutzer sieht nach deiner Antwort medizinische Bilder von Wikimedia Commons. Du kannst im Text darauf hinweisen, z.B. 'siehe Abbildung unten' oder 'die Bilder unten zeigen...'."""
+1. Wenn DOKUMENTE oben stehen: Beantworte basierend auf diesen Dokumenten. Zitiere sie mit [DOKUMENT N].
+2. Sonst: Nutze Prüfungsfragen und medizinisches Wissen als Grundlage.
+3. Verknüpfe Konzepte mit Prüfungsrelevanz — sag dem Studenten was wichtig ist.
+4. Erkläre klar mit klinischen Beispielen, differentialdiagnostisch wenn sinnvoll.
+5. Bei Medikamenten: nenne Wirkstoff, Dosierung (wenn relevant), Nebenwirkungen.
+6. Bei Krankheiten: Symptome, Diagnose, Therapie — strukturiert, evidenzbasiert.
+7. Sei präzise, akademisch aber freundlich. Bei Unsicherheit: ehrlich sagen."""
 
         response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
-        images = await _search_medical_images(body.user_message)
+        images = await _search_medical_images(body.user_message) if not doc_results else []
         await _increment_ai_quota(user["id"])
 
         # Persist both messages
@@ -4158,6 +4212,7 @@ REGELN:
             "model": body.model,
             "language": body.language,
             "conversation_id": conversation_id,
+            "documents_used": len(doc_results),
             "sources_questions": len(relevant_questions),
             "sources_knowledge": len(relevant_knowledge),
         }
@@ -4213,6 +4268,88 @@ async def rename_tutor_conversation(conversation_id: str, body: dict, user: dict
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return {"title": title}
+
+
+# ============ TUTOR DOCUMENT BANK (per-specialty PDF uploads) ============
+
+
+@api_router.post("/tutor/documents/upload")
+async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str = Form(...), user: dict = Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Nur Admins konnen Dokumente hochladen")
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Nur PDF-Dateien sind erlaubt")
+    content = await file.read()
+    if len(content) > 30 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Datei zu gross (max 30MB)")
+    import fitz
+    try:
+        doc = fitz.open(stream=content, filetype="pdf")
+        text_pages = []
+        for page in doc:
+            text_pages.append(page.get_text())
+        full_text = "\n\n".join(text_pages)
+        doc.close()
+        if not full_text.strip():
+            raise HTTPException(status_code=400, detail="PDF enthalt keinen lesbaren Text")
+        words = full_text.split()
+        total_words = len(words)
+        chunk_size = 3000
+        chunks = []
+        if total_words <= chunk_size:
+            chunks.append({"index": 0, "title": "Gesamtes Dokument", "text": full_text, "word_count": total_words, "page_start": 1, "page_end": len(text_pages)})
+        else:
+            current_chunk_text = ""
+            current_chunk_words = 0
+            chunk_start_page = 1
+            chunk_idx = 0
+            for page_num, page_text in enumerate(text_pages):
+                page_words = len(page_text.split())
+                if current_chunk_words + page_words > chunk_size and current_chunk_text:
+                    chunks.append({"index": chunk_idx, "title": f"Abschnitt {chunk_idx + 1} (S. {chunk_start_page}-{page_num})", "text": current_chunk_text.strip(), "word_count": current_chunk_words, "page_start": chunk_start_page, "page_end": page_num})
+                    chunk_idx += 1
+                    current_chunk_text = page_text + "\n\n"
+                    current_chunk_words = page_words
+                    chunk_start_page = page_num + 1
+                else:
+                    current_chunk_text += page_text + "\n\n"
+                    current_chunk_words += page_words
+            if current_chunk_text.strip():
+                chunks.append({"index": chunk_idx, "title": f"Abschnitt {chunk_idx + 1} (S. {chunk_start_page}-{len(text_pages)})", "text": current_chunk_text.strip(), "word_count": current_chunk_words, "page_start": chunk_start_page, "page_end": len(text_pages)})
+        import uuid as _uuid
+        doc_id = str(_uuid.uuid4())
+        await db.tutor_documents.insert_one({
+            "id": doc_id, "user_id": user["id"], "specialty_id": specialty_id, "filename": file.filename,
+            "chunks": chunks, "chunk_count": len(chunks), "page_count": len(text_pages), "word_count": total_words,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        await db.tutor_documents.create_index([("specialty_id", 1)])
+        return {"id": doc_id, "filename": file.filename, "specialty_id": specialty_id, "chunks": len(chunks), "pages": len(text_pages), "words": total_words}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF-Verarbeitung fehlgeschlagen: {str(e)[:200]}")
+
+
+@api_router.get("/tutor/documents")
+async def list_tutor_documents(specialty_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    query = {}
+    if specialty_id:
+        query["specialty_id"] = specialty_id
+    cursor = db.tutor_documents.find(query, {"_id": 0, "id": 1, "specialty_id": 1, "filename": 1, "chunk_count": 1, "page_count": 1, "word_count": 1, "created_at": 1}).sort("created_at", -1)
+    docs = await cursor.to_list(200)
+    return {"documents": docs}
+
+
+@api_router.delete("/tutor/documents/{doc_id}")
+async def delete_tutor_document(doc_id: str, user: dict = Depends(get_current_user)):
+    query = {"id": doc_id}
+    if not user.get("is_admin"):
+        query["user_id"] = user["id"]
+    result = await db.tutor_documents.delete_one(query)
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
+    return {"deleted": True}
 
 
 # ============ PDF NOTEBOOK (NotebookLM-like) - PREMIUM ============

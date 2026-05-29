@@ -155,6 +155,7 @@ class AITutorRequest(BaseModel):
     model: Optional[str] = "deepseek-chat"
     language: Optional[str] = "de"
     conversation_id: Optional[str] = None
+    specialty_id: Optional[str] = None
 
 class CustomQuizRequest(BaseModel):
     specialties: List[str] = []

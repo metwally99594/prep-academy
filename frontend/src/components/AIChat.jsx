@@ -6,7 +6,7 @@ import axios from "axios";
 import { API, useAuth } from "@/App";
 import {
   Sparkles, Send, X, Loader2, Bot, User, ChevronDown, Globe, BookOpen,
-  Plus, MessageSquare, Trash2, Pencil, Check, PanelLeftClose, PanelLeft,
+  Plus, MessageSquare, Trash2, Pencil, Check, PanelLeftClose, PanelLeft, Database,
 } from "lucide-react";
 
 const MODELS = [
@@ -56,6 +56,10 @@ export default function AIChat({ question, isOpen, onClose }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [specialties, setSpecialties] = useState([]);
+  const [showSpecialtyPicker, setShowSpecialtyPicker] = useState(false);
+  const [documentsCount, setDocumentsCount] = useState(0);
   const { token } = useAuth();
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -74,6 +78,17 @@ export default function AIChat({ question, isOpen, onClose }) {
       .then(r => setConversations(r.data.conversations))
       .catch(() => {})
       .finally(() => setConversationsLoading(false));
+  }, [isOpen, isTutor, token]);
+
+  // Fetch specialties for document bank filter
+  useEffect(() => {
+    if (!isOpen || !isTutor || !token) return;
+    axios.get(`${API}/specialties`, { headers })
+      .then(r => setSpecialties(r.data || []))
+      .catch(() => {});
+    axios.get(`${API}/tutor/documents`, { headers })
+      .then(r => setDocumentsCount(r.data.documents?.length || 0))
+      .catch(() => {});
   }, [isOpen, isTutor, token]);
 
   // Set greeting for new conversation (no messages loaded)
@@ -160,6 +175,7 @@ export default function AIChat({ question, isOpen, onClose }) {
         model: selectedModel,
         language: selectedLang,
         conversation_id: conversationId,
+        specialty_id: selectedSpecialty || null,
       } : {
         question_id: question.id,
         user_message: userMessage,
@@ -171,7 +187,12 @@ export default function AIChat({ question, isOpen, onClose }) {
       const response = await axios.post(endpoint, payload, { headers, timeout: 300000 });
 
       const images = response.data.images || [];
-      setMessages(prev => [...prev, { role: "assistant", content: response.data.response, model: selectedModel, images }]);
+      const docsUsed = response.data.documents_used || 0;
+      let content = response.data.response;
+      if (isTutor && docsUsed > 0) {
+        content = `[Aus ${docsUsed} Dokument(en)]\n\n${content}`;
+      }
+      setMessages(prev => [...prev, { role: "assistant", content, model: selectedModel, images, documents_used: docsUsed }]);
 
       if (isTutor && response.data.conversation_id) {
         setConversationId(response.data.conversation_id);
@@ -287,9 +308,9 @@ export default function AIChat({ question, isOpen, onClose }) {
                 <h3 className="font-semibold text-white text-sm">{isTutor ? "Medizinischer KI-Tutor" : "Medizinischer KI-Assistent"}</h3>
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <button onClick={() => { setShowModelPicker(!showModelPicker); setShowLangPicker(false); }}
+                    <button onClick={() => { setShowModelPicker(!showModelPicker); setShowLangPicker(false); setShowSpecialtyPicker(false); }}
                       className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors hover:bg-white/5"
-                      style={{ color: currentModel.color }} data-testid="model-picker-btn">
+                      style={{ color: currentModel.color }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: currentModel.color }} />
                       {currentModel.name}
                       <ChevronDown className="w-3 h-3" />
@@ -311,9 +332,41 @@ export default function AIChat({ question, isOpen, onClose }) {
                       </div>
                     )}
                   </div>
+                  {isTutor && (
+                    <>
+                      <span className="text-white/10">|</span>
+                      <div className="relative">
+                        <button onClick={() => { setShowSpecialtyPicker(!showSpecialtyPicker); setShowModelPicker(false); setShowLangPicker(false); }}
+                          className="flex items-center gap-1 text-[11px] text-white/50 px-2 py-0.5 rounded-md transition-colors hover:bg-white/5">
+                          <Database className="w-3 h-3" />
+                          {selectedSpecialty ? specialties.find(s => s.id === selectedSpecialty)?.name || selectedSpecialty : "Alle Fächer"}
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+                        {showSpecialtyPicker && (
+                          <div className="absolute top-full left-0 mt-1 rounded-xl border p-1 z-50 min-w-[180px] max-h-[300px] overflow-y-auto"
+                            style={{ background: '#0f1a3a', borderColor: 'rgba(59,130,246,0.15)' }}>
+                            <button onClick={() => { setSelectedSpecialty(""); setShowSpecialtyPicker(false); }}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${!selectedSpecialty ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                              <Database className="w-3.5 h-3.5 text-white/40" />
+                              <span className="text-white">Alle Fächer</span>
+                            </button>
+                            {specialties.map(s => (
+                              <button key={s.id} onClick={() => { setSelectedSpecialty(s.id); setShowSpecialtyPicker(false); }}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${selectedSpecialty === s.id ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                                <span>{s.icon || "📄"}</span>
+                                <span className="text-white">{s.name}</span>
+                                <span className="ml-auto text-[10px] text-white/30">{s.question_count || ""}</span>
+                                {selectedSpecialty === s.id && <span className="text-xs" style={{ color: '#3b82f6' }}>&#10003;</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                   <span className="text-white/10">|</span>
                   <div className="relative">
-                    <button onClick={() => { setShowLangPicker(!showLangPicker); setShowModelPicker(false); }}
+                    <button onClick={() => { setShowLangPicker(!showLangPicker); setShowModelPicker(false); setShowSpecialtyPicker(false); }}
                       className="flex items-center gap-1 text-[11px] text-white/50 px-2 py-0.5 rounded-md transition-colors hover:bg-white/5">
                       <Globe className="w-3 h-3" />
                       {currentLang.name}
