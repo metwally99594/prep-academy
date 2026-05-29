@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Mic, Square, Loader2 } from "lucide-react";
+import { Mic, Square, Loader2, AlertCircle } from "lucide-react";
 
 export default function VoiceInputButton({ onTranscribed }) {
   const [state, setState] = useState("idle");
+  const [error, setError] = useState(null);
   const mediaRecorder = useRef(null);
   const chunks = useRef([]);
 
@@ -15,6 +16,7 @@ export default function VoiceInputButton({ onTranscribed }) {
   }, []);
 
   const handleClick = useCallback(async () => {
+    setError(null);
     if (state === "recording") {
       mediaRecorder.current?.stop();
       setState("transcribing");
@@ -42,42 +44,53 @@ export default function VoiceInputButton({ onTranscribed }) {
           if (data?.transcript) {
             onTranscribed(data.transcript);
           }
-        } catch {
-          // silent
+        } catch (err) {
+          if (err?.response?.status === 408) {
+            setError("⏱️ Nochmal versuchen");
+          } else {
+            setError("🎤 Fehler");
+          }
         }
         setState("idle");
       };
 
       recorder.onerror = () => {
         stream.getTracks().forEach(t => t.stop());
+        setError("🎤 Mikrofon-Fehler");
         setState("idle");
       };
 
       recorder.start();
       setState("recording");
     } catch {
+      setError("🎤 Mikrofon-Zugriff verweigert");
       setState("idle");
     }
   }, [state, onTranscribed]);
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={state === "transcribing"}
-      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${
-        state === "recording"
-          ? "bg-red-500/20 text-red-400 animate-pulse shadow-lg shadow-red-500/20"
-          : state === "transcribing"
-            ? "bg-amber-500/20 text-amber-400"
-            : "bg-muted hover:bg-muted/80 text-muted-foreground"
-      }`}
-      title={state === "idle" ? "Mikrofon" : state === "recording" ? "Aufnahme beenden" : "Transkribiere..."}
-    >
-      {state === "transcribing" ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <Mic className="w-4 h-4" />
+    <div className="flex items-center gap-2">
+      <button
+        onClick={handleClick}
+        disabled={state === "transcribing"}
+        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${
+          state === "recording"
+            ? "bg-red-500/20 text-red-400 animate-pulse shadow-lg shadow-red-500/20"
+            : state === "transcribing"
+              ? "bg-amber-500/20 text-amber-400"
+              : "bg-muted hover:bg-muted/80 text-muted-foreground"
+        }`}
+        title={state === "idle" ? "Mikrofon" : state === "recording" ? "Aufnahme beenden" : "Transkribiere..."}
+      >
+        {state === "transcribing" ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Mic className="w-4 h-4" />
+        )}
+      </button>
+      {error && (
+        <span className="text-xs text-red-400 animate-pulse whitespace-nowrap">{error}</span>
       )}
-    </button>
+    </div>
   );
 }

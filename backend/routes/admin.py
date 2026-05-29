@@ -521,7 +521,7 @@ async def _llm_generate(system: str, user: str) -> str:
     models = ["openrouter/free", "google/gemini-2.0-flash-exp:free", "meta-llama/llama-4-maverick:free"]
     for model in models:
         try:
-            async with httpx.AsyncClient(timeout=9) as client:
+            async with httpx.AsyncClient(timeout=40) as client:
                 r = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -572,7 +572,7 @@ async def generate_masterclass_content(admin: dict = Depends(get_admin_user)):
             f"### LEVEL {start_lv+1} ###\n[Lerntext für Thema 2]"
         )
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(45):
                 text = await _llm_generate(system, prompt)
             if not text:
                 logger.warning("Kapitel %d: _llm_generate returned None", chapter)
