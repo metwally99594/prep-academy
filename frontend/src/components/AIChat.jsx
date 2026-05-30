@@ -6,7 +6,7 @@ import axios from "axios";
 import { API, useAuth } from "@/App";
 import {
   Sparkles, Send, X, Loader2, Bot, User, ChevronDown, Globe, BookOpen,
-  Plus, MessageSquare, Trash2, Pencil, Check, PanelLeftClose, PanelLeft, Database, ExternalLink,
+  Plus, MessageSquare, Trash2, Pencil, Check, PanelLeftClose, PanelLeft, Database, ExternalLink, Pin, PinOff,
 } from "lucide-react";
 
 const MODELS = [
@@ -197,6 +197,20 @@ export default function AIChat({ question, isOpen, onClose }) {
     setRenamingId(null);
   };
 
+  // Pin/unpin a conversation
+  const pinConversation = async (convId, e) => {
+    e.stopPropagation();
+    const conv = conversations.find(c => c.id === convId);
+    if (!conv) return;
+    const isPinned = !conv.pinned;
+    try {
+      const r = await axios.patch(`${API}/ai/tutor/conversations/${convId}/pin`, { pinned: isPinned }, { headers });
+      setConversations(prev => prev.map(c => c.id === convId ? { ...c, pinned: r.data.pinned, pin_order: r.data.pin_order } : c));
+    } catch (err) {
+      console.error("Failed to pin conversation", err);
+    }
+  };
+
   // Send message
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
@@ -279,7 +293,7 @@ export default function AIChat({ question, isOpen, onClose }) {
         {isTutor && sidebarOpen && (
           <div className="w-64 flex-shrink-0 border-r flex flex-col" style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(0,0,0,0.15)' }}>
             <div className="flex items-center justify-between px-3 py-3 border-b" style={{ borderColor: 'rgba(59,130,246,0.1)' }}>
-              <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">Verlauf</span>
+              <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">Konversationen</span>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="w-7 h-7" onClick={startNewConversation} title="Neue Konversation">
                   <Plus className="w-4 h-4 text-white/60" />
@@ -297,45 +311,103 @@ export default function AIChat({ question, isOpen, onClose }) {
               ) : conversations.length === 0 ? (
                 <p className="text-xs text-white/30 text-center py-8">Noch keine Konversationen</p>
               ) : (
-                <div className="space-y-1">
-                  {conversations.map(c => (
-                    <div key={c.id}
-                      className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer text-sm transition-colors ${
-                        conversationId === c.id ? 'bg-white/10' : 'hover:bg-white/5'
-                      }`}
-                      onClick={() => loadConversation(c.id)}
-                      style={conversationId === c.id ? { border: '1px solid rgba(59,130,246,0.2)' } : {}}
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-white/30" />
-                      {renamingId === c.id ? (
-                        <div className="flex-1 flex items-center gap-1">
-                          <input
-                            value={renameValue}
-                            onChange={e => setRenameValue(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') renameConversation(c.id); if (e.key === 'Escape') setRenamingId(null); }}
-                            className="flex-1 text-xs bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white outline-none"
-                            autoFocus
-                            onClick={e => e.stopPropagation()}
-                          />
-                          <button onClick={e => { e.stopPropagation(); renameConversation(c.id); }} className="text-green-400 hover:text-green-300">
-                            <Check className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="flex-1 truncate text-white/70 group-hover:text-white/90">{c.title}</span>
-                          <div className="hidden group-hover:flex items-center gap-0.5">
-                            <button onClick={e => { e.stopPropagation(); setRenamingId(c.id); setRenameValue(c.title); }} className="p-0.5 text-white/30 hover:text-white/60">
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button onClick={e => deleteConversation(c.id, e)} className="p-0.5 text-red-400/50 hover:text-red-400">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                <div className="space-y-3">
+                  {/* Pinned section */}
+                  {conversations.filter(c => c.pinned).length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 px-2 py-1">
+                        <Pin className="w-3 h-3 text-yellow-400" />
+                        <span className="text-[10px] font-semibold text-yellow-400/70 uppercase tracking-wider">Angeheftet</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {conversations.filter(c => c.pinned).map(c => (
+                          <div key={c.id}
+                            className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer text-sm transition-colors ${
+                              conversationId === c.id ? 'bg-white/10' : 'hover:bg-white/5'
+                            }`}
+                            onClick={() => loadConversation(c.id)}
+                            style={conversationId === c.id ? { border: '1px solid rgba(59,130,246,0.2)' } : {}}
+                          >
+                            <Pin className="w-3 h-3 flex-shrink-0 text-yellow-400/60" />
+                            {renamingId === c.id ? (
+                              <div className="flex-1 flex items-center gap-1">
+                                <input value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') renameConversation(c.id); if (e.key === 'Escape') setRenamingId(null); }}
+                                  className="flex-1 text-xs bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white outline-none" autoFocus
+                                  onClick={e => e.stopPropagation()} />
+                                <button onClick={e => { e.stopPropagation(); renameConversation(c.id); }} className="text-green-400 hover:text-green-300">
+                                  <Check className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="flex-1 truncate text-white/70 group-hover:text-white/90">{c.title}</span>
+                                <div className="hidden group-hover:flex items-center gap-0.5">
+                                  <button onClick={e => pinConversation(c.id, e)} className="p-0.5 text-yellow-400/50 hover:text-yellow-400" title="Loslösen">
+                                    <PinOff className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={e => { e.stopPropagation(); setRenamingId(c.id); setRenameValue(c.title); }} className="p-0.5 text-white/30 hover:text-white/60">
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={e => deleteConversation(c.id, e)} className="p-0.5 text-red-400/50 hover:text-red-400">
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
-                        </>
-                      )}
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  )}
+                  {/* History section */}
+                  {conversations.filter(c => !c.pinned).length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 px-2 py-1">
+                        <MessageSquare className="w-3 h-3 text-white/30" />
+                        <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">Verlauf</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {conversations.filter(c => !c.pinned).map(c => (
+                          <div key={c.id}
+                            className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer text-sm transition-colors ${
+                              conversationId === c.id ? 'bg-white/10' : 'hover:bg-white/5'
+                            }`}
+                            onClick={() => loadConversation(c.id)}
+                            style={conversationId === c.id ? { border: '1px solid rgba(59,130,246,0.2)' } : {}}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-white/30" />
+                            {renamingId === c.id ? (
+                              <div className="flex-1 flex items-center gap-1">
+                                <input value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') renameConversation(c.id); if (e.key === 'Escape') setRenamingId(null); }}
+                                  className="flex-1 text-xs bg-white/10 border border-white/20 rounded px-1 py-0.5 text-white outline-none" autoFocus
+                                  onClick={e => e.stopPropagation()} />
+                                <button onClick={e => { e.stopPropagation(); renameConversation(c.id); }} className="text-green-400 hover:text-green-300">
+                                  <Check className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="flex-1 truncate text-white/70 group-hover:text-white/90">{c.title}</span>
+                                <div className="hidden group-hover:flex items-center gap-0.5">
+                                  <button onClick={e => pinConversation(c.id, e)} className="p-0.5 text-white/30 hover:text-yellow-400" title="Anheften">
+                                    <Pin className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={e => { e.stopPropagation(); setRenamingId(c.id); setRenameValue(c.title); }} className="p-0.5 text-white/30 hover:text-white/60">
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={e => deleteConversation(c.id, e)} className="p-0.5 text-red-400/50 hover:text-red-400">
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </ScrollArea>

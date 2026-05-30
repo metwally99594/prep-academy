@@ -4197,6 +4197,8 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
                 "model": body.model,
                 "language": body.language,
                 "messages": [],
+                "pinned": False,
+                "pin_order": 0,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -4443,11 +4445,11 @@ async def ai_metsu(request: Request, body: MetsuRequest, user: dict = Depends(ge
 
 @api_router.get("/ai/tutor/conversations")
 async def list_tutor_conversations(user: dict = Depends(get_current_user)):
-    """List user's tutor conversations, sorted by most recent."""
+    """List user's tutor conversations. Pinned first (by pin_order), then by most recent."""
     cursor = db.tutor_conversations.find(
         {"user_id": user["id"]},
-        {"_id": 0, "id": 1, "title": 1, "model": 1, "language": 1, "message_count": {"$size": "$messages"}, "created_at": 1, "updated_at": 1},
-    ).sort("updated_at", -1)
+        {"_id": 0, "id": 1, "title": 1, "model": 1, "language": 1, "pinned": 1, "pin_order": 1, "message_count": {"$size": "$messages"}, "created_at": 1, "updated_at": 1},
+    ).sort([("pinned", -1), ("pin_order", 1), ("updated_at", -1)])
     convs = await cursor.to_list(100)
     return {"conversations": convs}
 
@@ -4486,6 +4488,44 @@ async def rename_tutor_conversation(conversation_id: str, body: dict, user: dict
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return {"title": title}
+
+
+@api_router.patch("/ai/tutor/conversations/{conversation_id}/pin")
+async def pin_tutor_conversation(conversation_id: str, body: dict, user: dict = Depends(get_current_user)):
+    """Pin or unpin a tutor conversation."""
+    is_pinned = body.get("pinned", False)
+    now = datetime.now(timezone.utc).isoformat()
+    update = {"pinned": is_pinned, "updated_at": now}
+    if is_pinned:
+        # Assign next available pin_order
+        last_pinned = await db.tutor_conversations.find_one(
+            {"user_id": user["id"], "pinned": True},
+            sort=[("pin_order", -1)],
+            projection={"pin_order": 1},
+        )
+        update["pin_order"] = (last_pinned.get("pin_order", 0) + 1) if last_pinned else 1
+    else:
+        update["pin_order"] = 0
+    result = await db.tutor_conversations.update_one(
+        {"id": conversation_id, "user_id": user["id"]},
+        {"$set": update},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"pinned": is_pinned, "pin_order": update.get("pin_order", 0)}
+
+
+@api_router.patch("/ai/tutor/conversations/{conversation_id}/reorder")
+async def reorder_tutor_conversation(conversation_id: str, body: dict, user: dict = Depends(get_current_user)):
+    """Change pin order of a pinned conversation."""
+    pin_order = body.get("pin_order", 0)
+    result = await db.tutor_conversations.update_one(
+        {"id": conversation_id, "user_id": user["id"], "pinned": True},
+        {"$set": {"pin_order": pin_order, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found or not pinned")
+    return {"pin_order": pin_order}
 
 
 # ============ TUTOR DOCUMENT BANK (per-specialty PDF uploads) ============
