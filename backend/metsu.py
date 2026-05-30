@@ -1,4 +1,5 @@
 import json, os, asyncio, logging, re, httpx
+from scoring import compute_agreement, compute_evidence_coverage, compute_confidence
 logger = logging.getLogger(__name__)
 
 # ── Model configuration ─────────────────────────────────────────────
@@ -78,48 +79,6 @@ async def _call_or(model_name: str, system: str, user: str, timeout: float = 30.
         return None
 
 
-def _jaccard_similarity(a: str, b: str) -> float:
-    tok_a = set(re.findall(r'\w+', a.lower()))
-    tok_b = set(re.findall(r'\w+', b.lower()))
-    if not tok_a or not tok_b:
-        return 0.0
-    return len(tok_a & tok_b) / len(tok_a | tok_b)
-
-
-def _compute_agreement(responses: list[dict]) -> dict:
-    if len(responses) < 2:
-        return {"agreement_score": 1.0, "agree_count": len(responses), "total": len(responses), "pairs": []}
-
-    pairwise = []
-    for i in range(len(responses)):
-        for j in range(i + 1, len(responses)):
-            sim = _jaccard_similarity(
-                responses[i].get("answer", ""), responses[j].get("answer", "")
-            )
-            pairwise.append((i, j, sim))
-
-    avg_sim = sum(p[2] for p in pairwise) / len(pairwise) if pairwise else 1.0
-    threshold = 0.35
-
-    # Count how many models agree with the majority
-    agree_counts = [0] * len(responses)
-    for i, j, sim in pairwise:
-        if sim >= threshold:
-            agree_counts[i] += 1
-            agree_counts[j] += 1
-
-    max_agree = max(agree_counts) if agree_counts else 0
-    majority = max_agree >= (len(responses) - 1)  # agrees with at least N-1 others
-
-    return {
-        "agreement_score": round(avg_sim, 3),
-        "agree_count": max_agree + 1,
-        "total": len(responses),
-        "majority": majority,
-        "pairwise_similarities": [round(p[2], 3) for p in pairwise],
-    }
-
-
 def _merge_citations(responses: list[dict]) -> list[str]:
     seen = set()
     merged = []
@@ -149,11 +108,11 @@ async def run_consensus(
     used_tier2 = False
 
     if not force_full and tier1_valid:
-        agreement = _compute_agreement(tier1_valid)
+        agreement = compute_agreement(tier1_valid)
         avg_conf = sum(r.get("confidence", 0.5) for r in tier1_valid) / len(tier1_valid)
-        logger.info(f"Metsu T1: agreement={agreement['agreement_score']} majority={agreement['majority']} avg_conf={avg_conf:.2f}")
+        logger.info(f"Metsu T1: agreement={agreement['agreement_score']} majority={agreement['is_majority']} avg_conf={avg_conf:.2f}")
 
-        if agreement["majority"] and avg_conf >= 0.6 and agreement["agreement_score"] >= 0.35:
+        if agreement["is_majority"] and avg_conf >= 0.6 and agreement["agreement_score"] >= 35.0:
             # Tier 1 consensus reached
             best = max(tier1_valid, key=lambda r: r.get("confidence", 0))
             return {
@@ -162,6 +121,7 @@ async def run_consensus(
                 "agreement": agreement["agreement_score"],
                 "models_used": len(tier1_valid),
                 "models_total": len(TIER1_MODELS),
+                "models_agreeing": agreement["models_agreeing"],
                 "citations": _merge_citations(tier1_valid),
                 "reasoning": best.get("reasoning_summary", ""),
                 "tier": 1,
@@ -203,15 +163,16 @@ async def run_consensus(
                 "agreement": 0.0,
                 "models_used": 1,
                 "models_total": len(TIER2_MODELS),
+                "models_agreeing": 0,
                 "citations": best.get("citations", []),
                 "reasoning": best.get("reasoning_summary", ""),
                 "tier": 1,
                 "model_details": [],
             }
-        return {"error": "All models failed", "tier": 1, "answer": "Entschuldigung, alle Modelle sind fehlgeschlagen.", "confidence": 0.0, "agreement": 0.0, "models_used": 0, "models_total": len(TIER2_MODELS), "citations": [], "reasoning": "", "model_details": []}
+        return {"error": "All models failed", "tier": 1, "answer": "Entschuldigung, alle Modelle sind fehlgeschlagen.", "confidence": 0.0, "agreement": 0.0, "models_used": 0, "models_total": len(TIER2_MODELS), "models_agreeing": 0, "citations": [], "reasoning": "", "model_details": []}
 
     responses = tier2_valid
-    agreement = _compute_agreement(tier2_valid)
+    agreement = compute_agreement(tier2_valid)
     avg_conf = sum(r.get("confidence", 0.5) for r in tier2_valid) / len(tier2_valid)
 
     # Pick best answer (highest confidence among majority)
@@ -224,6 +185,7 @@ async def run_consensus(
         "agreement": agreement["agreement_score"],
         "models_used": len(tier2_valid),
         "models_total": len(TIER2_MODELS),
+        "models_agreeing": agreement["models_agreeing"],
         "citations": _merge_citations(tier2_valid),
         "reasoning": best.get("reasoning_summary", ""),
         "tier": 2,
@@ -240,11 +202,12 @@ async def search_and_consensus(question: str, specialty_id: str = None, chapter_
 
     evidence = ""
     evidence_objects = []
+    doc_results = []
     try:
-        results = search_chapters(question, specialty_id=specialty_id, chapter_index=chapter_index, limit=5)
-        if results:
+        doc_results = search_chapters(question, specialty_id=specialty_id, chapter_index=chapter_index, limit=5)
+        if doc_results:
             parts = []
-            for i, d in enumerate(results, 1):
+            for i, d in enumerate(doc_results, 1):
                 parts.append(f"[DOKUMENT {i}] {d['filename']} — {d.get('chapter_title', '')} (Seite {d.get('page_start', '?')}–{d.get('page_end', '?')}):\n{d.get('text', '')}")
                 excerpt = (d.get("text") or "")[:500]
                 if len(d.get("text") or "") > 500:
@@ -268,6 +231,7 @@ async def search_and_consensus(question: str, specialty_id: str = None, chapter_
             "agreement": 1.0,
             "models_used": 0,
             "models_total": 0,
+            "models_agreeing": 0,
             "citations": [],
             "reasoning": "Keine Dokumente in der Wissensdatenbank gefunden.",
             "tier": 0,
@@ -276,6 +240,19 @@ async def search_and_consensus(question: str, specialty_id: str = None, chapter_
             "error": "no_documents",
         }
 
+    evidence_cov = compute_evidence_coverage(doc_results)
+
     result = await run_consensus(question, evidence, force_full=force_full)
     result["evidence"] = evidence_objects
+
+    # Compute confidence from agreement + evidence coverage
+    conf = compute_confidence(
+        agreement_score=result.get("agreement"),
+        coverage_score=evidence_cov["coverage_score"],
+        similarity=evidence_cov["average_similarity"],
+    )
+    result["scoring"] = {
+        "evidence_coverage": evidence_cov,
+        "confidence": conf,
+    }
     return result

@@ -49,6 +49,7 @@ from auth import (
     get_current_user, get_admin_user, security
 )
 from vector_store import index_chapters, search_chapters
+from scoring import compute_evidence_coverage, compute_confidence
 from services.analyzer_prompts import (
     build_prompt, REPORT_TYPE_MAP, VALID_CATEGORIES,
     VISIBILITY_SYSTEM, VISIBILITY_USER,
@@ -4163,6 +4164,7 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
 
         # 1. FIRST: Search uploaded subject documents
         doc_results = await _search_tutor_docs(body.user_message, body.specialty_id, chapter_index=body.chapter_index)
+        evidence_cov = compute_evidence_coverage(doc_results)
         doc_source_block = ""
         doc_count = 0
         doc_images = []
@@ -4339,6 +4341,11 @@ REGELN:
                 "excerpt": excerpt,
             })
 
+        conf = compute_confidence(
+            coverage_score=evidence_cov["coverage_score"],
+            similarity=evidence_cov["average_similarity"],
+        )
+
         return {
             "response": response,
             "images": images,
@@ -4350,6 +4357,10 @@ REGELN:
             "sources_knowledge": len(relevant_knowledge),
             "evidence": evidence,
             "mcq_analysis": mcq_analysis,
+            "scoring": {
+                "evidence_coverage": evidence_cov,
+                "confidence": conf,
+            },
         }
     except HTTPException:
         raise
