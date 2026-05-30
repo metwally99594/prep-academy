@@ -4166,18 +4166,22 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
             doc_source_block = "\n\n".join(doc_parts)
             doc_count = len(doc_results)
             logger.info(f"[Tutor] Found {doc_count} doc chunks for '{body.specialty_id or 'all'}': {body.user_message[:60]}")
-            # Fetch images from matching pages
+            # Fetch images from matching pages — only top chapters, limited page range
             doc_ids = set(r["document_id"] for r in doc_results)
             for doc_id in doc_ids:
                 page_set = set()
-                for r in doc_results:
-                    if r["document_id"] == doc_id:
-                        for p in range(r.get("page_start", 1), r.get("page_end", 1) + 1):
-                            page_set.add(p)
+                # Only use top 2 chapters per document, max 5 pages each
+                doc_chapters = [r for r in doc_results if r["document_id"] == doc_id][:2]
+                for r in doc_chapters:
+                    start = r.get("page_start", 1)
+                    end = min(r.get("page_end", 1), start + 4)
+                    for p in range(start, end + 1):
+                        page_set.add(p)
                 if page_set:
+                    # Prefer images with descriptions matching the query
                     img_cursor = db.tutor_doc_images.find(
                         {"doc_id": doc_id, "page": {"$in": list(page_set)}},
-                        {"_id": 0, "id": 1, "page": 1, "ext": 1, "width": 1, "height": 1, "data": 1},
+                        {"_id": 0, "id": 1, "page": 1, "ext": 1, "width": 1, "height": 1, "data": 1, "description": 1},
                     )
                     async for img in img_cursor:
                         doc_images.append({
@@ -4189,7 +4193,23 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
                             "data": f"data:image/{img['ext']};base64,{img['data']}",
                             "_source": "document",
                             "title": f"Seite {img['page']} — {doc_results[0]['filename']}",
+                            "description": img.get("description", ""),
                         })
+
+            # Rank images: described + topic-match first, cap at 6
+            if doc_images:
+                q_lower = body.user_message.lower()
+                q_words = set(q_lower.split())
+                def img_score(img):
+                    desc = (img.get("description") or "").lower()
+                    # Score: has description matching query words
+                    match_count = sum(1 for w in q_words if w in desc)
+                    return match_count if desc else -1  # described images with match rank highest
+                doc_images.sort(key=img_score, reverse=True)
+                # Show max 6 images, only show undescribed ones if we have room
+                described = [i for i in doc_images if i.get("description")]
+                undescribed = [i for i in doc_images if not i.get("description")]
+                doc_images = (described[:4] + undescribed[:2])[:6]
 
         # 2. SECOND (fallback): Search exam questions + medical knowledge
         relevant_questions, relevant_knowledge = [], []
