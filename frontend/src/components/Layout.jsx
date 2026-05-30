@@ -55,6 +55,7 @@ import {
   BookOpen,
   ShieldCheck,
   FileScan,
+  AlertTriangle,
   Lock,
   GraduationCap,
   MessageSquare,
@@ -443,6 +444,12 @@ export const Layout = () => {
                       <span className="hidden xl:inline">Überprüfung</span>
                     </Button>
                   </Link>
+                  <Link to="/weaknesses">
+                    <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span className="hidden xl:inline">Schwächen</span>
+                    </Button>
+                  </Link>
                   <Link to="/stats">
                     <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="stats-nav-btn">
                       <BarChart3 className="w-4 h-4" />
@@ -741,6 +748,12 @@ export const Layout = () => {
               <Button variant="ghost" className="w-full justify-start gap-2">
                 <RefreshCcw className="w-4 h-4" />
                 Überprüfung
+              </Button>
+            </Link>
+            <Link to="/weaknesses" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Schwächen
               </Button>
             </Link>
             <Link to="/stats" onClick={() => setMobileMenuOpen(false)}>

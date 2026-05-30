@@ -50,6 +50,7 @@ from auth import (
 )
 from vector_store import index_chapters, search_chapters
 from scoring import compute_evidence_coverage, compute_confidence
+from tracker import record_answer
 from services.analyzer_prompts import (
     build_prompt, REPORT_TYPE_MAP, VALID_CATEGORIES,
     VISIBILITY_SYSTEM, VISIBILITY_USER,
@@ -1998,6 +1999,9 @@ async def submit_answer(question_id: str, answer: AnswerSubmit, user: dict = Dep
     else:
         is_correct = set(answer.selected_choice_ids) == set(correct_ids) if correct_ids else False
     
+    # Track answer for Memory of Mistakes (non-blocking)
+    asyncio.create_task(record_answer(db, user["id"], question, is_correct))
+
     # Update user stats
     stats = await db.user_stats.find_one({"user_id": user["id"]})
     
@@ -2330,6 +2334,51 @@ async def mark_as_reviewed(question_id: str, user: dict = Depends(get_current_us
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Question not found in review list")
     return {"message": "Marked as reviewed"}
+
+
+# ============ MISTAKE TRACKER (Memory of Mistakes) ============
+
+@api_router.get("/tracker/heatmap")
+async def tracker_heatmap(user: dict = Depends(get_current_user)):
+    from tracker import get_heatmap
+    return {"heatmap": await get_heatmap(db, user["id"])}
+
+@api_router.get("/tracker/repeated-mistakes")
+async def tracker_repeated_mistakes(user: dict = Depends(get_current_user), min_count: int = 2):
+    from tracker import get_repeated_mistakes
+    return {"mistakes": await get_repeated_mistakes(db, user["id"], min_count=min_count)}
+
+@api_router.get("/tracker/profile")
+async def tracker_profile(user: dict = Depends(get_current_user)):
+    from tracker import get_heatmap, get_repeated_mistakes, get_confidence_mismatches
+    heatmap, mistakes, mismatches = await asyncio.gather(
+        get_heatmap(db, user["id"]),
+        get_repeated_mistakes(db, user["id"]),
+        get_confidence_mismatches(db, user["id"]),
+    )
+    return {"heatmap": heatmap, "repeated_mistakes": mistakes, "recent_wrong": mismatches}
+
+@api_router.post("/tracker/review")
+async def tracker_review(user: dict = Depends(get_current_user), limit: int = 20):
+    """Generate a review quiz from the user's weakest specialties."""
+    from tracker import get_heatmap
+    heatmap = await get_heatmap(db, user["id"])
+    if not heatmap:
+        raise HTTPException(status_code=404, detail="No data yet — answer some questions first")
+
+    weak_specialties = [r["specialty_id"] for r in heatmap if r["percentage"] < 80]
+    if not weak_specialties:
+        weak_specialties = [r["specialty_id"] for r in heatmap[:3]]
+
+    pipeline = [
+        {"$match": {"specialty_id": {"$in": weak_specialties}, "status": "published"}},
+        {"$sample": {"size": min(limit, 50)}},
+        {"$project": {"_id": 0}},
+    ]
+    questions = await db.questions.aggregate(pipeline).to_list(min(limit, 50))
+    return {"questions": questions, "focus_specialties": weak_specialties,
+            "reason": f"Fokus auf {len(weak_specialties)} schwache Fachbereiche"}
+
 
 # ============ STATS ROUTES ============
 

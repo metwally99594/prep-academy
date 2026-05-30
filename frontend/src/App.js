@@ -61,6 +61,7 @@ const GermanyHomePage = lazy(() => import("@/pages/Germany/GermanyHomePage"));
 const FSPSimulationPage = lazy(() => import("@/pages/Germany/FSPSimulationPage"));
 const ArztbriefPage = lazy(() => import("@/pages/Germany/ArztbriefPage"));
 const MasterclassPage = lazy(() => import("@/pages/Germany/MasterclassPage"));
+const WeaknessPage = lazy(() => import("@/pages/WeaknessPage"));
 
 // API base URL for legacy raw axios calls in pages
 import { API } from "@/lib/api";
@@ -279,6 +280,9 @@ function AppRouter() {
           } />
           <Route path="/review" element={
             <ProtectedRoute><ReviewPage /></ProtectedRoute>
+          } />
+          <Route path="/weaknesses" element={
+            <ProtectedRoute><WeaknessPage /></ProtectedRoute>
           } />
           <Route path="/search" element={
             <ProtectedRoute><SearchResultsPage /></ProtectedRoute>
