@@ -67,6 +67,7 @@ from services.analyzer_prompts import (
 )
 from services.image_segmentation import detect_anatomical_regions
 from services.findings_vocabulary import CATEGORY_KEYWORDS as _CATEGORY_KEYWORDS
+from services.knowledge_lab_service import search as _search_wiki_kb
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -4134,6 +4135,22 @@ async def admin_import_history(
     return {"logs": logs, "total": len(logs)}
 
 
+async def _search_wiki(query: str, limit: int = 5) -> list:
+    """Keyword search over the knowledge base wiki."""
+    if not query or len(query) < 2:
+        return []
+    try:
+        results = _search_wiki_kb(query, limit=limit)
+        if results:
+            logger.info(f"[Tutor] Wiki branch — {len(results)} results for '{query[:60]}'")
+            for r in results:
+                logger.info(f"[Tutor] Wiki hit: {r['title']} (cat={r['category']}) score={r['score']}")
+        return results
+    except Exception as e:
+        logger.warning(f"[Tutor] Wiki search error: {e}")
+        return []
+
+
 async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chapter_index: int = None) -> list:
     """Semantic search via Qdrant, falls back to $regex."""
     if not query or len(query) < 2:
@@ -4251,12 +4268,33 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
 
         lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
 
-        # 1. FIRST: Search uploaded subject documents
-        doc_results = await _search_tutor_docs(body.user_message, body.specialty_id, chapter_index=body.chapter_index)
+        # 1. Search knowledge base + uploaded documents (parallel)
+        wiki_results, doc_results = await asyncio.gather(
+            _search_wiki(body.user_message, limit=5),
+            _search_tutor_docs(body.user_message, body.specialty_id, chapter_index=body.chapter_index),
+        )
         evidence_cov = compute_evidence_coverage(doc_results)
         doc_source_block = ""
+        wiki_source_block = ""
+        wiki_evidence_list = []
         doc_count = 0
         doc_images = []
+        if wiki_results:
+            wiki_parts = []
+            for i, w in enumerate(wiki_results, 1):
+                wiki_parts.append(f"[WISSENSDATENBANK {i}] {w['title']} ({w['category']}):\n{w['snippet']}")
+            wiki_source_block = "\n\n".join(wiki_parts)
+            wiki_evidence_list = [
+                {
+                    "title": w["title"],
+                    "path": w["path"],
+                    "category": w["category"],
+                    "excerpt": w["snippet"],
+                    "score": w["score"],
+                }
+                for w in wiki_results[:5]
+            ]
+            logger.info(f"[Tutor] Wiki branch — {len(wiki_results)} KB pages for '{body.user_message[:60]}'")
         if doc_results:
             doc_parts = []
             for i, d in enumerate(doc_results, 1):
@@ -4311,14 +4349,16 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
 
         # 2. SECOND (fallback): Search exam questions + medical knowledge
         relevant_questions, relevant_knowledge = [], []
-        if not doc_results:
+        if not doc_results and not wiki_results:
             relevant_questions, relevant_knowledge = await asyncio.gather(
                 _search_questions_internal(body.user_message, limit=2),
                 _search_medical_knowledge(body.user_message, limit=6),
             )
 
-        # Build RAG context
+        # Build RAG context — knowledge base first, then uploaded documents, then fallbacks
         context_parts = []
+        if wiki_source_block:
+            context_parts.append(f"WISSENSDATENBANK:\n{wiki_source_block}")
         if doc_source_block:
             context_parts.append(f"HOCHGELADENE DOKUMENTE (Fach: {body.specialty_id or 'Alle'}):\n{doc_source_block}")
         for idx, q in enumerate(relevant_questions[:2], 1):
@@ -4372,13 +4412,14 @@ INFORMATIONEN:{context_str}
 VERLAUF DER KONVERSATION:{history_block}{mcq_instruction}
 
 REGELN:
-1. Wenn HOCHGELADENE DOKUMENTE oben im Abschnitt INFORMATIONEN stehen: Antworte AUSSCHLIESSLICH mit dem Inhalt dieser Dokumente. Füge KEIN allgemeines medizinisches Wissen hinzu, auch wenn die Dokumente die Frage nicht vollständig beantworten. Zitiere mit [DOKUMENT N].
-2. Wenn KEINE hochgeladenen Dokumente im Abschnitt INFORMATIONEN stehen: Nutze Prüfungsfragen und medizinisches Wissen falls vorhanden.
-3. Wenn GAR KEINE Informationen (weder Dokumente noch Prüfungsfragen noch Wissen) vorhanden sind: Nutze dein eigenes medizinisches Wissen um die Frage zu beantworten.
-4. Verknüpfe Konzepte mit Prüfungsrelevanz.
-5. Erkläre klar mit klinischen Beispielen.
-6. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in den Dokumenten stehen (oder falls keine Dokumente: Standard-Dosierung).
-7. Sei präzise, akademisch aber freundlich."""
+1. Wenn WISSENSDATENBANK oben im Abschnitt INFORMATIONEN steht: Antworte zuerst basierend auf der Wissensdatenbank. Zitiere mit [WISSENSDATENBANK N].
+2. Wenn HOCHGELADENE DOKUMENTE vorhanden sind: Ergänze die Antwort mit Details aus den Dokumenten. Zitiere mit [DOKUMENT N].
+3. Wenn KEINE Wissensdatenbank UND KEINE hochgeladenen Dokumente: Nutze Prüfungsfragen und medizinisches Wissen falls vorhanden.
+4. Wenn GAR KEINE Informationen vorhanden sind: Nutze dein eigenes medizinisches Wissen.
+5. Verknüpfe Konzepte mit Prüfungsrelevanz.
+6. Erkläre klar mit klinischen Beispielen.
+7. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in der Wissensdatenbank oder in Dokumenten stehen (oder falls keine: Standard-Dosierung).
+8. Sei präzise, akademisch aber freundlich."""
 
         response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
         # Extract MCQ JSON from response if present
@@ -4442,6 +4483,7 @@ REGELN:
             "language": body.language,
             "conversation_id": conversation_id,
             "documents_used": len(doc_results),
+            "wiki_sources": wiki_evidence_list,
             "sources_questions": len(relevant_questions),
             "sources_knowledge": len(relevant_knowledge),
             "evidence": evidence,
