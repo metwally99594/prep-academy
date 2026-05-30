@@ -239,12 +239,23 @@ async def search_and_consensus(question: str, specialty_id: str = None, chapter_
     from vector_store import search_chapters
 
     evidence = ""
+    evidence_objects = []
     try:
         results = search_chapters(question, specialty_id=specialty_id, chapter_index=chapter_index, limit=5)
         if results:
             parts = []
             for i, d in enumerate(results, 1):
                 parts.append(f"[DOKUMENT {i}] {d['filename']} — {d.get('chapter_title', '')} (Seite {d.get('page_start', '?')}–{d.get('page_end', '?')}):\n{d.get('text', '')}")
+                excerpt = (d.get("text") or "")[:500]
+                if len(d.get("text") or "") > 500:
+                    excerpt += "..."
+                evidence_objects.append({
+                    "filename": d.get("filename", ""),
+                    "chapter": d.get("chapter_title", ""),
+                    "page_start": d.get("page_start"),
+                    "page_end": d.get("page_end"),
+                    "excerpt": excerpt,
+                })
             evidence = "\n\n".join(parts)
     except Exception as e:
         logger.warning(f"Metsu Qdrant search failed: {e}")
@@ -260,7 +271,10 @@ async def search_and_consensus(question: str, specialty_id: str = None, chapter_
             "reasoning": "Keine Dokumente in der Wissensdatenbank gefunden.",
             "tier": 0,
             "model_details": [],
+            "evidence": [],
             "error": "no_documents",
         }
 
-    return await run_consensus(question, evidence, force_full=force_full)
+    result = await run_consensus(question, evidence, force_full=force_full)
+    result["evidence"] = evidence_objects
+    return result

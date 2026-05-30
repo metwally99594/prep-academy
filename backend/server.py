@@ -4263,6 +4263,20 @@ REGELN:
             },
         )
 
+        # Build evidence list from doc_results
+        evidence = []
+        for d in doc_results[:5]:
+            excerpt = (d.get("text") or "")[:500]
+            if len(d.get("text") or "") > 500:
+                excerpt += "..."
+            evidence.append({
+                "filename": d.get("filename", ""),
+                "chapter": d.get("chapter_title", ""),
+                "page_start": d.get("page_start"),
+                "page_end": d.get("page_end"),
+                "excerpt": excerpt,
+            })
+
         return {
             "response": response,
             "images": images,
@@ -4272,6 +4286,7 @@ REGELN:
             "documents_used": len(doc_results),
             "sources_questions": len(relevant_questions),
             "sources_knowledge": len(relevant_knowledge),
+            "evidence": evidence,
         }
     except HTTPException:
         raise

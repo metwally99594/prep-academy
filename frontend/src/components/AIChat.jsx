@@ -223,7 +223,7 @@ export default function AIChat({ question, isOpen, onClose }) {
       if (isTutor && docsUsed > 0) {
         content = `[Aus ${docsUsed} Dokument(en)]\n\n${content}`;
       }
-      setMessages(prev => [...prev, { role: "assistant", content, model: selectedModel, images, documents_used: docsUsed }]);
+      setMessages(prev => [...prev, { role: "assistant", content, model: selectedModel, images, documents_used: docsUsed, evidence: response.data.evidence || [] }]);
 
       if (isTutor && response.data.conversation_id) {
         setConversationId(response.data.conversation_id);
@@ -471,7 +471,7 @@ export default function AIChat({ question, isOpen, onClose }) {
                   </div>
                   <div className={`flex-1 p-4 rounded-2xl text-sm leading-relaxed ${
                     message.role === "user" ? "rounded-tr-sm text-white/90" : "rounded-tl-sm text-white/80"
-                  }`} style={{ background: message.role === "user" ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
+                  }`} style={{ background: message.role === 'user' ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
                     <p className="whitespace-pre-wrap" style={{ direction: selectedLang === 'ar' ? 'rtl' : 'ltr' }}>{message.content}</p>
                     {message.images && message.images.length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
@@ -482,6 +482,44 @@ export default function AIChat({ question, isOpen, onClose }) {
                                 style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}>
                                 <img src={img.data} alt={img.title || ''} loading="lazy" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
                               </div>
+                            ) : (
+                              <a href={img.url} target="_blank" rel="noopener noreferrer"
+                                className="block rounded-lg overflow-hidden border transition-opacity hover:opacity-80"
+                                style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}>
+                                <img src={img.thumbnail} alt={img.title} loading="lazy" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
+                              </a>
+                            )}
+                            {img._source && (
+                              <span className="absolute bottom-0 right-0 text-[9px] px-1 py-[1px] rounded-tl leading-tight"
+                                style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.6)' }}>
+                                {img._source === 'local_db' ? '●' : '◌'} {img._source}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {message.evidence && message.evidence.length > 0 && (
+                      <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                        <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider">Quellen</p>
+                        {message.evidence.slice(0, 3).map((e, i) => (
+                          <div key={i} className="rounded-lg p-3 text-xs" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.1)' }}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs" style={{ color: '#f59e0b' }}>📄</span>
+                              <span className="font-medium text-white/80">{e.filename}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-white/40 mb-1">
+                              <span>Kapitel: {e.chapter}</span>
+                              <span>Seite: {e.page_start}{e.page_end !== e.page_start ? `–${e.page_end}` : ''}</span>
+                            </div>
+                            <p className="text-white/50 leading-relaxed italic">
+                              &ldquo;{e.excerpt}&rdquo;
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                             ) : (
                               <a href={img.url} target="_blank" rel="noopener noreferrer"
                                 className="block rounded-lg overflow-hidden border transition-opacity hover:opacity-80"
