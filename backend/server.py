@@ -4252,12 +4252,26 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
                 context_parts.append(f"Medizinisches Wissen {idx} ({category}):\n{title}\n{content_text}")
         context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen aus der Dokumenten-Datenbank zu diesem Thema."
 
+        # Detect MCQ mode
+        is_mcq = bool(body.mcq_options) or bool(re.search(r'(?i)\b([abcd]\)|[abcd]\.\s|Option\s+[ABCD])\b.*\b(richtig|falsch|warum|erklär)\b', body.user_message))
+        mcq_instruction = ""
+        if is_mcq:
+            options_text = body.mcq_options or ""
+            mcq_instruction = f"""
+FRAGE MIT ANTWORTOPTIONEN:
+{options_text}
+
+Analysiere jede Option. Beende deine Antwort mit einem JSON-Block:
+```json
+{{"correct_answer": "X", "correct_reason": "Warum X richtig ist", "wrong_answers": [{{"option": "A", "reason": "Warum A falsch ist"}}]}}
+```"""
+
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
 
 INFORMATIONEN:{context_str}
 
-VERLAUF DER KONVERSATION:{history_block}
+VERLAUF DER KONVERSATION:{history_block}{mcq_instruction}
 
 REGELN:
 1. Wenn HOCHGELADENE DOKUMENTE oben im Abschnitt INFORMATIONEN stehen: Antworte AUSSCHLIESSLICH mit dem Inhalt dieser Dokumente. Füge KEIN allgemeines medizinisches Wissen hinzu, auch wenn die Dokumente die Frage nicht vollständig beantworten. Zitiere mit [DOKUMENT N].
@@ -4269,6 +4283,26 @@ REGELN:
 7. Sei präzise, akademisch aber freundlich."""
 
         response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
+        # Extract MCQ JSON from response if present
+        mcq_analysis = None
+        if is_mcq:
+            import json as _json
+            m = re.search(r'```json\s*(\{.*?\})\s*```', response, re.DOTALL)
+            if m:
+                try:
+                    parsed = _json.loads(m.group(1))
+                    mcq_analysis = {
+                        "correct_answer": parsed.get("correct_answer", ""),
+                        "correct_reason": parsed.get("correct_reason", ""),
+                        "wrong_answers": [
+                            {"option": wa.get("option", ""), "reason": wa.get("reason", "")}
+                            for wa in (parsed.get("wrong_answers") or [])
+                        ],
+                    }
+                    # Remove JSON block from visible response
+                    response = response[:m.start()].strip()
+                except Exception:
+                    pass
         images = await _search_medical_images(body.user_message) if not doc_results else doc_images
         await _increment_ai_quota(user["id"])
 
@@ -4307,6 +4341,7 @@ REGELN:
             "sources_questions": len(relevant_questions),
             "sources_knowledge": len(relevant_knowledge),
             "evidence": evidence,
+            "mcq_analysis": mcq_analysis,
         }
     except HTTPException:
         raise

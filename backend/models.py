@@ -156,7 +156,17 @@ class AITutorRequest(BaseModel):
     language: Optional[str] = "de"
     conversation_id: Optional[str] = None
     specialty_id: Optional[str] = None
-    chapter_index: Optional[int] = None  # Search within a specific chapter
+    chapter_index: Optional[int] = None
+    mcq_options: Optional[str] = None  # "A: text\nB: text\nC: text\nD: text" for MCQ analysis
+
+class MCQChoice(BaseModel):
+    option: str
+    reason: str
+
+class MCQAnalysis(BaseModel):
+    correct_answer: str
+    correct_reason: str
+    wrong_answers: List[MCQChoice]
 
 class MetsuRequest(BaseModel):
     question: str
