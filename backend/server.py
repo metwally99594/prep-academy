@@ -3105,9 +3105,32 @@ async def _or_call_single(*, or_model: str, system_msg: str, user_msg: str, max_
         raise HTTPException(status_code=503, detail=f"AI-Antwort fehlgeschlagen: {str(d)[:200]}")
 
 
+from collections import OrderedDict
+import hashlib
+
+_chat_cache = OrderedDict()
+_CHAT_CACHE_MAX = 100
+_CHAT_CACHE_TTL = 300  # 5 minutes
+
+
 async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model_key: str = None) -> str:
     """OpenRouter text call — respects model_key, strips <think> blocks. If model_key is 'metsu', falls back through Chinese open-source models."""
     import re as _re, httpx, random, time as _time
+
+    cache_key = hashlib.sha256((system_msg + user_msg + (model_key or "")).encode()).hexdigest()
+    _cache_hit = _chat_cache.get(cache_key)
+    if _cache_hit is not None:
+        ts, val = _cache_hit
+        if _time.time() - ts < _CHAT_CACHE_TTL:
+            logger.info(f"[OR] CACHE HIT for '{user_msg[:50]}...'")
+            return val
+        del _chat_cache[cache_key]
+
+    def _cache_store(v: str):
+        _chat_cache[cache_key] = (_time.time(), v)
+        if len(_chat_cache) > _CHAT_CACHE_MAX:
+            _chat_cache.popitem(last=False)
+
     or_key = os.environ.get("OPENROUTER_API_KEY")
     if not or_key:
         raise HTTPException(status_code=503, detail="AI nicht verfügbar — OPENROUTER_API_KEY fehlt")
@@ -3146,11 +3169,13 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         if scored:
             scored.sort(key=lambda x: x[0], reverse=True)
             logger.info(f"metsu ensemble: best={scored[0][1]} score={scored[0][0]} total={len(scored)}")
+            _cache_store(scored[0][2])
             return scored[0][2]
         for m in ["deepseek/deepseek-v4-flash:free", "meta-llama/llama-3.3-70b-instruct:free", "openai/gpt-oss-120b:free"]:
             try:
                 result = await _call_model(m, 60.0)
                 if result and result[1]:
+                    _cache_store(result[1])
                     return result[1]
             except Exception:
                 continue
@@ -3169,8 +3194,15 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
         fallback_models.remove(or_model)
 
     last_error = None
-    for attempt in range(3):
-        for model in [or_model] + fallback_models:
+    total_start = _time.time()
+    retry_count = 0
+    rate_limited_models = set()
+
+    for attempt in range(4):
+        candidates = [m for m in ([or_model] + fallback_models) if m not in rate_limited_models]
+        if not candidates:
+            candidates = [or_model] + fallback_models
+        for model in candidates:
             try:
                 async with httpx.AsyncClient(timeout=25.0) as client:
                     start = _time.time()
@@ -3190,6 +3222,7 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
                         msg = d.get("error", {}).get("message", "Rate limit exceeded")
                         logger.warning(f"[OR] 429 {model}: {msg}")
                         last_error = msg
+                        rate_limited_models.add(model)
                         continue
                     if r.status_code == 402:
                         msg = d.get("error", {}).get("message", "Credit limit")
@@ -3207,16 +3240,21 @@ async def _or_text(system_msg: str, user_msg: str, max_tokens: int = 1000, model
                         content = (d["choices"][0].get("message") or {}).get("content") or ""
                         result = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
                         if result:
+                            total_latency = _time.time() - total_start
+                            logger.info(f"[OR] SUCCESS {model} total_latency={total_latency:.1f}s retries={retry_count}")
+                            _cache_store(result)
                             return result
                     last_error = f"OpenRouter {r.status_code} {model}: {str(d)[:200]}"
                     raise HTTPException(status_code=503, detail=last_error)
             except HTTPException:
                 raise
             except Exception as e:
+                retry_count += 1
                 last_error = f"{model}: {str(e)[:150]}"
-                logger.warning(f"[OR] {model} attempt {attempt+1}/3 failed: {e}")
+                logger.warning(f"[OR] {model} attempt {attempt+1}/4 failed: {e}")
                 continue
-        await asyncio.sleep(2 ** attempt)
+        jitter = random.uniform(0.75, 1.25)
+        await asyncio.sleep((2 ** attempt) * jitter)
     raise HTTPException(status_code=503, detail=f"AI-Versand fehlgeschlagen: {last_error}")
 
 
