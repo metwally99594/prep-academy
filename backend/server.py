@@ -49,6 +49,7 @@ from auth import (
     get_current_user, get_admin_user, security
 )
 from vector_store import index_chapters, search_chapters
+from embeddings import _get_embedder as _preload_embedder
 from scoring import compute_evidence_coverage, compute_confidence
 from tracker import record_answer
 from services.analyzer_prompts import (
@@ -340,6 +341,16 @@ async def startup_event():
             logger.info("Telegram bot task launched.")
     except Exception as e:
         logger.warning(f"Telegram bot not started: {e}")
+    # Pre-load the embedding model in a thread so it's ready before any upload triggers it.
+    # The model download (~0.22GB) at startup avoids OOM during upload background tasks.
+    async def _preload_model():
+        try:
+            logger.info("[EMBED] Pre-loading embedding model at startup...")
+            await asyncio.to_thread(_preload_embedder)
+            logger.info("[EMBED] Embedding model pre-loaded successfully")
+        except Exception as e:
+            logger.warning(f"[EMBED] Could not pre-load embedding model: {e}")
+    asyncio.create_task(_preload_model())
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
