@@ -83,7 +83,25 @@ def _ensure_collection():
                 field_name="document_id",
                 field_schema=qmodels.PayloadSchemaType.KEYWORD,
             )
+            _client.create_payload_index(
+                collection_name=COLLECTION,
+                field_name="chapter_index",
+                field_schema=qmodels.PayloadSchemaType.INTEGER,
+            )
             logger.info(f"Created Qdrant collection '{COLLECTION}'")
+        else:
+            # Ensure indexes exist on existing collections (idempotent)
+            for field, schema in [("specialty_id", qmodels.PayloadSchemaType.KEYWORD),
+                                  ("document_id", qmodels.PayloadSchemaType.KEYWORD),
+                                  ("chapter_index", qmodels.PayloadSchemaType.INTEGER)]:
+                try:
+                    _client.create_payload_index(
+                        collection_name=COLLECTION,
+                        field_name=field,
+                        field_schema=schema,
+                    )
+                except Exception:
+                    pass  # index already exists
     except Exception as e:
         logger.error(f"Failed to ensure Qdrant collection: {e}")
 
