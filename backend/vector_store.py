@@ -69,10 +69,14 @@ def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters: list
         skipped_no_text = 0
         skipped_bad_vec = 0
         for ch in chapters:
+            ch_idx = ch.get("index", "?")
+            ch_title = ch.get("title", "?")[:50]
             text = ch.get("text", "")
             if not text or len(text.strip()) < 20:
+                logger.info(f"[INDEX] Skipping ch#{ch_idx} '{ch_title}' — short/empty text ({len(text.strip())} chars)")
                 skipped_no_text += 1
                 continue
+            logger.info(f"[INDEX] Embedding ch#{ch_idx} '{ch_title}' — text length={len(text)}")
             vec = embed_text(text)
             if not vec or all(v == 0.0 for v in vec):
                 skipped_bad_vec += 1
