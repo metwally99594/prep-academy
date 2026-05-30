@@ -158,6 +158,12 @@ class AITutorRequest(BaseModel):
     specialty_id: Optional[str] = None
     chapter_index: Optional[int] = None  # Search within a specific chapter
 
+class MetsuRequest(BaseModel):
+    question: str
+    specialty_id: Optional[str] = None
+    chapter_index: Optional[int] = None
+    force_full: bool = False  # True = Tier 2 (6 models), False = Tier 1 (3 models)
+
 class CustomQuizRequest(BaseModel):
     specialties: List[str] = []
     text_search: Optional[str] = None

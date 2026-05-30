@@ -39,7 +39,7 @@ from models import (
     UserCreate, UserLogin, UserResponse, GoogleAuthCallback,
     QuestionChoice, QuestionCreate, QuestionUpdate, QuestionResponse,
     AnswerSubmit, AnswerResult, FavoriteCreate, StatsResponse,
-    AIExplainRequest, AIChatRequest, AITutorRequest, CustomQuizRequest, SpecialtyResponse,
+    AIExplainRequest, AIChatRequest, AITutorRequest, MetsuRequest, CustomQuizRequest, SpecialtyResponse,
     NotebookChatRequest, AnalyzeRequest, BulkCityUpdate, BulkDeleteRequest,
     AccessRequestCreate, AccessRequestUpdate, ContactRequestCreate,
     QuestionImportItem, QuestionImportRequest, ValidationError, QuestionImportLog,
@@ -4278,6 +4278,29 @@ REGELN:
     except Exception as e:
         logger.error(f"AI tutor error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get AI response")
+
+
+@api_router.post("/ai/metsu")
+@limiter.limit("6/minute;30/hour;200/day")
+async def ai_metsu(request: Request, body: MetsuRequest, user: dict = Depends(get_current_user)):
+    """Metsu multi-model consensus engine: Qdrant → Evidence → 3/6 models → Consensus"""
+    await check_ai_access(user)
+    await _check_ai_quota(user["id"])
+    try:
+        from metsu import search_and_consensus
+        result = await search_and_consensus(
+            question=body.question,
+            specialty_id=body.specialty_id,
+            chapter_index=body.chapter_index,
+            force_full=body.force_full,
+        )
+        await _increment_ai_quota(user["id"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Metsu error: {e}")
+        raise HTTPException(status_code=500, detail=f"Metsu fehlgeschlagen: {str(e)[:200]}")
 
 
 @api_router.get("/ai/tutor/conversations")
