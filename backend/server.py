@@ -4101,7 +4101,7 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chap
     if not query or len(query) < 2:
         return []
     try:
-        results = search_chapters(query, specialty_id=specialty_id or None, chapter_index=chapter_index, limit=limit)
+        results = await search_chapters(query, specialty_id=specialty_id or None, chapter_index=chapter_index, limit=limit)
         if results:
             logger.info(f"[Tutor] Qdrant branch — {len(results)} results for '{query[:60]}'")
             for i, r in enumerate(results[:5]):
@@ -4622,7 +4622,7 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
         async def _index_qdrant():
             logger.info(f"[INDEX] Background task started for '{file.filename}' — {len(chapters)} chapters to index")
             try:
-                await asyncio.to_thread(index_chapters, doc_id, file.filename, specialty_id, chapters)
+                await index_chapters(doc_id, file.filename, specialty_id, chapters)
                 logger.info(f"[INDEX] Qdrant indexing complete for '{file.filename}'")
             except Exception as ix_e:
                 logger.warning(f"[INDEX] Qdrant indexing failed (non-fatal): {ix_e}")

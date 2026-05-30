@@ -204,7 +204,7 @@ async def search_and_consensus(question: str, specialty_id: str = None, chapter_
     evidence_objects = []
     doc_results = []
     try:
-        doc_results = search_chapters(question, specialty_id=specialty_id, chapter_index=chapter_index, limit=5)
+        doc_results = await search_chapters(question, specialty_id=specialty_id, chapter_index=chapter_index, limit=5)
         if doc_results:
             parts = []
             for i, d in enumerate(doc_results, 1):

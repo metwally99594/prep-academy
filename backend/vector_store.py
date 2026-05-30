@@ -6,12 +6,12 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 from qdrant_client.http.exceptions import UnexpectedResponse
 
-from embeddings import embed_text, embed_query
+from embeddings import embed_text, embed_query, embed_batch
 
 logger = logging.getLogger(__name__)
 
 COLLECTION = "tutor_chapters"
-VECTOR_SIZE = 384  # multilingual-e5-small
+VECTOR_SIZE = 384  # text-embedding-3-small truncated to 384d
 
 _client = None
 
@@ -58,30 +58,36 @@ def _ensure_collection():
     except Exception as e:
         logger.error(f"Failed to ensure Qdrant collection: {e}")
 
-def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters: list[dict]):
+async def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters: list[dict]):
     logger.info(f"[INDEX] index_chapters() received {len(chapters)} chapters for '{filename}'")
     if not chapters:
         logger.warning(f"[INDEX] No chapters to index for '{filename}' — skipping")
         return
     try:
         client = _get_client()
-        points = []
+        # Collect valid texts and matching chapter metadata
+        valid_texts = []
+        valid_chapters = []
         skipped_no_text = 0
-        skipped_bad_vec = 0
         for ch in chapters:
-            ch_idx = ch.get("index", "?")
-            ch_title = ch.get("title", "?")[:50]
             text = ch.get("text", "")
             if not text or len(text.strip()) < 20:
-                logger.info(f"[INDEX] Skipping ch#{ch_idx} '{ch_title}' — short/empty text ({len(text.strip())} chars)")
                 skipped_no_text += 1
                 continue
-            logger.info(f"[INDEX] Embedding ch#{ch_idx} '{ch_title}' — text length={len(text)}")
-            vec = embed_text(text)
+            valid_texts.append(text)
+            valid_chapters.append(ch)
+        logger.info(f"[INDEX] {len(valid_texts)} valid chapters, {skipped_no_text} skipped (short text)")
+        # Embed all chapters in one API call
+        vectors = await embed_batch(valid_texts)
+        # Build Qdrant points
+        points = []
+        skipped_bad_vec = 0
+        for ch, vec in zip(valid_chapters, vectors):
             if not vec or all(v == 0.0 for v in vec):
                 skipped_bad_vec += 1
                 continue
             title = ch.get("title", "")
+            text = ch.get("text", "")
             snippet = (text[:2000] + "...") if len(text) > 2000 else text
             points.append(qmodels.PointStruct(
                 id=f"{doc_id}_{ch.get('index', 0)}",
@@ -98,7 +104,7 @@ def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters: list
                     "word_count": ch.get("word_count", 0),
                 },
             ))
-        logger.info(f"[INDEX] Embeddings generated: {len(points)} good, {skipped_no_text} skipped (short text), {skipped_bad_vec} skipped (bad vector)")
+        logger.info(f"[INDEX] Vectors: {len(points)} good, {skipped_no_text} short-text, {skipped_bad_vec} bad-vectors")
         if points:
             result = client.upsert(
                 collection_name=COLLECTION,
@@ -112,12 +118,12 @@ def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters: list
     except Exception as e:
         logger.error(f"[INDEX] Index chapters error: {e}")
 
-def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_index: Optional[int] = None, limit: int = 5) -> list[dict]:
+async def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_index: Optional[int] = None, limit: int = 5) -> list[dict]:
     if not query or len(query) < 2:
         return []
     try:
         client = _get_client()
-        vec = embed_query(query)
+        vec = await embed_query(query)
         if not vec or all(v == 0.0 for v in vec):
             logger.warning(f"[Qdrant] embed_query returned zero vector for '{query[:60]}'")
             return []
