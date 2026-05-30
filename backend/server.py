@@ -7978,6 +7978,10 @@ app.include_router(messaging_router)
 from routes.community import router as community_router
 app.include_router(community_router)
 
+# Include Knowledge Lab router (always available, admin-only)
+from routes.knowledge_lab import router as knowledge_lab_router
+app.include_router(knowledge_lab_router)
+
 # Include Medical RAG + DICOM routers (only if heavy ML packages are installed)
 # These are disabled in Emergent free deployment (which has 250m CPU + 1Gi memory limit)
 # To re-enable: install chromadb + sentence-transformers + pydicom + opencv-python-headless

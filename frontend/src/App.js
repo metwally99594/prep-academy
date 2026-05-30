@@ -62,6 +62,7 @@ const FSPSimulationPage = lazy(() => import("@/pages/Germany/FSPSimulationPage")
 const ArztbriefPage = lazy(() => import("@/pages/Germany/ArztbriefPage"));
 const MasterclassPage = lazy(() => import("@/pages/Germany/MasterclassPage"));
 const WeaknessPage = lazy(() => import("@/pages/WeaknessPage"));
+const KnowledgeLabPage = lazy(() => import("@/pages/KnowledgeLabPage"));
 
 // API base URL for legacy raw axios calls in pages
 import { API } from "@/lib/api";
@@ -301,6 +302,9 @@ function AppRouter() {
           } />
           <Route path="/admin/moderation" element={
             <ProtectedRoute adminOnly><ModerationQueuePage /></ProtectedRoute>
+          } />
+          <Route path="/knowledge-lab" element={
+            <ProtectedRoute adminOnly><KnowledgeLabPage /></ProtectedRoute>
           } />
           <Route path="/notebook" element={
             <ProtectedRoute><NotebookPage /></ProtectedRoute>
