@@ -4620,11 +4620,12 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
         })
         # Index chapters in Qdrant (background task)
         async def _index_qdrant():
+            logger.info(f"[INDEX] Background task started for '{file.filename}' — {len(chapters)} chapters to index")
             try:
                 await asyncio.to_thread(index_chapters, doc_id, file.filename, specialty_id, chapters)
-                logger.info(f"Qdrant indexing complete for '{file.filename}'")
+                logger.info(f"[INDEX] Qdrant indexing complete for '{file.filename}'")
             except Exception as ix_e:
-                logger.warning(f"Qdrant indexing failed (non-fatal): {ix_e}")
+                logger.warning(f"[INDEX] Qdrant indexing failed (non-fatal): {ix_e}")
         asyncio.create_task(_index_qdrant())
         if extracted_images:
             await db.tutor_doc_images.insert_many(extracted_images)

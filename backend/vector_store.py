@@ -59,17 +59,23 @@ def _ensure_collection():
         logger.error(f"Failed to ensure Qdrant collection: {e}")
 
 def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters: list[dict]):
+    logger.info(f"[INDEX] index_chapters() received {len(chapters)} chapters for '{filename}'")
     if not chapters:
+        logger.warning(f"[INDEX] No chapters to index for '{filename}' — skipping")
         return
     try:
         client = _get_client()
         points = []
+        skipped_no_text = 0
+        skipped_bad_vec = 0
         for ch in chapters:
             text = ch.get("text", "")
             if not text or len(text.strip()) < 20:
+                skipped_no_text += 1
                 continue
             vec = embed_text(text)
             if not vec or all(v == 0.0 for v in vec):
+                skipped_bad_vec += 1
                 continue
             title = ch.get("title", "")
             snippet = (text[:2000] + "...") if len(text) > 2000 else text
@@ -88,15 +94,19 @@ def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters: list
                     "word_count": ch.get("word_count", 0),
                 },
             ))
+        logger.info(f"[INDEX] Embeddings generated: {len(points)} good, {skipped_no_text} skipped (short text), {skipped_bad_vec} skipped (bad vector)")
         if points:
-            client.upsert(
+            result = client.upsert(
                 collection_name=COLLECTION,
                 points=points,
                 wait=True,
             )
-            logger.info(f"Indexed {len(points)} chapters for doc '{filename}'")
+            logger.info(f"[INDEX] Qdrant upsert result: {result}")
+            logger.info(f"[INDEX] Indexed {len(points)} chapters for doc '{filename}'")
+        else:
+            logger.warning(f"[INDEX] No valid points to upsert for '{filename}' — all chapters skipped")
     except Exception as e:
-        logger.error(f"Index chapters error: {e}")
+        logger.error(f"[INDEX] Index chapters error: {e}")
 
 def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_index: Optional[int] = None, limit: int = 5) -> list[dict]:
     if not query or len(query) < 2:
