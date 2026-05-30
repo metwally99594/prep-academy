@@ -166,15 +166,61 @@ async def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters
     except Exception as e:
         logger.error(f"[INDEX] Index chapters error: {e}")
 
+_COMMON_CAPS = frozenset(['Der','Die','Das','Den','Dem','Des','Ein','Eine','Einen','Einer','Einem','Im','In','Bei','Mit','Von','Zum','Zur','Auf','Für','Aus','Nach','Vor','Durch','Über','Unter','Neben','An','Am','Um','Ohne','Gegen','Bis','Seit','Außer','Innerhalb','Außerhalb','Wegen'])
+
+
+def _split_query(query: str) -> list[str]:
+    """Split multi-topic query into individual sub-queries for better retrieval precision.
+    
+    Strategy:
+    1. Split on punctuation and German conjunctions (und, oder, sowie, bzw.)
+    2. If only one part, detect a list of medical terms by counting uppercase 
+       nouns. If >= 3 medical terms found, split at each term boundary.
+    """
+    parts = [p.strip() for p in _re_split_sep.split(query) if p.strip()]
+    if len(parts) > 1:
+        logger.info(f"[Split] Query split into {len(parts)} sub-queries via separators")
+        return parts
+    # No separators: check if it's a list of capitalized medical terms
+    words = query.split()
+    if len(words) < 4:
+        return [query]
+    # Find capitalized terms that look like medical conditions
+    caps = [i for i, w in enumerate(words) if w and w[0].isupper() and w not in _COMMON_CAPS and len(w) > 2]
+    if len(caps) < 3:
+        return [query]
+    # Split at each capitalized term, grouping consecutive caps as named entities
+    sub_queries = []
+    start = 0
+    for j in range(len(caps)):
+        idx = caps[j]
+        if j > 0 and idx - caps[j - 1] == 1:
+            continue  # part of previous named entity (e.g. "Morbus Crohn")
+        if idx > start:
+            seg = ' '.join(words[start:idx]).strip()
+            if seg:
+                sub_queries.append(seg)
+        start = idx
+    last = ' '.join(words[start:]).strip()
+    if last:
+        sub_queries.append(last)
+    if len(sub_queries) <= 1:
+        return [query]
+    logger.info(f"[Split] Query split into {len(sub_queries)} sub-queries via medical terms: {sub_queries}")
+    return sub_queries
+
+
+import re as _re_mod
+_re_split_sep = _re_mod.compile(r'\s*[,;.:]+\s*|\s+(?:und|oder|sowie|bzw\.?)\s+', _re_mod.IGNORECASE)
+
+
 async def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_index: Optional[int] = None, limit: int = 5) -> list[dict]:
     if not query or len(query) < 2:
         return []
     try:
         client = _get_client()
-        vec = await embed_query(query)
-        if not vec or all(v == 0.0 for v in vec):
-            logger.warning(f"[Qdrant] embed_query returned zero vector for '{query[:60]}'")
-            return []
+        sub_queries = _split_query(query)
+        logger.info(f"[Qdrant] Query: '{query[:60]}' | sub_queries={len(sub_queries)} | specialty={specialty_id}")
 
         filters = []
         if specialty_id:
@@ -187,32 +233,37 @@ async def search_chapters(query: str, specialty_id: Optional[str] = None, chapte
                 key="chapter_index",
                 match=qmodels.MatchValue(value=chapter_index),
             ))
-
         query_filter = qmodels.Filter(must=filters) if filters else None
 
         search_limit = max(limit, 10)
-        results = _qdrant_search(
-            client,
-            collection_name=COLLECTION,
-            query_vector=vec,
-            query_filter=query_filter,
-            limit=search_limit,
-            with_payload=True,
-        )
-
-        logger.info(f"[Qdrant] Query: '{query[:60]}' | specialty={specialty_id} | limit={limit} | returned {len(results)} hits")
-        for i, r in enumerate(results[:10]):
-            p = r.payload
-            logger.info(
-                f"[Qdrant] #{i+1}: doc={p.get('filename','?')} "
-                f"ch={p.get('chapter_title','?')} "
-                f"pp={p.get('page_start','?')}-{p.get('page_end','?')} "
-                f"score={r.score:.4f}"
+        merged = {}  # (document_id, chapter_index) -> (score, payload)
+        for sq in sub_queries:
+            vec = await embed_query(sq)
+            if not vec or all(v == 0.0 for v in vec):
+                continue
+            results = _qdrant_search(
+                client,
+                collection_name=COLLECTION,
+                query_vector=vec,
+                query_filter=query_filter,
+                limit=search_limit,
+                with_payload=True,
             )
+            logger.info(f"[Qdrant] sub-query '{sq[:40]}' → {len(results)} hits")
+            for r in results:
+                p = r.payload
+                key = (p.get("document_id", ""), p.get("chapter_index"))
+                if key not in merged or r.score > merged[key][0]:
+                    merged[key] = (r.score, p)
+
+        # Convert to sorted list
+        sorted_results = sorted(merged.values(), key=lambda x: -x[0])
+        logger.info(f"[Qdrant] Merged {len(merged)} unique results from {len(sub_queries)} sub-queries")
+        for i, (score, p) in enumerate(sorted_results[:10]):
+            logger.info(f"[Qdrant] #{i+1}: doc={p.get('filename','?')} ch={p.get('chapter_title','?')} score={score:.4f}")
 
         docs = []
-        for r in results[:limit]:
-            p = r.payload
+        for score, p in sorted_results[:limit]:
             docs.append({
                 "document_id": p.get("document_id", ""),
                 "specialty_id": p.get("specialty_id", ""),
@@ -220,7 +271,7 @@ async def search_chapters(query: str, specialty_id: Optional[str] = None, chapte
                 "chapter_title": p.get("chapter_title", ""),
                 "chapter_index": p.get("chapter_index"),
                 "text": p.get("text", ""),
-                "score": round(r.score, 4),
+                "score": round(score, 4),
                 "page_start": p.get("page_start", 1),
                 "page_end": p.get("page_end", 1),
             })
