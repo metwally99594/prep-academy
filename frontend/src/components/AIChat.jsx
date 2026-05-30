@@ -68,6 +68,7 @@ export default function AIChat({ question, isOpen, onClose }) {
   const [pageViewerImages, setPageViewerImages] = useState([]);
   const [showPageViewer, setShowPageViewer] = useState(false);
   const [pageViewerLoading, setPageViewerLoading] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
   const { token } = useAuth();
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -470,9 +471,16 @@ export default function AIChat({ question, isOpen, onClose }) {
                 </div>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="text-white/40 hover:text-white">
-              <X className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {isTutor && conversationId && (
+                <Button variant="ghost" size="icon" onClick={() => startNewConversation()} className="text-white/30 hover:text-white" title="Neue Konversation">
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" onClick={onClose} className="text-white/40 hover:text-white">
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -520,16 +528,17 @@ export default function AIChat({ question, isOpen, onClose }) {
                     {message.images && message.images.length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                         {message.images.map((img, i) => (
-                          <div key={i} className="relative">
+                          <div key={i} className="relative cursor-pointer" onClick={() => setLightboxImage(img)}>
                             {img.data ? (
-                              <div className="block rounded-lg overflow-hidden border"
+                              <div className="block rounded-lg overflow-hidden border hover:opacity-80 transition-opacity"
                                 style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}>
                                 <img src={img.data} alt={img.title || ''} loading="lazy" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
                               </div>
                             ) : (
                               <a href={img.url} target="_blank" rel="noopener noreferrer"
                                 className="block rounded-lg overflow-hidden border transition-opacity hover:opacity-80"
-                                style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}>
+                                style={{ borderColor: 'rgba(255,255,255,0.08)', width: 120, height: 90 }}
+                                onClick={e => e.stopPropagation()}>
                                 <img src={img.thumbnail} alt={img.title} loading="lazy" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
                               </a>
                             )}
@@ -674,6 +683,32 @@ export default function AIChat({ question, isOpen, onClose }) {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setLightboxImage(null)}>
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setLightboxImage(null)}
+              className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center bg-black/60 border border-white/20 text-white/60 hover:text-white"
+              style={{ background: '#0c1229' }}>
+              <X className="w-4 h-4" />
+            </button>
+            {lightboxImage.data ? (
+              <img src={lightboxImage.data} alt={lightboxImage.title || ''}
+                className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+            ) : lightboxImage.url ? (
+              <img src={lightboxImage.url} alt={lightboxImage.title || ''}
+                className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+            ) : null}
+            <div className="mt-2 flex items-center gap-3 text-xs text-white/40 px-1">
+              {lightboxImage.title && <span>{lightboxImage.title}</span>}
+              {lightboxImage.width && <span>{lightboxImage.width} × {lightboxImage.height}px</span>}
+              {lightboxImage._source && <span>{lightboxImage._source}</span>}
             </div>
           </div>
         </div>
