@@ -105,6 +105,7 @@ def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_inde
         client = _get_client()
         vec = embed_query(query)
         if not vec or all(v == 0.0 for v in vec):
+            logger.warning(f"[Qdrant] embed_query returned zero vector for '{query[:60]}'")
             return []
 
         filters = []
@@ -121,16 +122,27 @@ def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_inde
 
         query_filter = qmodels.Filter(must=filters) if filters else None
 
+        search_limit = max(limit, 10)
         results = client.search(
             collection_name=COLLECTION,
             query_vector=vec,
             query_filter=query_filter,
-            limit=limit,
+            limit=search_limit,
             with_payload=True,
         )
 
+        logger.info(f"[Qdrant] Query: '{query[:60]}' | specialty={specialty_id} | limit={limit} | returned {len(results)} hits")
+        for i, r in enumerate(results[:10]):
+            p = r.payload
+            logger.info(
+                f"[Qdrant] #{i+1}: doc={p.get('filename','?')} "
+                f"ch={p.get('chapter_title','?')} "
+                f"pp={p.get('page_start','?')}-{p.get('page_end','?')} "
+                f"score={r.score:.4f}"
+            )
+
         docs = []
-        for r in results:
+        for r in results[:limit]:
             p = r.payload
             docs.append({
                 "document_id": p.get("document_id", ""),
@@ -145,5 +157,5 @@ def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_inde
             })
         return docs
     except Exception as e:
-        logger.warning(f"Qdrant search error: {e}")
+        logger.warning(f"[Qdrant] Search error: {e}")
         return []

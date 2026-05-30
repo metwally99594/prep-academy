@@ -4053,8 +4053,11 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chap
     try:
         results = search_chapters(query, specialty_id=specialty_id or None, chapter_index=chapter_index, limit=limit)
         if results:
-            logger.info(f"[Tutor] Qdrant found {len(results)} results for '{query[:40]}'")
+            logger.info(f"[Tutor] Qdrant branch — {len(results)} results for '{query[:60]}'")
+            for i, r in enumerate(results[:5]):
+                logger.info(f"[Tutor] Qdrant hit #{i+1}: ch={r['chapter_title']} pp={r['page_start']}-{r['page_end']} score={r['score']}")
             return results
+        logger.info(f"[Tutor] Qdrant returned 0 results for '{query[:60]}' — falling back to $regex")
     except Exception as e:
         logger.warning(f"[Tutor] Qdrant unavailable, falling back to $regex: {e}")
 
@@ -4108,7 +4111,11 @@ async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chap
                         "page_end": ch.get("page_end", 1),
                     })
         results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:limit]
+        top = results[:limit]
+        logger.info(f"[Tutor] Regex branch — {len(top)} results for '{query[:60]}'")
+        for i, r in enumerate(top[:5]):
+            logger.info(f"[Tutor] Regex hit #{i+1}: ch={r['chapter_title']} pp={r['page_start']}-{r['page_end']} score={r['score']}")
+        return top
     except Exception as e:
         logger.warning(f"Tutor doc search error: {e}")
         return []
