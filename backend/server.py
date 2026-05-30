@@ -4248,9 +4248,7 @@ REGELN:
 6. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in den Dokumenten stehen (oder falls keine Dokumente: Standard-Dosierung).
 7. Sei präzise, akademisch aber freundlich."""
 
-        # When documents are found, use gpt-4o-mini (follows instructions better)
-        doc_model = "gpt-4o-mini" if doc_results else body.model
-        response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=doc_model)
+        response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
         images = await _search_medical_images(body.user_message) if not doc_results else doc_images
         await _increment_ai_quota(user["id"])
 
