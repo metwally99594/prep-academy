@@ -250,6 +250,7 @@ async def search_and_consensus(question: str, specialty_id: str = None, chapter_
                 if len(d.get("text") or "") > 500:
                     excerpt += "..."
                 evidence_objects.append({
+                    "document_id": d.get("document_id", ""),
                     "filename": d.get("filename", ""),
                     "chapter": d.get("chapter_title", ""),
                     "page_start": d.get("page_start"),

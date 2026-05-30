@@ -4324,6 +4324,7 @@ REGELN:
             if len(d.get("text") or "") > 500:
                 excerpt += "..."
             evidence.append({
+                "document_id": d.get("document_id", ""),
                 "filename": d.get("filename", ""),
                 "chapter": d.get("chapter_title", ""),
                 "page_start": d.get("page_start"),
@@ -4648,6 +4649,36 @@ async def get_document_chapters(doc_id: str, user: dict = Depends(get_current_us
     if not doc:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
     return doc
+
+
+@api_router.get("/tutor/documents/{doc_id}/page/{page_num}")
+async def get_document_page(doc_id: str, page_num: int, user: dict = Depends(get_current_user)):
+    """Get images for a specific page of a document."""
+    if not user:
+        raise HTTPException(status_code=401, detail="Nicht autorisiert")
+    cursor = db.tutor_doc_images.find(
+        {"doc_id": doc_id, "page": page_num},
+        {"_id": 0, "id": 1, "page": 1, "ext": 1, "width": 1, "height": 1, "data": 1, "description": 1},
+    )
+    images = await cursor.to_list(50)
+    result_images = []
+    for img in images:
+        result_images.append({
+            "id": img["id"],
+            "page": img["page"],
+            "width": img.get("width"),
+            "height": img.get("height"),
+            "description": img.get("description", ""),
+            "data_url": f"data:image/{img['ext']};base64,{img['data']}",
+        })
+    doc = await db.tutor_documents.find_one({"id": doc_id}, {"_id": 0, "filename": 1})
+    return {
+        "document_id": doc_id,
+        "filename": doc.get("filename", "") if doc else "",
+        "page": page_num,
+        "images": result_images,
+        "image_count": len(result_images),
+    }
 
 
 @api_router.delete("/tutor/documents/{doc_id}")
