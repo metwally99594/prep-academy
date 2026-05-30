@@ -4221,7 +4221,7 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
             else:
                 category = k.get("category", "medical")
                 context_parts.append(f"Medizinisches Wissen {idx} ({category}):\n{title}\n{content_text}")
-        context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen zu diesem Thema gefunden."
+        context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen aus der Dokumenten-Datenbank zu diesem Thema."
 
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
@@ -4232,11 +4232,12 @@ VERLAUF DER KONVERSATION:{history_block}
 
 REGELN:
 1. HOCHGELADENE DOKUMENTE sind die EINZIGE Quelle wenn sie oben stehen. Antworte NUR mit dem Inhalt aus diesen Dokumenten. Füge NIE eigenes Wissen hinzu. Zitiere mit [DOKUMENT N].
-2. Wenn KEINE Dokumente vorhanden sind: Nutze Prüfungsfragen und medizinisches Wissen.
-3. Verknüpfe Konzepte mit Prüfungsrelevanz.
-4. Erkläre klar mit klinischen Beispielen.
-5. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in den Dokumenten stehen.
-6. Sei präzise, akademisch aber freundlich."""
+2. Wenn KEINE Dokumente vorhanden sind: Nutze Prüfungsfragen und medizinisches Wissen falls vorhanden.
+3. Wenn GAR KEINE Informationen gefunden wurden: Nutze dein eigenes medizinisches Wissen um die Frage zu beantworten. Antworte hilfreich und präzise.
+4. Verknüpfe Konzepte mit Prüfungsrelevanz.
+5. Erkläre klar mit klinischen Beispielen.
+6. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in den Dokumenten stehen (oder falls keine Dokumente: Standard-Dosierung).
+7. Sei präzise, akademisch aber freundlich."""
 
         # When documents are found, use gpt-4o-mini (follows instructions better)
         doc_model = "gpt-4o-mini" if doc_results else body.model
