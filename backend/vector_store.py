@@ -1,4 +1,5 @@
 import os
+import hashlib
 import logging
 from typing import Optional
 
@@ -12,6 +13,34 @@ logger = logging.getLogger(__name__)
 
 COLLECTION = "tutor_chapters"
 VECTOR_SIZE = 384  # text-embedding-3-small truncated to 384d
+
+
+def _point_id(doc_id: str, chapter_index: int) -> int:
+    """Deterministic 64-bit unsigned integer from doc_id + chapter index."""
+    raw = f"{doc_id}_{chapter_index}"
+    return int(hashlib.sha256(raw.encode()).hexdigest()[:16], 16)
+
+
+def _qdrant_search(client, collection_name, query_vector, query_filter, limit, with_payload):
+    """Compatibility wrapper: try search(), fall back to query_points()."""
+    if hasattr(client, "search"):
+        return client.search(
+            collection_name=collection_name,
+            query_vector=query_vector,
+            query_filter=query_filter,
+            limit=limit,
+            with_payload=with_payload,
+        )
+    # qdrant-client >=1.10.x uses query_points
+    result = client.query_points(
+        collection_name=collection_name,
+        query=query_vector,
+        query_filter=query_filter,
+        limit=limit,
+        with_payload=with_payload,
+    )
+    # query_points returns QueryResponse with .points
+    return result.points if hasattr(result, "points") else result
 
 _client = None
 
@@ -86,11 +115,12 @@ async def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters
             if not vec or all(v == 0.0 for v in vec):
                 skipped_bad_vec += 1
                 continue
+            ch_idx = ch.get("index", 0)
             title = ch.get("title", "")
             text = ch.get("text", "")
             snippet = (text[:2000] + "...") if len(text) > 2000 else text
             points.append(qmodels.PointStruct(
-                id=f"{doc_id}_{ch.get('index', 0)}",
+                id=_point_id(doc_id, ch_idx),
                 vector=vec,
                 payload={
                     "document_id": doc_id,
@@ -143,7 +173,8 @@ async def search_chapters(query: str, specialty_id: Optional[str] = None, chapte
         query_filter = qmodels.Filter(must=filters) if filters else None
 
         search_limit = max(limit, 10)
-        results = client.search(
+        results = _qdrant_search(
+            client,
             collection_name=COLLECTION,
             query_vector=vec,
             query_filter=query_filter,
