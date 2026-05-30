@@ -673,6 +673,21 @@ export const Layout = () => {
               <Search className="w-4 h-4" />
               Suchen
             </Button>
+            {user.podcast_enabled || user.is_admin ? (
+              <Link to="/podcast" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Headphones className="w-4 h-4" />
+                  Daily Podcast
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="ghost" className="w-full justify-start gap-2 opacity-50"
+                onClick={() => { setMobileMenuOpen(false); setLockedModal("Daily Podcast"); }}>
+                <Headphones className="w-4 h-4" />
+                Daily Podcast
+                <Lock className="w-3 h-3 ml-auto opacity-60" />
+              </Button>
+            )}
             <Link to="/favorites" onClick={() => setMobileMenuOpen(false)}>
               <Button variant="ghost" className="w-full justify-start gap-2">
                 <Heart className="w-4 h-4" />
@@ -767,6 +782,21 @@ export const Layout = () => {
                 Blog
               </Button>
             </Link>
+            {user.podcast_enabled || user.is_admin ? (
+              <Link to="/lerntools" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Brain className="w-4 h-4" />
+                  Lerntools
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="ghost" className="w-full justify-start gap-2 opacity-50"
+                onClick={() => { setMobileMenuOpen(false); setLockedModal("Lerntools"); }}>
+                <Brain className="w-4 h-4" />
+                Lerntools
+                <Lock className="w-3 h-3 ml-auto opacity-60" />
+              </Button>
+            )}
             <Link to="/messages" onClick={() => setMobileMenuOpen(false)}>
               <Button variant="ghost" className="w-full justify-start gap-2 relative">
                 <MessageSquare className="w-4 h-4" />
@@ -784,6 +814,11 @@ export const Layout = () => {
                 Community
               </Button>
             </Link>
+            <Button variant="ghost" className="w-full justify-start gap-2"
+              onClick={() => { setTutorOpen(true); setMobileMenuOpen(false); }}>
+              <GraduationCap className="w-4 h-4" style={{ color: '#f59e0b' }} />
+              KI-Tutor
+            </Button>
             {user.is_admin && (
               <>
                 <Link to="/admin" onClick={() => setMobileMenuOpen(false)}>

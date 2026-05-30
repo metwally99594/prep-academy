@@ -1,19 +1,48 @@
-// Self-destruct SW — replaces old stale-while-revalidate SW.
-// Any browser that still has the old SW cached will detect this file changed,
-// reinstall it, wipe all caches, and unregister. Subsequent loads are SW-free
-// and fresh content is served directly.
+const CACHE = "prep-v1";
 
-self.addEventListener('install', (event) => {
+const PRECACHE_URLS = [
+  "/",
+  "/index.html",
+  "/manifest.json",
+  "/offline.html",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE_URLS))
+  );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    try {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-      const regs = await self.registration ? [self.registration] : [];
-      for (const r of regs) { try { await r.unregister(); } catch (e) {} }
-    } catch (e) {}
-  })());
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE).then((cache) => {
+          if (event.request.url.startsWith(self.location.origin)) {
+            cache.put(event.request, clone);
+          }
+        });
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        if (event.request.headers.get("Accept")?.includes("text/html")) {
+          return caches.match("/offline.html");
+        }
+        return new Response("Offline", { status: 503 });
+      }))
+  );
 });

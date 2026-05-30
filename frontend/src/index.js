@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "@/index.css";
 import "@/theme-prep-refined.css";
 import App from "@/App";
+import * as serviceWorkerRegistration from "@/serviceWorkerRegistration";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
@@ -10,6 +11,14 @@ root.render(
     <App />
   </React.StrictMode>,
 );
+
+serviceWorkerRegistration.register({
+  onUpdate: () => {
+    if (window.confirm("Neue Version verfügbar. Seite neu laden?")) {
+      window.location.reload();
+    }
+  },
+});
 
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
