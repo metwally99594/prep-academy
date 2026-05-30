@@ -48,6 +48,7 @@ from auth import (
     hash_password, verify_password, create_token,
     get_current_user, get_admin_user, security
 )
+from vector_store import index_chapters, search_chapters
 from services.analyzer_prompts import (
     build_prompt, REPORT_TYPE_MAP, VALID_CATEGORIES,
     VISIBILITY_SYSTEM, VISIBILITY_USER,
@@ -4046,9 +4047,17 @@ async def admin_import_history(
 
 
 async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chapter_index: int = None) -> list:
-    """Search uploaded documents for a specialty. Uses $regex (doesn't need text index)."""
+    """Semantic search via Qdrant, falls back to $regex."""
     if not query or len(query) < 2:
         return []
+    try:
+        results = search_chapters(query, specialty_id=specialty_id or None, chapter_index=chapter_index, limit=limit)
+        if results:
+            logger.info(f"[Tutor] Qdrant found {len(results)} results for '{query[:40]}'")
+            return results
+    except Exception as e:
+        logger.warning(f"[Tutor] Qdrant unavailable, falling back to $regex: {e}")
+
     import re as _re
     q_words = [w for w in _re.sub(r'[^\w\sßäöüÄÖÜ]', '', query.lower()).split() if len(w) > 2]
     if not q_words:
@@ -4450,6 +4459,14 @@ async def upload_tutor_document(file: UploadFile = File(...), specialty_id: str 
             "descriptions_pending": len(extracted_images) > 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
+        # Index chapters in Qdrant (background task)
+        async def _index_qdrant():
+            try:
+                await asyncio.to_thread(index_chapters, doc_id, file.filename, specialty_id, chapters)
+                logger.info(f"Qdrant indexing complete for '{file.filename}'")
+            except Exception as ix_e:
+                logger.warning(f"Qdrant indexing failed (non-fatal): {ix_e}")
+        asyncio.create_task(_index_qdrant())
         if extracted_images:
             await db.tutor_doc_images.insert_many(extracted_images)
             await db.tutor_doc_images.create_index([("doc_id", 1)])
