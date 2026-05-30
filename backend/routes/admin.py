@@ -734,3 +734,40 @@ async def import_kp_reports_bulk(admin: dict = Depends(get_admin_user), request:
         inserted += len(result.inserted_ids)
         await asyncio.sleep(0)
     return {"inserted": inserted}
+
+
+@router.get("/admin/evaluation/run")
+async def run_retrieval_evaluation(
+    user: dict = Depends(get_admin_user),
+    top_n: int = 5,
+):
+    """Run the 50-question retrieval evaluation against the production Qdrant
+    collection using the server's existing OpenRouter + Qdrant credentials.
+
+    Synchronous; typically 15–60s depending on OpenRouter latency.
+    """
+    try:
+        from evaluation.run_eval import run_evaluation
+        report = await run_evaluation()
+    except Exception as e:
+        logger.exception("[EVAL] Evaluation run failed")
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {e}")
+
+    def _trim(r: dict) -> dict:
+        return {
+            "id": r.get("id"),
+            "category": r.get("category"),
+            "query": r.get("query"),
+            "top1_score": r.get("top1_score"),
+            "top1_chapter": r.get("top1_chapter"),
+            "top1_ok": r.get("top1_ok"),
+            "top5_ok": r.get("top5_ok"),
+            "result_count": r.get("result_count"),
+        }
+
+    scored = [r for r in report.get("results", []) if r.get("top1_score") is not None]
+    by_score_asc = sorted(scored, key=lambda r: r["top1_score"])
+    n = max(1, min(top_n, 20))
+    report["lowest_scoring_questions"] = [_trim(r) for r in by_score_asc[:n]]
+    report["highest_scoring_questions"] = [_trim(r) for r in reversed(by_score_asc[-n:])]
+    return report
