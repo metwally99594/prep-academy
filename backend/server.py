@@ -4240,9 +4240,9 @@ INFORMATIONEN:{context_str}
 VERLAUF DER KONVERSATION:{history_block}
 
 REGELN:
-1. HOCHGELADENE DOKUMENTE sind die EINZIGE Quelle wenn sie oben stehen. Antworte NUR mit dem Inhalt aus diesen Dokumenten. Füge NIE eigenes Wissen hinzu. Zitiere mit [DOKUMENT N].
-2. Wenn KEINE Dokumente vorhanden sind: Nutze Prüfungsfragen und medizinisches Wissen falls vorhanden.
-3. Wenn GAR KEINE Informationen gefunden wurden: Nutze dein eigenes medizinisches Wissen um die Frage zu beantworten. Antworte hilfreich und präzise.
+1. Wenn HOCHGELADENE DOKUMENTE oben im Abschnitt INFORMATIONEN stehen: Antworte AUSSCHLIESSLICH mit dem Inhalt dieser Dokumente. Füge KEIN allgemeines medizinisches Wissen hinzu, auch wenn die Dokumente die Frage nicht vollständig beantworten. Zitiere mit [DOKUMENT N].
+2. Wenn KEINE hochgeladenen Dokumente im Abschnitt INFORMATIONEN stehen: Nutze Prüfungsfragen und medizinisches Wissen falls vorhanden.
+3. Wenn GAR KEINE Informationen (weder Dokumente noch Prüfungsfragen noch Wissen) vorhanden sind: Nutze dein eigenes medizinisches Wissen um die Frage zu beantworten.
 4. Verknüpfe Konzepte mit Prüfungsrelevanz.
 5. Erkläre klar mit klinischen Beispielen.
 6. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in den Dokumenten stehen (oder falls keine Dokumente: Standard-Dosierung).
