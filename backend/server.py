@@ -4170,7 +4170,7 @@ def _load_image_manifest():
 
 def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
     """Find images linked to matched wiki pages. 3-tier scoring:
-    Tier 1 — disease topic match in wiki snippet or user query (+6 each)
+    Tier 1 — disease topic match in user query ONLY (+6 each)
     Tier 2 — keyword match in wiki snippet or user query (+3 each)
     Tier 3 — specialty wiki_pages overlap by source rank (+4/+2/+1)
     Falls back to specialty images when no disease-specific image exists.
@@ -4181,11 +4181,13 @@ def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
     if not matched_slugs:
         return []
 
-    # Build combined text from wiki snippets + user query for disease/keyword matching
+    # Build combined text from wiki snippets + user query for keyword matching
+    # NOTE: Topics (Tier 1) match ONLY against user_query to prevent false positives
+    # where a wiki snippet mentions an unrelated disease.
+    query_lower = user_query.lower()
     snippet_text = " ".join(
         s.get("excerpt", "") for s in wiki_sources
-    ).lower()
-    snippet_text += " " + user_query.lower()
+    ).lower() + " " + query_lower
 
     # Build a rank lookup: #1 source scored higher than #2, etc.
     rank_map = {}
@@ -4205,12 +4207,13 @@ def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
         keyword_score = 0
         specialty_score = 0
 
-        # Tier 1: disease/topic match in snippet or query
+        # Tier 1: disease/topic match in user query ONLY (avoids false positives
+        # from wiki snippets mentioning unrelated diseases)
         for topic in img.get("topics", []):
-            if topic.lower() in snippet_text:
+            if topic.lower() in query_lower:
                 topic_score += 6
 
-        # Tier 2: keyword match in snippet or query
+        # Tier 2: keyword match in snippet or user query
         for kw in img.get("keywords", []):
             if kw.lower() in snippet_text:
                 keyword_score += 3
