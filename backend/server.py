@@ -4169,16 +4169,27 @@ def _load_image_manifest():
 
 
 def _get_relevant_images(wiki_sources: list) -> list:
-    """Find images linked to matched wiki pages. Returns top 3."""
+    """Find images linked to matched wiki pages. Returns top 3, ranked by wiki source position."""
+    if not wiki_sources:
+        return []
     matched_slugs = {s["path"] for s in wiki_sources}
     if not matched_slugs:
         return []
+    # Build a rank lookup: #1 source scored higher than #2, etc.
+    rank_map = {}
+    for i, src in enumerate(wiki_sources):
+        rank_map[src["path"]] = 0 if i == 0 else (1 if i == 1 else 2)
     manifest = _load_image_manifest()
     relevant = []
     for img in manifest.get("images", []):
         img_pages = set(img.get("wiki_pages", []))
         overlap = img_pages & matched_slugs
         if overlap:
+            score = 0
+            for slug in overlap:
+                idx = rank_map.get(slug, 2)
+                weight = (4, 2, 1)[idx]
+                score += weight
             relevant.append({
                 "id": img["id"],
                 "filename": img["filename"],
@@ -4188,8 +4199,11 @@ def _get_relevant_images(wiki_sources: list) -> list:
                 "height": img.get("height", 0),
                 "size_bytes": img.get("size_bytes", 0),
                 "pdf_page": img.get("pdf_page", 0),
+                "_rank_score": score,
             })
-    relevant.sort(key=lambda x: -x.get("size_bytes", 0))
+    relevant.sort(key=lambda x: (-x["_rank_score"], -x.get("size_bytes", 0)))
+    for r in relevant:
+        r.pop("_rank_score", None)
     return relevant[:3]
 
 

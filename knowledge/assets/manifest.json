@@ -1,8 +1,8 @@
 {
   "version": 2,
   "source_pdf": "Vorbereitung zur KP (Amboss-Zusammenfassung).pdf",
-  "exported_at": null,
-  "total_images": 10,
+  "exported_at": "2026-05-31T00:00:00Z",
+  "total_images": 30,
   "images": [
     {
       "id": "kp-img-001",
@@ -202,6 +202,418 @@
       ],
       "wiki_pages": [
         "innere-medizin"
+      ]
+    },
+    {
+      "id": "kp-img-011",
+      "filename": "kp-img-011.webp",
+      "category": "neurologie",
+      "pdf_page": 138,
+      "width": 1076,
+      "height": 640,
+      "size_bytes": 41636,
+      "caption_de": "Neuroanatomie — zerebrale Schnittbildgebung und Gefäßversorgung",
+      "keywords": [
+        "hirn",
+        "neuroanatomie",
+        "zerebral",
+        "schnittbild",
+        "gefäße",
+        "neurologie"
+      ],
+      "wiki_pages": [
+        "neurologie"
+      ]
+    },
+    {
+      "id": "kp-img-012",
+      "filename": "kp-img-012.webp",
+      "category": "neurologie",
+      "pdf_page": 150,
+      "width": 1093,
+      "height": 637,
+      "size_bytes": 65540,
+      "caption_de": "Hirnnerven und neurologische Bahnen — schematische Übersicht",
+      "keywords": [
+        "hirnnerven",
+        "bahn",
+        "neurologie",
+        "neuroanatomie",
+        "leitung"
+      ],
+      "wiki_pages": [
+        "neurologie"
+      ]
+    },
+    {
+      "id": "kp-img-013",
+      "filename": "kp-img-013.webp",
+      "category": "neurologie",
+      "pdf_page": 157,
+      "width": 924,
+      "height": 741,
+      "size_bytes": 48740,
+      "caption_de": "Zerebrale Bildgebung — CT/MRT bei Schlaganfall",
+      "keywords": [
+        "schlaganfall",
+        "ct",
+        "mrt",
+        "zerebral",
+        "ischämie",
+        "neurologie"
+      ],
+      "wiki_pages": [
+        "neurologie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-014",
+      "filename": "kp-img-014.webp",
+      "category": "neurologie",
+      "pdf_page": 160,
+      "width": 455,
+      "height": 382,
+      "size_bytes": 20896,
+      "caption_de": "Neurologische Untersuchung — Reflexe und Sensibilität",
+      "keywords": [
+        "reflex",
+        "sensibilität",
+        "untersuchung",
+        "neurologie",
+        "diagnostik"
+      ],
+      "wiki_pages": [
+        "neurologie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-015",
+      "filename": "kp-img-015.webp",
+      "category": "pneumologie",
+      "pdf_page": 6,
+      "width": 761,
+      "height": 500,
+      "size_bytes": 53110,
+      "caption_de": "Lungenanatomie — Bronchialbaum und Lungenlappen",
+      "keywords": [
+        "lunge",
+        "bronchialbaum",
+        "lappen",
+        "anatomie",
+        "pneumologie"
+      ],
+      "wiki_pages": [
+        "pneumologie"
+      ]
+    },
+    {
+      "id": "kp-img-016",
+      "filename": "kp-img-016.webp",
+      "category": "pneumologie",
+      "pdf_page": 12,
+      "width": 666,
+      "height": 500,
+      "size_bytes": 28502,
+      "caption_de": "Lungenfunktionsdiagnostik — Spirometrie und Fluss-Volumen-Kurve",
+      "keywords": [
+        "spirometrie",
+        "lungenfunktion",
+        "fluss-volumen",
+        "diagnostik",
+        "pneumologie"
+      ],
+      "wiki_pages": [
+        "pneumologie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-017",
+      "filename": "kp-img-017.webp",
+      "category": "pneumologie",
+      "pdf_page": 19,
+      "width": 1035,
+      "height": 961,
+      "size_bytes": 29104,
+      "caption_de": "Thorax-Röntgen — Anatomie und typische Befunde",
+      "keywords": [
+        "thorax",
+        "röntgen",
+        "lunge",
+        "radiologie",
+        "pneumologie"
+      ],
+      "wiki_pages": [
+        "pneumologie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-018",
+      "filename": "kp-img-018.webp",
+      "category": "pneumologie",
+      "pdf_page": 20,
+      "width": 650,
+      "height": 426,
+      "size_bytes": 41084,
+      "caption_de": "Atemmechanik — Zwerchfellstellung und Atemhilfsmuskulatur",
+      "keywords": [
+        "atemmechanik",
+        "zwerchfell",
+        "atemhilfsmuskulatur",
+        "pneumologie",
+        "anatomie"
+      ],
+      "wiki_pages": [
+        "pneumologie"
+      ]
+    },
+    {
+      "id": "kp-img-019",
+      "filename": "kp-img-019.webp",
+      "category": "gastroenterologie",
+      "pdf_page": 96,
+      "width": 768,
+      "height": 379,
+      "size_bytes": 31046,
+      "caption_de": "Endoskopischer Befund — Gastroskopie/ Koloskopie",
+      "keywords": [
+        "endoskopie",
+        "gastroskopie",
+        "koloskopie",
+        "befund",
+        "diagnostik"
+      ],
+      "wiki_pages": [
+        "gastroenterologie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-020",
+      "filename": "kp-img-020.webp",
+      "category": "kardiologie",
+      "pdf_page": 23,
+      "width": 672,
+      "height": 418,
+      "size_bytes": 12396,
+      "caption_de": "Gefäßanatomie — Arterien- und Venensystem (Übersicht)",
+      "keywords": [
+        "arterie",
+        "vene",
+        "gefäß",
+        "anatomie",
+        "kreislauf",
+        "kardiologie"
+      ],
+      "wiki_pages": [
+        "kardiologie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-021",
+      "filename": "kp-img-021.webp",
+      "category": "kardiologie",
+      "pdf_page": 44,
+      "width": 740,
+      "height": 523,
+      "size_bytes": 27682,
+      "caption_de": "Echokardiographie — transthorakale Aufnahmen und Normalbefunde",
+      "keywords": [
+        "echokardiographie",
+        "tte",
+        "herz",
+        "ultraschall",
+        "kardiologie"
+      ],
+      "wiki_pages": [
+        "kardiologie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-022",
+      "filename": "kp-img-022.webp",
+      "category": "orthopaedie",
+      "pdf_page": 248,
+      "width": 522,
+      "height": 516,
+      "size_bytes": 32238,
+      "caption_de": "Radiologische Frakturklassifikation — Röntgenbeispiele",
+      "keywords": [
+        "fraktur",
+        "röntgen",
+        "klassifikation",
+        "radiologie",
+        "orthopädie"
+      ],
+      "wiki_pages": [
+        "orthopaedie",
+        "diagnostik"
+      ]
+    },
+    {
+      "id": "kp-img-023",
+      "filename": "kp-img-023.webp",
+      "category": "notfallmedizin",
+      "pdf_page": 178,
+      "width": 689,
+      "height": 438,
+      "size_bytes": 26854,
+      "caption_de": "Reanimationsalgorithmus — erweiterte Maßnahmen (ALS)",
+      "keywords": [
+        "reanimation",
+        "als",
+        "algorithmus",
+        "notfall",
+        "notfallmedizin"
+      ],
+      "wiki_pages": [
+        "notfallmedizin"
+      ]
+    },
+    {
+      "id": "kp-img-024",
+      "filename": "kp-img-024.webp",
+      "category": "notfallmedizin",
+      "pdf_page": 178,
+      "width": 525,
+      "height": 372,
+      "size_bytes": 16290,
+      "caption_de": "Defibrillation — Elektrodenposition und Schockabgabe",
+      "keywords": [
+        "defibrillation",
+        "elektroden",
+        "schock",
+        "notfallmedizin",
+        "reanimation"
+      ],
+      "wiki_pages": [
+        "notfallmedizin"
+      ]
+    },
+    {
+      "id": "kp-img-025",
+      "filename": "kp-img-025.webp",
+      "category": "notfallmedizin",
+      "pdf_page": 190,
+      "width": 1080,
+      "height": 692,
+      "size_bytes": 36148,
+      "caption_de": "Notfallzugänge — intraossärer Zugang und Notfallkoniotomie",
+      "keywords": [
+        "zugang",
+        "intraossär",
+        "koniotomie",
+        "notfallmedizin",
+        "invasive"
+      ],
+      "wiki_pages": [
+        "notfallmedizin"
+      ]
+    },
+    {
+      "id": "kp-img-026",
+      "filename": "kp-img-026.webp",
+      "category": "orthopaedie",
+      "pdf_page": 232,
+      "width": 1035,
+      "height": 719,
+      "size_bytes": 64396,
+      "caption_de": "Gelenkanatomie — Kniegelenk mit Bändern und Menisken",
+      "keywords": [
+        "knie",
+        "gelenk",
+        "band",
+        "meniskus",
+        "anatomie",
+        "orthopädie"
+      ],
+      "wiki_pages": [
+        "orthopaedie"
+      ]
+    },
+    {
+      "id": "kp-img-027",
+      "filename": "kp-img-027.webp",
+      "category": "orthopaedie",
+      "pdf_page": 243,
+      "width": 1088,
+      "height": 848,
+      "size_bytes": 79092,
+      "caption_de": "Wirbelsäulenanatomie — Abschnitte und Bandscheiben",
+      "keywords": [
+        "wirbelsäule",
+        "bandscheibe",
+        "wirbel",
+        "anatomie",
+        "orthopädie"
+      ],
+      "wiki_pages": [
+        "orthopaedie"
+      ]
+    },
+    {
+      "id": "kp-img-028",
+      "filename": "kp-img-028.webp",
+      "category": "orthopaedie",
+      "pdf_page": 253,
+      "width": 907,
+      "height": 593,
+      "size_bytes": 53676,
+      "caption_de": "Hüftgelenk — Anatomie und Frakturtypen",
+      "keywords": [
+        "hüfte",
+        "gelenk",
+        "fraktur",
+        "orthopädie",
+        "anatomie"
+      ],
+      "wiki_pages": [
+        "orthopaedie"
+      ]
+    },
+    {
+      "id": "kp-img-029",
+      "filename": "kp-img-029.webp",
+      "category": "kardiologie",
+      "pdf_page": 21,
+      "width": 854,
+      "height": 698,
+      "size_bytes": 35428,
+      "caption_de": "Herzanatomie — Koronararterien und Herzkranzgefäße",
+      "keywords": [
+        "herz",
+        "koronararterie",
+        "herzkranzgefäß",
+        "anatomie",
+        "kardiologie"
+      ],
+      "wiki_pages": [
+        "kardiologie"
+      ]
+    },
+    {
+      "id": "kp-img-030",
+      "filename": "kp-img-030.webp",
+      "category": "kardiologie",
+      "pdf_page": 38,
+      "width": 742,
+      "height": 999,
+      "size_bytes": 55648,
+      "caption_de": "Herzzyklus — Druck-Volumen-Diagramm und Klappenstellung",
+      "keywords": [
+        "herzzyklus",
+        "druck-volumen",
+        "klappe",
+        "kardiologie",
+        "physiologie"
+      ],
+      "wiki_pages": [
+        "kardiologie"
       ]
     }
   ]
