@@ -2,7 +2,7 @@
   "version": 2,
   "source_pdf": "Vorbereitung zur KP (Amboss-Zusammenfassung).pdf",
   "exported_at": "2026-05-31T00:00:00Z",
-  "total_images": 30,
+  "total_images": 34,
   "images": [
     {
       "id": "kp-img-001",
@@ -775,6 +775,120 @@
         "herzzyklus",
         "druck-volumen-diagramm",
         "herzklappen"
+      ]
+    },
+    {
+      "id": "kp-img-031",
+      "filename": "kp-img-031.webp",
+      "category": "neurologie",
+      "pdf_page": 164,
+      "width": 992,
+      "height": 599,
+      "size_bytes": 32914,
+      "caption_de": "Parkinson-Krankheit — Pathophysiologie und klinische Befunde",
+      "keywords": [
+        "parkinson",
+        "tremor",
+        "rigor",
+        "hypokinese",
+        "bewegungsstörung",
+        "neurologie"
+      ],
+      "wiki_pages": [
+        "neurologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "parkinson",
+        "morbus-parkinson",
+        "bewegungsstörung",
+        "neurodegenerativ"
+      ]
+    },
+    {
+      "id": "kp-img-032",
+      "filename": "kp-img-032.webp",
+      "category": "neurologie",
+      "pdf_page": 162,
+      "width": 842,
+      "height": 569,
+      "size_bytes": 40486,
+      "caption_de": "Multiple Sklerose — Pathologie und Bildgebung (MS-Läsionen)",
+      "keywords": [
+        "multiple-sklerose",
+        "ms",
+        "entmarkung",
+        "läsion",
+        "mrt",
+        "neurologie",
+        "demyelinisation"
+      ],
+      "wiki_pages": [
+        "neurologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "multiple-sklerose",
+        "ms",
+        "entmarkung",
+        "demyelinisierung",
+        "neuroinflammation"
+      ]
+    },
+    {
+      "id": "kp-img-033",
+      "filename": "kp-img-033.webp",
+      "category": "neurologie",
+      "pdf_page": 137,
+      "width": 617,
+      "height": 200,
+      "size_bytes": 11742,
+      "caption_de": "Epilepsie — EEG-Befunde und Anfallsformen",
+      "keywords": [
+        "epilepsie",
+        "eeg",
+        "krampfanfall",
+        "anfall",
+        "neurologie",
+        "diagnostik"
+      ],
+      "wiki_pages": [
+        "neurologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "epilepsie",
+        "eeg",
+        "krampfanfall",
+        "epileptischer-anfall"
+      ]
+    },
+    {
+      "id": "kp-img-034",
+      "filename": "kp-img-034.webp",
+      "category": "neurologie",
+      "pdf_page": 145,
+      "width": 879,
+      "height": 543,
+      "size_bytes": 42120,
+      "caption_de": "Demenz — Neurodegenerative Erkrankungen und Bildgebung",
+      "keywords": [
+        "demenz",
+        "alzheimer",
+        "kognitive-störung",
+        "neurodegenerativ",
+        "hirn",
+        "neurologie"
+      ],
+      "wiki_pages": [
+        "neurologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "demenz",
+        "alzheimer",
+        "kognitive-störung",
+        "neurodegenerativ"
       ]
     }
   ]
