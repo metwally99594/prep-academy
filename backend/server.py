@@ -4168,12 +4168,22 @@ def _load_image_manifest():
     return _MANIFEST_CACHE
 
 
+def _normalize(text: str) -> str:
+    """Normalize delimiters for topic matching: hyphens, underscores, and
+    spaces are treated as equivalent by collapsing them to spaces."""
+    import re as _re
+    return _re.sub(r'[-_]+', ' ', text.lower()).strip()
+
 def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
     """Find images linked to matched wiki pages. 3-tier scoring:
     Tier 1 — disease topic match in user query ONLY (+6 each)
     Tier 2 — keyword match in wiki snippet or user query (+3 each)
     Tier 3 — specialty wiki_pages overlap by source rank (+4/+2/+1)
     Falls back to specialty images when no disease-specific image exists.
+
+    Topics and query are normalized (hyphens=spaces=underscores) before
+    comparison so that 'multiple-sklerose' matches 'multiple sklerose'.
+    Fallback sort prefers keyword+specialty relevance over file size.
     """
     if not wiki_sources:
         return []
@@ -4185,6 +4195,7 @@ def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
     # NOTE: Topics (Tier 1) match ONLY against user_query to prevent false positives
     # where a wiki snippet mentions an unrelated disease.
     query_lower = user_query.lower()
+    norm_query = _normalize(query_lower)
     snippet_text = " ".join(
         s.get("excerpt", "") for s in wiki_sources
     ).lower() + " " + query_lower
@@ -4207,10 +4218,10 @@ def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
         keyword_score = 0
         specialty_score = 0
 
-        # Tier 1: disease/topic match in user query ONLY (avoids false positives
-        # from wiki snippets mentioning unrelated diseases)
+        # Tier 1: disease/topic match in normalized user query
+        # Normalize both sides so hyphens==spaces==underscores.
         for topic in img.get("topics", []):
-            if topic.lower() in query_lower:
+            if _normalize(topic) in norm_query:
                 topic_score += 6
 
         # Tier 2: keyword match in snippet or user query
@@ -4240,11 +4251,21 @@ def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
             "size_bytes": img.get("size_bytes", 0),
             "pdf_page": img.get("pdf_page", 0),
             "_total_score": total,
+            "_keyword_score": keyword_score,
+            "_specialty_score": specialty_score,
         })
 
-    relevant.sort(key=lambda x: (-x["_total_score"], -x.get("size_bytes", 0)))
+    # Sort: total desc, then keyword+specialty desc (prefer relevance over
+    # size when no topic match), then image size desc as final tiebreak.
+    relevant.sort(key=lambda x: (
+        -x["_total_score"],
+        -(x["_keyword_score"] + x["_specialty_score"]),
+        -x.get("size_bytes", 0),
+    ))
     for r in relevant:
         r.pop("_total_score", None)
+        r.pop("_keyword_score", None)
+        r.pop("_specialty_score", None)
     return relevant[:3]
 
 
