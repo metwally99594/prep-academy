@@ -2,7 +2,7 @@
   "version": 2,
   "source_pdf": "Vorbereitung zur KP (Amboss-Zusammenfassung).pdf",
   "exported_at": "2026-05-31T00:00:00Z",
-  "total_images": 38,
+  "total_images": 43,
   "images": [
     {
       "id": "kp-img-001",
@@ -1005,6 +1005,154 @@
         "linksherzinsuffizienz",
         "rechtsherzinsuffizienz",
         "herzschwäche"
+      ]
+    },
+    {
+      "id": "kp-img-039",
+      "filename": "kp-img-039.webp",
+      "category": "pneumologie",
+      "pdf_page": 13,
+      "width": 752,
+      "height": 751,
+      "size_bytes": 34904,
+      "caption_de": "COPD — Pathophysiologie und klinische Befunde der chronisch obstruktiven Lungenerkrankung",
+      "keywords": [
+        "copd",
+        "chronisch obstruktiv",
+        "lungenemphysem",
+        "emphysem",
+        "lunge",
+        "pneumologie",
+        "obstruktion"
+      ],
+      "wiki_pages": [
+        "pneumologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "copd",
+        "chronisch-obstruktive-lungenerkrankung",
+        "lungenemphysem",
+        "obstruktive-ventilationsstoerung"
+      ]
+    },
+    {
+      "id": "kp-img-040",
+      "filename": "kp-img-040.webp",
+      "category": "pneumologie",
+      "pdf_page": 20,
+      "width": 533,
+      "height": 535,
+      "size_bytes": 13676,
+      "caption_de": "Pneumonie — Pathogenese, Diagnostik und Therapie der Lungenentzuendung",
+      "keywords": [
+        "pneumonie",
+        "lungenentzuendung",
+        "infektion",
+        "lunge",
+        "pneumologie",
+        "diagnostik",
+        "fieber"
+      ],
+      "wiki_pages": [
+        "pneumologie",
+        "diagnostik",
+        "infektiologie"
+      ],
+      "topics": [
+        "pneumonie",
+        "lungenentzuendung",
+        "pneumokokken-pneumonie",
+        "ambulant-erworbene-pneumonie"
+      ]
+    },
+    {
+      "id": "kp-img-041",
+      "filename": "kp-img-041.webp",
+      "category": "pneumologie",
+      "pdf_page": 8,
+      "width": 800,
+      "height": 402,
+      "size_bytes": 19780,
+      "caption_de": "Lungenembolie — Pathophysiologie, Diagnostik und Therapie",
+      "keywords": [
+        "lungenembolie",
+        "pulmonalembolie",
+        "embolie",
+        "thrombose",
+        "lunge",
+        "pneumologie",
+        "diagnostik"
+      ],
+      "wiki_pages": [
+        "pneumologie",
+        "diagnostik",
+        "kardiologie"
+      ],
+      "topics": [
+        "lungenembolie",
+        "pulmonalembolie",
+        "venoese-thromboembolie",
+        "lungenarterienembolie"
+      ]
+    },
+    {
+      "id": "kp-img-042",
+      "filename": "kp-img-042.webp",
+      "category": "pneumologie",
+      "pdf_page": 17,
+      "width": 992,
+      "height": 525,
+      "size_bytes": 30822,
+      "caption_de": "Asthma bronchiale — Pathophysiologie, Diagnostik und Therapie",
+      "keywords": [
+        "asthma",
+        "bronchialasthma",
+        "obstruktion",
+        "lunge",
+        "pneumologie",
+        "diagnostik",
+        "atemnot"
+      ],
+      "wiki_pages": [
+        "pneumologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "asthma",
+        "asthma-bronchiale",
+        "bronchiale-hyperreaktivitaet",
+        "obstruktive-atemwegserkrankung"
+      ]
+    },
+    {
+      "id": "kp-img-043",
+      "filename": "kp-img-043.webp",
+      "category": "innere-medizin",
+      "pdf_page": 112,
+      "width": 586,
+      "height": 828,
+      "size_bytes": 47040,
+      "caption_de": "Diabetes mellitus — Pathophysiologie, Diagnostik und Komplikationen",
+      "keywords": [
+        "diabetes mellitus",
+        "diabetes",
+        "diabetisch",
+        "insulin",
+        "blutzucker",
+        "stoffwechsel",
+        "innere-medizin"
+      ],
+      "wiki_pages": [
+        "innere-medizin",
+        "diagnostik"
+      ],
+      "topics": [
+        "diabetes-mellitus",
+        "diabetes",
+        "diabetische-komplikationen",
+        "insulinresistenz",
+        "stoffwechselstoerung"
       ]
     }
   ]
