@@ -1,0 +1,7 @@
+# Obsidian per-user UI state — not vault content
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+
+# Local trash bucket created by the Obsidian "Move to trash" command
+.trash/
