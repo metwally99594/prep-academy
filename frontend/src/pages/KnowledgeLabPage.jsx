@@ -20,6 +20,8 @@ import {
   ChevronDown,
   Loader2,
   ExternalLink,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 
 // ── Category config ──────────────────────────────────────────────
@@ -241,9 +243,86 @@ function KBSidebar({ pages, selectedPath, onSelect, searchQuery, onSearchChange,
   );
 }
 
+// ── Image Gallery ────────────────────────────────────────────────
+
+function KBImageGallery({ images, onImageClick }) {
+  if (!images || images.length === 0) return null;
+
+  return (
+    <div className="mt-8 pt-6 border-t border-border/40">
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <ImageIcon className="h-3.5 w-3.5" />
+        Associated Images ({images.length})
+      </h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {images.map((img) => (
+          <button
+            key={img.id}
+            onClick={() => onImageClick(img)}
+            className="group relative aspect-[4/3] rounded-lg overflow-hidden border border-border/40 bg-muted/30 hover:border-primary/40 transition-all"
+          >
+            <img
+              src={`${API}/knowledge-lab/assets/images/${img.filename}`}
+              alt={img.caption_de || img.filename}
+              loading="lazy"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              onError={(e) => {
+                e.target.style.display = "none";
+                e.target.nextSibling.style.display = "flex";
+              }}
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors hidden items-center justify-center text-white text-xs">
+              <ImageIcon className="h-4 w-4" />
+            </div>
+            {img.caption_de && (
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                <p className="text-[10px] text-white/90 leading-tight line-clamp-2">{img.caption_de}</p>
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function KBImageLightbox({ image, onClose }) {
+  if (!image) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="relative max-w-5xl max-h-[95vh]" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-background border border-border/40 flex items-center justify-center hover:bg-muted transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <img
+          src={`${API}/knowledge-lab/assets/images/${image.filename}`}
+          alt={image.caption_de || ""}
+          className="max-w-full max-h-[85vh] object-contain rounded-lg"
+        />
+        {image.caption_de && (
+          <p className="text-white/80 text-sm mt-3 text-center">{image.caption_de}</p>
+        )}
+        <div className="flex items-center justify-center gap-4 mt-2 text-xs text-white/50">
+          <span>{image.width} × {image.height}px</span>
+          <span>{Math.round(image.size_bytes / 1024)} KB</span>
+          <span className="capitalize">{image.category}</span>
+          <span>Page {image.pdf_page}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Content ─────────────────────────────────────────────────
 
-function KBPageViewer({ page, onNavigate, loading }) {
+function KBPageViewer({ page, onNavigate, loading, images, onImageClick }) {
   if (loading) {
     return (
       <div className="p-6 space-y-4">
@@ -291,6 +370,9 @@ function KBPageViewer({ page, onNavigate, loading }) {
 
       {/* Content */}
       <KBMarkdown content={page.content} onNavigate={onNavigate} />
+
+      {/* Gallery */}
+      <KBImageGallery images={images} onImageClick={onImageClick} />
 
       {/* Related Pages */}
       {page.related_pages?.length > 0 && (
@@ -451,6 +533,8 @@ export default function KnowledgeLabPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [stats, setStats] = useState(null);
+  const [pageImages, setPageImages] = useState([]);
+  const [lightboxImage, setLightboxImage] = useState(null);
   const searchTimeout = useRef(null);
 
   // Fetch page list + stats on mount
@@ -479,21 +563,29 @@ export default function KnowledgeLabPage() {
     return () => { cancelled = true; };
   }, [token]);
 
-  // Fetch page content
+  // Fetch page content + images
   const loadPage = useCallback(async (path) => {
     setSelectedPath(path);
     setPageLoading(true);
     setPageData(null);
+    setPageImages([]);
     setSearchQuery("");
     setSearchResults([]);
     try {
-      const res = await axios.get(`${API}/knowledge-lab/pages/${encodeURIComponent(path)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setPageData(res.data);
+      const [pageRes, imgRes] = await Promise.all([
+        axios.get(`${API}/knowledge-lab/pages/${encodeURIComponent(path)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${API}/knowledge-lab/images?page=${encodeURIComponent(path)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      setPageData(pageRes.data);
+      setPageImages(imgRes.data.images || []);
     } catch (err) {
       console.error("Knowledge Lab: failed to load page", err);
       setPageData(null);
+      setPageImages([]);
     } finally {
       setPageLoading(false);
     }
@@ -563,6 +655,8 @@ export default function KnowledgeLabPage() {
               page={pageData}
               onNavigate={handleNavigate}
               loading={pageLoading}
+              images={pageImages}
+              onImageClick={setLightboxImage}
             />
           )}
         </div>
@@ -570,6 +664,9 @@ export default function KnowledgeLabPage() {
 
       {/* Stats bar */}
       <KBStatsBar stats={stats} loading={sidebarLoading} />
+
+      {/* Image Lightbox */}
+      <KBImageLightbox image={lightboxImage} onClose={() => setLightboxImage(null)} />
     </div>
   );
 }

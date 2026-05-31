@@ -1,0 +1,208 @@
+{
+  "version": 2,
+  "source_pdf": "Vorbereitung zur KP (Amboss-Zusammenfassung).pdf",
+  "exported_at": null,
+  "total_images": 10,
+  "images": [
+    {
+      "id": "kp-img-001",
+      "filename": "kp-img-001.webp",
+      "category": "gynaekologie",
+      "pdf_page": 375,
+      "width": 528,
+      "height": 647,
+      "size_bytes": 23738,
+      "caption_de": "Anatomische Darstellung der weiblichen Beckenorgane (Übersicht)",
+      "keywords": [
+        "becken",
+        "anatomie",
+        "gynäkologie",
+        "uterus",
+        "ovarien"
+      ],
+      "wiki_pages": [
+        "gynaekologie"
+      ]
+    },
+    {
+      "id": "kp-img-002",
+      "filename": "kp-img-002.webp",
+      "category": "gynaekologie",
+      "pdf_page": 375,
+      "width": 527,
+      "height": 646,
+      "size_bytes": 20514,
+      "caption_de": "Anatomische Darstellung der weiblichen Beckenorgane (Detail)",
+      "keywords": [
+        "becken",
+        "anatomie",
+        "gynäkologie",
+        "tuben",
+        "ligamente"
+      ],
+      "wiki_pages": [
+        "gynaekologie"
+      ]
+    },
+    {
+      "id": "kp-img-003",
+      "filename": "kp-img-003.webp",
+      "category": "gynaekologie",
+      "pdf_page": 375,
+      "width": 608,
+      "height": 398,
+      "size_bytes": 13072,
+      "caption_de": "Zyklusübersicht — hormonelle Steuerung und Endometriumveränderungen",
+      "keywords": [
+        "zyklus",
+        "hormone",
+        "endometrium",
+        "ovulation",
+        "gynäkologie"
+      ],
+      "wiki_pages": [
+        "gynaekologie"
+      ]
+    },
+    {
+      "id": "kp-img-004",
+      "filename": "kp-img-004.webp",
+      "category": "gynaekologie",
+      "pdf_page": 375,
+      "width": 416,
+      "height": 400,
+      "size_bytes": 10008,
+      "caption_de": "Lagebeziehung der Beckenorgane im Sagittalschnitt",
+      "keywords": [
+        "becken",
+        "sagittal",
+        "anatomie",
+        "gynäkologie",
+        "organe"
+      ],
+      "wiki_pages": [
+        "gynaekologie"
+      ]
+    },
+    {
+      "id": "kp-img-005",
+      "filename": "kp-img-005.webp",
+      "category": "gastroenterologie",
+      "pdf_page": 83,
+      "width": 847,
+      "height": 600,
+      "size_bytes": 33000,
+      "caption_de": "Abdominelle Bildgebung — CT/Ultraschall der Leber und Gallenwege",
+      "keywords": [
+        "leber",
+        "gallenwege",
+        "ct",
+        "ultraschall",
+        "abdomen"
+      ],
+      "wiki_pages": [
+        "gastroenterologie"
+      ]
+    },
+    {
+      "id": "kp-img-006",
+      "filename": "kp-img-006.webp",
+      "category": "urologie",
+      "pdf_page": 420,
+      "width": 535,
+      "height": 347,
+      "size_bytes": 23756,
+      "caption_de": "Schemazeichnung der männlichen Harnwege und Nieren",
+      "keywords": [
+        "harnwege",
+        "niere",
+        "urologie",
+        "anatomie",
+        "mann"
+      ],
+      "wiki_pages": [
+        "hno",
+        "urologie"
+      ]
+    },
+    {
+      "id": "kp-img-007",
+      "filename": "kp-img-007.webp",
+      "category": "kardiologie",
+      "pdf_page": 40,
+      "width": 894,
+      "height": 554,
+      "size_bytes": 45656,
+      "caption_de": "EKG/Herzdiagramm — kardiale Anatomie und Erregungsleitung",
+      "keywords": [
+        "herz",
+        "ekg",
+        "erregungsleitung",
+        "kardiologie",
+        "anatomie"
+      ],
+      "wiki_pages": [
+        "kardiologie"
+      ]
+    },
+    {
+      "id": "kp-img-008",
+      "filename": "kp-img-008.webp",
+      "category": "rechtsmedizin",
+      "pdf_page": 584,
+      "width": 83,
+      "height": 79,
+      "size_bytes": 382,
+      "caption_de": "Referenzsymbol für rechtsmedizinische Befunddokumentation",
+      "keywords": [
+        "rechtsmedizin",
+        "symbol",
+        "befund",
+        "dokumentation"
+      ],
+      "wiki_pages": [
+        "rechtsmedizin"
+      ]
+    },
+    {
+      "id": "kp-img-009",
+      "filename": "kp-img-009.webp",
+      "category": "psychiatrie",
+      "pdf_page": 342,
+      "width": 882,
+      "height": 624,
+      "size_bytes": 41242,
+      "caption_de": "Bildgebung bei psychiatrischen Erkrankungen — cMRT/CT",
+      "keywords": [
+        "hirn",
+        "cmrt",
+        "psychiatrie",
+        "bildgebung",
+        "neurologie"
+      ],
+      "wiki_pages": [
+        "psychiatrie"
+      ]
+    },
+    {
+      "id": "kp-img-010",
+      "filename": "kp-img-010.webp",
+      "category": "innere-medizin",
+      "pdf_page": 110,
+      "width": 936,
+      "height": 551,
+      "size_bytes": 22992,
+      "caption_de": "Klinischer Untersuchungsbefund — Funduskopie/Netzhaut",
+      "keywords": [
+        "funduskopie",
+        "netzhaut",
+        "innere-medizin",
+        "auge",
+        "untersuchung"
+      ],
+      "wiki_pages": [
+        "innere-medizin"
+      ]
+    }
+  ]
+}

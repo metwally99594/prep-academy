@@ -23,6 +23,7 @@ import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
 import asyncio
+from pathlib import Path
 
 
 # Import shared modules
@@ -4151,6 +4152,47 @@ async def _search_wiki(query: str, limit: int = 5) -> list:
         return []
 
 
+_KB_ASSETS_DIR = Path(__file__).resolve().parent.parent / "knowledge" / "assets"
+_MANIFEST_CACHE = None
+
+
+def _load_image_manifest():
+    global _MANIFEST_CACHE
+    if _MANIFEST_CACHE is None:
+        manifest_path = _KB_ASSETS_DIR / "manifest.json"
+        if manifest_path.is_file():
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                _MANIFEST_CACHE = json.load(f)
+        else:
+            _MANIFEST_CACHE = {"images": []}
+    return _MANIFEST_CACHE
+
+
+def _get_relevant_images(wiki_sources: list) -> list:
+    """Find images linked to matched wiki pages. Returns top 3."""
+    matched_slugs = {s["path"] for s in wiki_sources}
+    if not matched_slugs:
+        return []
+    manifest = _load_image_manifest()
+    relevant = []
+    for img in manifest.get("images", []):
+        img_pages = set(img.get("wiki_pages", []))
+        overlap = img_pages & matched_slugs
+        if overlap:
+            relevant.append({
+                "id": img["id"],
+                "filename": img["filename"],
+                "caption_de": img.get("caption_de", ""),
+                "category": img.get("category", ""),
+                "width": img.get("width", 0),
+                "height": img.get("height", 0),
+                "size_bytes": img.get("size_bytes", 0),
+                "pdf_page": img.get("pdf_page", 0),
+            })
+    relevant.sort(key=lambda x: -x.get("size_bytes", 0))
+    return relevant[:3]
+
+
 async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chapter_index: int = None) -> list:
     """Semantic search via Qdrant, falls back to $regex."""
     if not query or len(query) < 2:
@@ -4476,6 +4518,8 @@ REGELN:
             similarity=evidence_cov["average_similarity"],
         )
 
+        wiki_images = _get_relevant_images(wiki_evidence_list)
+
         return {
             "response": response,
             "images": images,
@@ -4484,6 +4528,7 @@ REGELN:
             "conversation_id": conversation_id,
             "documents_used": len(doc_results),
             "wiki_sources": wiki_evidence_list,
+            "wiki_images": wiki_images,
             "sources_questions": len(relevant_questions),
             "sources_knowledge": len(relevant_knowledge),
             "evidence": evidence,
