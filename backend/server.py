@@ -4168,42 +4168,80 @@ def _load_image_manifest():
     return _MANIFEST_CACHE
 
 
-def _get_relevant_images(wiki_sources: list) -> list:
-    """Find images linked to matched wiki pages. Returns top 3, ranked by wiki source position."""
+def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
+    """Find images linked to matched wiki pages. 3-tier scoring:
+    Tier 1 — disease topic match in wiki snippet or user query (+6 each)
+    Tier 2 — keyword match in wiki snippet or user query (+3 each)
+    Tier 3 — specialty wiki_pages overlap by source rank (+4/+2/+1)
+    Falls back to specialty images when no disease-specific image exists.
+    """
     if not wiki_sources:
         return []
     matched_slugs = {s["path"] for s in wiki_sources}
     if not matched_slugs:
         return []
+
+    # Build combined text from wiki snippets + user query for disease/keyword matching
+    snippet_text = " ".join(
+        s.get("excerpt", "") for s in wiki_sources
+    ).lower()
+    snippet_text += " " + user_query.lower()
+
     # Build a rank lookup: #1 source scored higher than #2, etc.
     rank_map = {}
     for i, src in enumerate(wiki_sources):
         rank_map[src["path"]] = 0 if i == 0 else (1 if i == 1 else 2)
+
     manifest = _load_image_manifest()
     relevant = []
+
     for img in manifest.get("images", []):
         img_pages = set(img.get("wiki_pages", []))
         overlap = img_pages & matched_slugs
-        if overlap:
-            score = 0
-            for slug in overlap:
-                idx = rank_map.get(slug, 2)
-                weight = (4, 2, 1)[idx]
-                score += weight
-            relevant.append({
-                "id": img["id"],
-                "filename": img["filename"],
-                "caption_de": img.get("caption_de", ""),
-                "category": img.get("category", ""),
-                "width": img.get("width", 0),
-                "height": img.get("height", 0),
-                "size_bytes": img.get("size_bytes", 0),
-                "pdf_page": img.get("pdf_page", 0),
-                "_rank_score": score,
-            })
-    relevant.sort(key=lambda x: (-x["_rank_score"], -x.get("size_bytes", 0)))
+        if not overlap:
+            continue
+
+        topic_score = 0
+        keyword_score = 0
+        specialty_score = 0
+
+        # Tier 1: disease/topic match in snippet or query
+        for topic in img.get("topics", []):
+            if topic.lower() in snippet_text:
+                topic_score += 6
+
+        # Tier 2: keyword match in snippet or query
+        for kw in img.get("keywords", []):
+            if kw.lower() in snippet_text:
+                keyword_score += 3
+
+        # Tier 3: specialty fallback via wiki_pages overlap
+        for slug in overlap:
+            idx = rank_map.get(slug, 2)
+            specialty_score += (4, 2, 1)[idx]
+
+        total = topic_score + keyword_score + specialty_score
+
+        logger.info(
+            "[ImageRank] %s topic=%d keyword=%d specialty=%d total=%d",
+            img["id"], topic_score, keyword_score, specialty_score, total,
+        )
+
+        relevant.append({
+            "id": img["id"],
+            "filename": img["filename"],
+            "caption_de": img.get("caption_de", ""),
+            "category": img.get("category", ""),
+            "width": img.get("width", 0),
+            "height": img.get("height", 0),
+            "size_bytes": img.get("size_bytes", 0),
+            "pdf_page": img.get("pdf_page", 0),
+            "_total_score": total,
+        })
+
+    relevant.sort(key=lambda x: (-x["_total_score"], -x.get("size_bytes", 0)))
     for r in relevant:
-        r.pop("_rank_score", None)
+        r.pop("_total_score", None)
     return relevant[:3]
 
 
@@ -4532,7 +4570,7 @@ REGELN:
             similarity=evidence_cov["average_similarity"],
         )
 
-        wiki_images = _get_relevant_images(wiki_evidence_list)
+        wiki_images = _get_relevant_images(wiki_evidence_list, user_query=body.user_message)
 
         return {
             "response": response,

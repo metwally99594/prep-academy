@@ -22,6 +22,11 @@
       ],
       "wiki_pages": [
         "gynaekologie"
+      ],
+      "topics": [
+        "beckenanatomie",
+        "beckenorgane",
+        "gynäkologische-anatomie"
       ]
     },
     {
@@ -42,6 +47,12 @@
       ],
       "wiki_pages": [
         "gynaekologie"
+      ],
+      "topics": [
+        "beckenanatomie",
+        "tuben",
+        "ligamente",
+        "gynäkologische-anatomie"
       ]
     },
     {
@@ -62,6 +73,12 @@
       ],
       "wiki_pages": [
         "gynaekologie"
+      ],
+      "topics": [
+        "zyklus",
+        "hormonelle-steuerung",
+        "endometrium",
+        "ovulation"
       ]
     },
     {
@@ -82,6 +99,11 @@
       ],
       "wiki_pages": [
         "gynaekologie"
+      ],
+      "topics": [
+        "beckenanatomie",
+        "sagittalschnitt",
+        "organe"
       ]
     },
     {
@@ -102,6 +124,13 @@
       ],
       "wiki_pages": [
         "gastroenterologie"
+      ],
+      "topics": [
+        "abdominale-bildgebung",
+        "leber",
+        "gallenwege",
+        "ct",
+        "ultraschall"
       ]
     },
     {
@@ -123,6 +152,11 @@
       "wiki_pages": [
         "hno",
         "urologie"
+      ],
+      "topics": [
+        "harnwege",
+        "nierenanatomie",
+        "urologische-anatomie"
       ]
     },
     {
@@ -143,6 +177,12 @@
       ],
       "wiki_pages": [
         "kardiologie"
+      ],
+      "topics": [
+        "ekg",
+        "herzdiagramm",
+        "erregungsleitung",
+        "kardiale-anatomie"
       ]
     },
     {
@@ -162,6 +202,11 @@
       ],
       "wiki_pages": [
         "rechtsmedizin"
+      ],
+      "topics": [
+        "rechtsmedizin",
+        "befunddokumentation",
+        "forensik"
       ]
     },
     {
@@ -182,6 +227,12 @@
       ],
       "wiki_pages": [
         "psychiatrie"
+      ],
+      "topics": [
+        "hirnbildgebung",
+        "cct",
+        "cmrt",
+        "psychiatrische-bildgebung"
       ]
     },
     {
@@ -202,6 +253,11 @@
       ],
       "wiki_pages": [
         "innere-medizin"
+      ],
+      "topics": [
+        "funduskopie",
+        "augenhintergrund",
+        "diabetische-retinopathie"
       ]
     },
     {
@@ -223,6 +279,11 @@
       ],
       "wiki_pages": [
         "neurologie"
+      ],
+      "topics": [
+        "neuroanatomie",
+        "zerebrale-schnittbildgebung",
+        "hirngefäße"
       ]
     },
     {
@@ -243,6 +304,11 @@
       ],
       "wiki_pages": [
         "neurologie"
+      ],
+      "topics": [
+        "hirnnerven",
+        "neurologische-bahnen",
+        "neuroanatomie"
       ]
     },
     {
@@ -265,6 +331,13 @@
       "wiki_pages": [
         "neurologie",
         "diagnostik"
+      ],
+      "topics": [
+        "schlaganfall",
+        "apoplex",
+        "zerebrale-bildgebung",
+        "ct",
+        "mrt"
       ]
     },
     {
@@ -286,6 +359,11 @@
       "wiki_pages": [
         "neurologie",
         "diagnostik"
+      ],
+      "topics": [
+        "neurologische-untersuchung",
+        "reflexe",
+        "sensibilität"
       ]
     },
     {
@@ -306,6 +384,12 @@
       ],
       "wiki_pages": [
         "pneumologie"
+      ],
+      "topics": [
+        "lungenanatomie",
+        "bronchialbaum",
+        "lungenlappen",
+        "thoraxanatomie"
       ]
     },
     {
@@ -327,6 +411,11 @@
       "wiki_pages": [
         "pneumologie",
         "diagnostik"
+      ],
+      "topics": [
+        "lungenfunktion",
+        "spirometrie",
+        "fluss-volumen-kurve"
       ]
     },
     {
@@ -348,6 +437,11 @@
       "wiki_pages": [
         "pneumologie",
         "diagnostik"
+      ],
+      "topics": [
+        "thorax-röntgen",
+        "lungenradiologie",
+        "thoraxanatomie"
       ]
     },
     {
@@ -368,6 +462,11 @@
       ],
       "wiki_pages": [
         "pneumologie"
+      ],
+      "topics": [
+        "atemmechanik",
+        "zwerchfell",
+        "atemhilfsmuskulatur"
       ]
     },
     {
@@ -389,6 +488,11 @@
       "wiki_pages": [
         "gastroenterologie",
         "diagnostik"
+      ],
+      "topics": [
+        "endoskopie",
+        "gastroskopie",
+        "koloskopie"
       ]
     },
     {
@@ -411,6 +515,12 @@
       "wiki_pages": [
         "kardiologie",
         "diagnostik"
+      ],
+      "topics": [
+        "gefäßanatomie",
+        "arterien",
+        "venen",
+        "kreislauf"
       ]
     },
     {
@@ -432,6 +542,11 @@
       "wiki_pages": [
         "kardiologie",
         "diagnostik"
+      ],
+      "topics": [
+        "echokardiographie",
+        "herzultraschall",
+        "tte"
       ]
     },
     {
@@ -453,6 +568,11 @@
       "wiki_pages": [
         "orthopaedie",
         "diagnostik"
+      ],
+      "topics": [
+        "frakturklassifikation",
+        "knochenradiologie",
+        "fraktur"
       ]
     },
     {
@@ -473,6 +593,11 @@
       ],
       "wiki_pages": [
         "notfallmedizin"
+      ],
+      "topics": [
+        "reanimation",
+        "als",
+        "herz-lungen-wiederbelebung"
       ]
     },
     {
@@ -493,6 +618,11 @@
       ],
       "wiki_pages": [
         "notfallmedizin"
+      ],
+      "topics": [
+        "defibrillation",
+        "elektroden",
+        "schockabgabe"
       ]
     },
     {
@@ -513,6 +643,11 @@
       ],
       "wiki_pages": [
         "notfallmedizin"
+      ],
+      "topics": [
+        "notfallzugang",
+        "intraossär",
+        "koniotomie"
       ]
     },
     {
@@ -534,6 +669,12 @@
       ],
       "wiki_pages": [
         "orthopaedie"
+      ],
+      "topics": [
+        "kniegelenk",
+        "meniskus",
+        "kreuzband",
+        "gelenkanatomie"
       ]
     },
     {
@@ -554,6 +695,11 @@
       ],
       "wiki_pages": [
         "orthopaedie"
+      ],
+      "topics": [
+        "wirbelsäule",
+        "bandscheibe",
+        "wirbelanatomie"
       ]
     },
     {
@@ -574,6 +720,11 @@
       ],
       "wiki_pages": [
         "orthopaedie"
+      ],
+      "topics": [
+        "hüftgelenk",
+        "hüftfraktur",
+        "gelenkanatomie"
       ]
     },
     {
@@ -594,6 +745,11 @@
       ],
       "wiki_pages": [
         "kardiologie"
+      ],
+      "topics": [
+        "koronararterien",
+        "herzkranzgefäße",
+        "herzanatomie"
       ]
     },
     {
@@ -614,6 +770,11 @@
       ],
       "wiki_pages": [
         "kardiologie"
+      ],
+      "topics": [
+        "herzzyklus",
+        "druck-volumen-diagramm",
+        "herzklappen"
       ]
     }
   ]
