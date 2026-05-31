@@ -3324,7 +3324,9 @@ async def _increment_daily_question_quota(user_id: str):
     )
 
 
-async def _check_ai_quota(user_id: str):
+async def _check_ai_quota(user_id: str, user: dict = None):
+    if user and (user.get("is_admin") or user.get("is_permanent")):
+        return
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     doc = await db.ai_usage.find_one({"user_id": user_id, "date": today}, {"_id": 0})
     count = doc["count"] if doc else 0
@@ -3332,7 +3334,9 @@ async def _check_ai_quota(user_id: str):
         raise HTTPException(status_code=429, detail=f"Tägliches KI-Limit erreicht ({DAILY_AI_LIMIT}/{DAILY_AI_LIMIT}). Morgen weiter.")
 
 
-async def _increment_ai_quota(user_id: str):
+async def _increment_ai_quota(user_id: str, user: dict = None):
+    if user and (user.get("is_admin") or user.get("is_permanent")):
+        return
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     await db.ai_usage.update_one(
         {"user_id": user_id, "date": today},
@@ -3345,7 +3349,7 @@ async def _increment_ai_quota(user_id: str):
 @limiter.limit("30/minute;200/hour")
 async def ai_explain(request: Request, body: AIExplainRequest, user: dict = Depends(get_current_user)):
     await check_ai_access(user)
-    await _check_ai_quota(user["id"])
+    await _check_ai_quota(user["id"], user=user)
     question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -3364,7 +3368,7 @@ Richtige Antworten: {', '.join(correct_choices)}
 
 Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wichtig sind."""
         response = await _or_text(system_msg, prompt, max_tokens=800, model_key=body.model)
-        await _increment_ai_quota(user["id"])
+        await _increment_ai_quota(user["id"], user=user)
         return {"explanation": response, "model": body.model, "language": body.language}
     except HTTPException:
         raise
@@ -3377,7 +3381,7 @@ Erkläre warum diese Antworten richtig sind und welche medizinischen Konzepte wi
 async def ai_chat(request: Request, body: AIChatRequest, user: dict = Depends(get_current_user)):
     """Interactive AI chat for medical questions - multi-model, multi-language"""
     await check_ai_access(user)
-    await _check_ai_quota(user["id"])
+    await _check_ai_quota(user["id"], user=user)
     question = await db.questions.find_one({"id": body.question_id}, {"_id": 0})
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -3399,7 +3403,7 @@ Regeln: Erkläre medizinische Konzepte klar. Verwende klinische Beispiele. Sei f
 Hinweis: Nach meiner Antwort werden medizinische Bilder von Wikimedia Commons angezeigt — ich kann im Text darauf verweisen."""
         response = await _or_text(system_message, body.user_message, max_tokens=800, model_key=body.model)
         images = await _search_medical_images(body.user_message)
-        await _increment_ai_quota(user["id"])
+        await _increment_ai_quota(user["id"], user=user)
         return {"response": response, "images": images, "model": body.model, "language": body.language}
     except HTTPException:
         raise
@@ -4350,7 +4354,7 @@ async def ai_tutor(request: Request, body: AITutorRequest, user: dict = Depends(
     """Medical AI tutor with document bank + persistent conversation memory"""
     import uuid as _uuid
     await check_ai_access(user)
-    await _check_ai_quota(user["id"])
+    await _check_ai_quota(user["id"], user=user)
     try:
         now = datetime.now(timezone.utc).isoformat()
 
@@ -4561,7 +4565,7 @@ REGELN:
                 except Exception:
                     pass
         images = await _search_medical_images(body.user_message) if not doc_results else doc_images
-        await _increment_ai_quota(user["id"])
+        await _increment_ai_quota(user["id"], user=user)
 
         # Persist both messages
         user_msg_doc = {"role": "user", "content": body.user_message, "timestamp": now}
@@ -4626,7 +4630,7 @@ REGELN:
 async def ai_metsu(request: Request, body: MetsuRequest, user: dict = Depends(get_current_user)):
     """Metsu multi-model consensus engine: Qdrant → Evidence → 3/6 models → Consensus"""
     await check_ai_access(user)
-    await _check_ai_quota(user["id"])
+    await _check_ai_quota(user["id"], user=user)
     try:
         from metsu import search_and_consensus
         result = await search_and_consensus(
@@ -4635,7 +4639,7 @@ async def ai_metsu(request: Request, body: MetsuRequest, user: dict = Depends(ge
             chapter_index=body.chapter_index,
             force_full=body.force_full,
         )
-        await _increment_ai_quota(user["id"])
+        await _increment_ai_quota(user["id"], user=user)
         return result
     except HTTPException:
         raise

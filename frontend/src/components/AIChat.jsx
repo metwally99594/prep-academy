@@ -254,13 +254,36 @@ export default function AIChat({ question, isOpen, onClose }) {
       }
     } catch (error) {
       console.error("AI chat error:", error);
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
       const errorMsgs = {
-        de: "Entschuldigung, ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-        en: "Sorry, an error occurred. Please try again.",
-        ar: "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى.",
-        ru: "Извините, произошла ошибка. Пожалуйста, попробуйте снова.",
+        429: {
+          de: detail || "Tägliches KI-Limit erreicht. Bitte morgen weiter.",
+          en: detail || "Daily AI limit reached. Please continue tomorrow.",
+          ar: "تم الوصول إلى الحد اليومي للذكاء الاصطناعي. يرجى الاستمرار غداً.",
+          ru: "Достигнут дневной лимит ИИ. Пожалуйста, продолжите завтра.",
+        },
+        403: {
+          de: detail || "KI-Zugang nicht verfügbar. Testphase möglicherweise abgelaufen.",
+          en: detail || "AI access not available. Trial may have expired.",
+          ar: detail || "الوصول إلى الذكاء الاصطناعي غير متاح. ربما انتهت الفترة التجريبية.",
+          ru: detail || "Доступ к ИИ недоступен. Возможно, пробный период истек.",
+        },
+        503: {
+          de: detail || "KI-Dienst vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
+          en: detail || "AI service temporarily unavailable. Please try again later.",
+          ar: detail || "خدمة الذكاء الاصطناعي غير متاحة مؤقتًا. يرجى المحاولة مرة أخرى لاحقًا.",
+          ru: detail || "Сервис ИИ временно недоступен. Пожалуйста, попробуйте позже.",
+        },
+        default: {
+          de: "Entschuldigung, ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+          en: "Sorry, an error occurred. Please try again.",
+          ar: "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى.",
+          ru: "Извините, произошла ошибка. Пожалуйста, попробуйте снова.",
+        },
       };
-      setMessages(prev => [...prev, { role: "assistant", content: errorMsgs[selectedLang] || errorMsgs.de }]);
+      const msgMap = errorMsgs[status] || errorMsgs.default;
+      setMessages(prev => [...prev, { role: "assistant", content: msgMap[selectedLang] || msgMap.de }]);
     } finally { setLoading(false); }
   };
 
