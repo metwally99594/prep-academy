@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from auth import get_admin_user
 from services.knowledge_lab_service import (
     discover_pages,
@@ -34,10 +34,25 @@ def _load_manifest():
     return _MANIFEST_CACHE
 
 
-# Mount static file serving for images — serves /api/knowledge-lab/assets/images/...
 _IMAGES_DIR = _ASSETS_DIR / "images"
-if _IMAGES_DIR.is_dir():
-    router.mount("/assets", StaticFiles(directory=str(_ASSETS_DIR)), name="knowledge-assets")
+_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@router.get("/assets/images/{filename}")
+async def serve_image(filename: str):
+    """Serve an image file from the assets/images directory."""
+    sanitized = Path(filename).name
+    file_path = _IMAGES_DIR / sanitized
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+    ext = sanitized.suffix.lower()
+    media_type = {
+        ".webp": "image/webp",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }.get(ext, "application/octet-stream")
+    return FileResponse(str(file_path), media_type=media_type)
 
 
 @router.get("/pages")
