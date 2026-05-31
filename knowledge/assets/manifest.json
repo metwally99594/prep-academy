@@ -2,7 +2,7 @@
   "version": 2,
   "source_pdf": "Vorbereitung zur KP (Amboss-Zusammenfassung).pdf",
   "exported_at": "2026-05-31T00:00:00Z",
-  "total_images": 34,
+  "total_images": 38,
   "images": [
     {
       "id": "kp-img-001",
@@ -890,6 +890,121 @@
         "alzheimer",
         "kognitive-störung",
         "neurodegenerativ"
+      ]
+    },
+    {
+      "id": "kp-img-035",
+      "filename": "kp-img-035.webp",
+      "category": "kardiologie",
+      "pdf_page": 45,
+      "width": 781,
+      "height": 552,
+      "size_bytes": 42680,
+      "caption_de": "Hypertonie — Pathophysiologie und Therapie des Bluthochdrucks",
+      "keywords": [
+        "hypertonie",
+        "bluthochdruck",
+        "blutdruck",
+        "kardiologie",
+        "therapie",
+        "antihypertensiv"
+      ],
+      "wiki_pages": [
+        "kardiologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "hypertonie",
+        "bluthochdruck",
+        "arterielle-hypertonie",
+        "antihypertensive-therapie"
+      ]
+    },
+    {
+      "id": "kp-img-036",
+      "filename": "kp-img-036.webp",
+      "category": "kardiologie",
+      "pdf_page": 48,
+      "width": 663,
+      "height": 816,
+      "size_bytes": 37302,
+      "caption_de": "Myokardinfarkt — Pathophysiologie, Diagnostik und Therapie",
+      "keywords": [
+        "myokardinfarkt",
+        "herzinfarkt",
+        "infarkt",
+        "koronar",
+        "stenose",
+        "kardiologie",
+        "diagnostik"
+      ],
+      "wiki_pages": [
+        "kardiologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "myokardinfarkt",
+        "herzinfarkt",
+        "akutes-koronarsyndrom",
+        "koronare-herzkrankheit"
+      ]
+    },
+    {
+      "id": "kp-img-037",
+      "filename": "kp-img-037.webp",
+      "category": "kardiologie",
+      "pdf_page": 30,
+      "width": 1096,
+      "height": 491,
+      "size_bytes": 36850,
+      "caption_de": "Vorhofflimmern — EKG-Befunde und Rhythmusstörungen",
+      "keywords": [
+        "vorhofflimmern",
+        "ekg",
+        "arrhythmie",
+        "rhythmus",
+        "absolute-arrhythmie",
+        "herz",
+        "kardiologie"
+      ],
+      "wiki_pages": [
+        "kardiologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "vorhofflimmern",
+        "absolute-arrhythmie",
+        "ekg",
+        "herzrhythmusstörungen",
+        "arrhythmie"
+      ]
+    },
+    {
+      "id": "kp-img-038",
+      "filename": "kp-img-038.webp",
+      "category": "kardiologie",
+      "pdf_page": 35,
+      "width": 776,
+      "height": 494,
+      "size_bytes": 31732,
+      "caption_de": "Herzinsuffizienz — Pathophysiologie und Therapie der Herzschwäche",
+      "keywords": [
+        "herzinsuffizienz",
+        "herzschwäche",
+        "linksherzinsuffizienz",
+        "rechtsherzinsuffizienz",
+        "kardiologie",
+        "therapie"
+      ],
+      "wiki_pages": [
+        "kardiologie",
+        "diagnostik"
+      ],
+      "topics": [
+        "herzinsuffizienz",
+        "linksherzinsuffizienz",
+        "rechtsherzinsuffizienz",
+        "herzschwäche"
       ]
     }
   ]
