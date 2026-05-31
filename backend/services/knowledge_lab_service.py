@@ -3,8 +3,13 @@
 import os
 import re
 import time
+import logging
 from pathlib import Path
 from typing import Optional
+
+import yaml
+
+logger = logging.getLogger(__name__)
 
 # Path to knowledge/wiki relative to this file (backend/services/ -> project root -> knowledge/wiki)
 _WIKI_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge" / "wiki"
@@ -40,6 +45,96 @@ def _detect_category(path: str) -> str:
     return "specialty"
 
 
+# ── Frontmatter & wikilink parsing (Phase 2) ──────────────────────
+
+_FRONTMATTER_PATTERN = re.compile(
+    r'^---\s*\n(.*?)\n---\s*(?:\n|$)',
+    re.DOTALL,
+)
+_WIKILINK_RE = re.compile(
+    r'(?<!\\)(?<!!)\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]'
+)
+_FENCED_CODE_RE = re.compile(r'```[^\n]*\n.*?\n```', re.DOTALL)
+_INLINE_CODE_RE = re.compile(r'`[^`\n]+?`')
+
+
+def _strip_frontmatter(raw: str):
+    """Strip a YAML frontmatter block from the top of a markdown string.
+
+    Returns (frontmatter_dict, body). On missing or malformed frontmatter,
+    returns ({}, raw). Tolerates a leading UTF-8 BOM.
+    """
+    if not raw:
+        return {}, raw
+    candidate = raw[1:] if raw.startswith('﻿') else raw
+    if not candidate.startswith('---'):
+        return {}, raw
+    m = _FRONTMATTER_PATTERN.match(candidate)
+    if not m:
+        return {}, raw
+    try:
+        parsed = yaml.safe_load(m.group(1))
+    except yaml.YAMLError as e:
+        logger.warning(f"[knowledge_lab] Frontmatter parse error: {e}")
+        return {}, raw
+    if not isinstance(parsed, dict):
+        if parsed is not None:
+            logger.warning("[knowledge_lab] Frontmatter is not a dict; ignoring")
+        return {}, raw
+    body = candidate[m.end():].lstrip('\n')
+    return parsed, body
+
+
+def _mask_code(text: str):
+    """Replace code regions with placeholders. Returns (masked, restore_fn)."""
+    placeholders = []
+
+    def store(match):
+        idx = len(placeholders)
+        placeholders.append(match.group(0))
+        return f"\x00CB{idx}\x00"
+
+    masked = _FENCED_CODE_RE.sub(store, text)
+    masked = _INLINE_CODE_RE.sub(store, masked)
+
+    def restore(s: str) -> str:
+        for idx, original in enumerate(placeholders):
+            s = s.replace(f"\x00CB{idx}\x00", original)
+        return s
+
+    return masked, restore
+
+
+def _resolve_wikilinks(text: str) -> str:
+    """Convert Obsidian [[wikilinks]] to standard markdown links.
+
+    Skips fenced code blocks, inline code, escaped wikilinks (\\[[…]]),
+    and embed syntax (![[…]]).
+    """
+    if not text or '[[' not in text:
+        return text
+
+    masked, restore = _mask_code(text)
+
+    def replace(m):
+        target = m.group(1).strip()
+        display = (m.group(2) or '').strip()
+        if not target:
+            return m.group(0)
+        if '#' in target:
+            path_part, _, section = target.partition('#')
+            section_slug = section.lower().replace(' ', '-')
+            href = f"{path_part}.md#{section_slug}"
+            label = display if display else target
+        else:
+            href = f"{target}.md"
+            label = display if display else target
+        return f"[{label}]({href})"
+
+    resolved = _WIKILINK_RE.sub(replace, masked)
+    return restore(resolved)
+
+
 # ── File discovery ────────────────────────────────────────────────
 
 def discover_pages():
@@ -64,13 +159,17 @@ def discover_pages():
 
 
 def _extract_title(filepath: Path) -> Optional[str]:
-    """Read the first # heading as the page title."""
+    """Use frontmatter title if present; else scan first # heading."""
     try:
         with open(filepath, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("# ") and not line.startswith("## "):
-                    return line[2:].strip()
+            raw = f.read()
+        fm, body = _strip_frontmatter(raw)
+        if fm.get("title"):
+            return str(fm["title"]).strip()
+        for line in body.splitlines():
+            s = line.strip()
+            if s.startswith("# ") and not s.startswith("## "):
+                return s[2:].strip()
     except Exception:
         pass
     return None
@@ -79,7 +178,7 @@ def _extract_title(filepath: Path) -> Optional[str]:
 # ── Page content ──────────────────────────────────────────────────
 
 def get_page(path: str):
-    """Return full page data: content, metadata, related, sources."""
+    """Return full page data: content, metadata, related, sources, properties."""
     wiki = _get_wiki_path()
     filepath = wiki / f"{path}.md"
     if not filepath.is_file():
@@ -90,21 +189,38 @@ def get_page(path: str):
     except Exception:
         return None
 
-    title = _extract_title(filepath) or path.split("/")[-1].replace("-", " ").title()
-    related = _extract_related(raw)
-    sources = _extract_sources(raw)
-    word_count = len(raw.split())
+    properties, body = _strip_frontmatter(raw)
+    body = _resolve_wikilinks(body)
+
+    # Title: frontmatter > first H1 in body > path-derived
+    fm_title = properties.get("title")
+    if fm_title:
+        title = str(fm_title).strip()
+    else:
+        title = None
+        for line in body.splitlines():
+            s = line.strip()
+            if s.startswith("# ") and not s.startswith("## "):
+                title = s[2:].strip()
+                break
+        if not title:
+            title = path.split("/")[-1].replace("-", " ").title()
+
+    related = _extract_related(body)
+    sources = _extract_sources(body)
+    word_count = len(body.split())
     mtime = filepath.stat().st_mtime
 
     return {
         "path": path,
         "title": title,
-        "content": raw,
+        "content": body,
         "related_pages": related,
         "sources": sources,
         "category": _detect_category(path),
         "last_modified": mtime,
         "word_count": word_count,
+        "properties": properties,
     }
 
 

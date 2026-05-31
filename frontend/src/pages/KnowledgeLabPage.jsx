@@ -364,6 +364,25 @@ function KBPageViewer({ page, onNavigate, loading, images, onImageClick }) {
           </span>
         </div>
         <h1 className="text-2xl font-bold">{page.title}</h1>
+        {page.properties && (page.properties.type || page.properties.status || page.properties.last_reviewed) && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {page.properties.type && (
+              <Badge variant="outline" className="text-[10px] font-normal">
+                type: {page.properties.type}
+              </Badge>
+            )}
+            {page.properties.status && (
+              <Badge variant="outline" className="text-[10px] font-normal">
+                status: {page.properties.status}
+              </Badge>
+            )}
+            {page.properties.last_reviewed && (
+              <span className="text-[10px] text-muted-foreground">
+                reviewed: {page.properties.last_reviewed}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <Separator className="mb-6" />
