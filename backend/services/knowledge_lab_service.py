@@ -412,7 +412,7 @@ def search(query: str, limit: int = 20):
                 score += 3
 
         if score > 0:
-            snippet = _make_snippet(page["raw_snippet"], query, 150)
+            snippet = _make_snippet(page["raw_snippet"], query, 400)
             has_title_match = any(t in title_lower for t in tokens)
             scored.append({
                 "path": page_path,
