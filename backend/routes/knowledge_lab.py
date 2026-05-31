@@ -41,11 +41,11 @@ _IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 @router.get("/assets/images/{filename}")
 async def serve_image(filename: str):
     """Serve an image file from the assets/images directory."""
-    sanitized = Path(filename).name
-    file_path = _IMAGES_DIR / sanitized
+    safe_name = Path(filename).name
+    file_path = _IMAGES_DIR / safe_name
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
-    ext = sanitized.suffix.lower()
+    ext = Path(safe_name).suffix.lower()
     media_type = {
         ".webp": "image/webp",
         ".png": "image/png",
