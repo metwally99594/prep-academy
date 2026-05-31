@@ -65,10 +65,10 @@ related:
 
 ## Related Pages
 
-- [Notfallmedizin](notfallmedizin.md) — Trauma, Schock bei Fraktur, Polytrauma
-- [Chirurgie](chirurgie.md) — Wundheilung, Kompartmentsyndrom, Osteosyntheseverfahren
-- [Diagnostik](diagnostik.md) — Röntgen, CT, MRT, DXA, Gelenksonographie
-- [Pharmakologie](pharmakologie.md) — NSAR, Bisphosphonate, Opioide, Muskelrelaxanzien
-- [Neurologie](neurologie.md) — Bandscheibenvorfall (radikuläre Symptome), Polyneuropathie (DD)
-- [Klinische Untersuchung](klinische-untersuchung.md) — Gelenkstatus, Wirbelsäulenuntersuchung, Meniskus-/Bandtests
-- [Prävention](praevention.md) — Sturzprophylaxe, Osteoporose-Screening, Knochengesundheit
+- [[notfallmedizin|Notfallmedizin]] — Trauma, Schock bei Fraktur, Polytrauma
+- [[chirurgie|Chirurgie]] — Wundheilung, Kompartmentsyndrom, Osteosyntheseverfahren
+- [[diagnostik|Diagnostik]] — Röntgen, CT, MRT, DXA, Gelenksonographie
+- [[pharmakologie|Pharmakologie]] — NSAR, Bisphosphonate, Opioide, Muskelrelaxanzien
+- [[neurologie|Neurologie]] — Bandscheibenvorfall (radikuläre Symptome), Polyneuropathie (DD)
+- [[klinische-untersuchung|Klinische Untersuchung]] — Gelenkstatus, Wirbelsäulenuntersuchung, Meniskus-/Bandtests
+- [[praevention|Prävention]] — Sturzprophylaxe, Osteoporose-Screening, Knochengesundheit

@@ -58,8 +58,8 @@ related:
 
 ## Related Pages
 
-- [Pneumologie](pneumologie.md) — Sinusitis (DD Husten), Husten-/Antibiotikatherapie
-- [Pädiatrie](paediatrie.md) — Ottis media, Paukenerguss, Tubenbelüftungsstörung
-- [Neurologie](neurologie.md) — Schwindel DD (zentral vs. peripher), Hörsturz (DD Akustikusneurinom)
-- [Infektiologie](infektiologie.md) — Antibiotika bei HNO-Infektionen
-- [Diagnostik](diagnostik.md) — CT-Nasennebenhöhlen, MRT (Akustikusneurinom)
+- [[pneumologie|Pneumologie]] — Sinusitis (DD Husten), Husten-/Antibiotikatherapie
+- [[paediatrie|Pädiatrie]] — Ottis media, Paukenerguss, Tubenbelüftungsstörung
+- [[neurologie|Neurologie]] — Schwindel DD (zentral vs. peripher), Hörsturz (DD Akustikusneurinom)
+- [[infektiologie|Infektiologie]] — Antibiotika bei HNO-Infektionen
+- [[diagnostik|Diagnostik]] — CT-Nasennebenhöhlen, MRT (Akustikusneurinom)

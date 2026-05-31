@@ -90,10 +90,10 @@ related:
 
 ## Related Pages
 
-- [Notfallmedizin](notfallmedizin.md) — Akute Lähmung, Bewusstlosigkeit, Krampfanfall
-- [Chirurgie](chirurgie.md) — Neurochirurgie (Hirndruck, Hydrozephalus, Bandscheibenvorfall)
-- [Diagnostik](diagnostik.md) — cCT, cMRT, Liquordiagnostik, EEG, VEP
-- [Pharmakologie](pharmakologie.md) — Antiepileptika, Parkinson-Medikamente, Antidementiva, Migränemittel
-- [Kardiologie](kardiologie.md) — Vorhofflimmern (Schlaganfallprophylaxe), KHK
-- [Innere Medizin](innere-medizin.md) — Diabetische Neuropathie, Hypertonie (Schlaganfallrisiko), Schilddrüse
-- [Klinische Untersuchung](klinische-untersuchung.md) — Neurologischer Status, Hirnnerven, Reflexe, Sensibilität
+- [[notfallmedizin|Notfallmedizin]] — Akute Lähmung, Bewusstlosigkeit, Krampfanfall
+- [[chirurgie|Chirurgie]] — Neurochirurgie (Hirndruck, Hydrozephalus, Bandscheibenvorfall)
+- [[diagnostik|Diagnostik]] — cCT, cMRT, Liquordiagnostik, EEG, VEP
+- [[pharmakologie|Pharmakologie]] — Antiepileptika, Parkinson-Medikamente, Antidementiva, Migränemittel
+- [[kardiologie|Kardiologie]] — Vorhofflimmern (Schlaganfallprophylaxe), KHK
+- [[innere-medizin|Innere Medizin]] — Diabetische Neuropathie, Hypertonie (Schlaganfallrisiko), Schilddrüse
+- [[klinische-untersuchung|Klinische Untersuchung]] — Neurologischer Status, Hirnnerven, Reflexe, Sensibilität

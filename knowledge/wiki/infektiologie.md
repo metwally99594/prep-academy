@@ -69,11 +69,11 @@ related:
 
 ## Related Pages
 
-- [Pneumologie](pneumologie.md) — Pneumonie, Lungenkarzinom (DD), Tuberkulose
-- [Gastroenterologie](gastroenterologie.md) — Hepatitis B/C, Leberzirrhose, GI-Infektionen
-- [Pharmakologie](pharmakologie.md) — Antibiotika, Resistenzmechanismen
-- [Pädiatrie](paediatrie.md) — Impfungen, Kinderinfektionskrankheiten
-- [Hygiene](hygiene.md) — Nosokomiale Infektionen, Händehygiene, Isolation
-- [Notfallmedizin](notfallmedizin.md) — Septischer Schock, Meningitis, Reanimation
-- [Neurologie](neurologie.md) — Meningitis, Enzephalitis
-- [Diagnostik](diagnostik.md) — Labordiagnostik (CRP, PCT, Blutkulturen), Liquordiagnostik
+- [[pneumologie|Pneumologie]] — Pneumonie, Lungenkarzinom (DD), Tuberkulose
+- [[gastroenterologie|Gastroenterologie]] — Hepatitis B/C, Leberzirrhose, GI-Infektionen
+- [[pharmakologie|Pharmakologie]] — Antibiotika, Resistenzmechanismen
+- [[paediatrie|Pädiatrie]] — Impfungen, Kinderinfektionskrankheiten
+- [[hygiene|Hygiene]] — Nosokomiale Infektionen, Händehygiene, Isolation
+- [[notfallmedizin|Notfallmedizin]] — Septischer Schock, Meningitis, Reanimation
+- [[neurologie|Neurologie]] — Meningitis, Enzephalitis
+- [[diagnostik|Diagnostik]] — Labordiagnostik (CRP, PCT, Blutkulturen), Liquordiagnostik

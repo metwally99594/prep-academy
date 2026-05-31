@@ -87,12 +87,12 @@ related:
 
 ## Related Pages
 
-- [Pneumologie](pneumologie.md) — Lungenembolie vs. Akutes Koronarsyndrom
-- [Pharmakologie](pharmakologie.md) — Antihypertensiva, Antiarrhythmika, Antikoagulation
-- [Notfallmedizin](notfallmedizin.md) — Kardiogener Schock, Reanimation (ALS)
-- [Diagnostik](diagnostik.md) — EKG, Herzecho, Herzkatheter
-- [Innere Medizin](innere-medizin.md) — Diabetes (Risikofaktor), Hypertonie, metabolisches Syndrom
-- [Chirurgie](chirurgie.md) — Bypass-Operation, herzchirurgische Eingriffe
-- [Anästhesie](anaesthesie.md) — Narkose bei Herzkranken, intraoperatives Monitoring
-- [Prävention](praevention.md) — Vorsorge, KHK-Prophylaxe, Herz-Kreislauf-Risiko
-- [Klinische Untersuchung](klinische-untersuchung.md) — Herzauskultation, Gefäßstatus
+- [[pneumologie|Pneumologie]] — Lungenembolie vs. Akutes Koronarsyndrom
+- [[pharmakologie|Pharmakologie]] — Antihypertensiva, Antiarrhythmika, Antikoagulation
+- [[notfallmedizin|Notfallmedizin]] — Kardiogener Schock, Reanimation (ALS)
+- [[diagnostik|Diagnostik]] — EKG, Herzecho, Herzkatheter
+- [[innere-medizin|Innere Medizin]] — Diabetes (Risikofaktor), Hypertonie, metabolisches Syndrom
+- [[chirurgie|Chirurgie]] — Bypass-Operation, herzchirurgische Eingriffe
+- [[anaesthesie|Anästhesie]] — Narkose bei Herzkranken, intraoperatives Monitoring
+- [[praevention|Prävention]] — Vorsorge, KHK-Prophylaxe, Herz-Kreislauf-Risiko
+- [[klinische-untersuchung|Klinische Untersuchung]] — Herzauskultation, Gefäßstatus

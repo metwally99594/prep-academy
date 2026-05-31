@@ -72,6 +72,6 @@ related:
 
 ## Related Pages
 
-- [Diagnostik](diagnostik.md) — Sensitivität/Spezifität von bildgebenden Verfahren, prädiktive Werte
-- [Pharmakologie](pharmakologie.md) — NNT/NNH in klinischen Studien, Evidenz für Medikamentenwirksamkeit
-- [Hygiene](hygiene.md) — Studien zur Effektivität von Hygienemaßnahmen
+- [[diagnostik|Diagnostik]] — Sensitivität/Spezifität von bildgebenden Verfahren, prädiktive Werte
+- [[pharmakologie|Pharmakologie]] — NNT/NNH in klinischen Studien, Evidenz für Medikamentenwirksamkeit
+- [[hygiene|Hygiene]] — Studien zur Effektivität von Hygienemaßnahmen

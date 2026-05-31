@@ -289,3 +289,53 @@ def test_all_wiki_pages_have_valid_frontmatter():
     assert not failures, (
         "Frontmatter validation failures:\n  " + "\n  ".join(failures)
     )
+
+
+# ── Phase 4 invariant: no internal markdown links in wiki bodies ───
+
+def test_no_internal_markdown_links_in_wiki_bodies():
+    """Phase 4 invariant: after wikilink migration, no internal .md
+    markdown links may remain in any wiki body. Frontmatter is excluded
+    (its YAML may contain wikilink strings); fenced and inline code blocks
+    are excluded (literal examples are allowed there). External URLs,
+    image embeds, and anchor-only links are not flagged."""
+    import re as _re
+    repo_root = Path(__file__).resolve().parents[2]
+    knowledge_root = repo_root / "knowledge"
+    wiki_dir = knowledge_root / "wiki"
+    index_md = knowledge_root / "index.md"
+
+    md_link_re = _re.compile(
+        r"(?<!!)\[([^\]\n]*?)\]\(([^)\s]+\.md(?:#[^)]*)?)\)"
+    )
+    fenced_code_re = _re.compile(r"```[^\n]*\n.*?\n```", _re.DOTALL)
+    inline_code_re = _re.compile(r"`[^`\n]+?`")
+
+    def _strip_code(text: str) -> str:
+        text = fenced_code_re.sub("", text)
+        text = inline_code_re.sub("", text)
+        return text
+
+    files = (
+        sorted(wiki_dir.glob("*.md"))
+        + sorted((wiki_dir / "sources").glob("*.md"))
+        + [index_md]
+    )
+
+    failures = []
+    for f in files:
+        if not f.exists():
+            continue
+        raw = f.read_text(encoding="utf-8")
+        _fm, body = _strip_frontmatter(raw)
+        body_no_code = _strip_code(body)
+        matches = md_link_re.findall(body_no_code)
+        if matches:
+            rel = f.resolve().relative_to(repo_root.resolve()).as_posix()
+            for label, target in matches[:5]:
+                failures.append(f"{rel}: [{label}]({target})")
+
+    assert not failures, (
+        "Internal markdown links found in wiki bodies "
+        "(Phase 4 invariant violated):\n  " + "\n  ".join(failures)
+    )

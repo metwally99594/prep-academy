@@ -84,10 +84,10 @@ related:
 
 ## Related Pages
 
-- [Innere Medizin](innere-medizin.md) — Hepatorenales Syndrom, Leberwerte, Diabetes assoziierte GI-Störungen
-- [Chirurgie](chirurgie.md) — Akutes Abdomen, Appendizitis, Cholezystektomie
-- [Diagnostik](diagnostik.md) — Sonographie Abdomen, endoskopische Verfahren, CT-Abdomen
-- [Pharmakologie](pharmakologie.md) — PPI, Antibiotika (H. pylori-Eradikation), Immunsuppressiva (CED), Antiemetika
-- [Notfallmedizin](notfallmedizin.md) — GI-Blutung, akutes Abdomen, Volumenmanagement
-- [Infektiologie](infektiologie.md) — Hepatitis B/C, H. pylori, C. difficile, Lebensmittelinfektionen
-- [Klinische Untersuchung](klinische-untersuchung.md) — Abdomenuntersuchung (Perkussion, Palpation, Aszitesnachweis)
+- [[innere-medizin|Innere Medizin]] — Hepatorenales Syndrom, Leberwerte, Diabetes assoziierte GI-Störungen
+- [[chirurgie|Chirurgie]] — Akutes Abdomen, Appendizitis, Cholezystektomie
+- [[diagnostik|Diagnostik]] — Sonographie Abdomen, endoskopische Verfahren, CT-Abdomen
+- [[pharmakologie|Pharmakologie]] — PPI, Antibiotika (H. pylori-Eradikation), Immunsuppressiva (CED), Antiemetika
+- [[notfallmedizin|Notfallmedizin]] — GI-Blutung, akutes Abdomen, Volumenmanagement
+- [[infektiologie|Infektiologie]] — Hepatitis B/C, H. pylori, C. difficile, Lebensmittelinfektionen
+- [[klinische-untersuchung|Klinische Untersuchung]] — Abdomenuntersuchung (Perkussion, Palpation, Aszitesnachweis)

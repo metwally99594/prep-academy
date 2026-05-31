@@ -50,7 +50,7 @@ related:
 
 ## Related Pages
 
-- [Infektiologie](infektiologie.md) — Hautinfektionen, STI, HIV-Hautmanifestationen
-- [Pharmakologie](pharmakologie.md) — Kortikosteroide (topisch), Antihistaminika, Immunsuppressiva, antivirale Medikamente
-- [Gynäkologie](gynaekologie.md) — HPV, Genitalwarzen
-- [Diagnostik](diagnostik.md) — Biopsie, Dermatoskopie, immunhistochemische Aufarbeitung
+- [[infektiologie|Infektiologie]] — Hautinfektionen, STI, HIV-Hautmanifestationen
+- [[pharmakologie|Pharmakologie]] — Kortikosteroide (topisch), Antihistaminika, Immunsuppressiva, antivirale Medikamente
+- [[gynaekologie|Gynäkologie]] — HPV, Genitalwarzen
+- [[diagnostik|Diagnostik]] — Biopsie, Dermatoskopie, immunhistochemische Aufarbeitung

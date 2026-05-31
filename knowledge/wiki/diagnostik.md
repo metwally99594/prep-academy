@@ -92,14 +92,14 @@ related:
 
 ## Related Pages
 
-- [Kardiologie](kardiologie.md) — EKG, Herzecho, Herzkatheter
-- [Pneumologie](pneumologie.md) — Lungenfunktion, BGA, Thorax-Röntgen
-- [Neurologie](neurologie.md) — cCT, cMRT, EEG, Liquor, VEP
-- [Notfallmedizin](notfallmedizin.md) — Point-of-Care-Ultraschall, BGA
-- [Gastroenterologie](gastroenterologie.md) — Sonographie Abdomen, Endoskopie (ÖGD/Koloskopie), ERCP
-- [Orthopädie](orthopaedie.md) — Röntgen Extremität, CT, MRT (Bandscheibe, Meniskus), DXA
-- [Urologie](urologie.md) — CT low-dose Nierensteine, Sonographie, PSA
-- [Infektiologie](infektiologie.md) — Blutkulturen, Liquordiagnostik, Erregerdiagnostik (CRP, PCT, PCR)
-- [Gynäkologie](gynaekologie.md) — Mammographie, Vaginalsonographie, PAP-Abstrich
-- [Klinische Untersuchung](klinische-untersuchung.md) — Untersuchungstechniken als Basis der Bildgebung
-- [Biostatistik](biostatistik.md) — Sensitivität, Spezifität, prädiktive Werte diagnostischer Tests
+- [[kardiologie|Kardiologie]] — EKG, Herzecho, Herzkatheter
+- [[pneumologie|Pneumologie]] — Lungenfunktion, BGA, Thorax-Röntgen
+- [[neurologie|Neurologie]] — cCT, cMRT, EEG, Liquor, VEP
+- [[notfallmedizin|Notfallmedizin]] — Point-of-Care-Ultraschall, BGA
+- [[gastroenterologie|Gastroenterologie]] — Sonographie Abdomen, Endoskopie (ÖGD/Koloskopie), ERCP
+- [[orthopaedie|Orthopädie]] — Röntgen Extremität, CT, MRT (Bandscheibe, Meniskus), DXA
+- [[urologie|Urologie]] — CT low-dose Nierensteine, Sonographie, PSA
+- [[infektiologie|Infektiologie]] — Blutkulturen, Liquordiagnostik, Erregerdiagnostik (CRP, PCT, PCR)
+- [[gynaekologie|Gynäkologie]] — Mammographie, Vaginalsonographie, PAP-Abstrich
+- [[klinische-untersuchung|Klinische Untersuchung]] — Untersuchungstechniken als Basis der Bildgebung
+- [[biostatistik|Biostatistik]] — Sensitivität, Spezifität, prädiktive Werte diagnostischer Tests

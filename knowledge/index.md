@@ -14,46 +14,46 @@ Curated medical knowledge for the Austrian **Kenntnisprüfung (KP)** and medical
 
 ## Licensing & Degree Recognition
 
-- [Nostrifikation](wiki/nostrifikation.md) — Medical degree recognition in Austria (Stichprobentest, ÄrzteG 1998)
-- [Austria Medical Licensing](wiki/sources/austria-medical-licensing.md) — Raw source summary (3 facts about Nostrifikation)
+- [[nostrifikation|Nostrifikation]] — Medical degree recognition in Austria (Stichprobentest, ÄrzteG 1998)
+- [[sources/austria-medical-licensing|Austria Medical Licensing]] — Raw source summary (3 facts about Nostrifikation)
 
 ## Source Documents
 
-- [KP Vorbereitung — Amboss Zusammenfassung](wiki/sources/kp-vorbereitung-amboss.md) — 588-page Amboss summary for the KP exam
-- [Austria Medical Licensing](wiki/sources/austria-medical-licensing.md) — Recognition of foreign medical degrees
+- [[sources/kp-vorbereitung-amboss|KP Vorbereitung — Amboss Zusammenfassung]] — 588-page Amboss summary for the KP exam
+- [[sources/austria-medical-licensing|Austria Medical Licensing]] — Recognition of foreign medical degrees
 
 ## Medical Specialties (KP Exam Topics)
 
 | Specialty | Page | Key Diseases |
 |-----------|------|-------------|
-| **Pneumologie** | [→](wiki/pneumologie.md) | Asthma, COPD, Lungenembolie, Pneumonie, Lungenkarzinom, Pleuraerguss |
-| **Kardiologie** | [→](wiki/kardiologie.md) | Herzinsuffizienz, KHK, Myokardinfarkt, Rhythmusstörungen, Vitien, Endokarditis, Hypertonie |
-| **Gastroenterologie** | [→](wiki/gastroenterologie.md) | GERD, Ulkus, GI-Blutung, CED (M. Crohn, Colitis ulcerosa), Hepatitis, Zirrhose, Pankreatitis |
-| **Innere Medizin** | [→](wiki/innere-medizin.md) | Diabetes, Schilddrüse, Niereninsuffizienz, Nebennierenerkrankungen |
-| **Neurologie** | [→](wiki/neurologie.md) | Schlaganfall, Epilepsie, Parkinson, MS, Demenz, Meningitis |
-| **Notfallmedizin** | [→](wiki/notfallmedizin.md) | ABCDE, Schock, Reanimation (ALS), Anaphylaxie, akute Dyspnoe |
-| **Chirurgie** | [→](wiki/chirurgie.md) | Akutes Abdomen, Appendizitis, Ileus, Hernien, Wundheilung |
-| **Orthopädie** | [→](wiki/orthopaedie.md) | Frakturen, Arthrose, Osteoporose, Rückenschmerz, Bandscheibenvorfall |
-| **Pharmakologie** | [→](wiki/pharmakologie.md) | Vegetativum, Kardiaka, Antibiotika, Analgetika, Lokalanästhetika |
-| **Pädiatrie** | [→](wiki/paediatrie.md) | Impfungen, Entwicklung, Fieberkrampf, Pseudokrupp, angeborene Herzfehler |
-| **Psychiatrie** | [→](wiki/psychiatrie.md) | Depression, Schizophrenie, Angststörungen, Sucht, Psychopharmaka |
-| **Gynäkologie** | [→](wiki/gynaekologie.md) | Schwangerschaft, gyn. Tumoren (Mamma, Zervix, Ovar, Endometrium), Kontrazeption |
-| **Urologie** | [→](wiki/urologie.md) | Nierensteine, Harnwegsinfekte, Prostatakarzinom, Hodenkarzinom |
-| **HNO** | [→](wiki/hno.md) | Sinusitis, Tonsillitis, Hörstörungen, Schwindel, Epistaxis |
-| **Dermatologie** | [→](wiki/dermatologie.md) | Ekzeme, Psoriasis, Hauttumoren (Melanom, Basaliom, Spinaliom) |
-| **Anästhesie** | [→](wiki/anaesthesie.md) | Narkose, Beatmung, TIVA, Regionalanästhesie, ASA-Klassifikation |
-| **Infektiologie** | [→](wiki/infektiologie.md) | HIV, Tuberkulose, Sepsis, MRE (MRSA, VRE, ESBL, CRE) |
-| **Hygiene** | [→](wiki/hygiene.md) | Händehygiene, nosokomiale Infektionen, Desinfektion, Isolation |
-| **Rechtsmedizin** | [→](wiki/rechtsmedizin.md) | Todesfeststellung, Obduktion, Spurensicherung, Toxikologie |
+| **Pneumologie** | [[pneumologie|→]] | Asthma, COPD, Lungenembolie, Pneumonie, Lungenkarzinom, Pleuraerguss |
+| **Kardiologie** | [[kardiologie|→]] | Herzinsuffizienz, KHK, Myokardinfarkt, Rhythmusstörungen, Vitien, Endokarditis, Hypertonie |
+| **Gastroenterologie** | [[gastroenterologie|→]] | GERD, Ulkus, GI-Blutung, CED (M. Crohn, Colitis ulcerosa), Hepatitis, Zirrhose, Pankreatitis |
+| **Innere Medizin** | [[innere-medizin|→]] | Diabetes, Schilddrüse, Niereninsuffizienz, Nebennierenerkrankungen |
+| **Neurologie** | [[neurologie|→]] | Schlaganfall, Epilepsie, Parkinson, MS, Demenz, Meningitis |
+| **Notfallmedizin** | [[notfallmedizin|→]] | ABCDE, Schock, Reanimation (ALS), Anaphylaxie, akute Dyspnoe |
+| **Chirurgie** | [[chirurgie|→]] | Akutes Abdomen, Appendizitis, Ileus, Hernien, Wundheilung |
+| **Orthopädie** | [[orthopaedie|→]] | Frakturen, Arthrose, Osteoporose, Rückenschmerz, Bandscheibenvorfall |
+| **Pharmakologie** | [[pharmakologie|→]] | Vegetativum, Kardiaka, Antibiotika, Analgetika, Lokalanästhetika |
+| **Pädiatrie** | [[paediatrie|→]] | Impfungen, Entwicklung, Fieberkrampf, Pseudokrupp, angeborene Herzfehler |
+| **Psychiatrie** | [[psychiatrie|→]] | Depression, Schizophrenie, Angststörungen, Sucht, Psychopharmaka |
+| **Gynäkologie** | [[gynaekologie|→]] | Schwangerschaft, gyn. Tumoren (Mamma, Zervix, Ovar, Endometrium), Kontrazeption |
+| **Urologie** | [[urologie|→]] | Nierensteine, Harnwegsinfekte, Prostatakarzinom, Hodenkarzinom |
+| **HNO** | [[hno|→]] | Sinusitis, Tonsillitis, Hörstörungen, Schwindel, Epistaxis |
+| **Dermatologie** | [[dermatologie|→]] | Ekzeme, Psoriasis, Hauttumoren (Melanom, Basaliom, Spinaliom) |
+| **Anästhesie** | [[anaesthesie|→]] | Narkose, Beatmung, TIVA, Regionalanästhesie, ASA-Klassifikation |
+| **Infektiologie** | [[infektiologie|→]] | HIV, Tuberkulose, Sepsis, MRE (MRSA, VRE, ESBL, CRE) |
+| **Hygiene** | [[hygiene|→]] | Händehygiene, nosokomiale Infektionen, Desinfektion, Isolation |
+| **Rechtsmedizin** | [[rechtsmedizin|→]] | Todesfeststellung, Obduktion, Spurensicherung, Toxikologie |
 
 ## Cross-Cutting Concepts
 
 | Concept | Page | Key Topics |
 |---------|------|------------|
-| **Diagnostik** | [→](wiki/diagnostik.md) | Röntgen, CT, MRT, Sonographie, EKG, Labor, BGA |
-| **Biostatistik** | [→](wiki/biostatistik.md) | Studiendesign, Sensitivität/Spezifität, PPV/NPV, p-Werte, KI, Bias |
-| **Klinische Untersuchung** | [→](wiki/klinische-untersuchung.md) | Inspektion, Palpation, Perkussion, Auskultation, neurologischer Status |
-| **Prävention** | [→](wiki/praevention.md) | Vorsorge, Impfungen (Erwachsene), Umweltmedizin, Präventionsstufen |
+| **Diagnostik** | [[diagnostik|→]] | Röntgen, CT, MRT, Sonographie, EKG, Labor, BGA |
+| **Biostatistik** | [[biostatistik|→]] | Studiendesign, Sensitivität/Spezifität, PPV/NPV, p-Werte, KI, Bias |
+| **Klinische Untersuchung** | [[klinische-untersuchung|→]] | Inspektion, Palpation, Perkussion, Auskultation, neurologischer Status |
+| **Prävention** | [[praevention|→]] | Vorsorge, Impfungen (Erwachsene), Umweltmedizin, Präventionsstufen |
 
 ## Structure
 

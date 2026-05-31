@@ -76,26 +76,26 @@ A 588-page Amboss summary document covering the complete spectrum of medical kno
 
 ## Related Pages
 
-- [Pneumologie](../pneumologie.md)
-- [Kardiologie](../kardiologie.md)
-- [Gastroenterologie](../gastroenterologie.md)
-- [Innere Medizin](../innere-medizin.md)
-- [Neurologie](../neurologie.md)
-- [Notfallmedizin](../notfallmedizin.md)
-- [Chirurgie](../chirurgie.md)
-- [Orthopädie](../orthopaedie.md)
-- [Pharmakologie](../pharmakologie.md)
-- [Diagnostik](../diagnostik.md)
-- [Pädiatrie](../paediatrie.md)
-- [Psychiatrie](../psychiatrie.md)
-- [Gynäkologie](../gynaekologie.md)
-- [Urologie](../urologie.md)
-- [HNO](../hno.md)
-- [Dermatologie](../dermatologie.md)
-- [Anästhesie](../anaesthesie.md)
-- [Infektiologie](../infektiologie.md)
-- [Hygiene](../hygiene.md)
-- [Rechtsmedizin](../rechtsmedizin.md)
-- [Klinische Untersuchung](../klinische-untersuchung.md)
-- [Biostatistik](../biostatistik.md)
-- [Prävention](../praevention.md)
+- [[pneumologie|Pneumologie]]
+- [[kardiologie|Kardiologie]]
+- [[gastroenterologie|Gastroenterologie]]
+- [[innere-medizin|Innere Medizin]]
+- [[neurologie|Neurologie]]
+- [[notfallmedizin|Notfallmedizin]]
+- [[chirurgie|Chirurgie]]
+- [[orthopaedie|Orthopädie]]
+- [[pharmakologie|Pharmakologie]]
+- [[diagnostik|Diagnostik]]
+- [[paediatrie|Pädiatrie]]
+- [[psychiatrie|Psychiatrie]]
+- [[gynaekologie|Gynäkologie]]
+- [[urologie|Urologie]]
+- [[hno|HNO]]
+- [[dermatologie|Dermatologie]]
+- [[anaesthesie|Anästhesie]]
+- [[infektiologie|Infektiologie]]
+- [[hygiene|Hygiene]]
+- [[rechtsmedizin|Rechtsmedizin]]
+- [[klinische-untersuchung|Klinische Untersuchung]]
+- [[biostatistik|Biostatistik]]
+- [[praevention|Prävention]]

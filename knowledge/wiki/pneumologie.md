@@ -74,10 +74,10 @@ related:
 
 ## Related Pages
 
-- [Kardiologie](kardiologie.md) — Dyspnoe Differenzialdiagnose, Pulmonalvenenstauung
-- [Notfallmedizin](notfallmedizin.md) — Akute Dyspnoe, Reanimation
-- [Diagnostik](diagnostik.md) — Röntgen Thorax, Blutgasanalyse
-- [Pharmakologie](pharmakologie.md) — β₂-Sympathomimetika, ICS, Antibiotika, Antitussiva
-- [Infektiologie](infektiologie.md) — Pneumonie-Erreger, Tuberkulose, Sepsis
-- [Anästhesie](anaesthesie.md) — Beatmung, Atemwegsmanagement, postoperative Komplikationen
-- [Klinische Untersuchung](klinische-untersuchung.md) — Lungenauskultation, Perkussion
+- [[kardiologie|Kardiologie]] — Dyspnoe Differenzialdiagnose, Pulmonalvenenstauung
+- [[notfallmedizin|Notfallmedizin]] — Akute Dyspnoe, Reanimation
+- [[diagnostik|Diagnostik]] — Röntgen Thorax, Blutgasanalyse
+- [[pharmakologie|Pharmakologie]] — β₂-Sympathomimetika, ICS, Antibiotika, Antitussiva
+- [[infektiologie|Infektiologie]] — Pneumonie-Erreger, Tuberkulose, Sepsis
+- [[anaesthesie|Anästhesie]] — Beatmung, Atemwegsmanagement, postoperative Komplikationen
+- [[klinische-untersuchung|Klinische Untersuchung]] — Lungenauskultation, Perkussion

@@ -57,7 +57,7 @@ related:
 
 ## Related Pages
 
-- [Infektiologie](infektiologie.md) — MRE (MRSA, VRE, ESBL, CRE), Sepsis, Antibiotikaresistenzen
-- [Chirurgie](chirurgie.md) — Wundinfektion, perioperative Antibiotikaprophylaxe
-- [Pharmakologie](pharmakologie.md) — Antibiotika, Antiseptika
-- [Pädiatrie](paediatrie.md) — Impfungen, Masern/Röteln/Varizellen (Isolation)
+- [[infektiologie|Infektiologie]] — MRE (MRSA, VRE, ESBL, CRE), Sepsis, Antibiotikaresistenzen
+- [[chirurgie|Chirurgie]] — Wundinfektion, perioperative Antibiotikaprophylaxe
+- [[pharmakologie|Pharmakologie]] — Antibiotika, Antiseptika
+- [[paediatrie|Pädiatrie]] — Impfungen, Masern/Röteln/Varizellen (Isolation)

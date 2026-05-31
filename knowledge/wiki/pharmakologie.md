@@ -98,14 +98,14 @@ related:
 
 ## Related Pages
 
-- [Kardiologie](kardiologie.md) — Antihypertensiva, Antiarrhythmika, Antikoagulation
-- [Notfallmedizin](notfallmedizin.md) — Katecholamine, Narkotika, Reanimationsmedikamente
-- [Innere Medizin](innere-medizin.md) — Antidiabetika, Schilddrüsenhormone, Thyreostatika
-- [Pneumologie](pneumologie.md) — Asthma-/COPD-Medikamente (β₂-Sympathomimetika, ICS, Anticholinergika)
-- [Gastroenterologie](gastroenterologie.md) — PPI, Antibiotika (H. pylori-Eradikation), Immunsuppressiva (CED)
-- [Neurologie](neurologie.md) — Antiepileptika, Parkinson-Therapie, Antidementiva, Migräneprophylaxe
-- [Psychiatrie](psychiatrie.md) — Psychopharmaka (Antidepressiva, Neuroleptika, Stimmungsstabilisierer)
-- [Orthopädie](orthopaedie.md) — NSAR, Bisphosphonate, Opioide, Muskelrelaxanzien
-- [Anästhesie](anaesthesie.md) — Narkotika, Muskelrelaxanzien, Opioide, Lokalanästhetika
-- [Infektiologie](infektiologie.md) — Antibiotika (Resistenzmechanismen, antiretrovirale Therapie)
-- [Pädiatrie](paediatrie.md) — Kinderdosierungen, Impfstoffe, Notfallmedikamente
+- [[kardiologie|Kardiologie]] — Antihypertensiva, Antiarrhythmika, Antikoagulation
+- [[notfallmedizin|Notfallmedizin]] — Katecholamine, Narkotika, Reanimationsmedikamente
+- [[innere-medizin|Innere Medizin]] — Antidiabetika, Schilddrüsenhormone, Thyreostatika
+- [[pneumologie|Pneumologie]] — Asthma-/COPD-Medikamente (β₂-Sympathomimetika, ICS, Anticholinergika)
+- [[gastroenterologie|Gastroenterologie]] — PPI, Antibiotika (H. pylori-Eradikation), Immunsuppressiva (CED)
+- [[neurologie|Neurologie]] — Antiepileptika, Parkinson-Therapie, Antidementiva, Migräneprophylaxe
+- [[psychiatrie|Psychiatrie]] — Psychopharmaka (Antidepressiva, Neuroleptika, Stimmungsstabilisierer)
+- [[orthopaedie|Orthopädie]] — NSAR, Bisphosphonate, Opioide, Muskelrelaxanzien
+- [[anaesthesie|Anästhesie]] — Narkotika, Muskelrelaxanzien, Opioide, Lokalanästhetika
+- [[infektiologie|Infektiologie]] — Antibiotika (Resistenzmechanismen, antiretrovirale Therapie)
+- [[paediatrie|Pädiatrie]] — Kinderdosierungen, Impfstoffe, Notfallmedikamente

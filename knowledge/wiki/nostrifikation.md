@@ -33,11 +33,11 @@ A practical-oral examination administered by the medical university in the appli
 Once the Nostrifikation is granted:
 
 1. **Austrian Medical License (Ärztliches Diplom)** — enables application for the **Kenntnisprüfung (KP)**
-2. **Kenntnisprüfung** — knowledge examination covering the full medical curriculum (see [KP Vorbereitung](sources/kp-vorbereitung-amboss.md))
+2. **Kenntnisprüfung** — knowledge examination covering the full medical curriculum (see [[sources/kp-vorbereitung-amboss|KP Vorbereitung]])
 3. If KP is passed → **turnusärztliche Tätigkeit** (residency) in Austria
 4. After residency → **Fachärztliche Prüfung** (board certification) in chosen specialty
 
 ## Related Pages
 
-- [Austria Medical Licensing](sources/austria-medical-licensing.md)
-- [KP Vorbereitung — Amboss Zusammenfassung](sources/kp-vorbereitung-amboss.md)
+- [[sources/austria-medical-licensing|Austria Medical Licensing]]
+- [[sources/kp-vorbereitung-amboss|KP Vorbereitung — Amboss Zusammenfassung]]

@@ -58,8 +58,8 @@ related:
 
 ## Related Pages
 
-- [Urologie](urologie.md) — Harnwegsinfekte in der Schwangerschaft
-- [Innere Medizin](innere-medizin.md) — Diabetes, Schilddrüse (Schwangerschaft)
-- [Pharmakologie](pharmakologie.md) — Hormonpräparate, Zytostatika, Antihypertensiva
-- [Chirurgie](chirurgie.md) — Akutes Abdomen (ektopische Ruptur, Ovarialtorsion)
-- [Diagnostik](diagnostik.md) — Sonographie, Mammographie, MRT
+- [[urologie|Urologie]] — Harnwegsinfekte in der Schwangerschaft
+- [[innere-medizin|Innere Medizin]] — Diabetes, Schilddrüse (Schwangerschaft)
+- [[pharmakologie|Pharmakologie]] — Hormonpräparate, Zytostatika, Antihypertensiva
+- [[chirurgie|Chirurgie]] — Akutes Abdomen (ektopische Ruptur, Ovarialtorsion)
+- [[diagnostik|Diagnostik]] — Sonographie, Mammographie, MRT

@@ -55,8 +55,8 @@ related:
 
 ## Related Pages
 
-- [Gynäkologie](gynaekologie.md) — Harnwegsinfekte in der Schwangerschaft
-- [Innere Medizin](innere-medizin.md) — Niereninsuffizienz, Nierenersatztherapie
-- [Diagnostik](diagnostik.md) — CT low-dose, Sonographie, PSA, Urindiagnostik
-- [Pharmakologie](pharmakologie.md) — Antibiotika, α-Blocker, Zytostatika
-- [Chirurgie](chirurgie.md) — Akutes Abdomen (DD Nierenkolik)
+- [[gynaekologie|Gynäkologie]] — Harnwegsinfekte in der Schwangerschaft
+- [[innere-medizin|Innere Medizin]] — Niereninsuffizienz, Nierenersatztherapie
+- [[diagnostik|Diagnostik]] — CT low-dose, Sonographie, PSA, Urindiagnostik
+- [[pharmakologie|Pharmakologie]] — Antibiotika, α-Blocker, Zytostatika
+- [[chirurgie|Chirurgie]] — Akutes Abdomen (DD Nierenkolik)

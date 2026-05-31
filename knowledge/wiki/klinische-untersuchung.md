@@ -63,8 +63,8 @@ related:
 
 ## Related Pages
 
-- [Diagnostik](diagnostik.md) — Ergänzende Bildgebung, EKG, Labor
-- [Pneumologie](pneumologie.md) — Lungenfunktion, BGA, Röntgen Thorax-Befunde
-- [Kardiologie](kardiologie.md) — Herztöne, Vitien-Auskultation, EKG-Befunde
-- [Neurologie](neurologie.md) — Reflexe, Hirnnerven, Lokalisationsdiagnostik
-- [Orthopädie](orthopaedie.md) — Gelenkstatus, Wirbelsäulenuntersuchung, Meniskuszeichen
+- [[diagnostik|Diagnostik]] — Ergänzende Bildgebung, EKG, Labor
+- [[pneumologie|Pneumologie]] — Lungenfunktion, BGA, Röntgen Thorax-Befunde
+- [[kardiologie|Kardiologie]] — Herztöne, Vitien-Auskultation, EKG-Befunde
+- [[neurologie|Neurologie]] — Reflexe, Hirnnerven, Lokalisationsdiagnostik
+- [[orthopaedie|Orthopädie]] — Gelenkstatus, Wirbelsäulenuntersuchung, Meniskuszeichen

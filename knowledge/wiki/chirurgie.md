@@ -63,12 +63,12 @@ related:
 
 ## Related Pages
 
-- [Gastroenterologie](gastroenterologie.md) — Akutes Abdomen (DD), Cholelithiasis, GI-Blutung
-- [Notfallmedizin](notfallmedizin.md) — Trauma, Schock, Reanimation
-- [Orthopädie](orthopaedie.md) — Frakturen (Klassifikation, Heilung)
-- [Pharmakologie](pharmakologie.md) — Antibiotika (perioperativ), Analgetika, Antikoagulation
-- [Anästhesie](anaesthesie.md) — Narkose, perioperatives Management, Regionalanästhesie
-- [Urologie](urologie.md) — Urologische Notfälle, Nierenkolik (DD akutes Abdomen)
-- [Gynäkologie](gynaekologie.md) — Ektopische Ruptur, Ovarialtorsion (DD akutes Abdomen)
-- [Hygiene](hygiene.md) — Wundinfektion, perioperative Antibiotikaprophylaxe, Händehygiene
-- [Klinische Untersuchung](klinische-untersuchung.md) — Abdomenuntersuchung, Wundbeurteilung
+- [[gastroenterologie|Gastroenterologie]] — Akutes Abdomen (DD), Cholelithiasis, GI-Blutung
+- [[notfallmedizin|Notfallmedizin]] — Trauma, Schock, Reanimation
+- [[orthopaedie|Orthopädie]] — Frakturen (Klassifikation, Heilung)
+- [[pharmakologie|Pharmakologie]] — Antibiotika (perioperativ), Analgetika, Antikoagulation
+- [[anaesthesie|Anästhesie]] — Narkose, perioperatives Management, Regionalanästhesie
+- [[urologie|Urologie]] — Urologische Notfälle, Nierenkolik (DD akutes Abdomen)
+- [[gynaekologie|Gynäkologie]] — Ektopische Ruptur, Ovarialtorsion (DD akutes Abdomen)
+- [[hygiene|Hygiene]] — Wundinfektion, perioperative Antibiotikaprophylaxe, Händehygiene
+- [[klinische-untersuchung|Klinische Untersuchung]] — Abdomenuntersuchung, Wundbeurteilung

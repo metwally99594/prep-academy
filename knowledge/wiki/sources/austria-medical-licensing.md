@@ -24,4 +24,4 @@ Three key facts about medical degree recognition in Austria:
 
 ## Related Pages
 
-- [Nostrifikation](../nostrifikation.md)
+- [[nostrifikation|Nostrifikation]]

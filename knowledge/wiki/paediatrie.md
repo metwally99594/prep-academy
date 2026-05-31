@@ -57,8 +57,8 @@ related:
 
 ## Related Pages
 
-- [Infektiologie](infektiologie.md) — Impfungen, Impfkalender, Kinderinfektionskrankheiten
-- [Pneumologie](pneumologie.md) — Asthma bronchiale (Kindesalter), Bronchiolitis
-- [Notfallmedizin](notfallmedizin.md) — Fieberkrampf, Pseudokrupp, Kindernotfälle
-- [Diagnostik](diagnostik.md) — Ultraschall Hüfte, pädiatrische Bildgebung
-- [Pharmakologie](pharmakologie.md) — Antibiotika, Kortikosteroide, Impfstoffe
+- [[infektiologie|Infektiologie]] — Impfungen, Impfkalender, Kinderinfektionskrankheiten
+- [[pneumologie|Pneumologie]] — Asthma bronchiale (Kindesalter), Bronchiolitis
+- [[notfallmedizin|Notfallmedizin]] — Fieberkrampf, Pseudokrupp, Kindernotfälle
+- [[diagnostik|Diagnostik]] — Ultraschall Hüfte, pädiatrische Bildgebung
+- [[pharmakologie|Pharmakologie]] — Antibiotika, Kortikosteroide, Impfstoffe

@@ -64,13 +64,13 @@ related:
 
 ## Related Pages
 
-- [Kardiologie](kardiologie.md) — Akutes Koronarsyndrom, Herzinsuffizienz, Reanimation
-- [Pneumologie](pneumologie.md) — Asthma, COPD, Lungenembolie, Pneumonie
-- [Neurologie](neurologie.md) — Schlaganfall, Meningitis, Krampfanfall
-- [Chirurgie](chirurgie.md) — Akutes Abdomen, Trauma
-- [Orthopädie](orthopaedie.md) — Polytrauma, Frakturen, Wirbelsäulenverletzung
-- [Anästhesie](anaesthesie.md) — Atemwegsmanagement, Intubation, Beatmung, Narkose
-- [Pharmakologie](pharmakologie.md) — Katecholamine, Opioide, Narkotika, Antidota
-- [Infektiologie](infektiologie.md) — Sepsis, Meningitis, (antibiotische) Notfalltherapie
-- [Pädiatrie](paediatrie.md) — Kindernotfälle (Fieberkrampf, Pseudokrupp, Bronchiolitis)
-- [Rechtsmedizin](rechtsmedizin.md) — Todesfeststellung, Hirntoddiagnostik, Spurensicherung
+- [[kardiologie|Kardiologie]] — Akutes Koronarsyndrom, Herzinsuffizienz, Reanimation
+- [[pneumologie|Pneumologie]] — Asthma, COPD, Lungenembolie, Pneumonie
+- [[neurologie|Neurologie]] — Schlaganfall, Meningitis, Krampfanfall
+- [[chirurgie|Chirurgie]] — Akutes Abdomen, Trauma
+- [[orthopaedie|Orthopädie]] — Polytrauma, Frakturen, Wirbelsäulenverletzung
+- [[anaesthesie|Anästhesie]] — Atemwegsmanagement, Intubation, Beatmung, Narkose
+- [[pharmakologie|Pharmakologie]] — Katecholamine, Opioide, Narkotika, Antidota
+- [[infektiologie|Infektiologie]] — Sepsis, Meningitis, (antibiotische) Notfalltherapie
+- [[paediatrie|Pädiatrie]] — Kindernotfälle (Fieberkrampf, Pseudokrupp, Bronchiolitis)
+- [[rechtsmedizin|Rechtsmedizin]] — Todesfeststellung, Hirntoddiagnostik, Spurensicherung

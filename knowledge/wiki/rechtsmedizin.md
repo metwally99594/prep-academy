@@ -44,7 +44,7 @@ related:
 
 ## Related Pages
 
-- [Notfallmedizin](notfallmedizin.md) — Reanimation, Intoxikation, Polytrauma
-- [Hygiene](hygiene.md) — Desinfektion, Sterilisation
-- [Diagnostik](diagnostik.md) — Bildgebung (Altersbestimmung Frakturen), Toxikologie, CO-Hb
-- [Pharmakologie](pharmakologie.md) — Intoxikationen (Paracetamol, ASS, Benzodiazepin-Antagonisten, Opioid-Antagonisten)
+- [[notfallmedizin|Notfallmedizin]] — Reanimation, Intoxikation, Polytrauma
+- [[hygiene|Hygiene]] — Desinfektion, Sterilisation
+- [[diagnostik|Diagnostik]] — Bildgebung (Altersbestimmung Frakturen), Toxikologie, CO-Hb
+- [[pharmakologie|Pharmakologie]] — Intoxikationen (Paracetamol, ASS, Benzodiazepin-Antagonisten, Opioid-Antagonisten)

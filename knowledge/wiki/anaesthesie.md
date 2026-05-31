@@ -61,7 +61,7 @@ related:
 
 ## Related Pages
 
-- [Notfallmedizin](notfallmedizin.md) — Atemwegsmanagement, Reanimation, Schock, Intubation
-- [Pharmakologie](pharmakologie.md) — Opioide, Lokalanästhetika, Narkotika, Muskelrelaxanzien, Antagonisten
-- [Chirurgie](chirurgie.md) — Perioperatives Management, Wundheilung
-- [Pädiatrie](paediatrie.md) — Kindernarkose, kindliche Atemwege
+- [[notfallmedizin|Notfallmedizin]] — Atemwegsmanagement, Reanimation, Schock, Intubation
+- [[pharmakologie|Pharmakologie]] — Opioide, Lokalanästhetika, Narkotika, Muskelrelaxanzien, Antagonisten
+- [[chirurgie|Chirurgie]] — Perioperatives Management, Wundheilung
+- [[paediatrie|Pädiatrie]] — Kindernarkose, kindliche Atemwege

@@ -78,11 +78,11 @@ related:
 
 ## Related Pages
 
-- [Pharmakologie](pharmakologie.md) — Antidiabetika, Schilddrüsenhormone, Thyreostatika, Kortikosteroide
-- [Gastroenterologie](gastroenterologie.md) — Hepatorenales Syndrom, Leberwerte
-- [Kardiologie](kardiologie.md) — Hypertonie, KHK (diabetische Komorbidität)
-- [Diagnostik](diagnostik.md) — Labormedizin, Blutgasanalyse, EKG, oGTT, HbA1c
-- [Neurologie](neurologie.md) — Diabetische Polyneuropathie, Apoplex (zerebrale Komplikation)
-- [Urologie](urologie.md) — Nierensteine, Nierenersatztherapie bei terminaler Niereninsuffizienz
-- [Prävention](praevention.md) — Screening-Untersuchungen, Diabetes-Prävention, Impfungen
-- [Klinische Untersuchung](klinische-untersuchung.md) — Schilddrüsenpalpation, Gefäßstatus, Fußuntersuchung (diabetischer Fuß)
+- [[pharmakologie|Pharmakologie]] — Antidiabetika, Schilddrüsenhormone, Thyreostatika, Kortikosteroide
+- [[gastroenterologie|Gastroenterologie]] — Hepatorenales Syndrom, Leberwerte
+- [[kardiologie|Kardiologie]] — Hypertonie, KHK (diabetische Komorbidität)
+- [[diagnostik|Diagnostik]] — Labormedizin, Blutgasanalyse, EKG, oGTT, HbA1c
+- [[neurologie|Neurologie]] — Diabetische Polyneuropathie, Apoplex (zerebrale Komplikation)
+- [[urologie|Urologie]] — Nierensteine, Nierenersatztherapie bei terminaler Niereninsuffizienz
+- [[praevention|Prävention]] — Screening-Untersuchungen, Diabetes-Prävention, Impfungen
+- [[klinische-untersuchung|Klinische Untersuchung]] — Schilddrüsenpalpation, Gefäßstatus, Fußuntersuchung (diabetischer Fuß)

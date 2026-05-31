@@ -60,7 +60,7 @@ related:
 
 ## Related Pages
 
-- [Pharmakologie](pharmakologie.md) — Psychopharmaka, Analgetika (Koanalgetika)
-- [Neurologie](neurologie.md) — Demenz (DD Depression → Pseudodemenz), Parkinson (NW Neuroleptika → EPS)
-- [Notfallmedizin](notfallmedizin.md) — Suizidalität, Intoxikation, Delir
-- [Innere Medizin](innere-medizin.md) — Schilddrüsenfunktion (DD Angst/Depression)
+- [[pharmakologie|Pharmakologie]] — Psychopharmaka, Analgetika (Koanalgetika)
+- [[neurologie|Neurologie]] — Demenz (DD Depression → Pseudodemenz), Parkinson (NW Neuroleptika → EPS)
+- [[notfallmedizin|Notfallmedizin]] — Suizidalität, Intoxikation, Delir
+- [[innere-medizin|Innere Medizin]] — Schilddrüsenfunktion (DD Angst/Depression)

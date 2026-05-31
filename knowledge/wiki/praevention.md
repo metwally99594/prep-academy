@@ -47,7 +47,7 @@ related:
 | **Herpes zoster** | >50 Jahre | Totimpfstoff (2 Dosen, ≥2 Monate Abstand) |
 | **COVID-19** | Alle >5 Jahre, Indikations- und Altersgruppen priorisiert | Jährlich (an new variant angepasst) |
 
-**Impfplan für Kinder**: Siehe [Pädiatrie — Impfungen](paediatrie.md)
+**Impfplan für Kinder**: Siehe [[paediatrie|Pädiatrie — Impfungen]]
 
 ## Umweltmedizin
 
@@ -63,8 +63,8 @@ related:
 
 ## Related Pages
 
-- [Pädiatrie](paediatrie.md) — Impfkalender für Kinder und Jugendliche
-- [Dermatologie](dermatologie.md) — Hautkrebs (UV-Schutz, Sonnenschutz)
-- [Pneumologie](pneumologie.md) — Lungenkrebs (Asbest, Radon), COPD (Rauchen), Asthma (Schimmel, Allergene)
-- [Gynäkologie](gynaekologie.md) — Mammographie-Screening, Zervixkarzinom-Screening (PAP, HPV)
-- [Infektiologie](infektiologie.md) — Impfungen, nosokomiale Infektionen
+- [[paediatrie|Pädiatrie]] — Impfkalender für Kinder und Jugendliche
+- [[dermatologie|Dermatologie]] — Hautkrebs (UV-Schutz, Sonnenschutz)
+- [[pneumologie|Pneumologie]] — Lungenkrebs (Asbest, Radon), COPD (Rauchen), Asthma (Schimmel, Allergene)
+- [[gynaekologie|Gynäkologie]] — Mammographie-Screening, Zervixkarzinom-Screening (PAP, HPV)
+- [[infektiologie|Infektiologie]] — Impfungen, nosokomiale Infektionen
