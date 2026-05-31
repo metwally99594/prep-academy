@@ -1,3 +1,20 @@
+---
+type: specialty
+title: Gynäkologie
+specialty: [gynaekologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/gynaekologie, exam/kp, status/stable]
+related:
+- '[[urologie]]'
+- '[[innere-medizin]]'
+- '[[pharmakologie]]'
+- '[[chirurgie]]'
+- '[[diagnostik]]'
+---
+
 # Gynäkologie
 
 ## Schwangerschaft

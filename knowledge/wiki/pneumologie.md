@@ -1,3 +1,22 @@
+---
+type: specialty
+title: Pneumologie
+specialty: [pneumologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/pneumologie, exam/kp, status/stable]
+related:
+- '[[kardiologie]]'
+- '[[notfallmedizin]]'
+- '[[diagnostik]]'
+- '[[pharmakologie]]'
+- '[[infektiologie]]'
+- '[[anaesthesie]]'
+- '[[klinische-untersuchung]]'
+---
+
 # Pneumologie
 
 ## Asthma bronchiale

@@ -1,3 +1,19 @@
+---
+type: specialty
+title: Anästhesie
+specialty: [anaesthesie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/anaesthesie, exam/kp, status/stable]
+related:
+- '[[notfallmedizin]]'
+- '[[pharmakologie]]'
+- '[[chirurgie]]'
+- '[[paediatrie]]'
+---
+
 # Anästhesie
 
 ## Narkoseführung

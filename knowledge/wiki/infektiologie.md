@@ -1,3 +1,23 @@
+---
+type: specialty
+title: Infektiologie
+specialty: [infektiologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/infektiologie, exam/kp, status/stable]
+related:
+- '[[pneumologie]]'
+- '[[gastroenterologie]]'
+- '[[pharmakologie]]'
+- '[[paediatrie]]'
+- '[[hygiene]]'
+- '[[notfallmedizin]]'
+- '[[neurologie]]'
+- '[[diagnostik]]'
+---
+
 # Infektiologie
 
 ## HIV / AIDS

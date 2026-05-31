@@ -1,3 +1,23 @@
+---
+type: specialty
+title: Innere Medizin
+specialty: [innere-medizin]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/innere-medizin, exam/kp, status/stable]
+related:
+- '[[pharmakologie]]'
+- '[[gastroenterologie]]'
+- '[[kardiologie]]'
+- '[[diagnostik]]'
+- '[[neurologie]]'
+- '[[urologie]]'
+- '[[praevention]]'
+- '[[klinische-untersuchung]]'
+---
+
 # Innere Medizin
 
 ## Diabetes mellitus

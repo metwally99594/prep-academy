@@ -1,3 +1,13 @@
+---
+type: source
+title: Austria Medical Licensing
+status: stable
+last_reviewed: 2026-05-31
+tags: [type/source, source/aerzteg]
+related:
+- '[[nostrifikation]]'
+---
+
 # Austria Medical Licensing
 
 **Source:** `knowledge/raw/Austria_Medical_Licensing.txt`

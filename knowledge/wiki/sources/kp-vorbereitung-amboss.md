@@ -1,3 +1,35 @@
+---
+type: source
+title: KP Vorbereitung — Amboss Zusammenfassung
+status: stable
+last_reviewed: 2026-05-31
+tags: [type/source, source/amboss]
+related:
+- '[[pneumologie]]'
+- '[[kardiologie]]'
+- '[[gastroenterologie]]'
+- '[[innere-medizin]]'
+- '[[neurologie]]'
+- '[[notfallmedizin]]'
+- '[[chirurgie]]'
+- '[[orthopaedie]]'
+- '[[pharmakologie]]'
+- '[[diagnostik]]'
+- '[[paediatrie]]'
+- '[[psychiatrie]]'
+- '[[gynaekologie]]'
+- '[[urologie]]'
+- '[[hno]]'
+- '[[dermatologie]]'
+- '[[anaesthesie]]'
+- '[[infektiologie]]'
+- '[[hygiene]]'
+- '[[rechtsmedizin]]'
+- '[[klinische-untersuchung]]'
+- '[[biostatistik]]'
+- '[[praevention]]'
+---
+
 # KP Vorbereitung — Amboss Zusammenfassung
 
 **Source:** `knowledge/raw/Vorbereitung zur KP (Amboss-Zusammenfassung).pdf`

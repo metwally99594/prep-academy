@@ -1,3 +1,15 @@
+---
+type: licensing
+title: Nostrifikation — Medical Degree Recognition in Austria
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/licensing, exam/kp, status/stable]
+related:
+- '[[sources/austria-medical-licensing]]'
+- '[[sources/kp-vorbereitung-amboss]]'
+---
+
 # Nostrifikation — Medical Degree Recognition in Austria
 
 ## Overview

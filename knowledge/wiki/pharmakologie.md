@@ -1,3 +1,26 @@
+---
+type: specialty
+title: Pharmakologie
+specialty: [pharmakologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/pharmakologie, exam/kp, status/stable]
+related:
+- '[[kardiologie]]'
+- '[[notfallmedizin]]'
+- '[[innere-medizin]]'
+- '[[pneumologie]]'
+- '[[gastroenterologie]]'
+- '[[neurologie]]'
+- '[[psychiatrie]]'
+- '[[orthopaedie]]'
+- '[[anaesthesie]]'
+- '[[infektiologie]]'
+- '[[paediatrie]]'
+---
+
 # Pharmakologie
 
 ## Vegetatives Nervensystem

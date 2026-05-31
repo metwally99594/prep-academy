@@ -1,3 +1,25 @@
+---
+type: specialty
+title: Notfallmedizin
+specialty: [notfallmedizin]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/notfallmedizin, exam/kp, status/stable]
+related:
+- '[[kardiologie]]'
+- '[[pneumologie]]'
+- '[[neurologie]]'
+- '[[chirurgie]]'
+- '[[orthopaedie]]'
+- '[[anaesthesie]]'
+- '[[pharmakologie]]'
+- '[[infektiologie]]'
+- '[[paediatrie]]'
+- '[[rechtsmedizin]]'
+---
+
 # Notfallmedizin
 
 ## ABCDE-Schema (ATLS/PHTLS)

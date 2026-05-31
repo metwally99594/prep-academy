@@ -1,3 +1,18 @@
+---
+type: concept
+title: Klinische Untersuchung
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/concept, exam/kp, status/stable]
+related:
+- '[[diagnostik]]'
+- '[[pneumologie]]'
+- '[[kardiologie]]'
+- '[[neurologie]]'
+- '[[orthopaedie]]'
+---
+
 # Klinische Untersuchung
 
 ## Allgemeine Untersuchungstechniken

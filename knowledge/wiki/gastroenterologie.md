@@ -1,3 +1,22 @@
+---
+type: specialty
+title: Gastroenterologie
+specialty: [gastroenterologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/gastroenterologie, exam/kp, status/stable]
+related:
+- '[[innere-medizin]]'
+- '[[chirurgie]]'
+- '[[diagnostik]]'
+- '[[pharmakologie]]'
+- '[[notfallmedizin]]'
+- '[[infektiologie]]'
+- '[[klinische-untersuchung]]'
+---
+
 # Gastroenterologie
 
 ## Gastroösophageale Refluxkrankheit (GERD)

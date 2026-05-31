@@ -1,3 +1,22 @@
+---
+type: specialty
+title: Neurologie
+specialty: [neurologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/neurologie, exam/kp, status/stable]
+related:
+- '[[notfallmedizin]]'
+- '[[chirurgie]]'
+- '[[diagnostik]]'
+- '[[pharmakologie]]'
+- '[[kardiologie]]'
+- '[[innere-medizin]]'
+- '[[klinische-untersuchung]]'
+---
+
 # Neurologie
 
 ## Schlaganfall (Apoplex/Apoplexia cerebri)

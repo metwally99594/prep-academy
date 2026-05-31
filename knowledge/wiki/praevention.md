@@ -1,3 +1,18 @@
+---
+type: concept
+title: Prävention & Umweltmedizin
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/concept, exam/kp, status/stable]
+related:
+- '[[paediatrie]]'
+- '[[dermatologie]]'
+- '[[pneumologie]]'
+- '[[gynaekologie]]'
+- '[[infektiologie]]'
+---
+
 # Prävention & Umweltmedizin
 
 ## Präventionsstufen

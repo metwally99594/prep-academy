@@ -1,3 +1,19 @@
+---
+type: specialty
+title: Psychiatrie
+specialty: [psychiatrie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/psychiatrie, exam/kp, status/stable]
+related:
+- '[[pharmakologie]]'
+- '[[neurologie]]'
+- '[[notfallmedizin]]'
+- '[[innere-medizin]]'
+---
+
 # Psychiatrie
 
 ## Depression (Unipolare Depression)

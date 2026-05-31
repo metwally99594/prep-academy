@@ -1,3 +1,11 @@
+---
+type: index
+title: Prep Academy Knowledge Base
+status: stable
+last_reviewed: 2026-05-31
+tags: [type/index]
+---
+
 # Prep Academy Knowledge Base
 
 Curated medical knowledge for the Austrian **Kenntnisprüfung (KP)** and medical degree licensing.

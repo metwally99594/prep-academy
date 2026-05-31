@@ -1,3 +1,22 @@
+---
+type: specialty
+title: Orthopädie
+specialty: [orthopaedie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/orthopaedie, exam/kp, status/stable]
+related:
+- '[[notfallmedizin]]'
+- '[[chirurgie]]'
+- '[[diagnostik]]'
+- '[[pharmakologie]]'
+- '[[neurologie]]'
+- '[[klinische-untersuchung]]'
+- '[[praevention]]'
+---
+
 # Orthopädie
 
 ## Frakturen

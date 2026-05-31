@@ -1,3 +1,19 @@
+---
+type: specialty
+title: Rechtsmedizin
+specialty: [rechtsmedizin]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/rechtsmedizin, exam/kp, status/stable]
+related:
+- '[[notfallmedizin]]'
+- '[[hygiene]]'
+- '[[diagnostik]]'
+- '[[pharmakologie]]'
+---
+
 # Rechtsmedizin
 
 ## Todesfeststellung

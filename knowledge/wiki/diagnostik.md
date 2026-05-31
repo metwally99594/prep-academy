@@ -1,3 +1,24 @@
+---
+type: concept
+title: Diagnostik
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/concept, exam/kp, status/stable]
+related:
+- '[[kardiologie]]'
+- '[[pneumologie]]'
+- '[[neurologie]]'
+- '[[notfallmedizin]]'
+- '[[gastroenterologie]]'
+- '[[orthopaedie]]'
+- '[[urologie]]'
+- '[[infektiologie]]'
+- '[[gynaekologie]]'
+- '[[klinische-untersuchung]]'
+- '[[biostatistik]]'
+---
+
 # Diagnostik
 
 ## Bildgebung

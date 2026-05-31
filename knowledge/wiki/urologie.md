@@ -1,3 +1,20 @@
+---
+type: specialty
+title: Urologie
+specialty: [urologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/urologie, exam/kp, status/stable]
+related:
+- '[[gynaekologie]]'
+- '[[innere-medizin]]'
+- '[[diagnostik]]'
+- '[[pharmakologie]]'
+- '[[chirurgie]]'
+---
+
 # Urologie
 
 ## Nierensteine (Nephrolithiasis)

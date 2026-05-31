@@ -1,3 +1,20 @@
+---
+type: specialty
+title: Hals-Nasen-Ohren-Heilkunde (HNO)
+specialty: [hno]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/hno, exam/kp, status/stable]
+related:
+- '[[pneumologie]]'
+- '[[paediatrie]]'
+- '[[neurologie]]'
+- '[[infektiologie]]'
+- '[[diagnostik]]'
+---
+
 # Hals-Nasen-Ohren-Heilkunde (HNO)
 
 ## Sinusitis

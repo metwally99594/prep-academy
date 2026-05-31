@@ -1,3 +1,24 @@
+---
+type: specialty
+title: Kardiologie
+specialty: [kardiologie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/kardiologie, exam/kp, status/stable]
+related:
+- '[[pneumologie]]'
+- '[[pharmakologie]]'
+- '[[notfallmedizin]]'
+- '[[diagnostik]]'
+- '[[innere-medizin]]'
+- '[[chirurgie]]'
+- '[[anaesthesie]]'
+- '[[praevention]]'
+- '[[klinische-untersuchung]]'
+---
+
 # Kardiologie
 
 ## Herzinsuffizienz

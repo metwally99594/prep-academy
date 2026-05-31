@@ -230,3 +230,62 @@ def test_get_page_malformed_frontmatter_falls_back(monkeypatch, tmp_path):
     assert page["properties"] == {}
     # Content falls back to raw (malformed YAML treated as no frontmatter)
     assert page["content"] == raw
+
+
+# ── Phase 3 invariant: all wiki pages have valid frontmatter ───────
+
+def test_all_wiki_pages_have_valid_frontmatter():
+    """Every page in the strict Phase 3 scope must have YAML frontmatter
+    with required fields (type, title, status, last_reviewed, tags) and
+    a `type` that matches the path-derived category."""
+    repo_root = Path(__file__).resolve().parents[2]
+    knowledge_root = repo_root / "knowledge"
+    wiki_dir = knowledge_root / "wiki"
+    index_md = knowledge_root / "index.md"
+
+    CONCEPT_NAMES = {"diagnostik", "biostatistik", "klinische-untersuchung", "praevention"}
+    LICENSING_NAMES = {"nostrifikation"}
+
+    def expected_category(filepath: Path) -> str:
+        rel = filepath.resolve().relative_to(knowledge_root.resolve()).as_posix()
+        stem = filepath.stem
+        if rel == "index.md":
+            return "index"
+        if rel.startswith("wiki/sources/"):
+            return "source"
+        if stem in LICENSING_NAMES:
+            return "licensing"
+        if stem in CONCEPT_NAMES:
+            return "concept"
+        return "specialty"
+
+    required_fields = ["type", "title", "status", "last_reviewed", "tags"]
+
+    files = (
+        sorted(wiki_dir.glob("*.md"))
+        + sorted((wiki_dir / "sources").glob("*.md"))
+        + [index_md]
+    )
+
+    failures = []
+    for f in files:
+        if not f.exists():
+            failures.append(f"{f}: file missing")
+            continue
+        raw = f.read_text(encoding="utf-8")
+        fm, _body = _strip_frontmatter(raw)
+        rel_name = f.resolve().relative_to(repo_root.resolve()).as_posix()
+        if not fm:
+            failures.append(f"{rel_name}: no frontmatter")
+            continue
+        for field in required_fields:
+            if field not in fm:
+                failures.append(f"{rel_name}: missing required field '{field}'")
+        expected = expected_category(f)
+        actual = fm.get("type")
+        if actual != expected:
+            failures.append(f"{rel_name}: type={actual!r} != expected {expected!r}")
+
+    assert not failures, (
+        "Frontmatter validation failures:\n  " + "\n  ".join(failures)
+    )

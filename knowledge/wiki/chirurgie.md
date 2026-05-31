@@ -1,3 +1,24 @@
+---
+type: specialty
+title: Chirurgie
+specialty: [chirurgie]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/chirurgie, exam/kp, status/stable]
+related:
+- '[[gastroenterologie]]'
+- '[[notfallmedizin]]'
+- '[[orthopaedie]]'
+- '[[pharmakologie]]'
+- '[[anaesthesie]]'
+- '[[urologie]]'
+- '[[gynaekologie]]'
+- '[[hygiene]]'
+- '[[klinische-untersuchung]]'
+---
+
 # Chirurgie
 
 ## Akutes Abdomen

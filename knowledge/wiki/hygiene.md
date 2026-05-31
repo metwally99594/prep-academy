@@ -1,3 +1,19 @@
+---
+type: specialty
+title: Hygiene
+specialty: [hygiene]
+exam_relevance: high
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/specialty, specialty/hygiene, exam/kp, status/stable]
+related:
+- '[[infektiologie]]'
+- '[[chirurgie]]'
+- '[[pharmakologie]]'
+- '[[paediatrie]]'
+---
+
 # Hygiene
 
 ## Krankenhaushygiene

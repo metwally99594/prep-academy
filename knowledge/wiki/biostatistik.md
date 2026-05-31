@@ -1,3 +1,16 @@
+---
+type: concept
+title: Biostatistik & Evidenzbasierte Medizin
+status: stable
+last_reviewed: 2026-05-31
+sources: []
+tags: [type/concept, exam/kp, status/stable]
+related:
+- '[[diagnostik]]'
+- '[[pharmakologie]]'
+- '[[hygiene]]'
+---
+
 # Biostatistik & Evidenzbasierte Medizin
 
 ## Studiendesigns
