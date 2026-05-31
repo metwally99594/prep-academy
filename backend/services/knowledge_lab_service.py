@@ -155,6 +155,113 @@ def _extract_sources(raw: str) -> list:
 
 # ── Search index ──────────────────────────────────────────────────
 
+_STOPWORDS = frozenset([
+    "welche", "hat", "was", "sind", "ist", "die", "der", "das",
+    "ein", "eine", "bei", "mit", "von", "für", "und", "oder",
+    "wie", "wird", "dem", "den", "des", "auch", "nicht", "werden",
+    "haben", "sein", "durch", "auf", "aus", "nach", "vor", "bis",
+    "zum", "zur", "ins", "im", "am", "ans", "dass", "diese", "dieser",
+    "dieses", "einen", "einer", "einem", "keine", "keinen", "keinem",
+    "ihre", "ihrer", "ihren", "seinem", "seiner", "seinen", "seine",
+    "sich", "ihn", "ihm", "uns", "euch", "ab", "an", "da", "dazu",
+    "dann", "daran", "darauf", "darin", "darüber", "danach",
+])
+
+_DISEASE_SPECIALTY = {
+    "parkinson": "neurologie",
+    "schlaganfall": "neurologie",
+    "apoplex": "neurologie",
+    "demenz": "neurologie",
+    "alzheimer": "neurologie",
+    "epilepsie": "neurologie",
+    "meningitis": "neurologie",
+    "multiple": "neurologie",
+    "sklerose": "neurologie",
+    "demyelinisierend": "neurologie",
+    "hypertonie": "kardiologie",
+    "bluthochdruck": "kardiologie",
+    "herzinsuffizienz": "kardiologie",
+    "vorhofflimmern": "kardiologie",
+    "stemi": "kardiologie",
+    "nstemi": "kardiologie",
+    "myokardinfarkt": "kardiologie",
+    "herz": "kardiologie",
+    "kardiologie": "kardiologie",
+    "cor": "kardiologie",
+    "copd": "pneumologie",
+    "asthma": "pneumologie",
+    "pneumonie": "pneumologie",
+    "lunge": "pneumologie",
+    "atemnot": "pneumologie",
+    "tuberkulose": "pneumologie",
+    "diabetes": "innere-medizin",
+    "diabetisch": "innere-medizin",
+    "schilddrüse": "innere-medizin",
+    "thyreoidea": "innere-medizin",
+    "osteoporose": "innere-medizin",
+    "osteopenie": "innere-medizin",
+    "gicht": "innere-medizin",
+    "rheuma": "innere-medizin",
+    "anämie": "innere-medizin",
+    "gastroenterologie": "gastroenterologie",
+    "gastro": "gastroenterologie",
+    "reflux": "gastroenterologie",
+    "ulkus": "gastroenterologie",
+    "leber": "gastroenterologie",
+    "pankreas": "gastroenterologie",
+    "colitis": "gastroenterologie",
+    "crohn": "gastroenterologie",
+    "depression": "psychiatrie",
+    "depressiv": "psychiatrie",
+    "schizophrenie": "psychiatrie",
+    "psychose": "psychiatrie",
+    "sucht": "psychiatrie",
+    "fraktur": "orthopaedie",
+    "osteosynthese": "orthopaedie",
+    "bandscheibe": "orthopaedie",
+    "wirbel": "orthopaedie",
+    "gynäkologie": "gynaekologie",
+    "schwangerschaft": "gynaekologie",
+    "prostata": "urologie",
+    "niere": "urologie",
+    "nieren": "urologie",
+    "harn": "urologie",
+    "hno": "hno",
+    "hals": "hno",
+    "nase": "hno",
+    "ohr": "hno",
+    "haut": "dermatologie",
+    "dermatologie": "dermatologie",
+    "ausschlag": "dermatologie",
+    "ekzem": "dermatologie",
+}
+
+_MEDICAL_PHRASES = [
+    "morbus parkinson",
+    "morbus alzheimer",
+    "morbus crohn",
+    "multiple sklerose",
+    "multiplen sklerose",
+    "multipler sklerose",
+    "arterielle hypertonie",
+    "arteriellen hypertonie",
+    "diabetes mellitus",
+    "chronisch obstruktive lungenerkrankung",
+    "koronare herzkrankheit",
+    "periphere arterielle verschlusskrankheit",
+    "colitis ulcerosa",
+    "ulcus ventriculi",
+    "benignes prostatasyndrom",
+    "systemischer lupus erythematodes",
+    "akutes koronarsyndrom",
+    "tiefe beinvenenthrombose",
+    "lungenembolie",
+    "niereninsuffizienz",
+    "leberzirrhose",
+    "vorhofflimmern",
+]
+
+
 def _check_stale():
     """Return True if the cache is stale based on wiki dir mtime."""
     wiki = _get_wiki_path()
@@ -164,7 +271,7 @@ def _check_stale():
         (p.stat().st_mtime for p in wiki.rglob("*.md")),
         default=0,
     )
-    return current > _INDEX_MTIME + 0.01  # small tolerance
+    return current > _INDEX_MTIME + 0.01
 
 
 def build_index(force=False):
@@ -186,6 +293,7 @@ def build_index(force=False):
             "title_lower": meta["title"].lower(),
             "content": content_lower,
             "raw_snippet": page_data.get("content", ""),
+            "headings": _extract_headings(content_lower),
             "category": meta["category"],
             "word_count": page_data.get("word_count", 0),
         })
@@ -199,40 +307,132 @@ def build_index(force=False):
     return _INDEX_CACHE
 
 
+def _extract_headings(content_lower: str) -> list:
+    """Extract all markdown heading lines for heading-bonus scoring."""
+    headings = []
+    for line in content_lower.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("##") or stripped.startswith("# "):
+            headings.append(stripped)
+    return headings
+
+
 def search(query: str, limit: int = 20):
-    """Full-text keyword search over the index. Returns scored results."""
+    """Full-text keyword search with relevance improvements:
+    - Stopword filtering
+    - Multi-word medical phrase detection (big bonus)
+    - Disease-to-specialty biasing (relevant specialty gets major boost)
+    - Title boosting for meaningful tokens
+    - Heading-occurrence bonus
+    - Early-occurrence bonus
+    """
     if not query or not query.strip():
         return []
 
     index = build_index()
-    tokens = re.findall(r"[a-zA-ZäöüßÄÖÜ0-9\-]+", query.lower())
+    q_lower = query.lower()
+
+    # 1. Tokenize and filter stopwords
+    all_tokens = re.findall(r"[a-zA-ZäöüßÄÖÜ0-9\-]+", q_lower)
+    tokens = [t for t in all_tokens if t not in _STOPWORDS]
+    if not tokens:
+        tokens = all_tokens  # fallback: use all if everything was stopped
+
+    # 2. Detect medical phrases in query
+    detected_phrases = [p for p in _MEDICAL_PHRASES if p in q_lower]
+
+    # 3. Determine which specialties to boost based on medical terms in query
+    boost_specialties = set()
+    for token in tokens:
+        if token in _DISEASE_SPECIALTY:
+            boost_specialties.add(_DISEASE_SPECIALTY[token])
+        else:
+            # German compound word handling: e.g. "nierensteine" -> "niere"
+            for term, specialty in _DISEASE_SPECIALTY.items():
+                if len(term) >= 4 and term in token:
+                    boost_specialties.add(specialty)
+    for phrase in detected_phrases:
+        if phrase in _DISEASE_SPECIALTY:
+            boost_specialties.add(_DISEASE_SPECIALTY[phrase])
+            for pt in phrase.split():
+                if pt in _DISEASE_SPECIALTY:
+                    boost_specialties.add(_DISEASE_SPECIALTY[pt])
 
     scored = []
     for page in index:
         score = 0
         matched_tokens = set()
+        content = page["content"]
+        title_lower = page["title_lower"]
+
+        # Title boosting — meaningful tokens in title get 20 each
         for token in tokens:
-            if token in page["title_lower"]:
-                score += 10
+            if token in title_lower:
+                score += 20
                 matched_tokens.add(token)
-            count = page["content"].count(token)
+
+        # Content token frequency (meaningful tokens only)
+        for token in tokens:
+            count = content.count(token)
             if count:
-                score += count * 2
+                token_score = count * 2
+                # Boost known medical terms in content
+                if token in _DISEASE_SPECIALTY:
+                    token_score += count * 2  # double score for medical terms
+                score += token_score
                 matched_tokens.add(token)
+
+        # Phrase bonus — big boost when full multi-word disease name is found
+        for phrase in detected_phrases:
+            phrase_count = content.count(phrase)
+            if phrase_count:
+                phrase_words = len(phrase.split())
+                phrase_bonus = phrase_count * 40 + phrase_words * 5
+                score += phrase_bonus
+
+        # Specialty relevance boost — exact slug match gets strong bonus
+        page_path = page["path"]
+        for specialty in boost_specialties:
+            if page_path == specialty:
+                score += 60
+            elif page_path.startswith(specialty) or specialty in page_path:
+                score += 30
+
+        # Heading bonus
+        for heading in page.get("headings", []):
+            for token in tokens:
+                if token in heading:
+                    score += 8
+                    break
+
+        # Early occurrence bonus
+        first_part = content[:max(300, len(content) // 3)]
+        for token in tokens:
+            if token in first_part:
+                score += 3
 
         if score > 0:
             snippet = _make_snippet(page["raw_snippet"], query, 150)
+            has_title_match = any(t in title_lower for t in tokens)
             scored.append({
-                "path": page["path"],
+                "path": page_path,
                 "title": page["title"],
                 "snippet": snippet,
                 "score": score,
                 "category": page["category"],
                 "word_count": page["word_count"],
                 "matched_tokens": len(matched_tokens),
+                "_title_match": has_title_match,
             })
 
-    scored.sort(key=lambda x: (-x["score"], -x["matched_tokens"]))
+    # Sort: highest score first
+    # Tiebreak: more matched tokens, then prefer pages with title match, then shorter pages
+    scored.sort(key=lambda x: (
+        -x["score"],
+        -x["matched_tokens"],
+        -int(x["_title_match"]),
+        x["word_count"],
+    ))
     return scored[:limit]
 
 
