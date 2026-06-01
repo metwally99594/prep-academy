@@ -8,7 +8,7 @@ const DOT_STYLES = [
 
 export default function ThinkingIndicator({ modelName }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" role="status" aria-live="polite">
       <div className="flex items-center gap-2 text-sm text-white/40">
         <span className="inline-flex gap-1">
           {DOT_STYLES.map((style, i) => (

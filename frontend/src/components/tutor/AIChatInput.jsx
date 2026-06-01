@@ -21,7 +21,7 @@ export default function AIChatInput({ input, loading, selectedLang, inputRef, me
           disabled={loading}
           dir={selectedLang === 'ar' ? 'rtl' : 'ltr'}
         />
-        <Button onClick={onSend} disabled={loading || !input.trim()}
+        <Button onClick={onSend} disabled={loading || !input.trim()} aria-label="Nachricht senden"
           className="border-0" style={{ background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: '#06081a' }}>
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </Button>

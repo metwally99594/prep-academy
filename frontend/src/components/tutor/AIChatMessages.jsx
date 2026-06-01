@@ -4,7 +4,7 @@ import AIChatMessageBubble from "./AIChatMessageBubble";
 import ThinkingIndicator from "./ThinkingIndicator";
 
 export default function AIChatMessages({
-  messages, loading, loadingPhase, selectedModel, selectedLang, currentModel, scrollRef,
+  messages, loading, selectedModel, selectedLang, currentModel, scrollRef,
   onPageViewerOpen, onLightboxOpen,
 }) {
   return (

@@ -415,7 +415,6 @@ export default function useAIChat({ question, isOpen, onClose }) {
     onLangPickerToggle: toggleLangPicker,
     onSpecialtyPickerToggle: toggleSpecialtyPicker,
     onChapterPickerToggle: toggleChapterPicker,
-    onClosePicker: closeAllPickers,
   };
 
   const messagesProps = {

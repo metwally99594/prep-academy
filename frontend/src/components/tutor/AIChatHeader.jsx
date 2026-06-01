@@ -10,7 +10,7 @@ export default function AIChatHeader({
   selectedModel, selectedLang, selectedSpecialty, selectedChapter,
   chapters, specialties,
   showModelPicker, showLangPicker, showSpecialtyPicker, showChapterPicker,
-  sidebarOpen, conversationId,
+  sidebarOpen,
   onModelSelect, onLangSelect, onSpecialtySelect, onChapterSelect,
   onToggleSidebar, onNewConversation, onClose,
   onModelPickerToggle, onLangPickerToggle, onSpecialtyPickerToggle, onChapterPickerToggle,
