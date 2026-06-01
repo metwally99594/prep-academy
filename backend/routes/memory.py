@@ -14,11 +14,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
+from slowapi.errors import RateLimitExceeded
 
 from database import db
 from auth import get_current_user
+from limiter import limiter
 from tracker import get_weakness_summary, get_review_queue
 
 logger = logging.getLogger(__name__)
@@ -31,13 +33,16 @@ class ReviewStartRequest(BaseModel):
 
 
 @router.get("/me/weakness-summary")
-async def weakness_summary_endpoint(user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute;200/hour")
+async def weakness_summary_endpoint(request: Request, user: dict = Depends(get_current_user)):
     """Top weaknesses + recent wrongs + per-specialty accuracy."""
     return await get_weakness_summary(db, user["id"], limit=10)
 
 
 @router.get("/me/review-queue")
+@limiter.limit("20/minute;100/hour")
 async def review_queue_endpoint(
+    request: Request,
     limit: int = Query(10, ge=1, le=20),
     user: dict = Depends(get_current_user),
 ):
@@ -46,7 +51,9 @@ async def review_queue_endpoint(
 
 
 @router.post("/review/start")
+@limiter.limit("10/minute;50/hour")
 async def review_start_endpoint(
+    request: Request,
     body: ReviewStartRequest,
     user: dict = Depends(get_current_user),
 ):
@@ -115,7 +122,8 @@ async def review_start_endpoint(
 
 
 @router.get("/tutor/context/memory")
-async def tutor_context_memory_endpoint(user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute;200/hour")
+async def tutor_context_memory_endpoint(request: Request, user: dict = Depends(get_current_user)):
     """Compact memory snapshot for the Tutor UI badge.
 
     The server-side Tutor prompt builder uses services.memory_context

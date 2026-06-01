@@ -12,9 +12,9 @@ except BaseException:
     _tb.print_exc()
     raise
 from starlette.responses import StreamingResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from limiter import limiter
 import os
 import json
 import re
@@ -22,6 +22,7 @@ from typing import List, Optional
 import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
+import random as _random
 import asyncio
 from pathlib import Path
 
@@ -69,9 +70,6 @@ from services.analyzer_prompts import (
 from services.image_segmentation import detect_anatomical_regions
 from services.findings_vocabulary import CATEGORY_KEYWORDS as _CATEGORY_KEYWORDS
 from services.knowledge_lab_service import search as _search_wiki_kb
-
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
 
 # Disable Swagger/OpenAPI in production for security
 _IS_PRODUCTION = os.environ.get("ENVIRONMENT", "production").lower() == "production"
@@ -1200,17 +1198,51 @@ async def get_quiz_questions(
     }
 
     if mode == "study":
-        # Study mode: return ALL questions for the specialty
         questions = await db.questions.find(query, project).to_list(5000)
-    else:
-        # Exam mode: random sample
+        return questions
+
+    # Exam mode: concept-aware prioritization when weakness profile exists
+    capped = min(limit, 200)
+    try:
+        from tracker import get_weak_specialty_priorities
+        priorities = await get_weak_specialty_priorities(db, user["id"], min_wrong_count=1)
+    except Exception:
+        priorities = []
+
+    if not priorities:
         pipeline = []
         if query:
             pipeline.append({"$match": query})
-        pipeline.append({"$sample": {"size": min(limit, 200)}})
+        pipeline.append({"$sample": {"size": capped}})
         pipeline.append({"$project": project})
-        questions = await db.questions.aggregate(pipeline).to_list(min(limit, 200))
-    
+        questions = await db.questions.aggregate(pipeline).to_list(capped)
+        return questions
+
+    weak_sids = [p["specialty_id"] for p in priorities]
+    tier1, tier2 = [], []
+
+    # Tier 1: concept-tag overlap within weak specialties
+    for priority in priorities:
+        sid = priority["specialty_id"]
+        concept_keys = priority["concept_keys"]
+        match = {**query, "specialty_id": sid, "tags": {"$in": concept_keys}}
+        cursor = db.questions.find(match, project).limit(capped)
+        docs = await cursor.to_list(capped)
+        _random.shuffle(docs)
+        tier1.extend(docs)
+
+    # Tier 2: remaining questions from weak specialties (no concept tag overlap)
+    seen_ids = {q["id"] for q in tier1}
+    for sid in weak_sids:
+        match = {**query, "specialty_id": sid, "id": {"$nin": list(seen_ids)}}
+        cursor = db.questions.find(match, project).limit(capped)
+        docs = await cursor.to_list(capped)
+        _random.shuffle(docs)
+        tier2.extend(docs)
+        seen_ids.update(q["id"] for q in docs)
+
+    # Combine tiers, preserve ordering: weakest specialty first
+    questions = (tier1 + tier2)[:capped]
     return questions
 
 @api_router.get("/questions/count")
@@ -4529,8 +4561,11 @@ Analysiere jede Option. Beende deine Antwort mit einem JSON-Block:
         # Memory of Mistakes Alpha-A: prepend personalised weakness context to the system prompt
         try:
             from services.memory_context import build_tutor_memory_prefix
-            memory_prefix = await build_tutor_memory_prefix(db, user["id"])
-        except Exception:
+            memory_prefix = await asyncio.wait_for(
+                build_tutor_memory_prefix(db, user["id"]),
+                timeout=3.0,
+            )
+        except (asyncio.TimeoutError, Exception):
             memory_prefix = ""
 
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).

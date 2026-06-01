@@ -18,6 +18,7 @@ from tracker import (  # noqa: E402
     record_answer,
     get_weakness_summary,
     get_review_queue,
+    get_weak_specialty_priorities,
     _ckey,
 )
 
@@ -276,3 +277,110 @@ def test_ckey_strips_non_alphanumeric():
     # Umlauts and special chars are replaced with _
     key = _ckey("Anästhesie / Notfall (akut)")
     assert all(c.isalnum() or c == "_" for c in key)
+
+
+# ── get_weak_specialty_priorities ────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_weak_specialty_priorities_empty_profile():
+    db = _make_db()
+    db.weakness_profile.find_one = AsyncMock(return_value=None)
+    result = await get_weak_specialty_priorities(db, "new_user")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_weak_specialty_priorities_empty_mistakes():
+    db = _make_db()
+    db.weakness_profile.find_one = AsyncMock(return_value={"mistakes": {}})
+    result = await get_weak_specialty_priorities(db, "u1")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_weak_specialty_priorities_filters_by_min_wrong_count():
+    db = _make_db()
+    db.weakness_profile.find_one = AsyncMock(return_value={
+        "mistakes": {
+            "single_wrong": {
+                "concept": "Single", "specialty_id": "kardiologie",
+                "count": 1, "wrong_streak": 1,
+            },
+            "double_wrong": {
+                "concept": "Double", "specialty_id": "kardiologie",
+                "count": 2, "wrong_streak": 1,
+            },
+        },
+    })
+    result = await get_weak_specialty_priorities(db, "u1", min_wrong_count=2)
+    assert len(result) == 1
+    assert result[0]["specialty_id"] == "kardiologie"
+
+
+@pytest.mark.asyncio
+async def test_weak_specialty_priorities_groups_by_specialty():
+    db = _make_db()
+    db.weakness_profile.find_one = AsyncMock(return_value={
+        "mistakes": {
+            "concept_a": {
+                "concept": "Concept A", "specialty_id": "kardiologie",
+                "count": 3, "wrong_streak": 2,
+            },
+            "concept_b": {
+                "concept": "Concept B", "specialty_id": "kardiologie",
+                "count": 5, "wrong_streak": 1,
+            },
+            "concept_c": {
+                "concept": "Concept C", "specialty_id": "pneumologie",
+                "count": 2, "wrong_streak": 1,
+            },
+        },
+    })
+    result = await get_weak_specialty_priorities(db, "u1")
+    assert len(result) == 2
+    sids = [r["specialty_id"] for r in result]
+    assert "kardiologie" in sids
+    assert "pneumologie" in sids
+    # Concept keys should be grouped
+    kard = [r for r in result if r["specialty_id"] == "kardiologie"][0]
+    assert sorted(kard["concept_keys"]) == sorted(["concept_a", "concept_b"])
+
+
+@pytest.mark.asyncio
+async def test_weak_specialty_priorities_sort_order():
+    db = _make_db()
+    db.weakness_profile.find_one = AsyncMock(return_value={
+        "mistakes": {
+            "high_streak": {
+                "concept": "High streak", "specialty_id": "kardiologie",
+                "count": 3, "wrong_streak": 5,
+            },
+            "low_streak": {
+                "concept": "Low streak", "specialty_id": "pneumologie",
+                "count": 8, "wrong_streak": 1,
+            },
+        },
+    })
+    result = await get_weak_specialty_priorities(db, "u1")
+    assert result[0]["specialty_id"] == "kardiologie"  # higher wrong_streak first
+    assert result[1]["specialty_id"] == "pneumologie"
+
+
+@pytest.mark.asyncio
+async def test_weak_specialty_priorities_skips_concepts_without_specialty():
+    db = _make_db()
+    db.weakness_profile.find_one = AsyncMock(return_value={
+        "mistakes": {
+            "no_spec": {
+                "concept": "Orphan", "specialty_id": "",
+                "count": 5, "wrong_streak": 2,
+            },
+            "valid": {
+                "concept": "Valid", "specialty_id": "neurologie",
+                "count": 3, "wrong_streak": 1,
+            },
+        },
+    })
+    result = await get_weak_specialty_priorities(db, "u1")
+    assert len(result) == 1
+    assert result[0]["specialty_id"] == "neurologie"

@@ -245,3 +245,46 @@ async def get_review_queue(db, user_id: str, limit: int = 10, min_wrong_count: i
         entry["sample_question_ids"] = [d.get("id") for d in docs if d.get("id")]
 
     return {"queue": top, "total_queue_size": total_size}
+
+
+async def get_weak_specialty_priorities(
+    db, user_id: str, min_wrong_count: int = 1,
+) -> list[dict]:
+    """Return specialties sorted by weakness priority for concept-aware question selection.
+
+    Returns [{specialty_id, concept_keys: [str, ...], top_wrong_streak: int, top_count: int}]
+    sorted by (wrong_streak DESC, count DESC).
+    Only includes specialties with at least one concept meeting min_wrong_count.
+    Empty list when profile is missing or no weak concepts exist (pure random fallback).
+    """
+    profile = await db.weakness_profile.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "mistakes": 1},
+    ) or {}
+    mistakes = profile.get("mistakes") or {}
+
+    by_specialty: dict[str, dict] = {}
+    for ckey, data in mistakes.items():
+        cnt = data.get("count", 0) or 0
+        if cnt < min_wrong_count:
+            continue
+        sid = data.get("specialty_id", "")
+        if not sid:
+            continue
+        if sid not in by_specialty:
+            by_specialty[sid] = {
+                "specialty_id": sid,
+                "concept_keys": [],
+                "top_wrong_streak": 0,
+                "top_count": 0,
+            }
+        by_specialty[sid]["concept_keys"].append(ckey)
+        ws = data.get("wrong_streak", 0) or 0
+        if ws > by_specialty[sid]["top_wrong_streak"]:
+            by_specialty[sid]["top_wrong_streak"] = ws
+        if cnt > by_specialty[sid]["top_count"]:
+            by_specialty[sid]["top_count"] = cnt
+
+    result = list(by_specialty.values())
+    result.sort(key=lambda r: (-(r["top_wrong_streak"]), -(r["top_count"])))
+    return result
