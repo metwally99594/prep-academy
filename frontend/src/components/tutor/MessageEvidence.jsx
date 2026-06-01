@@ -7,8 +7,8 @@ export default function MessageEvidence({ evidence, onPageViewer }) {
   if (!evidence || evidence.length === 0) return null;
 
   return (
-    <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-      <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider">Quellen</p>
+    <div className="mt-4 pt-3 rounded-lg space-y-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
+      <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider ml-3">Quellen</p>
       {evidence.slice(0, 3).map((e, i) => (
         <EvidenceCard key={i} evidence={e} onPageViewer={onPageViewer} />
       ))}

@@ -1,3 +1,5 @@
+import { CheckCircle2, XCircle } from "lucide-react";
+
 export default function MessageMCQ({ analysis }) {
   if (!analysis) return null;
 
@@ -6,7 +8,7 @@ export default function MessageMCQ({ analysis }) {
       <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider">Antwortanalyse</p>
       <div className="rounded-lg p-3" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)' }}>
         <div className="flex items-start gap-2">
-          <span className="text-green-400 text-sm mt-0.5">✅</span>
+          <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
           <div>
             <span className="text-green-400 font-bold text-sm">{analysis.correct_answer}</span>
             <p className="text-white/70 text-xs mt-0.5">{analysis.correct_reason}</p>
@@ -16,7 +18,7 @@ export default function MessageMCQ({ analysis }) {
       {analysis.wrong_answers.map((wa, i) => (
         <div key={i} className="rounded-lg p-3" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
           <div className="flex items-start gap-2">
-            <span className="text-red-400 text-sm mt-0.5">❌</span>
+            <XCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
             <div>
               <span className="text-red-400 font-bold text-sm">{wa.option}</span>
               <p className="text-white/60 text-xs mt-0.5">{wa.reason}</p>

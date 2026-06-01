@@ -20,7 +20,7 @@ export default function AIChatMessageBubble({ message, selectedModel, selectedLa
           : <Bot className="w-4 h-4" style={{ color: modelColor }} />
         }
       </div>
-      <div className={`flex-1 p-4 rounded-2xl text-sm leading-relaxed ${
+      <div className={`flex-1 p-4 rounded-2xl text-sm leading-relaxed max-w-[65ch] ${
         message.role === "user" ? "rounded-tr-sm text-white/90" : "rounded-tl-sm text-white/80"
       }`} style={{ background: message.role === 'user' ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
         <MessageText content={message.content} selectedLang={selectedLang} />
