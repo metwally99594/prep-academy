@@ -8,13 +8,13 @@ export default function MessageText({ content, selectedLang }) {
         remarkPlugins={[remarkGfm]}
         components={{
           h2: ({ children }) => (
-            <h2 className="text-sm font-semibold text-white/90 mt-4 mb-2 leading-relaxed">{children}</h2>
+            <h2 className="text-base font-bold text-white mt-5 mb-2 leading-relaxed">{children}</h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-sm font-semibold text-white/80 mt-3 mb-1.5 leading-relaxed">{children}</h3>
+            <h3 className="text-sm font-semibold text-white/90 mt-4 mb-1.5 leading-relaxed">{children}</h3>
           ),
           h4: ({ children }) => (
-            <h4 className="text-xs font-semibold text-white/70 mt-2 mb-1 leading-relaxed">{children}</h4>
+            <h4 className="text-sm font-medium text-white/80 mt-3 mb-1 leading-relaxed">{children}</h4>
           ),
           p: ({ children }) => (
             <p className="text-white/80 leading-relaxed mb-2 last:mb-0">{children}</p>
@@ -42,27 +42,27 @@ export default function MessageText({ content, selectedLang }) {
           ),
           pre: ({ children }) => (
             <pre
-              className="px-3 py-2 rounded-lg mb-2 overflow-x-auto text-xs leading-relaxed"
+              className="px-3 py-2 rounded-lg mb-2 overflow-x-auto text-sm leading-relaxed"
               style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}
             >{children}</pre>
           ),
           table: ({ children }) => (
             <div className="overflow-x-auto mb-2">
-              <table className="w-full text-xs border-collapse">{children}</table>
+              <table className="w-full text-sm border-collapse">{children}</table>
             </div>
           ),
           thead: ({ children }) => (
-            <thead className="text-white/60 text-[11px] uppercase tracking-wider">{children}</thead>
+            <thead className="text-white/60 text-xs uppercase tracking-wider">{children}</thead>
           ),
           th: ({ children }) => (
             <th
-              className="border px-2 py-1.5 text-left font-medium"
+              className="border px-3 py-2 text-left font-medium"
               style={{ borderColor: "rgba(255,255,255,0.08)" }}
             >{children}</th>
           ),
           td: ({ children }) => (
             <td
-              className="border px-2 py-1.5 text-white/70"
+              className="border px-3 py-2 text-white/80"
               style={{ borderColor: "rgba(255,255,255,0.08)" }}
             >{children}</td>
           ),

@@ -7,8 +7,8 @@ export default function MessageEvidence({ evidence, onPageViewer }) {
   if (!evidence || evidence.length === 0) return null;
 
   return (
-    <div className="mt-4 pt-3 rounded-lg space-y-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
-      <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider ml-3">Quellen</p>
+    <div className="mt-4 pt-3 rounded-lg space-y-2 border-t" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.06)' }}>
+      <p className="text-xs font-semibold text-white/30 uppercase tracking-wider ml-3">Quellen</p>
       {evidence.slice(0, 3).map((e, i) => (
         <EvidenceCard key={i} evidence={e} onPageViewer={onPageViewer} />
       ))}
@@ -30,7 +30,7 @@ function EvidenceCard({ evidence: e, onPageViewer }) {
                 <span className="font-medium text-xs text-white/80 truncate">{e.filename}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] text-white/40 whitespace-nowrap">
+                <span className="text-[11px] text-white/40 whitespace-nowrap">
                   S. {e.page_start}{e.page_end !== e.page_start ? `–${e.page_end}` : ''}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />

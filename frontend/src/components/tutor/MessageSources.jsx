@@ -7,8 +7,8 @@ export default function MessageSources({ sources }) {
   if (!sources || sources.length === 0) return null;
 
   return (
-    <div className="mt-4 pt-3 rounded-lg space-y-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
-      <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider ml-3">Wissensdatenbank</p>
+    <div className="mt-4 pt-3 rounded-lg space-y-2 border-t" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.06)' }}>
+      <p className="text-xs font-semibold text-white/30 uppercase tracking-wider ml-3">Wissensdatenbank</p>
       {sources.slice(0, 3).map((w, i) => (
         <SourceCard key={i} source={w} />
       ))}
@@ -30,7 +30,7 @@ function SourceCard({ source: w }) {
                 <span className="font-medium text-xs text-white/80 truncate">{w.title}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                <span className="text-[11px] px-1.5 py-0.5 rounded-full whitespace-nowrap"
                   style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
                   {w.category}
                 </span>

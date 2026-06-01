@@ -5,7 +5,7 @@ export default function MessageMCQ({ analysis }) {
 
   return (
     <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-      <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider">Antwortanalyse</p>
+      <p className="text-xs font-semibold text-white/30 uppercase tracking-wider">Antwortanalyse</p>
       <div className="rounded-lg p-3" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)' }}>
         <div className="flex items-start gap-2">
           <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />

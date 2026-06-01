@@ -2,8 +2,8 @@ export default function MessageImages({ images, onLightbox }) {
   if (!images || images.length === 0) return null;
 
   return (
-    <div className="mt-4 pt-3 px-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
-      <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider mb-2">Abbildungen</p>
+    <div className="mt-4 pt-3 px-3 rounded-lg border-t" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.06)' }}>
+      <p className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-2">Abbildungen</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {images.map((img, i) => (
           <div key={i} className="relative cursor-pointer group" onClick={() => onLightbox(img, i)}>
@@ -30,7 +30,7 @@ export default function MessageImages({ images, onLightbox }) {
               </span>
             )}
             {img.title && (
-              <p className="mt-1 text-[11px] text-white/40 truncate">{img.title}</p>
+              <p className="mt-1 text-xs text-white/40 truncate">{img.title}</p>
             )}
           </div>
         ))}
