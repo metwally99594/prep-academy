@@ -1,9 +1,20 @@
-import { useEffect } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 
 export default function ImageLightbox({ image, images, index, onClose, onPrev, onNext }) {
   const hasGallery = Array.isArray(images) && images.length > 1 && typeof index === "number" && onPrev && onNext;
   const currentImage = hasGallery && index != null ? images[index] : image;
+
+  // Fallback chain for non-base64 images:
+  //   0 = try currentImage.url    (full-size)
+  //   1 = try currentImage.thumbnail (smaller cached copy)
+  //   2 = neither loaded — render placeholder
+  // Resets to 0 whenever the displayed image changes (e.g., gallery navigation).
+  const [fallbackLevel, setFallbackLevel] = useState(0);
+
+  useEffect(() => {
+    setFallbackLevel(0);
+  }, [currentImage]);
 
   useEffect(() => {
     if (!currentImage) return;
@@ -19,6 +30,52 @@ export default function ImageLightbox({ image, images, index, onClose, onPrev, o
   }, [currentImage, hasGallery, onClose, onPrev, onNext]);
 
   if (!currentImage) return null;
+
+  // Decide which image node to render.
+  let imageNode = null;
+  if (currentImage.data) {
+    // Inline base64 — render as-is, preserve existing behaviour (no fallback chain).
+    imageNode = (
+      <img src={currentImage.data} alt={currentImage.title || ''}
+        className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+    );
+  } else if (fallbackLevel === 0 && currentImage.url) {
+    imageNode = (
+      <img src={currentImage.url} alt={currentImage.title || ''}
+        className="max-w-full max-h-[85vh] rounded-lg object-contain"
+        onError={() => {
+          // eslint-disable-next-line no-console
+          console.warn('[ImageLightbox] Full-size image failed to load:', currentImage.url);
+          setFallbackLevel(1);
+        }} />
+    );
+  } else if (fallbackLevel <= 1 && currentImage.thumbnail) {
+    imageNode = (
+      <img src={currentImage.thumbnail} alt={currentImage.title || ''}
+        className="max-w-full max-h-[85vh] rounded-lg object-contain"
+        onError={() => setFallbackLevel(2)} />
+    );
+  } else {
+    imageNode = (
+      <div
+        className="flex flex-col items-center justify-center px-8 py-10 rounded-lg border text-white/50"
+        style={{ background: 'rgba(0,0,0,0.4)', borderColor: 'rgba(255,255,255,0.08)', minWidth: 240 }}
+      >
+        <ImageOff className="w-10 h-10 mb-3 opacity-60" />
+        <p className="text-sm">Bild konnte nicht geladen werden</p>
+        {currentImage.url && (
+          <a
+            href={currentImage.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 text-xs text-blue-400 hover:underline"
+          >
+            Original in neuem Tab öffnen
+          </a>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -43,13 +100,7 @@ export default function ImageLightbox({ image, images, index, onClose, onPrev, o
           </>
         )}
 
-        {currentImage.data ? (
-          <img src={currentImage.data} alt={currentImage.title || ''}
-            className="max-w-full max-h-[85vh] rounded-lg object-contain" />
-        ) : currentImage.url ? (
-          <img src={currentImage.url} alt={currentImage.title || ''}
-            className="max-w-full max-h-[85vh] rounded-lg object-contain" />
-        ) : null}
+        {imageNode}
 
         <div className="mt-2 flex items-center justify-between gap-3 text-xs text-white/40 px-1">
           <div className="flex items-center gap-3 min-w-0">
