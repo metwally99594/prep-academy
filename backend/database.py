@@ -9,7 +9,12 @@ load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(
+    mongo_url,
+    minPoolSize=2,
+    maxIdleTimeMS=300000,
+    connectTimeoutMS=5000,
+)
 db = client[os.environ['DB_NAME']]
 
 # JWT settings — required in production, auto-generated ephemeral secret in dev

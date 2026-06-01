@@ -21,8 +21,8 @@ const SplashOverlay = ({ onDone }) => {
   const [phase, setPhase] = useState(0);
   useEffect(() => {
     const t1 = setTimeout(() => setPhase(1), 80);
-    const t2 = setTimeout(() => setPhase(2), 1000);
-    const t3 = setTimeout(() => onDone(), 1600);
+    const t2 = setTimeout(() => setPhase(2), 400);
+    const t3 = setTimeout(() => onDone(), 600);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 

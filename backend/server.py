@@ -600,8 +600,8 @@ async def get_specialty(specialty_id: str):
 async def get_exam_types():
     """Return exam type selector options with live question counts"""
     from database import EXAM_TYPES
-    result = []
-    for et in EXAM_TYPES:
+
+    async def _count(et):
         query = {}
         if et.get("location") == "ai_generated":
             query["generated_by_ai"] = True
@@ -611,14 +611,16 @@ async def get_exam_types():
             query["specialty_id"] = et["specialty"]
         qcount = await db.questions.count_documents(query)
         kp_count = 0
-        if et.get("location") == "de":
+        loc = et.get("location")
+        if loc == "de":
             kp_count = await db.kp_reports.count_documents({})
-        elif et.get("location") == "ch":
+        elif loc == "ch":
             kp_count = await db.kp_reports.count_documents({"state": "Schweiz"})
-        elif et.get("location") in ("vienna", "innsbruck"):
+        elif loc in ("vienna", "innsbruck"):
             kp_count = await db.kp_reports.count_documents({"state": "Österreich"})
-        result.append({**et, "question_count": qcount, "kp_report_count": kp_count})
-    return result
+        return {**et, "question_count": qcount, "kp_report_count": kp_count}
+
+    return list(await asyncio.gather(*[_count(et) for et in EXAM_TYPES]))
 
 
 # ============ GUEST MODE ============
@@ -646,12 +648,14 @@ async def get_guest_questions(specialty_id: Optional[str] = None, count: int = 5
 @api_router.get("/guest/specialties")
 async def get_guest_specialties():
     """Get specialties with counts for guest view"""
-    specs = []
-    async for s in db.specialties.find({}, {"_id": 0, "id": 1, "name": 1, "name_de": 1, "icon": 1, "color": 1}):
-        count = await db.questions.count_documents({"specialty_id": s["id"]})
-        if count > 0:
-            specs.append({**s, "question_count": count})
-    return specs
+    all_specs = await db.specialties.find({}, {"_id": 0, "id": 1, "name": 1, "name_de": 1, "icon": 1, "color": 1}).to_list(100)
+
+    async def _count(s):
+        c = await db.questions.count_documents({"specialty_id": s["id"]})
+        return {**s, "question_count": c}
+
+    results = await asyncio.gather(*[_count(s) for s in all_specs])
+    return [r for r in results if r["question_count"] > 0]
 
 
 @api_router.get("/seo/specialty/{specialty_id}")
