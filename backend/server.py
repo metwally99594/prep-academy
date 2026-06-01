@@ -4526,8 +4526,16 @@ Analysiere jede Option. Beende deine Antwort mit einem JSON-Block:
 {{"correct_answer": "X", "correct_reason": "Warum X richtig ist", "wrong_answers": [{{"option": "A", "reason": "Warum A falsch ist"}}]}}
 ```"""
 
+        # Memory of Mistakes Alpha-A: prepend personalised weakness context to the system prompt
+        try:
+            from services.memory_context import build_tutor_memory_prefix
+            memory_prefix = await build_tutor_memory_prefix(db, user["id"])
+        except Exception:
+            memory_prefix = ""
+
         system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
 {lang_instruction}
+{memory_prefix}
 
 INFORMATIONEN:{context_str}
 
@@ -8148,6 +8156,10 @@ app.include_router(community_router)
 # Include Knowledge Lab router (always available, admin-only)
 from routes.knowledge_lab import router as knowledge_lab_router
 app.include_router(knowledge_lab_router)
+
+# Memory of Mistakes Alpha-A
+from routes.memory import router as memory_router
+app.include_router(memory_router)
 
 # Include Medical RAG + DICOM routers (only if heavy ML packages are installed)
 # These are disabled in Emergent free deployment (which has 250m CPU + 1Gi memory limit)

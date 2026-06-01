@@ -5,7 +5,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
   AlertTriangle, Brain, Target, Loader2,
-  ArrowRight, RefreshCw, BookOpen,
+  ArrowRight, RefreshCw, BookOpen, ListChecks, Play,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,9 +15,13 @@ export default function WeaknessPage() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [reviewQueue, setReviewQueue] = useState(null);
+  const [queueLoading, setQueueLoading] = useState(true);
+  const [startingReview, setStartingReview] = useState(false);
 
   useEffect(() => {
     loadProfile();
+    loadReviewQueue();
   }, []);
 
   const loadProfile = async () => {
@@ -28,6 +32,34 @@ export default function WeaknessPage() {
       setProfile(data);
     } catch { setProfile(null) }
     setLoading(false);
+  };
+
+  const loadReviewQueue = async () => {
+    setQueueLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const { data } = await axios.get(`${API}/me/review-queue?limit=5`, { headers });
+      setReviewQueue(data);
+    } catch { setReviewQueue(null) }
+    setQueueLoading(false);
+  };
+
+  const startMemoryReview = async () => {
+    setStartingReview(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const { data } = await axios.post(`${API}/review/start`, { limit: 10 }, { headers });
+      if (data.questions && data.questions.length > 0) {
+        sessionStorage.setItem("customQuizQuestions", JSON.stringify(data.questions));
+        const specs = Array.from(new Set((data.targeted_concepts || []).map(c => c.specialty_id).filter(Boolean))).join(",");
+        navigate(`/quiz/custom?specs=${encodeURIComponent(specs)}&mode=study&limit=${data.questions.length}&review_session=${data.session_id}`);
+      } else {
+        toast.error("Keine Fragen für die Wiederholung verfügbar");
+      }
+    } catch (e) {
+      toast.error("Fehler beim Starten der Wiederholung");
+    }
+    setStartingReview(false);
   };
 
   const generateReview = async () => {
@@ -95,6 +127,51 @@ export default function WeaknessPage() {
         </div>
       ) : (
         <>
+          {/* Review Queue (Memory Alpha-A) */}
+          {!queueLoading && reviewQueue && reviewQueue.queue && reviewQueue.queue.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <ListChecks className="w-5 h-5 text-purple-400" />
+                Review Queue
+                <span className="text-xs font-normal text-muted-foreground ml-1">
+                  ({reviewQueue.total_queue_size} schwache Konzepte)
+                </span>
+              </h2>
+              <div className="space-y-2 mb-3">
+                {reviewQueue.queue.slice(0, 5).map((q, i) => (
+                  <div
+                    key={q.ckey}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-purple-500/5 border-purple-500/20"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-sm font-bold text-purple-400 w-6 text-right">{i + 1}</span>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{q.concept}</div>
+                        <div className="text-xs text-muted-foreground capitalize">
+                          {q.specialty_id} · wrong {q.wrong_count}× · streak {q.wrong_streak}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={startMemoryReview}
+                disabled={startingReview}
+                size="lg"
+                className="w-full sm:w-auto"
+              >
+                {startingReview ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4 mr-2" />
+                )}
+                Practice Now (10 Fragen)
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </section>
+          )}
+
           {/* Specialty Heatmap */}
           <section>
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">

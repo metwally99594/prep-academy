@@ -5,6 +5,7 @@ import AIChatMessages from "@/components/tutor/AIChatMessages";
 import AIChatInput from "@/components/tutor/AIChatInput";
 import PageViewerModal from "@/components/tutor/PageViewerModal";
 import ImageLightbox from "@/components/tutor/ImageLightbox";
+import MemoryContextBadge from "@/components/tutor/MemoryContextBadge";
 
 export default function AIChat({ question, isOpen, onClose }) {
   const { isTutor, sidebarOpen, sidebarProps, headerProps, messagesProps, inputProps, modalProps } = useAIChat({ question, isOpen, onClose });
@@ -18,6 +19,7 @@ export default function AIChat({ question, isOpen, onClose }) {
         {isTutor && sidebarOpen && <AIChatSidebar {...sidebarProps} />}
         <div className="flex-1 flex flex-col min-w-0">
           <AIChatHeader {...headerProps} />
+          {isTutor && <MemoryContextBadge />}
           <AIChatMessages {...messagesProps} />
           <AIChatInput {...inputProps} />
         </div>

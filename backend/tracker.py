@@ -1,5 +1,5 @@
 import logging, uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,13 @@ def _extract_concepts(question: dict) -> list[str]:
 
 
 async def record_answer(db, user_id: str, question: dict, is_correct: bool):
-    """Record a single answer event + update aggregated weakness profile (non-blocking)."""
+    """Record a single answer event + update aggregated weakness profile (non-blocking).
+
+    Alpha-A:
+    - on correct answer for a concept: increment correct_streak, reset wrong_streak to 0
+    - on wrong answer for a concept: increment wrong_streak, reset correct_streak to 0
+    - increment total_seen on every touch
+    """
     concepts = _extract_concepts(question)
     now = datetime.now(timezone.utc).isoformat()
 
@@ -38,25 +44,29 @@ async def record_answer(db, user_id: str, question: dict, is_correct: bool):
         "timestamp": now,
     })
 
-    # 2. Aggregated weakness profile — upsert with $inc
+    # 2. Aggregated weakness profile — upsert with $inc/$set
     inc_fields = {"total_answered": 1}
+    set_fields = {"updated_at": now}
     specialty_key = f"specialties.{question['specialty_id']}"
     inc_fields[f"{specialty_key}.total"] = 1
 
     if is_correct:
         inc_fields[f"{specialty_key}.correct"] = 1
+        for concept in concepts:
+            ckey = _ckey(concept)
+            inc_fields[f"mistakes.{ckey}.correct_streak"] = 1
+            inc_fields[f"mistakes.{ckey}.total_seen"] = 1
+            set_fields[f"mistakes.{ckey}.wrong_streak"] = 0
+            set_fields[f"mistakes.{ckey}.concept"] = concept
+            set_fields[f"mistakes.{ckey}.specialty_id"] = question["specialty_id"]
     else:
         inc_fields[f"{specialty_key}.wrong"] = 1
-        # Track each missed concept
         for concept in concepts:
             ckey = _ckey(concept)
             inc_fields[f"mistakes.{ckey}.count"] = 1
             inc_fields[f"mistakes.{ckey}.wrong_streak"] = 1
-
-    set_fields = {"updated_at": now}
-    if not is_correct:
-        for concept in concepts:
-            ckey = _ckey(concept)
+            inc_fields[f"mistakes.{ckey}.total_seen"] = 1
+            set_fields[f"mistakes.{ckey}.correct_streak"] = 0
             set_fields[f"mistakes.{ckey}.concept"] = concept
             set_fields[f"mistakes.{ckey}.specialty_id"] = question["specialty_id"]
 
@@ -123,11 +133,115 @@ async def get_repeated_mistakes(db, user_id: str, min_count: int = 2) -> list[di
 
 
 async def get_confidence_mismatches(db, user_id: str, limit: int = 20) -> list[dict]:
-    """Return recent wrong answers where confidence was high (dangerous misconceptions)."""
-    # We don't store confidence yet — this is a placeholder for future integration
-    # For now, return recent wrong answers as a starting point
+    """Return recent wrong answers where confidence was high (dangerous misconceptions).
+
+    Placeholder — confidence not yet captured on answer submission.
+    """
     cursor = db.answer_tracker.find(
         {"user_id": user_id, "is_correct": False},
         {"_id": 0, "question_id": 1, "specialty_id": 1, "concepts": 1, "timestamp": 1},
     ).sort("timestamp", -1).limit(limit)
     return await cursor.to_list(limit)
+
+
+# ─── Alpha-A: weakness summary + review queue ──────────────────────
+
+async def get_weakness_summary(db, user_id: str, limit: int = 10, recent_days: int = 7) -> dict:
+    """Return a snapshot for the dashboard / Tutor context.
+
+    Sort: (wrong_streak DESC, count DESC) — currently struggling rises first.
+    Defensive on legacy docs missing correct_streak (defaults to 0).
+    """
+    profile = await db.weakness_profile.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "mistakes": 1, "specialties": 1},
+    ) or {}
+    mistakes = profile.get("mistakes") or {}
+
+    top: list[dict] = []
+    for ckey, data in mistakes.items():
+        cnt = data.get("count", 0) or 0
+        if cnt < 1:
+            continue
+        top.append({
+            "ckey": ckey,
+            "concept": data.get("concept", ckey),
+            "specialty_id": data.get("specialty_id", ""),
+            "wrong_count": cnt,
+            "wrong_streak": data.get("wrong_streak", 0) or 0,
+            "correct_streak": data.get("correct_streak", 0) or 0,
+        })
+    top.sort(key=lambda r: (-(r["wrong_streak"]), -(r["wrong_count"])))
+    top = top[:limit]
+
+    # Recent wrongs in last `recent_days` days
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=recent_days)).isoformat()
+    cursor = db.answer_tracker.find(
+        {"user_id": user_id, "is_correct": False, "timestamp": {"$gte": cutoff}},
+        {"_id": 0, "question_id": 1, "specialty_id": 1, "concepts": 1, "timestamp": 1},
+    ).sort("timestamp", -1).limit(50)
+    recent = await cursor.to_list(50)
+
+    by_specialty = []
+    for sid, sdata in (profile.get("specialties") or {}).items():
+        total = sdata.get("total", 0) or 0
+        correct = sdata.get("correct", 0) or 0
+        wrong = sdata.get("wrong", 0) or 0
+        accuracy = round(correct / total, 3) if total > 0 else 0.0
+        by_specialty.append({
+            "specialty_id": sid,
+            "total": total,
+            "correct": correct,
+            "wrong": wrong,
+            "accuracy": accuracy,
+        })
+    by_specialty.sort(key=lambda r: r["accuracy"])
+
+    return {
+        "top_weaknesses": top,
+        "recent_wrongs_7d": recent,
+        "by_specialty": by_specialty,
+    }
+
+
+async def get_review_queue(db, user_id: str, limit: int = 10, min_wrong_count: int = 2) -> dict:
+    """Return ordered weak concepts with sample question IDs.
+
+    Alpha-A filter: wrong_count >= min_wrong_count (default 2, per decision A).
+    Sort: (wrong_streak DESC, wrong_count DESC).
+    """
+    profile = await db.weakness_profile.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "mistakes": 1},
+    ) or {}
+    mistakes = profile.get("mistakes") or {}
+    entries: list[dict] = []
+    for ckey, data in mistakes.items():
+        cnt = data.get("count", 0) or 0
+        if cnt < min_wrong_count:
+            continue
+        entries.append({
+            "ckey": ckey,
+            "concept": data.get("concept", ckey),
+            "specialty_id": data.get("specialty_id", ""),
+            "wrong_count": cnt,
+            "wrong_streak": data.get("wrong_streak", 0) or 0,
+        })
+    entries.sort(key=lambda r: (-(r["wrong_streak"]), -(r["wrong_count"])))
+    total_size = len(entries)
+    top = entries[:limit]
+
+    # Attach sample question IDs (specialty filter only — keep simple for Alpha-A)
+    for entry in top:
+        sid = entry.get("specialty_id")
+        if not sid:
+            entry["sample_question_ids"] = []
+            continue
+        cursor = db.questions.find(
+            {"specialty_id": sid},
+            {"_id": 0, "id": 1},
+        ).limit(3)
+        docs = await cursor.to_list(3)
+        entry["sample_question_ids"] = [d.get("id") for d in docs if d.get("id")]
+
+    return {"queue": top, "total_queue_size": total_size}
