@@ -11,7 +11,7 @@ try:
 except BaseException:
     _tb.print_exc()
     raise
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse, JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from limiter import limiter
@@ -80,6 +80,17 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
 api_router = APIRouter(prefix="/api")
 
 
