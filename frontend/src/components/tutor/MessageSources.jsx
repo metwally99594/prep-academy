@@ -1,3 +1,8 @@
+import { useState } from "react";
+import { BookOpen, ChevronDown } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+
 export default function MessageSources({ sources }) {
   if (!sources || sources.length === 0) return null;
 
@@ -5,19 +10,43 @@ export default function MessageSources({ sources }) {
     <div className="mt-2 pt-2 border-t space-y-2" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
       <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider">Wissensdatenbank</p>
       {sources.slice(0, 3).map((w, i) => (
-        <div key={i} className="rounded-lg p-3 text-xs" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.1)' }}>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs" style={{ color: '#3b82f6' }}>📚</span>
-            <span className="font-medium text-white/80">{w.title}</span>
-          </div>
-          <div className="text-white/40 mb-1">
-            <span>Kategorie: {w.category}</span>
-          </div>
-          <p className="text-white/50 leading-relaxed italic">
-            &ldquo;{w.excerpt}&rdquo;
-          </p>
-        </div>
+        <SourceCard key={i} source={w} />
       ))}
     </div>
+  );
+}
+
+function SourceCard({ source: w }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Card className="border-0" style={{ background: 'rgba(59,130,246,0.06)' }}>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger className="w-full">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <BookOpen className="w-3.5 h-3.5 shrink-0" style={{ color: '#3b82f6' }} />
+                <span className="font-medium text-xs text-white/80 truncate">{w.title}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                  style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                  {w.category}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+          </CardContent>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="px-3 pb-3 pt-0">
+            <p className="text-xs text-white/50 leading-relaxed italic line-clamp-4">
+              &ldquo;{w.excerpt}&rdquo;
+            </p>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
   );
 }

@@ -64,6 +64,8 @@ export default function useAIChat({ question, isOpen, onClose }) {
   const [showPageViewer, setShowPageViewer] = useState(false);
   const [pageViewerLoading, setPageViewerLoading] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [lightboxImages, setLightboxImages] = useState([]);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   const [loadingPhase, setLoadingPhase] = useState("idle");
   const { token } = useAuth();
   const scrollRef = useRef(null);
@@ -233,7 +235,7 @@ export default function useAIChat({ question, isOpen, onClose }) {
       if (isTutor && docsUsed > 0) {
         content = `[Aus ${docsUsed} Dokument(en)]\n\n${content}`;
       }
-      setMessages(prev => [...prev, { role: "assistant", content, model: selectedModel, images, documents_used: docsUsed, evidence: response.data.evidence || [], wiki_sources: response.data.wiki_sources || [], mcq_analysis: response.data.mcq_analysis || null }]);
+      setMessages(prev => [...prev, { role: "assistant", content, model: selectedModel, images, documents_used: docsUsed, evidence: response.data.evidence || [], wiki_sources: response.data.wiki_sources || [], wiki_images: response.data.wiki_images || [], mcq_analysis: response.data.mcq_analysis || null }]);
 
       if (isTutor && response.data.conversation_id) {
         setConversationId(response.data.conversation_id);
@@ -426,7 +428,11 @@ export default function useAIChat({ question, isOpen, onClose }) {
     currentModel,
     scrollRef,
     onPageViewerOpen: openPageViewer,
-    onLightboxOpen: setLightboxImage,
+    onLightboxOpen: (img, images, idx) => {
+      setLightboxImage(img);
+      setLightboxImages(images || []);
+      setLightboxIndex(idx ?? null);
+    },
   };
 
   const inputProps = {
@@ -451,8 +457,20 @@ export default function useAIChat({ question, isOpen, onClose }) {
       onClose: () => setShowPageViewer(false),
     },
     lightbox: {
-      lightboxImage,
-      onClose: () => setLightboxImage(null),
+      image: lightboxImage,
+      images: lightboxImages,
+      index: lightboxIndex,
+      onClose: () => {
+        setLightboxImage(null);
+        setLightboxImages([]);
+        setLightboxIndex(null);
+      },
+      onPrev: () => {
+        setLightboxIndex(i => (i > 0 ? i - 1 : lightboxImages.length - 1));
+      },
+      onNext: () => {
+        setLightboxIndex(i => (i < lightboxImages.length - 1 ? i + 1 : 0));
+      },
     },
   };
 

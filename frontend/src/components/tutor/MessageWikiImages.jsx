@@ -6,7 +6,7 @@ export default function MessageWikiImages({ images, onLightbox }) {
   return (
     <div className="mt-2 pt-2 border-t space-y-2" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
       <p className="text-[11px] font-semibold text-white/30 uppercase tracking-wider">Medizinische Abbildungen</p>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {images.map((img, i) => (
           <div key={i} className="relative cursor-pointer group"
               onClick={() => onLightbox({
@@ -15,13 +15,22 @@ export default function MessageWikiImages({ images, onLightbox }) {
                 _source: 'Wissensdatenbank',
                 width: img.width,
                 height: img.height,
-              })}>
-            <img src={`${API}/knowledge-lab/assets/images/${img.filename}`}
-              alt={img.caption_de || ''}
-              className="w-[120px] h-[90px] object-cover rounded-lg border transition-all group-hover:scale-105 group-hover:border-blue-400/40"
-              style={{ borderColor: 'rgba(59,130,246,0.15)' }}
-              loading="lazy"
-              onError={e => { e.target.style.display = 'none'; }} />
+              }, i)}>
+            <div className="aspect-square rounded-lg overflow-hidden border"
+              style={{ borderColor: 'rgba(59,130,246,0.15)' }}>
+              <img src={`${API}/knowledge-lab/assets/images/${img.filename}`}
+                alt={img.caption_de || ''}
+                className="w-full h-full object-cover transition-all group-hover:scale-105 group-hover:border-blue-400/40"
+                loading="lazy"
+                onError={e => { e.target.style.display = 'none'; }} />
+            </div>
+            <span className="absolute top-1 left-1 text-[9px] px-1 py-[1px] rounded leading-tight"
+              style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.6)' }}>
+              Wissensdatenbank
+            </span>
+            {img.caption_de && (
+              <p className="mt-1 text-[11px] text-white/40 truncate">{img.caption_de}</p>
+            )}
           </div>
         ))}
       </div>

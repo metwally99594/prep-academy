@@ -25,10 +25,10 @@ export default function AIChatMessageBubble({ message, selectedModel, selectedLa
       }`} style={{ background: message.role === 'user' ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
         <MessageText content={message.content} selectedLang={selectedLang} />
         <MessageMCQ analysis={message.mcq_analysis} />
-        <MessageImages images={message.images} onLightbox={onLightbox} />
+        <MessageImages images={message.images} onLightbox={(img, idx) => onLightbox(img, message.images, idx)} />
         <MessageEvidence evidence={message.evidence} onPageViewer={onPageViewer} />
         <MessageSources sources={message.wiki_sources} />
-        <MessageWikiImages images={message.wiki_images} onLightbox={onLightbox} />
+        <MessageWikiImages images={message.wiki_images} onLightbox={(img, idx) => onLightbox(img, message.wiki_images, idx)} />
       </div>
     </div>
   );
