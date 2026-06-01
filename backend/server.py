@@ -4584,7 +4584,8 @@ REGELN:
 5. Verknüpfe Konzepte mit Prüfungsrelevanz.
 6. Erkläre klar mit klinischen Beispielen.
 7. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in der Wissensdatenbank oder in Dokumenten stehen (oder falls keine: Standard-Dosierung).
-8. Sei präzise, akademisch aber freundlich."""
+8. Sei präzise, akademisch aber freundlich.
+9. Formatiere deine Antworten mit Markdown für optimale Lesbarkeit: Verwende ## für Hauptüberschriften, ### für Unterüberschriften, - für Aufzählungen (z.B. Medikamente, Differentialdiagnosen), | Tabellen | für Vergleiche (Stadien, Dosierungen, Klassifikationen). Verwende **fett** für Schlüsselbegriffe. Trenne Absätze mit Leerzeilen."""
 
         response = await _or_text(system_message, body.user_message, max_tokens=600, model_key=body.model)
         # Extract MCQ JSON from response if present

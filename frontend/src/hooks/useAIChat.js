@@ -482,5 +482,6 @@ export default function useAIChat({ question, isOpen, onClose }) {
     messagesProps,
     inputProps,
     modalProps,
+    startNewConversation,
   };
 }

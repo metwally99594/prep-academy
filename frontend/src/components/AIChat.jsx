@@ -2,13 +2,14 @@ import useAIChat from "@/hooks/useAIChat";
 import AIChatSidebar from "@/components/tutor/AIChatSidebar";
 import AIChatHeader from "@/components/tutor/AIChatHeader";
 import AIChatMessages from "@/components/tutor/AIChatMessages";
+import ErrorBoundary from "@/components/tutor/ErrorBoundary";
 import AIChatInput from "@/components/tutor/AIChatInput";
 import PageViewerModal from "@/components/tutor/PageViewerModal";
 import ImageLightbox from "@/components/tutor/ImageLightbox";
 import MemoryContextBadge from "@/components/tutor/MemoryContextBadge";
 
 export default function AIChat({ question, isOpen, onClose }) {
-  const { isTutor, sidebarOpen, sidebarProps, headerProps, messagesProps, inputProps, modalProps } = useAIChat({ question, isOpen, onClose });
+  const { isTutor, sidebarOpen, sidebarProps, headerProps, messagesProps, inputProps, modalProps, startNewConversation } = useAIChat({ question, isOpen, onClose });
 
   if (!isOpen) return null;
 
@@ -20,7 +21,9 @@ export default function AIChat({ question, isOpen, onClose }) {
         <div className="flex-1 flex flex-col min-w-0">
           <AIChatHeader {...headerProps} />
           {isTutor && <MemoryContextBadge />}
-          <AIChatMessages {...messagesProps} />
+          <ErrorBoundary onReset={startNewConversation}>
+            <AIChatMessages {...messagesProps} />
+          </ErrorBoundary>
           <AIChatInput {...inputProps} />
         </div>
       </div>
