@@ -23,7 +23,12 @@ export default function AIChatMessageBubble({ message, selectedModel, selectedLa
       <div className={`flex-1 p-4 rounded-2xl text-sm leading-relaxed max-w-[65ch] ${
         message.role === "user" ? "rounded-tr-sm text-white/90" : "rounded-tl-sm text-white/80"
       }`} style={{ background: message.role === 'user' ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${message.role === "user" ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)'}` }}>
-        <MessageText content={message.content} selectedLang={selectedLang} />
+        <div className="relative">
+          <MessageText content={message.content} selectedLang={selectedLang} />
+          {message._streaming && (
+            <span className="inline-block w-[2px] h-4 ml-0.5 align-text-bottom animate-pulse" style={{ background: '#60a5fa' }} />
+          )}
+        </div>
         <MessageMCQ analysis={message.mcq_analysis} />
         <MessageImages images={message.images} onLightbox={(img, idx) => onLightbox(img, message.images, idx)} />
         <MessageEvidence evidence={message.evidence} onPageViewer={onPageViewer} />

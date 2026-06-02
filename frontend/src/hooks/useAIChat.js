@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
 import { API, useAuth } from "@/App";
 
+const USE_STREAMING = true;
+
 const MODELS = [
   { id: "deepseek-chat", name: "DeepSeek Chat", provider: "DeepSeek", color: "#4f46e5" },
   { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", color: "#10a37f" },
@@ -70,11 +72,20 @@ export default function useAIChat({ question, isOpen, onClose }) {
   const { token } = useAuth();
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const abortRef = useRef(null);
   const isTutor = !question;
 
   const headers = { Authorization: `Bearer ${token}` };
   const currentModel = MODELS.find(m => m.id === selectedModel) || MODELS[0];
   const currentLang = LANGUAGES.find(l => l.id === selectedLang) || LANGUAGES[0];
+
+  // Abort streaming when dialog closes
+  useEffect(() => {
+    if (!isOpen && abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+  }, [isOpen]);
 
   // Fetch conversations on mount (tutor only)
   useEffect(() => {
@@ -141,6 +152,7 @@ export default function useAIChat({ question, isOpen, onClose }) {
   }, [messages]);
 
   const startNewConversation = useCallback(() => {
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
     setConversationId(null);
     setMessages([{ role: "assistant", content: GREETINGS[selectedLang] || GREETINGS.de }]);
     setSelectedChapter(null);
@@ -211,6 +223,129 @@ export default function useAIChat({ question, isOpen, onClose }) {
     setLoading(true);
     setLoadingPhase("generating");
 
+    const getErrorText = (status, detail) => {
+      const msgs = {
+        429: { de: "Tägliches KI-Limit erreicht. Bitte morgen weiter.", en: "Daily AI limit reached. Please continue tomorrow.", ar: "تم الوصول إلى الحد اليومي للذكاء الاصطناعي. يرجى الاستمرار غداً.", ru: "Достигнут дневной лимит ИИ. Пожалуйста, продолжите завтра." },
+        403: { de: "KI-Zugang nicht verfügbar. Testphase möglicherweise abgelaufen.", en: "AI access not available. Trial may have expired.", ar: "الوصول إلى الذكاء الاصطناعي غير متاح. ربما انتهت الفترة التجريبية.", ru: "Доступ к ИИ недоступен. Возможно, пробный период истек." },
+        503: { de: "KI-Dienst vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.", en: "AI service temporarily unavailable. Please try again later.", ar: "خدمة الذكاء الاصطناعي غير متاحة مؤقتًا. يرجى المحاولة مرة أخرى لاحقًا.", ru: "Сервис ИИ временно недоступен. Пожалуйста, попробуйте позже." },
+        default: { de: "Entschuldigung, ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.", en: "Sorry, an error occurred. Please try again.", ar: "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى.", ru: "Извините, произошла ошибка. Пожалуйста, попробуйте снова." },
+      };
+      const m = msgs[status] || msgs.default;
+      return detail || m[selectedLang] || m.de;
+    };
+
+    // ── Streaming path (tutor only) ──
+    if (isTutor && USE_STREAMING) {
+      const payload = {
+        user_message: userMessage,
+        model: selectedModel,
+        language: selectedLang,
+        conversation_id: conversationId,
+        specialty_id: selectedSpecialty || null,
+        chapter_index: selectedChapter ?? null,
+      };
+      const endpoint = `${API}/ai/tutor/stream`;
+
+      // Placeholder streaming message
+      const streamMsg = {
+        role: "assistant", content: "", model: selectedModel,
+        images: [], evidence: [], wiki_sources: [], wiki_images: [],
+        mcq_analysis: null, documents_used: 0,
+        _streaming: true,
+      };
+      setMessages(prev => [...prev, streamMsg]);
+      setLoadingPhase("streaming");
+      setLoading(true);
+
+      try {
+        abortRef.current = new AbortController();
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify(payload),
+          signal: abortRef.current.signal,
+        });
+        if (!response.ok) {
+          const errText = await response.text().catch(() => "");
+          showError(response.status, errText);
+          setLoading(false);
+          setLoadingPhase("idle");
+          return;
+        }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const patchStreamMsg = (updater) => {
+        setMessages(prev => {
+          const msgs = [...prev];
+          const lastIdx = msgs.length - 1;
+          const last = msgs[lastIdx];
+          if (last && last._streaming) {
+            msgs[lastIdx] = updater(last);
+          }
+          return msgs;
+        });
+      };
+
+      const sseProcess = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          let evt = "", dat = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) { evt = line.slice(7).trim(); }
+            else if (line.startsWith("data: ")) { dat = line.slice(6); }
+            if (evt && dat) {
+              try {
+                const p = JSON.parse(dat);
+                if (evt === "metadata" && p.conversation_id) {
+                  setConversationId(p.conversation_id);
+                } else if (evt === "sources") {
+                  patchStreamMsg(last => ({ ...last, images: p.images || [], evidence: p.evidence || [], wiki_sources: p.wiki_sources || [], wiki_images: p.wiki_images || [], documents_used: p.documents_used || 0 }));
+                } else if (evt === "chunk") {
+                  patchStreamMsg(last => ({ ...last, content: last.content + (p.text || "") }));
+                } else if (evt === "done") {
+                  patchStreamMsg(last => ({ ...last, mcq_analysis: p.mcq_analysis || null, _streaming: false }));
+                  if (p.conversations) setConversations(p.conversations);
+                  setLoading(false);
+                  setLoadingPhase("idle");
+                } else if (evt === "error") {
+                  const errText = getErrorText(p.code, p.message);
+                  patchStreamMsg(last => ({ ...last, content: errText, _streaming: false }));
+                  setLoading(false);
+                  setLoadingPhase("idle");
+                }
+              } catch (_e) { /* partial line */ }
+              evt = ""; dat = "";
+            }
+          }
+        }
+      };
+      await sseProcess();
+      // If stream ended without events, still finalize
+      patchStreamMsg(last => last._streaming ? { ...last, _streaming: false } : last);
+      setLoading(false);
+      setLoadingPhase("idle");
+    } catch (error) {
+      if (error.name === "AbortError") {
+        setMessages(prev => prev.filter(m => !m._streaming));
+      } else {
+        console.error("Stream error:", error);
+        setMessages(prev => prev.filter(m => !m._streaming));
+        const errText = getErrorText(null, null);
+        setMessages(prev => [...prev, { role: "assistant", content: errText }]);
+      }
+      setLoading(false);
+      setLoadingPhase("idle");
+    }
+      return;
+    }
+
+    // ── Non-streaming path (existing) ──
     try {
       const payload = isTutor ? {
         user_message: userMessage,
@@ -247,34 +382,7 @@ export default function useAIChat({ question, isOpen, onClose }) {
       console.error("AI chat error:", error);
       const status = error.response?.status;
       const detail = error.response?.data?.detail;
-      const errorMsgs = {
-        429: {
-          de: detail || "Tägliches KI-Limit erreicht. Bitte morgen weiter.",
-          en: detail || "Daily AI limit reached. Please continue tomorrow.",
-          ar: "تم الوصول إلى الحد اليومي للذكاء الاصطناعي. يرجى الاستمرار غداً.",
-          ru: "Достигнут дневной лимит ИИ. Пожалуйста, продолжите завтра.",
-        },
-        403: {
-          de: detail || "KI-Zugang nicht verfügbar. Testphase möglicherweise abgelaufen.",
-          en: detail || "AI access not available. Trial may have expired.",
-          ar: detail || "الوصول إلى الذكاء الاصطناعي غير متاح. ربما انتهت الفترة التجريبية.",
-          ru: detail || "Доступ к ИИ недоступен. Возможно, пробный период истек.",
-        },
-        503: {
-          de: detail || "KI-Dienst vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
-          en: detail || "AI service temporarily unavailable. Please try again later.",
-          ar: detail || "خدمة الذكاء الاصطناعي غير متاحة مؤقتًا. يرجى المحاولة مرة أخرى لاحقًا.",
-          ru: detail || "Сервис ИИ временно недоступен. Пожалуйста, попробуйте позже.",
-        },
-        default: {
-          de: "Entschuldigung, ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-          en: "Sorry, an error occurred. Please try again.",
-          ar: "عذراً، حدث خطأ. يرجى المحاولة مرة أخرى.",
-          ru: "Извините, произошла ошибка. Пожалуйста, попробуйте снова.",
-        },
-      };
-      const msgMap = errorMsgs[status] || errorMsgs.default;
-      setMessages(prev => [...prev, { role: "assistant", content: msgMap[selectedLang] || msgMap.de }]);
+      showError(status, detail);
     } finally { setLoading(false); setLoadingPhase("idle"); }
   };
 
@@ -427,6 +535,7 @@ export default function useAIChat({ question, isOpen, onClose }) {
     selectedLang,
     currentModel,
     scrollRef,
+    isStreaming: loadingPhase === "streaming",
     onPageViewerOpen: openPageViewer,
     onLightboxOpen: (img, images, idx) => {
       setLightboxImage(img);

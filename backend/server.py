@@ -4684,6 +4684,344 @@ REGELN:
         raise HTTPException(status_code=500, detail="Failed to get AI response")
 
 
+@api_router.post("/ai/tutor/stream")
+@limiter.limit("10/minute;100/hour;300/day")
+async def ai_tutor_stream(request: Request, body: AITutorRequest, user: dict = Depends(get_current_user)):
+    """Medical AI tutor with SSE streaming — same retrieval as /ai/tutor, streams LLM response token-by-token."""
+    import uuid as _uuid
+    await check_ai_access(user)
+    await _check_ai_quota(user["id"], user=user)
+
+    async def event_generator():
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+
+            # ── Conversation management ──
+            conversation_id = body.conversation_id
+            if conversation_id:
+                conv = await db.tutor_conversations.find_one({"id": conversation_id, "user_id": user["id"]})
+                if not conv:
+                    yield f"event: error\ndata: {json.dumps({'code': 404, 'message': 'Konversation nicht gefunden'})}\n\n"
+                    return
+            else:
+                conversation_id = str(_uuid.uuid4())
+                title = body.user_message[:60] + ("..." if len(body.user_message) > 60 else "")
+                conv = {
+                    "id": conversation_id, "user_id": user["id"], "title": title,
+                    "model": body.model, "language": body.language,
+                    "messages": [], "pinned": False, "pin_order": 0,
+                    "created_at": now, "updated_at": now,
+                }
+                await db.tutor_conversations.insert_one(conv)
+
+            # ── History ──
+            history = conv.get("messages", [])
+            history_block = ""
+            for m in history[-20:]:
+                role = "Student" if m["role"] == "user" else "KI-Tutor"
+                history_block += f"\n{role}: {m['content'][:500]}"
+            lang_instruction = LANG_PROMPTS.get(body.language, LANG_PROMPTS["de"])
+
+            # ── Parallel knowledge retrieval ──
+            wiki_results, doc_results = await asyncio.gather(
+                _search_wiki(body.user_message, limit=5),
+                _search_tutor_docs(body.user_message, body.specialty_id, chapter_index=body.chapter_index),
+            )
+            evidence_cov = compute_evidence_coverage(doc_results)
+            doc_source_block = ""
+            wiki_source_block = ""
+            wiki_evidence_list = []
+            doc_count = 0
+            doc_images = []
+
+            if wiki_results:
+                wiki_parts = []
+                for i, w in enumerate(wiki_results, 1):
+                    wiki_parts.append(f"[WISSENSDATENBANK {i}] {w['title']} ({w['category']}):\n{w['snippet']}")
+                wiki_source_block = "\n\n".join(wiki_parts)
+                wiki_evidence_list = [
+                    {"title": w["title"], "path": w["path"], "category": w["category"],
+                     "excerpt": w["snippet"], "score": w["score"]}
+                    for w in wiki_results[:5]
+                ]
+            if doc_results:
+                doc_parts = []
+                for i, d in enumerate(doc_results, 1):
+                    doc_parts.append(f"[DOKUMENT {i}] {d['filename']} - {d.get('chapter_title', d.get('chunk_title', ''))}:\n{d['text']}")
+                doc_source_block = "\n\n".join(doc_parts)
+                doc_count = len(doc_results)
+                doc_ids = set(r["document_id"] for r in doc_results)
+                for doc_id in doc_ids:
+                    page_set = set()
+                    doc_chapters = [r for r in doc_results if r["document_id"] == doc_id][:2]
+                    for r in doc_chapters:
+                        start = r.get("page_start", 1)
+                        end = min(r.get("page_end", 1), start + 4)
+                        for p in range(start, end + 1):
+                            page_set.add(p)
+                    if page_set:
+                        img_cursor = db.tutor_doc_images.find(
+                            {"doc_id": doc_id, "page": {"$in": list(page_set)}},
+                            {"_id": 0, "id": 1, "page": 1, "ext": 1, "width": 1, "height": 1, "data": 1, "description": 1},
+                        )
+                        async for img in img_cursor:
+                            doc_images.append({
+                                "id": img["id"], "page": img["page"], "ext": img["ext"],
+                                "width": img["width"], "height": img["height"],
+                                "data": f"data:image/{img['ext']};base64,{img['data']}",
+                                "_source": "document", "title": f"Seite {img['page']} — {doc_results[0]['filename']}",
+                                "description": img.get("description", ""),
+                            })
+                if doc_images:
+                    q_lower = body.user_message.lower()
+                    q_words = set(q_lower.split())
+                    def img_score(img):
+                        desc = (img.get("description") or "").lower()
+                        match_count = sum(1 for w in q_words if w in desc)
+                        return match_count if desc else -1
+                    doc_images.sort(key=img_score, reverse=True)
+                    described = [i for i in doc_images if i.get("description")]
+                    undescribed = [i for i in doc_images if not i.get("description")]
+                    doc_images = (described[:4] + undescribed[:2])[:6]
+
+            # ── Fallback search ──
+            relevant_questions, relevant_knowledge = [], []
+            if not doc_results and not wiki_results:
+                relevant_questions, relevant_knowledge = await asyncio.gather(
+                    _search_questions_internal(body.user_message, limit=2),
+                    _search_medical_knowledge(body.user_message, limit=6),
+                )
+
+            # ── Build context string ──
+            context_parts = []
+            if wiki_source_block:
+                context_parts.append(f"WISSENSDATENBANK:\n{wiki_source_block}")
+            if doc_source_block:
+                context_parts.append(f"HOCHGELADENE DOKUMENTE (Fach: {body.specialty_id or 'Alle'}):\n{doc_source_block}")
+            for idx, q in enumerate(relevant_questions[:2], 1):
+                q_text = (q.get("question_text_de") or q.get("question_text", ""))[:300]
+                choices = q.get("choices") or q.get("choices_de") or []
+                correct = [c.get("text_de") or c.get("text", "") for c in choices if c.get("is_correct")]
+                expl = q.get("explanation_de") or q.get("explanation", "")
+                choices_str = "\n".join(f'  - {c.get("text_de") or c.get("text", "")[:100]} {"✓" if c.get("is_correct") else ""}' for c in choices[:4])
+                correct_str = ", ".join(correct)
+                if expl:
+                    context_parts.append(f"Frage {idx}:\n{q_text}\n{choices_str}\nRichtig: {correct_str}\nErklärung: {expl[:300]}")
+                else:
+                    context_parts.append(f"Frage {idx}:\n{q_text}\n{choices_str}\nRichtig: {correct_str}")
+            for idx, k in enumerate(relevant_knowledge[:6], 1):
+                title = k.get("title", "")
+                content_text = k.get("content") or k.get("summary", "")[:800]
+                source = k.get("source", "unknown")
+                if not content_text:
+                    continue
+                if source == "pubmed":
+                    context_parts.append(f"PubMed-Studie {idx}:\n{title}\n{content_text}\nQuelle: {k.get('journal', '')} ({k.get('pubdate', '')})")
+                else:
+                    context_parts.append(f"Medizinisches Wissen {idx} ({k.get('category', 'medical')}):\n{title}\n{content_text}")
+            context_str = "\n\n".join(context_parts) if context_parts else "Keine spezifischen Informationen aus der Dokumenten-Datenbank zu diesem Thema."
+
+            # ── Evidence list ──
+            evidence = []
+            for d in doc_results[:5]:
+                excerpt = (d.get("text") or "")[:500]
+                if len(d.get("text") or "") > 500:
+                    excerpt += "..."
+                evidence.append({
+                    "document_id": d.get("document_id", ""),
+                    "filename": d.get("filename", ""),
+                    "chapter": d.get("chapter_title", ""),
+                    "page_start": d.get("page_start"),
+                    "page_end": d.get("page_end"),
+                    "excerpt": excerpt,
+                })
+
+            # ── MCQ detection ──
+            is_mcq = bool(body.mcq_options) or bool(re.search(r'(?i)\b([abcd]\)|[abcd]\.\s|Option\s+[ABCD])\b.*\b(richtig|falsch|warum|erklär)\b', body.user_message))
+            mcq_instruction = ""
+            if is_mcq:
+                options_text = body.mcq_options or ""
+                mcq_instruction = f"""
+FRAGE MIT ANTWORTOPTIONEN:
+{options_text}
+
+Analysiere jede Option. Beende deine Antwort mit einem JSON-Block:
+```json
+{{"correct_answer": "X", "correct_reason": "Warum X richtig ist", "wrong_answers": [{{"option": "A", "reason": "Warum A falsch ist"}}]}}
+```"""
+
+            # ── Memory of Mistakes ──
+            try:
+                from services.memory_context import build_tutor_memory_prefix
+                memory_prefix = await asyncio.wait_for(
+                    build_tutor_memory_prefix(db, user["id"]),
+                    timeout=3.0,
+                )
+            except (asyncio.TimeoutError, Exception):
+                memory_prefix = ""
+
+            # ── Build system prompt ──
+            system_message = f"""Du bist ein erstklassiger medizinischer KI-Tutor, spezialisiert auf die österreichische Ärzteprüfung (MedAT / SIP).
+{lang_instruction}
+{memory_prefix}
+
+INFORMATIONEN:{context_str}
+
+VERLAUF DER KONVERSATION:{history_block}{mcq_instruction}
+
+REGELN:
+1. Wenn WISSENSDATENBANK oben im Abschnitt INFORMATIONEN steht: Antworte zuerst basierend auf der Wissensdatenbank. Zitiere mit [WISSENSDATENBANK N].
+2. Wenn HOCHGELADENE DOKUMENTE vorhanden sind: Ergänze die Antwort mit Details aus den Dokumenten. Zitiere mit [DOKUMENT N].
+3. Wenn KEINE Wissensdatenbank UND KEINE hochgeladenen Dokumente: Nutze Prüfungsfragen und medizinisches Wissen falls vorhanden.
+4. Wenn GAR KEINE Informationen vorhanden sind: Nutze dein eigenes medizinisches Wissen.
+5. Verknüpfe Konzepte mit Prüfungsrelevanz.
+6. Erkläre klar mit klinischen Beispielen.
+7. Bei Medikamenten: nenne nur Wirkstoff + Dosierung die in der Wissensdatenbank oder in Dokumenten stehen (oder falls keine: Standard-Dosierung).
+8. Sei präzise, akademisch aber freundlich.
+9. Formatiere deine Antworten mit Markdown für optimale Lesbarkeit: Verwende ## für Hauptüberschriften, ### für Unterüberschriften, - für Aufzählungen (z.B. Medikamente, Differentialdiagnosen), | Tabellen | für Vergleiche (Stadien, Dosierungen, Klassifikationen). Verwende **fett** für Schlüsselbegriffe. Trenne Absätze mit Leerzeilen."""
+
+            # ── Emit metadata event ──
+            yield f"event: metadata\ndata: {json.dumps({'conversation_id': conversation_id, 'model': body.model, 'language': body.language})}\n\n"
+
+            # ── Emit sources event (non-streamable data before LLM) ──
+            wiki_images = _get_relevant_images(wiki_evidence_list, user_query=body.user_message)
+            sources_payload = {
+                "images": doc_images or [],
+                "evidence": evidence,
+                "wiki_sources": wiki_evidence_list,
+                "wiki_images": wiki_images,
+                "documents_used": doc_count,
+                "sources_questions": len(relevant_questions),
+                "sources_knowledge": len(relevant_knowledge),
+            }
+            yield f"event: sources\ndata: {json.dumps(sources_payload, default=str)}\n\n"
+
+            # ── Stream LLM response via OpenRouter ──
+            or_key = os.environ.get("OPENROUTER_API_KEY")
+            if not or_key:
+                yield f"event: error\ndata: {json.dumps({'code': 503, 'message': 'AI nicht verfügbar — OPENROUTER_API_KEY fehlt'})}\n\n"
+                return
+
+            _models = {
+                "deepseek-chat": "deepseek/deepseek-chat",
+                "gpt-4o-mini": "openai/gpt-4o-mini",
+                "gpt-4o": "openai/gpt-4o",
+                "claude-sonnet": "anthropic/claude-sonnet-4",
+                "gemini-flash": "google/gemma-4-31b-it:free",
+            }
+            or_model = _models.get(body.model) or os.environ.get("DEFAULT_MODEL", "deepseek/deepseek-chat")
+
+            # Metsu mode — not streamable, fall back to non-streaming chunk
+            if body.model == "metsu":
+                try:
+                    full_response = await _or_text(system_message, body.user_message, max_tokens=600, model_key="metsu")
+                except HTTPException as e:
+                    yield f"event: error\ndata: {json.dumps({'code': e.status_code, 'message': e.detail})}\n\n"
+                    return
+                yield f"event: chunk\ndata: {json.dumps({'text': full_response})}\n\n"
+            else:
+                import httpx as _httpx
+                try:
+                    async with _httpx.AsyncClient(timeout=60.0) as client:
+                        async with client.stream(
+                            "POST",
+                            "https://openrouter.ai/api/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {or_key}", "Content-Type": "application/json",
+                                     "HTTP-Referer": "https://mcq-medical-prep.academy", "X-Title": "PrepAcademy"},
+                            json={"model": or_model,
+                                  "messages": [{"role": "system", "content": system_message},
+                                                {"role": "user", "content": body.user_message}],
+                                  "max_tokens": 600, "temperature": 0.4, "stream": True},
+                        ) as resp:
+                            if resp.status_code != 200:
+                                err_body = await resp.aread()
+                                logger.warning(f"[Tutor stream] OpenRouter {resp.status_code}: {err_body[:200]}")
+                                yield f"event: error\ndata: {json.dumps({'code': resp.status_code, 'message': f'OpenRouter Fehler: {err_body[:150].decode()}'})}\n\n"
+                                return
+                            full_content = ""
+                            async for line in resp.aiter_lines():
+                                if line.startswith("data: "):
+                                    data = line[6:]
+                                    if data.strip() == "[DONE]":
+                                        break
+                                    try:
+                                        j = json.loads(data)
+                                        delta = j.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                        if delta:
+                                            full_content += delta
+                                            yield f"event: chunk\ndata: {json.dumps({'text': delta})}\n\n"
+                                    except json.JSONDecodeError:
+                                        continue
+                    response_text = re.sub(r"<think>.*?</think>", "", full_content, flags=re.DOTALL).strip()
+                except Exception as e:
+                    logger.error(f"[Tutor stream] OpenRouter error: {e}")
+                    yield f"event: error\ndata: {json.dumps({'code': 503, 'message': 'KI-Antwort fehlgeschlagen'})}\n\n"
+                    return
+
+            # ── MCQ analysis ──
+            mcq_analysis = None
+            if is_mcq and response_text:
+                import json as _json
+                m = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+                if m:
+                    try:
+                        parsed = _json.loads(m.group(1))
+                        mcq_analysis = {
+                            "correct_answer": parsed.get("correct_answer", ""),
+                            "correct_reason": parsed.get("correct_reason", ""),
+                            "wrong_answers": [
+                                {"option": wa.get("option", ""), "reason": wa.get("reason", "")}
+                                for wa in (parsed.get("wrong_answers") or [])
+                            ],
+                        }
+                    except Exception:
+                        pass
+
+            # ── Conf scoring ──
+            conf = compute_confidence(
+                coverage_score=evidence_cov["coverage_score"],
+                similarity=evidence_cov["average_similarity"],
+            )
+
+            # ── Persist ──
+            await _increment_ai_quota(user["id"], user=user)
+            user_msg_doc = {"role": "user", "content": body.user_message, "timestamp": now}
+            assistant_msg_doc = {
+                "role": "assistant", "content": response_text, "model": body.model,
+                "images": doc_images or [],
+                "evidence": evidence,
+                "wiki_sources": wiki_evidence_list,
+                "wiki_images": wiki_images,
+                "mcq_analysis": mcq_analysis,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            await db.tutor_conversations.update_one(
+                {"id": conversation_id},
+                {
+                    "$push": {"messages": {"$each": [user_msg_doc, assistant_msg_doc]}},
+                    "$set": {"updated_at": assistant_msg_doc["timestamp"], "model": body.model, "language": body.language},
+                },
+            )
+
+            # Update conversation list
+            try:
+                conv_list = await db.tutor_conversations.find(
+                    {"user_id": user["id"]}, {"id": 1, "title": 1, "model": 1, "updated_at": 1, "pinned": 1, "pin_order": 1, "_id": 0}
+                ).sort("updated_at", -1).to_list(50)
+            except Exception:
+                conv_list = []
+
+            yield f"event: done\ndata: {json.dumps({'mcq_analysis': mcq_analysis, 'scoring': {'evidence_coverage': evidence_cov, 'confidence': conf}, 'conversations': conv_list}, default=str)}\n\n"
+
+        except HTTPException as e:
+            yield f"event: error\ndata: {json.dumps({'code': e.status_code, 'message': e.detail})}\n\n"
+        except Exception as e:
+            logger.error(f"[Tutor stream] unexpected error: {e}")
+            yield f"event: error\ndata: {json.dumps({'code': 500, 'message': 'Interner Fehler'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @api_router.post("/ai/metsu")
 @limiter.limit("6/minute;30/hour;200/day")
 async def ai_metsu(request: Request, body: MetsuRequest, user: dict = Depends(get_current_user)):
