@@ -447,6 +447,7 @@ class QuestionImportLog(BaseModel):
 class ParsedQuestion(BaseModel):
     """A single question extracted from an uploaded file."""
     question: str
+    type: str = "single"  # single | multi | true_false | matching | grouping | image
     options: List[str] = []
     correct_answers: List[str] = []
     generated_options: List[str] = []

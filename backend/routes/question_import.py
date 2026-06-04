@@ -24,7 +24,7 @@ from services.import_job import (
     get_questions_for_export
 )
 from services.ocr_service import extract_text_from_pdf, extract_text_from_markdown
-from services.question_parser import parse_questions_from_text
+from services.question_parser import parse_questions_from_text, parse_questions_from_text_async
 from services.option_generator import generate_for_questions
 
 router = APIRouter(prefix="/api", tags=["question-import"])
@@ -115,8 +115,8 @@ async def process_import_job(
             if not text or not text.strip():
                 raise ValueError("Extracted text is empty")
 
-            # Parse questions from extracted text
-            parsed = parse_questions_from_text(text, source_file=file_info.filename)
+            # Parse questions using AI-powered extraction (falls back to regex)
+            parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
             if parsed:
                 all_questions.extend(parsed)
                 await update_file_status(import_id, file_info.filename, "parsed", questions_count=len(parsed))
@@ -264,6 +264,76 @@ async def export_import_xlsx(
     )
 
 
+@router.get("/admin/question-import/{import_id}/export/markdown")
+async def export_import_markdown(
+    import_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Export parsed questions as re-importable Markdown."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    job = await get_import_job(import_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+
+    from services.export_service import build_export_items, export_to_markdown
+    items = build_export_items(job.questions)
+    if not items:
+        raise HTTPException(status_code=404, detail="No questions to export")
+
+    metadata = {
+        "import_id": import_id,
+        "source": job.files[0].filename if job.files else "unknown",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "total": len(items),
+    }
+    md = export_to_markdown(items, source_metadata=metadata)
+
+    return StreamingResponse(
+        iter([md]),
+        media_type="text/markdown",
+        headers={"Content-Disposition": f"attachment; filename=questions_{import_id}.md"}
+    )
+
+
+@router.post("/admin/question-import/re-import")
+async def re_import_exported(
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Re-import a previously exported file. Tests roundtrip fidelity."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    text = body.get("text", "")
+    format_type = body.get("format", "markdown")
+
+    if not text:
+        raise HTTPException(status_code=400, detail="No content to re-import")
+
+    # Parse using AI extractor
+    parsed = await parse_questions_from_text_async(text, source_file="re-import")
+
+    # Build comparison report
+    expected_count = body.get("expected_count")
+    report = {
+        "re_imported": len(parsed),
+        "expected": expected_count or len(parsed),
+        "match": len(parsed) == (expected_count or len(parsed)),
+        "questions": [
+            {
+                "index": i,
+                "question": q.question[:100],
+                "options_count": len(q.options),
+                "correct_count": len(q.correct_answers),
+            }
+            for i, q in enumerate(parsed)
+        ],
+    }
+
+    return report
+
+
 @router.get("/admin/question-import/{import_id}")
 async def get_import_job_details(
     import_id: str,
@@ -292,3 +362,71 @@ async def validate_import_job_endpoint(
 
     summary = validate_import_job(job)
     return summary
+
+
+@router.post("/admin/question-import/extract-report")
+async def extract_report_endpoint(
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Run AI extraction on raw text and return detailed diagnostic report."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    text = body.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="No text provided")
+    from services.question_parser import extract_with_report
+    report = await extract_with_report(text, source_file="api-report")
+    return report
+
+
+@router.post("/admin/question-import/{import_id}/re-extract")
+async def re_extract_job(
+    import_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Re-extract questions using AI extraction (overwrites existing questions)."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    job = await get_import_job(import_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+
+    # Re-read files from disk and re-extract with AI
+    job_dir = UPLOAD_DIR / job.id
+    all_questions = []
+    errors = []
+
+    for file_info in job.files:
+        file_path = job_dir / file_info.filename
+        if not file_path.exists():
+            errors.append({"filename": file_info.filename, "error": "File not found on disk"})
+            continue
+        try:
+            if file_info.file_type == "pdf":
+                from services.ocr_service import extract_text_from_pdf
+                text = extract_text_from_pdf(str(file_path))
+            else:
+                from services.ocr_service import extract_text_from_markdown
+                text = extract_text_from_markdown(str(file_path))
+
+            parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
+            if parsed:
+                all_questions.extend(parsed)
+        except Exception as e:
+            logger.error(f"Re-extract failed for {file_info.filename}: {e}")
+            errors.append({"filename": file_info.filename, "error": str(e)})
+
+    # Replace questions in job
+    if all_questions:
+        await db.import_jobs.update_one(
+            {"id": import_id},
+            {"$set": {"questions": [q.model_dump() for q in all_questions], "status": "parsed"}}
+        )
+
+    return {
+        "import_id": import_id,
+        "questions_extracted": len(all_questions),
+        "errors": errors,
+    }

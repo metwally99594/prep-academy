@@ -1,21 +1,40 @@
-"""Question parser — extracts structured questions from raw text (PDF/Markdown output).
+"""Question parser — extracts structured questions from exam document text.
 
-Supports formats:
-  ## Question
-  What is ...?
-  A) Option 1
-  B) Option 2
-  Answer: Option 1
-  Answer: A
-  Correct answers: A, C
+Primary method: AI-powered extraction via DeepSeek (services/ai_extractor).
+Fallback method: regex-based parsing for simple structured formats.
+
+Supports question types:
+  - single choice
+  - multiple choice
+  - true/false
+  - matching
+  - grouping
+  - image-based
 """
-import re as _re
-from typing import List
+import re, json, asyncio
+from typing import List, Optional, Tuple
 from models import ParsedQuestion
+from services.ai_extractor import extract_questions_from_text, extract_and_report
+
+
+async def parse_questions_from_text_async(
+    text: str, source_file: str = ""
+) -> List[ParsedQuestion]:
+    """Primary entry point. Uses AI extraction, falls back to regex on empty result."""
+    ai_result = await extract_questions_from_text(text, source_file=source_file)
+    if ai_result:
+        return ai_result
+
+    # Fallback: regex parser
+    legacy = parse_questions_from_text(text, source_file=source_file)
+    if legacy:
+        return legacy
+
+    return []
 
 
 def parse_questions_from_text(text: str, source_file: str = "") -> List[ParsedQuestion]:
-    """Parse a block of text and extract all questions found."""
+    """Legacy regex-based parser fallback."""
     questions: List[ParsedQuestion] = []
     blocks = _split_question_blocks(text)
 
@@ -34,8 +53,7 @@ def _split_question_blocks(text: str) -> List[str]:
         r'^\d+[.)]\s+(?=[A-ZÄÖÜ])',
     ]
     combined = "|".join(f"(?:{s})" for s in separators)
-    blocks = _re.split(combined, text, flags=_re.MULTILINE | _re.IGNORECASE)
-    # Each non-empty block is a question; the separator itself is consumed
+    blocks = re.split(combined, text, flags=re.MULTILINE | re.IGNORECASE)
     result = [b.strip() for b in blocks if b and b.strip()]
     if not result and text.strip():
         result = [text.strip()]
@@ -43,18 +61,17 @@ def _split_question_blocks(text: str) -> List[str]:
 
 
 def _parse_single_question(block: str, source_file: str) -> ParsedQuestion:
-    """Parse a single question block into a ParsedQuestion."""
+    """Legacy regex-based single question parser."""
     lines = block.strip().split("\n")
     question_lines = []
     options = []
     correct_answers_raw = []
     in_options = False
 
-    # Patterns
-    option_pattern = _re.compile(r'^\s*([A-Za-z])[.)]\s+(.*)')
-    answer_pattern = _re.compile(
+    option_pattern = re.compile(r'^\s*([A-Za-z])[.)]\s+(.*)')
+    answer_pattern = re.compile(
         r'(?:Correct\s*)?(?:Answer|Antwort)(?:\s*:|s?\s*:)?\s*(.*)',
-        _re.IGNORECASE
+        re.IGNORECASE
     )
 
     for line in lines:
@@ -62,29 +79,23 @@ def _parse_single_question(block: str, source_file: str) -> ParsedQuestion:
         if not stripped:
             continue
 
-        # Check for answer line
         answer_match = answer_pattern.match(stripped)
         if answer_match:
             raw = answer_match.group(1).strip()
             correct_answers_raw = [a.strip() for a in raw.replace(" and ", ",").replace(" und ", ",").split(",")]
             continue
 
-        # Check for option line
         opt_match = option_pattern.match(stripped)
         if opt_match:
             options.append(stripped)
             in_options = True
             continue
 
-        # If not in options yet, treat as question text
         if not in_options:
             question_lines.append(stripped)
 
     question_text = " ".join(question_lines).strip()
-    # Remove leading "Question" or "Frage" header remnants
-    question_text = _re.sub(r'^(Question|Frage)\s*[:\-]?\s*', '', question_text, flags=_re.IGNORECASE).strip()
-
-    # Resolve correct answers — could be option letters or full text
+    question_text = re.sub(r'^(Question|Frage)\s*[:\-]?\s*', '', question_text, flags=re.IGNORECASE).strip()
     correct_answers = _resolve_correct_answers(correct_answers_raw, options)
 
     return ParsedQuestion(
@@ -99,12 +110,10 @@ def _parse_single_question(block: str, source_file: str) -> ParsedQuestion:
 def _resolve_correct_answers(raw_answers: List[str], options: List[str]) -> List[str]:
     """Convert answer references (letters or text) to the canonical option strings."""
     resolved = []
-
-    # Build lookup: letter -> full option text, and full text (lower) -> full option text
     letter_map = {}
     text_map = {}
     for opt in options:
-        m = _re.match(r'^\s*([A-Za-z])[.)]\s+(.*)', opt)
+        m = re.match(r'^\s*([A-Za-z])[.)]\s+(.*)', opt)
         if m:
             letter = m.group(1).upper()
             text = m.group(2).strip()
@@ -115,16 +124,14 @@ def _resolve_correct_answers(raw_answers: List[str], options: List[str]) -> List
         ans = ans.strip()
         ans_upper = ans.upper()
         ans_lower = ans.lower()
-        # Split by comma or semicolon (support "A, C" or "A; C")
-        for part in _re.split(r'[,;]\s*', ans_upper):
+        for part in re.split(r'[,;]\s*', ans_upper):
             part = part.strip()
             if part in letter_map:
                 resolved.append(letter_map[part])
             elif ans_lower in text_map:
                 resolved.append(text_map[ans_lower])
-                break  # matched full text, don't split further
+                break
             else:
-                # Try matching the original (un-uppercased) part against option text
                 original_part = ans
                 if original_part.lower() in text_map:
                     resolved.append(text_map[original_part.lower()])
@@ -132,3 +139,8 @@ def _resolve_correct_answers(raw_answers: List[str], options: List[str]) -> List
                     resolved.append(part)
 
     return resolved
+
+
+async def extract_with_report(text: str, source_file: str = "") -> dict:
+    """Run AI extraction with detailed reporting. For diagnostics and accuracy measurement."""
+    return await extract_and_report(text, source_file=source_file)

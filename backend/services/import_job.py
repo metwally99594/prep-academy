@@ -87,10 +87,12 @@ async def get_questions_for_export(job_id: str) -> list[dict]:
         exports.append({
             "index": i + 1,
             "question": q.question,
+            "type": q.type if hasattr(q, "type") and q.type else "single",
             "original_options": q.options,
             "generated_options": q.generated_options,
             "final_options": final_opts,
             "correct_answers": q.correct_answers,
+            "source_file": q.source_file,
         })
     return exports
 
@@ -101,23 +103,44 @@ async def delete_import_job(job_id: str) -> bool:
 
 
 def validate_parsed_question(q: ParsedQuestion, index: int) -> ValidationResult:
-    """Validate a single parsed question. Returns ValidationResult."""
+    """Validate a single parsed question. Returns ValidationResult.
+    Rules depend on question type."""
     errors = []
+    qtype = q.type if hasattr(q, "type") and q.type else "single"
 
     if not q.question or not q.question.strip():
         errors.append("Question text is empty")
+
+    if qtype == "true_false":
+        if len(q.options) < 2:
+            errors.append(f"True/False question needs at least Richtig/Falsch options (got {len(q.options)})")
+    elif qtype == "matching":
+        if len(q.options) < 2:
+            errors.append(f"Matching question needs at least 2 pairs (got {len(q.options)} options)")
+    elif qtype == "grouping":
+        pass  # sub-questions are validated individually
+    else:
+        if len(q.options) < 2:
+            errors.append(f"Question has only {len(q.options)} option(s)")
 
     if len(q.options) < len(q.correct_answers):
         errors.append(f"Option count ({len(q.options)}) is less than correct answer count ({len(q.correct_answers)})")
 
     for ca in q.correct_answers:
-        if ca not in q.options:
-            errors.append(f"Correct answer '{ca}' not found in options list")
+        ca_lower = ca.lower().strip()
+        found = False
+        for opt in q.options:
+            if ca_lower == opt.lower().strip() or ca_lower in opt.lower() or opt.lower() in ca_lower:
+                found = True
+                break
+        if not found:
+            if qtype != "grouping":
+                errors.append(f"Correct answer '{ca[:50]}' not found in options")
 
     if len(q.options) != len(set(q.options)):
         errors.append("Duplicate options detected")
 
-    if not q.correct_answers:
+    if not q.correct_answers and qtype not in ("grouping",):
         errors.append("No correct answer specified")
 
     return ValidationResult(
