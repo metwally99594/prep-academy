@@ -78,12 +78,79 @@ async def upload_import_files(
     return ImportResponse(import_id=job.id, status="uploaded")
 
 
+async def _background_process_job(import_id: str):
+    """Run extraction in the background. Updates job status in MongoDB as it progresses."""
+    try:
+        job = await get_import_job(import_id)
+        if not job:
+            logger.error(f"[BACKGROUND] Job {import_id} not found — already deleted?")
+            return
+
+        job_dir = UPLOAD_DIR / job.id
+        all_questions = []
+        errors = []
+
+        for file_info in job.files:
+            file_path = job_dir / file_info.filename
+            if not file_path.exists():
+                await update_file_status(import_id, file_info.filename, "failed", error="File not found on disk")
+                errors.append({"filename": file_info.filename, "error": "File not found"})
+                continue
+
+            try:
+                await update_file_status(import_id, file_info.filename, "processing")
+
+                if file_info.file_type == "pdf":
+                    text = extract_text_from_pdf(str(file_path))
+                else:
+                    text = extract_text_from_markdown(str(file_path))
+
+                if not text or not text.strip():
+                    raise ValueError("Extracted text is empty")
+
+                parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
+                if parsed:
+                    all_questions.extend(parsed)
+                    await update_file_status(import_id, file_info.filename, "parsed", questions_count=len(parsed))
+                else:
+                    fallback = ParsedQuestion(
+                        question=f"[RAW TEXT from {file_info.filename}]",
+                        options=[],
+                        correct_answers=[],
+                        source_file=file_info.filename,
+                        status="parsed",
+                        error="No structured questions detected"
+                    )
+                    all_questions.append(fallback)
+                    await update_file_status(import_id, file_info.filename, "parsed", questions_count=1)
+
+            except Exception as e:
+                logger.error(f"[BACKGROUND] Failed to process {file_info.filename}: {e}")
+                await update_file_status(import_id, file_info.filename, "failed", error=str(e))
+                errors.append({"filename": file_info.filename, "error": str(e)})
+
+        if all_questions:
+            await add_questions_to_job(import_id, all_questions)
+
+        new_status = "parsed" if not errors else ("failed" if not all_questions else "parsed")
+        await set_job_status(import_id, new_status)
+
+        logger.info(f"[BACKGROUND] Job {import_id} complete: {len(all_questions)} questions, status={new_status}")
+
+    except Exception as e:
+        logger.error(f"[BACKGROUND] Job {import_id} crashed: {e}")
+        try:
+            await set_job_status(import_id, "failed")
+        except Exception:
+            pass
+
+
 @router.post("/admin/question-import/{import_id}/process")
 async def process_import_job(
     import_id: str,
     user: dict = Depends(get_current_user)
 ):
-    """Process uploaded files: OCR for PDFs, text extraction for Markdown. Updates job status."""
+    """Start processing uploaded files in the background. Returns immediately."""
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
     job = await get_import_job(import_id)
@@ -93,63 +160,13 @@ async def process_import_job(
         raise HTTPException(status_code=400, detail=f"Job already processed (status: {job.status})")
 
     await set_job_status(import_id, "processing")
-    job_dir = UPLOAD_DIR / job.id
-    all_questions = []
-    errors = []
-
-    for file_info in job.files:
-        file_path = job_dir / file_info.filename
-        if not file_path.exists():
-            await update_file_status(import_id, file_info.filename, "failed", error="File not found on disk")
-            errors.append({"filename": file_info.filename, "error": "File not found"})
-            continue
-
-        try:
-            await update_file_status(import_id, file_info.filename, "processing")
-
-            if file_info.file_type == "pdf":
-                text = extract_text_from_pdf(str(file_path))
-            else:
-                text = extract_text_from_markdown(str(file_path))
-
-            if not text or not text.strip():
-                raise ValueError("Extracted text is empty")
-
-            # Parse questions using AI-powered extraction (falls back to regex)
-            parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
-            if parsed:
-                all_questions.extend(parsed)
-                await update_file_status(import_id, file_info.filename, "parsed", questions_count=len(parsed))
-            else:
-                # No structured questions found — store raw text as fallback
-                fallback = ParsedQuestion(
-                    question=f"[RAW TEXT from {file_info.filename}]",
-                    options=[],
-                    correct_answers=[],
-                    source_file=file_info.filename,
-                    status="parsed",
-                    error="No structured questions detected"
-                )
-                all_questions.append(fallback)
-                await update_file_status(import_id, file_info.filename, "parsed", questions_count=1)
-
-        except Exception as e:
-            logger.error(f"Failed to process {file_info.filename}: {e}")
-            await update_file_status(import_id, file_info.filename, "failed", error=str(e))
-            errors.append({"filename": file_info.filename, "error": str(e)})
-
-    if all_questions:
-        await add_questions_to_job(import_id, all_questions)
-
-    new_status = "parsed" if not errors else ("failed" if not all_questions else "parsed")
-    await set_job_status(import_id, new_status)
+    import asyncio
+    asyncio.create_task(_background_process_job(import_id))
 
     return {
         "import_id": import_id,
-        "status": new_status,
-        "files_processed": len(job.files),
-        "questions_extracted": len(all_questions),
-        "errors": errors
+        "status": "processing",
+        "message": "Extraction started in background. Poll GET /admin/question-import/{id} for status."
     }
 
 

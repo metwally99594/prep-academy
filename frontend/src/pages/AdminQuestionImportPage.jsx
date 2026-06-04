@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API, useAuth } from "@/App";
@@ -21,6 +21,39 @@ export default function AdminQuestionImportPage() {
   const [generating, setGenerating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
+  const pollIntervalRef = useRef(null);
+
+  const pollJobStatus = useCallback(async (jobId) => {
+    try {
+      const res = await axios.get(`${API}/admin/question-import/${jobId}`, { headers, timeout: 10000 });
+      const status = res.data.status;
+      setJobStatus(status);
+
+      if (status === "parsed") {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+        const qs = res.data.questions || [];
+        setQuestions(qs);
+        setFiles((res.data.files || []).map((f) => ({ name: f.filename, status: f.status })));
+        setProcessing(false);
+        toast.success(`${qs.length} questions extracted`);
+      } else if (status === "failed") {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+        setFiles((res.data.files || []).map((f) => ({ name: f.filename, status: f.status })));
+        setProcessing(false);
+        toast.error("Extraction failed");
+      }
+      // else still "processing" or "uploaded" — keep polling
+    } catch (err) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+      setProcessing(false);
+      setJobStatus("failed");
+      toast.error(err.response?.data?.detail || err.message || "Failed to check job status");
+    }
+  }, [headers, API]);
+
   const handleUpload = useCallback(async (fileList) => {
     if (!fileList?.length) return;
     setProcessing(true);
@@ -42,32 +75,27 @@ export default function AdminQuestionImportPage() {
       setJobStatus("uploaded");
       setFiles(Array.from(fileList).map((f) => ({ name: f.name, status: "uploaded" })));
 
-      const procRes = await axios.post(`${API}/admin/question-import/${jobId}/process`, {}, { headers, timeout: 300000 });
-      setJobStatus(procRes.data.status);
-      setFiles(procRes.data.errors?.length
-        ? Array.from(fileList).map((f) => ({
-            name: f.name,
-            status: procRes.data.errors.find((e) => e.filename === f.name) ? "failed" : "parsed",
-          }))
-        : Array.from(fileList).map((f) => ({ name: f.name, status: "parsed" }))
-      );
+      // Start processing (non-blocking — returns immediately)
+      await axios.post(`${API}/admin/question-import/${jobId}/process`, {}, { headers, timeout: 15000 });
+      setJobStatus("processing");
 
-      const jobRes = await axios.get(`${API}/admin/question-import/${jobId}`, { headers });
-      setQuestions(jobRes.data.questions || []);
-
-      if (procRes.data.errors?.length) {
-        toast.warning(`${procRes.data.errors.length} file(s) had errors`);
-      } else {
-        toast.success(`${procRes.data.questions_extracted || 0} questions extracted`);
-      }
+      // Poll for completion
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = setInterval(() => pollJobStatus(jobId), 2000);
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || "Upload failed";
       toast.error(msg);
       setJobStatus("failed");
-    } finally {
       setProcessing(false);
     }
-  }, [headers, API]);
+  }, [headers, API, pollJobStatus]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
