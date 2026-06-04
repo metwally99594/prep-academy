@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
+from datetime import datetime, timezone
 
 
 class UserCreate(BaseModel):
@@ -437,3 +438,54 @@ class QuestionImportLog(BaseModel):
     errors: List[ValidationError]
     created_at: float
     duration_ms: int
+
+
+# ═══════════════════════════════════════════════════════════════
+# QUESTION IMPORT & OPTION COMPLETION TOOL
+# ═══════════════════════════════════════════════════════════════
+
+class ParsedQuestion(BaseModel):
+    """A single question extracted from an uploaded file."""
+    question: str
+    options: List[str] = []
+    correct_answers: List[str] = []
+    source_file: str = ""
+    status: str = "parsed"  # parsed | completed | failed
+    error: Optional[str] = None
+
+
+class ImportFileInfo(BaseModel):
+    """Metadata about an uploaded file within an import job."""
+    filename: str
+    file_type: str = ""  # pdf | markdown
+    status: str = "uploaded"  # uploaded | processing | parsed | failed
+    error: Optional[str] = None
+    questions_count: int = 0
+
+
+class ImportJob(BaseModel):
+    """Tracks a complete import workflow from upload to export."""
+    id: str = Field(default_factory=lambda: f"imp_{uuid.uuid4().hex[:12]}")
+    status: str = "uploaded"  # uploaded | processing | parsed | validating | completed | failed
+    files: List[ImportFileInfo] = []
+    questions: List[ParsedQuestion] = []
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class ImportResponse(BaseModel):
+    import_id: str
+    status: str
+
+
+class ValidationResult(BaseModel):
+    question_index: int
+    valid: bool
+    errors: List[str] = []
+
+
+class ValidationSummary(BaseModel):
+    total_questions: int
+    valid: int
+    invalid: int
+    errors: List[dict] = []
