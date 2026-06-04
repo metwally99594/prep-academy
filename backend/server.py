@@ -8550,6 +8550,10 @@ app.include_router(knowledge_lab_router)
 from routes.memory import router as memory_router
 app.include_router(memory_router)
 
+# Include Question Import router
+from routes.question_import import router as question_import_router
+app.include_router(question_import_router)
+
 # Include Medical RAG + DICOM routers (only if heavy ML packages are installed)
 # These are disabled in Emergent free deployment (which has 250m CPU + 1Gi memory limit)
 # To re-enable: install chromadb + sentence-transformers + pydicom + opencv-python-headless
