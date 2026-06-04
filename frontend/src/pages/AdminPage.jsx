@@ -1410,6 +1410,22 @@ export default function AdminPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Link
+          to="/admin/question-import"
+          className="glass-card rounded-xl p-6 hover:shadow-lg transition-shadow group cursor-pointer block"
+          title="Bulk import exam questions from PDF or Markdown files"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Upload className="w-5 h-5 text-blue-500" />
+            <span className="text-sm font-semibold">Question Import Tool</span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Import PDF and Markdown exam files, validate questions, generate missing options and export results.
+          </p>
+        </Link>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap gap-x-1 gap-y-2 border-b border-border mb-6 bg-transparent p-0 h-auto">
           <TabsTrigger value="questions" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background">
