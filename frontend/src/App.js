@@ -27,6 +27,7 @@ const SearchResultsPage = lazy(() => import("@/pages/SearchResultsPage"));
 const StatsPage = lazy(() => import("@/pages/StatsPage"));
 const AdminPage = lazy(() => import("@/pages/AdminPage"));
 const AdminAnalyticsPage = lazy(() => import("@/pages/AdminAnalyticsPage"));
+const AdminQuestionImportPage = lazy(() => import("@/pages/AdminQuestionImportPage"));
 const LeaderboardPage = lazy(() => import("@/pages/LeaderboardPage"));
 const NotebookPage = lazy(() => import("@/pages/NotebookPage"));
 const CustomQuizPage = lazy(() => import("@/pages/CustomQuizPage"));
@@ -302,6 +303,9 @@ function AppRouter() {
           } />
           <Route path="/admin/moderation" element={
             <ProtectedRoute adminOnly><ModerationQueuePage /></ProtectedRoute>
+          } />
+          <Route path="/admin/question-import" element={
+            <ProtectedRoute adminOnly><AdminQuestionImportPage /></ProtectedRoute>
           } />
           <Route path="/knowledge-lab" element={
             <ProtectedRoute adminOnly><KnowledgeLabPage /></ProtectedRoute>
