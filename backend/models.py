@@ -449,6 +449,7 @@ class ParsedQuestion(BaseModel):
     question: str
     options: List[str] = []
     correct_answers: List[str] = []
+    generated_options: List[str] = []
     source_file: str = ""
     status: str = "parsed"  # parsed | completed | failed
     error: Optional[str] = None
@@ -489,3 +490,22 @@ class ValidationSummary(BaseModel):
     valid: int
     invalid: int
     errors: List[dict] = []
+
+
+class GenerateOptionsResponse(BaseModel):
+    import_id: str
+    processed: int
+    updated: int
+    skipped: int
+    failed: int
+    total: int
+    results: List[dict] = []
+
+
+class ExportQuestion(BaseModel):
+    index: int
+    question: str
+    original_options: List[str]
+    generated_options: List[str]
+    final_options: List[str]
+    correct_answers: List[str]

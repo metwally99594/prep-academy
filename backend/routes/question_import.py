@@ -1,27 +1,31 @@
-"""Question Import & Option Completion Tool — Routes."""
+"""Question Import & Option Completion Tool — Routes (Phase 2)."""
 import os as _os
 import json as _json
 import uuid as _uuid
 import re as _re
 import tempfile as _tempfile
 import aiofiles as _aiofiles
+import io as _io
 from pathlib import Path as _Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from database import db, logger
 from models import (
     ImportJob, ImportFileInfo, ParsedQuestion, ImportResponse,
-    ValidationSummary, ValidationResult
+    ValidationSummary, ValidationResult, GenerateOptionsResponse, ExportQuestion
 )
 from auth import get_current_user, get_admin_user
 from services.import_job import (
     create_import_job, get_import_job, update_import_job,
     add_file_to_job, update_file_status, add_questions_to_job,
-    set_job_status, validate_import_job
+    set_job_status, validate_import_job, update_question_generated_options,
+    get_questions_for_export
 )
 from services.ocr_service import extract_text_from_pdf, extract_text_from_markdown
 from services.question_parser import parse_questions_from_text
+from services.option_generator import generate_for_questions
 
 router = APIRouter(prefix="/api", tags=["question-import"])
 
@@ -147,6 +151,113 @@ async def process_import_job(
         "questions_extracted": len(all_questions),
         "errors": errors
     }
+
+
+@router.post("/admin/question-import/{import_id}/generate-options", response_model=GenerateOptionsResponse)
+async def generate_question_options(
+    import_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Generate AI distractors for parsed questions. Processes up to 50 questions per batch."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    job = await get_import_job(import_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+    if job.status not in ("parsed", "completed"):
+        raise HTTPException(status_code=400, detail=f"Job must be parsed first (status: {job.status})")
+
+    if not job.questions:
+        return GenerateOptionsResponse(import_id=import_id, processed=0, updated=0, skipped=0, failed=0, total=0)
+
+    await set_job_status(import_id, "processing")
+    result = await generate_for_questions(job.questions)
+
+    # Persist generated options to DB
+    for r in result["results"]:
+        if r.get("generated"):
+            await update_question_generated_options(import_id, r["index"], r["generated"])
+
+    new_status = "completed" if result["failed"] == 0 else "completed"
+    await set_job_status(import_id, new_status)
+
+    return GenerateOptionsResponse(
+        import_id=import_id,
+        processed=result["processed"],
+        updated=result["updated"],
+        skipped=result["skipped"],
+        failed=result["failed"],
+        total=result["total"],
+        results=result["results"]
+    )
+
+
+@router.get("/admin/question-import/{import_id}/export/json")
+async def export_import_json(
+    import_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Export parsed questions with generated options as JSON."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    items = await get_questions_for_export(import_id)
+    if not items:
+        raise HTTPException(status_code=404, detail="Import job not found or empty")
+    return {"import_id": import_id, "total": len(items), "questions": items}
+
+
+@router.get("/admin/question-import/{import_id}/export/xlsx")
+async def export_import_xlsx(
+    import_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Export parsed questions with generated options as Excel (.xlsx)."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    items = await get_questions_for_export(import_id)
+    if not items:
+        raise HTTPException(status_code=404, detail="Import job not found or empty")
+
+    try:
+        import openpyxl as _xlsx
+        from openpyxl.styles import Font as _Font, Alignment as _Alignment
+    except ImportError:
+        raise HTTPException(status_code=500, detail="openpyxl not installed")
+
+    wb = _xlsx.Workbook()
+    ws = wb.active
+    ws.title = "Questions"
+    bold = _Font(bold=True)
+
+    headers = ["#", "Question", "Correct Answer(s)", "All Options", "Original Options", "Generated Options"]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = bold
+
+    for i, q in enumerate(items, 2):
+        ws.cell(row=i, column=1, value=q["index"])
+        ws.cell(row=i, column=2, value=q["question"]).alignment = _Alignment(wrap_text=True)
+        ws.cell(row=i, column=3, value="; ".join(q["correct_answers"]))
+        ws.cell(row=i, column=4, value="; ".join(q["final_options"]))
+        ws.cell(row=i, column=5, value="; ".join(q["original_options"]))
+        ws.cell(row=i, column=6, value="; ".join(q["generated_options"]))
+
+    ws.column_dimensions["A"].width = 6
+    ws.column_dimensions["B"].width = 50
+    ws.column_dimensions["C"].width = 30
+    ws.column_dimensions["D"].width = 40
+    ws.column_dimensions["E"].width = 40
+    ws.column_dimensions["F"].width = 40
+
+    buf = _io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=questions_{import_id}.xlsx"}
+    )
 
 
 @router.get("/admin/question-import/{import_id}")

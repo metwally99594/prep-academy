@@ -64,6 +64,35 @@ async def set_job_status(job_id: str, status: str) -> bool:
     return result.modified_count > 0
 
 
+async def update_question_generated_options(job_id: str, question_index: int, generated_options: list[str]) -> bool:
+    """Update generated_options for a specific question in an import job."""
+    result = await db.import_jobs.update_one(
+        {"id": job_id},
+        {"$set": {f"questions.{question_index}.generated_options": generated_options,
+                  f"questions.{question_index}.status": "completed"}}
+    )
+    return result.modified_count > 0
+
+
+async def get_questions_for_export(job_id: str) -> list[dict]:
+    """Get all questions with combined final options for export."""
+    job = await get_import_job(job_id)
+    if not job:
+        return []
+    exports = []
+    for i, q in enumerate(job.questions):
+        final_opts = q.options + q.generated_options
+        exports.append({
+            "index": i + 1,
+            "question": q.question,
+            "original_options": q.options,
+            "generated_options": q.generated_options,
+            "final_options": final_opts,
+            "correct_answers": q.correct_answers,
+        })
+    return exports
+
+
 async def delete_import_job(job_id: str) -> bool:
     result = await db.import_jobs.delete_one({"id": job_id})
     return result.deleted_count > 0
