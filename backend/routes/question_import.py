@@ -21,6 +21,7 @@ from services.import_job import (
     set_job_status, validate_import_job
 )
 from services.ocr_service import extract_text_from_pdf, extract_text_from_markdown
+from services.question_parser import parse_questions_from_text
 
 router = APIRouter(prefix="/api", tags=["question-import"])
 
@@ -110,17 +111,23 @@ async def process_import_job(
             if not text or not text.strip():
                 raise ValueError("Extracted text is empty")
 
-            # Store raw text as a placeholder question for now
-            # Full question parsing will be implemented in Action #4
-            placeholder = ParsedQuestion(
-                question=f"[RAW TEXT from {file_info.filename}]",
-                options=[],
-                correct_answers=[],
-                source_file=file_info.filename,
-                status="parsed"
-            )
-            all_questions.append(placeholder)
-            await update_file_status(import_id, file_info.filename, "parsed", questions_count=1)
+            # Parse questions from extracted text
+            parsed = parse_questions_from_text(text, source_file=file_info.filename)
+            if parsed:
+                all_questions.extend(parsed)
+                await update_file_status(import_id, file_info.filename, "parsed", questions_count=len(parsed))
+            else:
+                # No structured questions found — store raw text as fallback
+                fallback = ParsedQuestion(
+                    question=f"[RAW TEXT from {file_info.filename}]",
+                    options=[],
+                    correct_answers=[],
+                    source_file=file_info.filename,
+                    status="parsed",
+                    error="No structured questions detected"
+                )
+                all_questions.append(fallback)
+                await update_file_status(import_id, file_info.filename, "parsed", questions_count=1)
 
         except Exception as e:
             logger.error(f"Failed to process {file_info.filename}: {e}")
