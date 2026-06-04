@@ -64,23 +64,25 @@ async def set_job_status(job_id: str, status: str) -> bool:
     return result.modified_count > 0
 
 
-async def update_question_generated_options(job_id: str, question_index: int, generated_options: list[str]) -> bool:
-    """Update generated_options for a specific question in an import job."""
+async def update_question_generated_options(job_id: str, question_index: int, generated_options: list[str], status: str = "completed") -> bool:
+    """Update generated_options and status for a specific question."""
     result = await db.import_jobs.update_one(
         {"id": job_id},
         {"$set": {f"questions.{question_index}.generated_options": generated_options,
-                  f"questions.{question_index}.status": "completed"}}
+                  f"questions.{question_index}.status": status}}
     )
     return result.modified_count > 0
 
 
 async def get_questions_for_export(job_id: str) -> list[dict]:
-    """Get all questions with combined final options for export."""
+    """Get questions with 5 final options, excluding failed_generation."""
     job = await get_import_job(job_id)
     if not job:
         return []
     exports = []
     for i, q in enumerate(job.questions):
+        if q.status == "failed_generation":
+            continue
         final_opts = q.options + q.generated_options
         exports.append({
             "index": i + 1,

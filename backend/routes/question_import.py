@@ -173,12 +173,16 @@ async def generate_question_options(
     await set_job_status(import_id, "processing")
     result = await generate_for_questions(job.questions)
 
-    # Persist generated options to DB
+    # Persist generated options and status to DB
     for r in result["results"]:
+        q_status = "completed" if r["action"] == "updated" else r["action"]
         if r.get("generated"):
-            await update_question_generated_options(import_id, r["index"], r["generated"])
+            await update_question_generated_options(import_id, r["index"], r["generated"], status=q_status)
+        elif r["action"] in ("failed_generation", "failed"):
+            await update_question_generated_options(import_id, r["index"], [], status=q_status)
 
-    new_status = "completed" if result["failed"] == 0 else "completed"
+    has_failed = any(r["action"] in ("failed_generation", "failed") for r in result["results"])
+    new_status = "completed" if not has_failed else ("completed_with_errors" if result["updated"] > 0 else "failed")
     await set_job_status(import_id, new_status)
 
     return GenerateOptionsResponse(

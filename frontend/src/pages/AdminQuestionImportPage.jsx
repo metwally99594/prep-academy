@@ -140,6 +140,7 @@ export default function AdminQuestionImportPage() {
     switch (status) {
       case "parsed": return <span className="inline-flex items-center gap-1 text-xs text-green-600"><CheckCircle className="w-3 h-3" /> Parsed</span>;
       case "completed": return <span className="inline-flex items-center gap-1 text-xs text-blue-600"><CheckCircle className="w-3 h-3" /> Completed</span>;
+      case "failed_generation": return <span className="inline-flex items-center gap-1 text-xs text-orange-600"><AlertCircle className="w-3 h-3" /> Incomplete</span>;
       case "failed": return <span className="inline-flex items-center gap-1 text-xs text-red-600"><XCircle className="w-3 h-3" /> Failed</span>;
       default: return <span className="inline-flex items-center gap-1 text-xs text-amber-600"><AlertCircle className="w-3 h-3" /> {status}</span>;
     }

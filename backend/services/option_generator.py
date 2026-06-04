@@ -13,6 +13,7 @@ OR_HEADERS = {
 }
 MAX_OPTIONS = 5
 MAX_BATCH = 50
+MAX_RETRIES = 3
 
 
 def _next_letter(index: int) -> str:
@@ -111,7 +112,9 @@ async def generate_for_questions(
     start_index: int = 0,
     max_questions: int = MAX_BATCH,
 ) -> dict:
-    """Batch-generate distractors for a list of ParsedQuestion objects. Returns stats."""
+    """Batch-generate distractors for a list of ParsedQuestion objects.
+    Retries up to MAX_RETRIES times until 5 options reached.
+    Questions still below 5 after retries get action='failed_generation'."""
     processed = 0
     updated = 0
     skipped = 0
@@ -125,24 +128,45 @@ async def generate_for_questions(
         q_text = q.question if hasattr(q, "question") else (q.get("question") or "")
         existing = q.options if hasattr(q, "options") else (q.get("options") or [])
         correct = q.correct_answers if hasattr(q, "correct_answers") else (q.get("correct_answers") or [])
-        generated = q.generated_options if hasattr(q, "generated_options") else (q.get("generated_options") or [])
-
-        total = len(existing) + len(generated)
+        generated_so_far = q.generated_options if hasattr(q, "generated_options") else (q.get("generated_options") or [])
+        all_options = existing + generated_so_far
         global_idx = start_index + idx
 
-        if total >= MAX_OPTIONS:
+        if len(all_options) >= MAX_OPTIONS:
             skipped += 1
-            results.append({"index": global_idx, "question": q_text[:60], "action": "skipped", "reason": f"already has {total} options"})
+            results.append({"index": global_idx, "question": q_text[:60], "action": "skipped", "reason": f"already has {len(all_options)} options"})
             continue
 
-        needed = MAX_OPTIONS - total
-        distractors = await generate_distractors(question=q_text, correct_answers=correct, existing_options=existing + generated, count=needed)
+        new_distractors = []
+        retries = 0
 
-        if distractors:
+        while len(all_options) + len(new_distractors) < MAX_OPTIONS and retries < MAX_RETRIES:
+            needed = MAX_OPTIONS - len(all_options) - len(new_distractors)
+            current_all = all_options + new_distractors
+            chunk = await generate_distractors(q_text, correct, current_all, needed)
+            fresh = [d for d in chunk if d not in new_distractors and d not in all_options]
+            new_distractors.extend(fresh)
+            retries += 1
+
+        final_total = len(all_options) + len(new_distractors)
+
+        if final_total >= MAX_OPTIONS:
             updated += 1
+            action = "updated"
+        elif new_distractors:
+            failed += 1
+            action = "failed_generation"
         else:
             failed += 1
+            action = "failed"
 
-        results.append({"index": global_idx, "question": q_text[:60], "action": "updated" if distractors else "failed", "generated": distractors})
+        results.append({
+            "index": global_idx,
+            "question": q_text[:60],
+            "action": action,
+            "generated": new_distractors,
+            "retries": retries,
+            "final_total": final_total,
+        })
 
     return {"processed": processed, "updated": updated, "skipped": skipped, "failed": failed, "total": len(batch), "results": results}
