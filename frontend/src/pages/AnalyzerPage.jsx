@@ -50,7 +50,7 @@ export default function AnalyzerPage() {
     if (!token) return;
     axios.get(`${API}/analyzer/history`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => setHistory(r.data || []))
-      .catch((err) => { console.error("[Analyzer] History error:", err?.message); toast.error("Fehler beim Laden des Verlaufs"); });
+      .catch((err) => { toast.error("Fehler beim Laden des Verlaufs"); });
   };
 
   const handleFileSelect = (e) => {
@@ -106,7 +106,6 @@ export default function AnalyzerPage() {
           // Convert dataUrl to Blob for efficient multipart upload
           canvas.toBlob((blob) => {
             if (!blob) return;
-            console.log(`[Analyzer] Image ready: ${(blob.size/1024).toFixed(0)} KB blob (original ${(file.size/1024).toFixed(0)} KB)`);
             setImages(prev => [...prev, { dataUrl, blob, name: file.name.replace(/\.[^.]+$/, '') + '.jpg' }].slice(0, 10));
           }, "image/jpeg", 0.82);
         };
@@ -163,9 +162,6 @@ export default function AnalyzerPage() {
       formData.append("report_type", reportType);
       formData.append("clinical_context", clinicalContext || "");
 
-      const totalMB = images.reduce((s, img) => s + (img.blob?.size || 0), 0) / (1024 * 1024);
-      console.log(`[Analyzer] Uploading ${images.length} files, total ${totalMB.toFixed(2)} MB via multipart`);
-
       const start = await axios.post(`${API}/analyzer/analyze-upload`, formData, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 90000,
@@ -195,12 +191,10 @@ export default function AnalyzerPage() {
           }
         } catch (pollErr) {
           if (pollErr.message?.includes("Analyse fehlgeschlagen")) throw pollErr;
-          console.warn("[Analyzer] Poll retry:", pollErr.message);
         }
       }
       throw new Error("Timeout: Analyse dauert zu lange");
     } catch (err) {
-      console.error("[Analyzer] Error:", err);
       const msg = err.response?.data?.detail || err.message || "Analyse fehlgeschlagen";
       toast.error(msg === "Network Error" ? "Netzwerkfehler beim Hochladen. Bitte Verbindung prüfen." : msg);
     } finally {
