@@ -29,31 +29,17 @@ def parse_questions_from_text(text: str, source_file: str = "") -> List[ParsedQu
 
 def _split_question_blocks(text: str) -> List[str]:
     """Split text into individual question blocks."""
-    # Split on "## Question" or "## Frage" headers, or numbered patterns like "1." at start of line
     separators = [
-        r'^##\s*(Question|Frage)\b',
+        r'^##\s*(?:Question|Frage)\b',
         r'^\d+[.)]\s+(?=[A-ZÄÖÜ])',
     ]
     combined = "|".join(f"(?:{s})" for s in separators)
     blocks = _re.split(combined, text, flags=_re.MULTILINE | _re.IGNORECASE)
-    # The split produces alternating [prefix, question_block] — merge
-    merged = []
-    buffer = ""
-    for part in blocks:
-        if part is None:
-            continue
-        if _re.match(combined, part, _re.MULTILINE | _re.IGNORECASE):
-            if buffer.strip():
-                merged.append(buffer.strip())
-            buffer = part
-        else:
-            buffer += "\n" + part
-    if buffer.strip():
-        merged.append(buffer.strip())
-    # If no split matched, treat entire text as one block
-    if not merged and text.strip():
-        merged = [text.strip()]
-    return merged
+    # Each non-empty block is a question; the separator itself is consumed
+    result = [b.strip() for b in blocks if b and b.strip()]
+    if not result and text.strip():
+        result = [text.strip()]
+    return result
 
 
 def _parse_single_question(block: str, source_file: str) -> ParsedQuestion:
