@@ -65,13 +65,14 @@ def chunk_document(text: str) -> List[str]:
 
 EXTRACTION_SYSTEM_PROMPT = """You are a medical exam question extraction system. Extract ALL questions from the given exam document text.
 
-For EACH question, identify:
-- question_text: The complete question text (preserve exactly, including any image references like [Image], (Image), etc.)
-- question_type: One of: "single", "multi", "true_false", "matching", "grouping", "image"
-- options: Array of option strings (preserve original formatting including letter prefixes like "A) ...")
-- correct_answers: Array of the EXACT option strings that are correct
+For EACH question, extract:
+- "question": The complete question text (preserve exactly, including any image references like [Image], (Image), etc.)
+- "type": One of: "single", "multi", "true_false", "matching", "grouping", "image"
+- "options": Array of option strings (preserve original formatting including letter prefixes like "A) ...")
+- "correct_answers": Array of the EXACT option strings that are correct
 
 Rules:
+- The JSON key MUST be "question" (not "question_text" or anything else)
 - Preserve question text EXACTLY as written (do not paraphrase, summarize, or modify)
 - Preserve ALL options exactly as written
 - Preserve correct_answers as the exact option strings (e.g. "A) Text" not just "A")
@@ -84,7 +85,7 @@ Rules:
 - If a block appears to contain multiple questions, extract each one separately
 - Return ONLY valid JSON array — no markdown fences, no explanations, no extra text
 
-Response format (strict JSON array):
+Response format (strict JSON array — keys MUST be exactly "question", "type", "options", "correct_answers"):
 [
   {
     "question": "Full question text here...",
@@ -176,7 +177,8 @@ def validate_extracted_question(q: dict, index: int) -> Optional[dict]:
     if not isinstance(q, dict):
         return None
 
-    question = (q.get("question") or "").strip()
+    # Accept both "question" and "question_text" keys (AI sometimes returns the latter)
+    question = (q.get("question") or q.get("question_text") or "").strip()
     if not question:
         logger.warning(f"[AI_EXTRACTOR] Q{index}: malformed — empty question text")
         return None
@@ -266,7 +268,7 @@ async def extract_questions_from_text(
 
     for i, q in enumerate(all_raw):
         # Merge detection on raw question text
-        raw_text = (q.get("question") or "").strip()
+        raw_text = (q.get("question") or q.get("question_text") or "").strip()
         if raw_text:
             mi = _detect_merge_indicators(raw_text)
             if mi:
@@ -356,8 +358,7 @@ async def extract_and_report(text: str, source_file: str = "") -> dict:
     opts_ok = 0
 
     for i, q in enumerate(all_raw):
-        # Pre-validation merge detection on raw data
-        raw_text = (q.get("question") or "").strip()
+        raw_text = (q.get("question") or q.get("question_text") or "").strip()
         merge_indicators = _detect_merge_indicators(raw_text) if raw_text else []
         if merge_indicators:
             merged_count += 1
