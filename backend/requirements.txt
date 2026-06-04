@@ -25,3 +25,7 @@ openpyxl>=3.1.5
 python-dateutil>=2.9.0
 qdrant-client>=1.9.0
 PyYAML>=6.0
+aiofiles>=25.1.0
+pytesseract>=0.3.13
+pdfminer.six>=20260107
+pdf2image>=1.17.0
