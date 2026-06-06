@@ -240,6 +240,135 @@ def _deduplicate_questions(questions: List[dict]) -> List[dict]:
     return unique
 
 
+def _recover_missing_content(validated: List[dict], original_text: str) -> int:
+    """Post-processing: recover missing options/answers from source text for questions where AI failed.
+
+    Scans original text for `- ` option lines and `**Answer:**` to patch
+    questions with 0 options or missing correct_answers.
+    Returns count of questions patched.
+    """
+    sections = re.split(r"(?=^## \d+\.)", original_text, flags=re.MULTILINE)
+    if not sections:
+        sections = [original_text]
+    patched = 0
+
+    for vq in validated:
+        needs_options = not vq["options"] or len(vq["options"]) < 2
+        needs_answers = not vq["correct_answers"]
+        if not needs_options and not needs_answers:
+            continue
+
+        qtext = vq["question"].strip().lower()[:100]
+        qtext_clean = re.sub(r"^\d+\.\s*", "", qtext)
+        q_words = set(qtext_clean.split())
+
+        best_sec = None
+        best_score = 0
+        for sec in sections:
+            sec_clean = re.sub(r"^## \d+\.\s*", "", sec.strip().lower())[:100]
+            score = len(q_words & set(sec_clean.split()))
+            if score > best_score:
+                best_score = score
+                best_sec = sec
+
+        if best_sec is None or best_score < 2:
+            continue
+
+        modified = False
+
+        # 1. Recover options from `- ` bullet lines
+        if needs_options:
+            opt_lines = re.findall(r"^-\s+(.*)", best_sec, re.MULTILINE)
+            if opt_lines:
+                clean_opts = []
+                for o in opt_lines:
+                    o = o.strip()
+                    if o and o != "-":
+                        # Deduplicate while preserving order
+                        if o not in clean_opts:
+                            clean_opts.append(o)
+                if len(clean_opts) >= 2:
+                    vq["options"] = clean_opts
+                    if vq.get("type") in (None, "", "unknown"):
+                        vq["type"] = "single"
+                    modified = True
+                    logger.info(f"[RECOVERY] Patched options for Q: {vq['question'][:50]}... ({len(clean_opts)} options)")
+
+        # 2. Recover correct_answers from **Answer:**
+        if needs_answers:
+            answer_text = _extract_answer_from_section(best_sec)
+            if answer_text:
+                opts = vq.get("options", [])
+                matched = False
+                if opts:
+                    for opt in opts:
+                        opt_clean = re.sub(r"^[A-Za-z][)\s.]+\s*", "", opt).strip().lower()
+                        ans_lower = answer_text.strip().lower()
+                        if ans_lower == opt_clean or ans_lower in opt_clean or opt_clean in ans_lower:
+                            vq["correct_answers"] = [opt]
+                            matched = True
+                            break
+                if not matched:
+                    vq["correct_answers"] = [answer_text]
+                modified = True
+                logger.info(f"[RECOVERY] Patched answer for Q: {vq['question'][:50]}... -> '{answer_text[:40]}'")
+
+        if modified:
+            patched += 1
+
+    return patched
+
+
+def _extract_answer_from_section(sec: str) -> Optional[str]:
+    """Extract answer text from a source section. Handles plain text and embedded JSON."""
+    answer_match = re.search(
+        r"\*\*Answer:\*\*\s*(.*?)(?:\n_(?:Page|Seite)|$)",
+        sec, re.IGNORECASE | re.DOTALL
+    )
+    if not answer_match:
+        return None
+
+    answer_text = answer_match.group(1).strip()
+    # Remove trailing instructions like "Bitte ordnen Sie zu" or "Beurteile..."
+    answer_text = re.sub(r"\s*[BW]itte\s.*$", "", answer_text).strip()
+    answer_text = re.sub(r"\s*Beurteile\s.*$", "", answer_text).strip()
+
+    # Check for JSON-like matching structure: {"groupName": "...", "items": [...]}
+    if answer_text.startswith("{"):
+        try:
+            # Try to find and parse JSON objects in the answer
+            items = []
+            for m in re.finditer(r'"text"\s*:\s*"([^"]+)"', answer_text):
+                items.append(m.group(1))
+            if items:
+                return "; ".join(items)
+        except Exception:
+            pass
+
+    return answer_text
+
+
+def _clean_duplicate_options(validated: List[dict]) -> int:
+    """Remove duplicate options from questions. Returns count of cleaned questions."""
+    cleaned = 0
+    for vq in validated:
+        opts = vq.get("options", [])
+        if not opts:
+            continue
+        seen = set()
+        unique_opts = []
+        for o in opts:
+            key = o.strip().lower()
+            if key not in seen:
+                seen.add(key)
+                unique_opts.append(o)
+        if len(unique_opts) < len(opts):
+            vq["options"] = unique_opts
+            cleaned += 1
+            logger.info(f"[CLEAN] Removed {len(opts) - len(unique_opts)} dupes from Q: {vq['question'][:40]}...")
+    return cleaned
+
+
 async def extract_questions_from_text(
     text: str,
     source_file: str = "",
@@ -288,10 +417,21 @@ async def extract_questions_from_text(
     # Deduplicate
     validated = _deduplicate_questions(validated)
 
+    # Recovery pass: patch questions where AI missed options or answers
+    recovered = _recover_missing_content(validated, text)
+    if recovered:
+        logger.info(f"[AI_EXTRACTOR] Recovery: patched {recovered} questions with missing content")
+
+    # Clean duplicate options
+    cleaned = _clean_duplicate_options(validated)
+    if cleaned:
+        logger.info(f"[AI_EXTRACTOR] Cleaned duplicate options from {cleaned} questions")
+
     logger.info(
         f"[AI_EXTRACTOR] Stats: {len(all_raw)} raw → {len(validated)} valid "
         f"({malformed_count} malformed, {merged_count} merged-like, "
-        f"{missing_answers} missing answers, {missing_options} missing options)"
+        f"{missing_answers} missing answers, {missing_options} missing options, "
+        f"{recovered} recovered)"
     )
     if skipped:
         logger.warning(f"[AI_EXTRACTOR] Skipped {skipped} malformed questions")
@@ -403,6 +543,19 @@ async def extract_and_report(text: str, source_file: str = "") -> dict:
     before_dedup = len(validated)
     validated = _deduplicate_questions(validated)
     report["deduplicated"] = before_dedup - len(validated)
+
+    # Recovery pass
+    recovered = _recover_missing_content(validated, text)
+    report["recovered"] = recovered
+    if recovered:
+        logger.info(f"[AI_EXTRACTOR] Report recovery: patched {recovered} questions")
+
+    # Clean duplicate options
+    cleaned = _clean_duplicate_options(validated)
+    report["cleaned_duplicates"] = cleaned
+    if cleaned:
+        logger.info(f"[AI_EXTRACTOR] Cleaned duplicate options from {cleaned} questions")
+
     report["final_count"] = len(validated)
     report["questions"] = validated
 
