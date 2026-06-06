@@ -284,7 +284,6 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
                 for o in opt_lines:
                     o = o.strip()
                     if o and o != "-":
-                        # Deduplicate while preserving order
                         if o not in clean_opts:
                             clean_opts.append(o)
                 if len(clean_opts) >= 2:
@@ -294,8 +293,27 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
                     modified = True
                     logger.info(f"[RECOVERY] Patched options for Q: {vq['question'][:50]}... ({len(clean_opts)} options)")
 
-        # 2. Recover correct_answers from **Answer:**
-        if needs_answers:
+        # 2. If still needs options, try matching JSON items from answer
+        if needs_options and (not vq["options"] or len(vq["options"]) < 2):
+            match_items = _extract_matching_items_from_source(best_sec)
+            if match_items:
+                vq["options"] = match_items
+                vq["type"] = "matching"
+                modified = True
+                logger.info(f"[RECOVERY] Patched matching options for Q: {vq['question'][:50]}... ({len(match_items)} items)")
+
+        # 3. If still needs options, try fill-in-blank split from answer text
+        if needs_options and (not vq["options"] or len(vq["options"]) < 2):
+            ans_text = _extract_answer_from_section(best_sec)
+            if ans_text:
+                fib_opts = _extract_fill_in_blank_options(ans_text)
+                if fib_opts:
+                    vq["options"] = fib_opts
+                    modified = True
+                    logger.info(f"[RECOVERY] Patched fill-in-blank options for Q: {vq['question'][:50]}... ({len(fib_opts)} opts from answer)")
+
+        # 4. Recover correct_answers from **Answer:**
+        if needs_answers or (vq.get("options") and not vq["correct_answers"]):
             answer_text = _extract_answer_from_section(best_sec)
             if answer_text:
                 opts = vq.get("options", [])
@@ -346,6 +364,41 @@ def _extract_answer_from_section(sec: str) -> Optional[str]:
             pass
 
     return answer_text
+
+
+def _extract_matching_items_from_source(sec: str) -> Optional[list]:
+    """Extract matching items from JSON embedded in answer line (e.g., 'Ordnen Sie zu' questions)."""
+    am = re.search(
+        r"\*\*Answer:\*\*\s*(.*?)(?:\n_(?:Page|Seite)|$)",
+        sec, re.IGNORECASE | re.DOTALL
+    )
+    if not am:
+        return None
+    answer_text = am.group(1).strip()
+    if not answer_text.startswith("{"):
+        return None
+    items = []
+    for m in re.finditer(r'"text"\s*:\s*"([^"]+)"', answer_text):
+        text = m.group(1).strip()
+        if text and text not in items:
+            items.append(text)
+    if len(items) >= 2:
+        return items
+    # Fallback: extract from question text before answer
+    q_lines = sec.split("\n")
+    qtext = q_lines[0] if q_lines else ""
+    parts = re.split(r"\s+(richtig|falsch)\s+", qtext, flags=re.IGNORECASE)
+    items = [p.strip() for p in parts if p.strip() and len(p.strip()) > 5]
+    return items if len(items) >= 2 else None
+
+
+def _extract_fill_in_blank_options(answer_text: str) -> Optional[list]:
+    """For fill-in-blank questions, create options from the answer text split by delimiters."""
+    for delim in [" ", ",", ";", " und ", " bzw. ", " / "]:
+        parts = [p.strip() for p in answer_text.split(delim) if p.strip()]
+        if len(parts) >= 2:
+            return parts
+    return None
 
 
 def _clean_duplicate_options(validated: List[dict]) -> int:
