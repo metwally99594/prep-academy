@@ -240,6 +240,18 @@ def _deduplicate_questions(questions: List[dict]) -> List[dict]:
     return unique
 
 
+def _find_section_by_number(qtext: str, sections: list) -> tuple:
+    """Find source section by extracting question number from AI output."""
+    m = re.match(r"^\s*(\d+)\s*[.)]\s*", qtext)
+    if m:
+        num = m.group(1)
+        for i, sec in enumerate(sections):
+            sm = re.match(r"^##\s*(\d+)\.\s*", sec.strip())
+            if sm and sm.group(1) == num:
+                return i, sec
+    return -1, None
+
+
 def _recover_missing_content(validated: List[dict], original_text: str) -> int:
     """Post-processing: recover missing options/answers from source text for questions where AI failed.
 
@@ -259,27 +271,37 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
         if not needs_options and not needs_answers:
             continue
 
-        qtext = vq["question"].strip().lower()[:100]
-        qtext_clean = re.sub(r"^\d+\.\s*", "", qtext)
-        q_words = set(qtext_clean.split())
-        logger.info(f"[RECOVERY] Needs opts={needs_options} ans={needs_answers} | q_words={len(q_words)} | first 40: {qtext[:40]}")
+        qtext = vq["question"].strip()
+        qtext_lower = qtext.lower()[:100]
 
         best_sec = None
-        best_score = 0
         best_idx = -1
-        for idx, sec in enumerate(sections):
-            sec_clean = re.sub(r"^## \d+\.\s*", "", sec.strip().lower())[:100]
-            score = len(q_words & set(sec_clean.split()))
-            if score > best_score:
-                best_score = score
-                best_sec = sec
-                best_idx = idx
 
-        if best_sec is None or best_score < 2:
-            logger.info(f"[RECOVERY] No match for Q: {qtext[:40]}... (best_score={best_score}, threshold=2)")
-            continue
+        # Method 1: Match by question number (e.g., "## 10." for "10. Text")
+        sec_idx, sec = _find_section_by_number(qtext, sections)
+        if sec is not None:
+            best_sec = sec
+            best_idx = sec_idx
+            logger.info(f"[RECOVERY] Matched by question number -> section {best_idx}")
 
-        logger.info(f"[RECOVERY] Matched to section {best_idx} (score={best_score})")
+        # Method 2: Fall back to word overlap matching
+        if best_sec is None:
+            qtext_clean = re.sub(r"^\d+\.\s*", "", qtext_lower)
+            q_words = set(qtext_clean.split())
+            logger.info(f"[RECOVERY] Number match failed, trying word overlap: {len(q_words)} words")
+            best_score = 0
+            for idx, sec in enumerate(sections):
+                sec_clean = re.sub(r"^## \d+\.\s*", "", sec.strip().lower())[:100]
+                score = len(q_words & set(sec_clean.split()))
+                if score > best_score:
+                    best_score = score
+                    best_sec = sec
+                    best_idx = idx
+
+            if best_sec is None or best_score < 2:
+                logger.info(f"[RECOVERY] No match for Q: {qtext_lower[:40]}... (best_score={best_score}, threshold=2)")
+                continue
+            logger.info(f"[RECOVERY] Matched word overlap -> section {best_idx} (score={best_score})")
 
         modified = False
 
