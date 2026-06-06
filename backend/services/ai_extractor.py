@@ -250,6 +250,7 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
     sections = re.split(r"(?=^## \d+\.)", original_text, flags=re.MULTILINE)
     if not sections:
         sections = [original_text]
+    logger.info(f"[RECOVERY] Starting recovery: {len(validated)} questions, {len(sections)} sections")
     patched = 0
 
     for vq in validated:
@@ -261,24 +262,31 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
         qtext = vq["question"].strip().lower()[:100]
         qtext_clean = re.sub(r"^\d+\.\s*", "", qtext)
         q_words = set(qtext_clean.split())
+        logger.info(f"[RECOVERY] Needs opts={needs_options} ans={needs_answers} | q_words={len(q_words)} | first 40: {qtext[:40]}")
 
         best_sec = None
         best_score = 0
-        for sec in sections:
+        best_idx = -1
+        for idx, sec in enumerate(sections):
             sec_clean = re.sub(r"^## \d+\.\s*", "", sec.strip().lower())[:100]
             score = len(q_words & set(sec_clean.split()))
             if score > best_score:
                 best_score = score
                 best_sec = sec
+                best_idx = idx
 
         if best_sec is None or best_score < 2:
+            logger.info(f"[RECOVERY] No match for Q: {qtext[:40]}... (best_score={best_score}, threshold=2)")
             continue
+
+        logger.info(f"[RECOVERY] Matched to section {best_idx} (score={best_score})")
 
         modified = False
 
         # 1. Recover options from `- ` bullet lines
         if needs_options:
             opt_lines = re.findall(r"^-\s+(.*)", best_sec, re.MULTILINE)
+            logger.info(f"[RECOVERY] Found {len(opt_lines)} bullet lines in section {best_idx}")
             if opt_lines:
                 clean_opts = []
                 for o in opt_lines:
@@ -286,6 +294,7 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
                     if o and o != "-":
                         if o not in clean_opts:
                             clean_opts.append(o)
+                logger.info(f"[RECOVERY] Cleaned to {len(clean_opts)} options after filtering")
                 if len(clean_opts) >= 2:
                     vq["options"] = clean_opts
                     if vq.get("type") in (None, "", "unknown"):
@@ -315,6 +324,7 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
         # 4. Recover correct_answers from **Answer:**
         if needs_answers or (vq.get("options") and not vq["correct_answers"]):
             answer_text = _extract_answer_from_section(best_sec)
+            logger.info(f"[RECOVERY] Answer recovery: found={answer_text is not None} for Q: {vq['question'][:40]}...")
             if answer_text:
                 opts = vq.get("options", [])
                 matched = False
@@ -329,11 +339,12 @@ def _recover_missing_content(validated: List[dict], original_text: str) -> int:
                 if not matched:
                     vq["correct_answers"] = [answer_text]
                 modified = True
-                logger.info(f"[RECOVERY] Patched answer for Q: {vq['question'][:50]}... -> '{answer_text[:40]}'")
+                logger.info(f"[RECOVERY] Patched answer for Q: {vq['question'][:50]}... -> '{answer_text[:40]}' (matched={matched})")
 
         if modified:
             patched += 1
 
+    logger.info(f"[RECOVERY] Done: patched {patched}/{len(validated)} questions")
     return patched
 
 
