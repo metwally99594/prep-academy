@@ -110,6 +110,14 @@ async def _background_process_job(import_id: str):
 
                 parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
                 if parsed:
+                    # DEBUG: force-set one question to test persistence
+                    for pq in parsed[:5]:
+                        if not pq.options or len(pq.options) < 2:
+                            # Try force-setting to test if MongoDB stores the change
+                            pq.options = ["DEBUG: Test option A", "DEBUG: Test option B"]
+                            pq.correct_answers = ["DEBUG: Test option A"]
+                            logger.info(f"[BACKGROUND] DEBUG: Force-set test data for Q: {pq.question[:40]}")
+                            break
                     # Run recovery on extracted questions using original file text
                     recovered_count = 0
                     if text and parsed:
