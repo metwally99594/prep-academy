@@ -110,6 +110,15 @@ async def _background_process_job(import_id: str):
 
                 parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
                 if parsed:
+                    # Run recovery on the extracted questions using the original file text
+                    recovered_count = 0
+                    if text:
+                        from services.ai_extractor import _recover_missing_content
+                        validated = [q.model_dump() for q in parsed]
+                        recovered_count = _recover_missing_content(validated, text)
+                        if recovered_count:
+                            parsed = [ParsedQuestion(**v) for v in validated]
+                            logger.info(f"[BACKGROUND] Recovery: patched {recovered_count} questions for {file_info.filename}")
                     all_questions.extend(parsed)
                     await update_file_status(import_id, file_info.filename, "parsed", questions_count=len(parsed))
                 else:
