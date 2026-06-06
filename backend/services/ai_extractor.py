@@ -505,13 +505,15 @@ async def extract_questions_from_text(
 
     # Recovery pass: patch questions where AI missed options or answers
     recovered = _recover_missing_content(validated, text)
-    logger.info(f"[AI_EXTRACTOR] Recovery: patched {recovered} of {len(validated)} questions")
-    # Verify: check first 3 questions that had issues
-    for i, vq in enumerate(validated[:10]):
+    logger.info(f"[AI_EXTRACTOR] Recovery result: patched={recovered} total={len(validated)}")
+    # Detailed verification log for questions that still need help
+    needs_help = sum(1 for v in validated if not v["options"] or len(v["options"]) < 2 or not v["correct_answers"])
+    logger.info(f"[AI_EXTRACTOR] Post-recovery needs help: {needs_help} of {len(validated)} questions")
+    for i, vq in enumerate(validated):
         no_opts = not vq["options"] or len(vq["options"]) < 2
         no_ans = not vq["correct_answers"]
         if no_opts or no_ans:
-            logger.info(f"[AI_EXTRACTOR] Q{i} after recovery: opts={len(vq['options'])} ans={len(vq['correct_answers'])} q={vq['question'][:40]}")
+            logger.info(f"[AI_EXTRACTOR] Post-recovery Q{i} still broken: opts={len(vq['options'])} ans={len(vq['correct_answers'])} q={vq['question'][:60]}")
 
     # Clean duplicate options
     cleaned = _clean_duplicate_options(validated)
