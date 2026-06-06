@@ -521,3 +521,59 @@ async def re_extract_job(
         "questions_extracted": len(all_questions),
         "errors": errors,
     }
+
+
+@router.get("/admin/debug/recovery-test")
+async def debug_recovery_test(
+    user: dict = Depends(get_current_user)
+):
+    """DEBUG: Test recovery on the latest import job. Returns pre/post comparison."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    from services.ocr_service import extract_text_from_markdown
+    from services.ai_extractor import _recover_missing_content as _recover_fn
+
+    # Find latest parsed job
+    cursor = db.import_jobs.find({"status": "parsed"}).sort("created_at", -1).limit(1)
+    latest = None
+    async for doc in cursor:
+        latest = doc
+    if not latest or not latest.get("questions"):
+        return {"error": "No parsed jobs found"}
+
+    questions = latest["questions"]
+    # Use our direct recovery (same as background job)
+    job_dir = UPLOAD_DIR / latest["id"]
+    text = None
+    for finfo in latest.get("files", []):
+        fp = job_dir / finfo["filename"]
+        if fp.exists():
+            try:
+                text = extract_text_from_markdown(str(fp))
+            except Exception:
+                text = None
+
+    before = [
+        {"index": i, "opts": len(q.get("options", [])), "ans": len(q.get("correct_answers", [])), "q": q.get("question", "")[:50]}
+        for i, q in enumerate(questions[:10])
+    ]
+
+    if text:
+        # Convert to dicts for recovery
+        validated = [
+            {
+                "question": q.get("question", ""),
+                "type": q.get("type", "single"),
+                "options": q.get("options", []),
+                "correct_answers": q.get("correct_answers", []),
+            }
+            for q in questions
+        ]
+        patched = _recover_fn(validated, text)
+        after = [
+            {"index": i, "opts": len(v["options"]), "ans": len(v["correct_answers"]), "q": v["question"][:50]}
+            for i, v in enumerate(validated[:10])
+        ]
+        return {"patched": patched, "text_len": len(text), "sections": len(re.split(r"(?=^## \d+\.)", text, flags=re.MULTILINE)), "before": before, "after": after}
+    else:
+        return {"error": "No file text found", "before": before}
