@@ -110,14 +110,71 @@ async def _background_process_job(import_id: str):
 
                 parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
                 if parsed:
-                    # Run recovery on the extracted questions using the original file text
+                    # Run recovery on extracted questions using original file text
                     recovered_count = 0
-                    if text:
-                        from services.ai_extractor import _recover_missing_content
-                        validated = [q.model_dump() for q in parsed]
-                        recovered_count = _recover_missing_content(validated, text)
+                    if text and parsed:
+                        import re as _re
+                        sections = _re.split(r"(?=^## \d+\.)", text, flags=_re.MULTILINE)
+                        logger.info(f"[BACKGROUND] Recovery: {len(parsed)} questions, {len(sections)} source sections")
+                        for pq in parsed:
+                            needs_opts = not pq.options or len(pq.options) < 2
+                            needs_ans = not pq.correct_answers
+                            if not needs_opts and not needs_ans:
+                                continue
+                            qtext = pq.question.strip()
+                            best_sec = None
+                            # Match by number
+                            nm = _re.match(r"^\s*(\d+)\s*[.)]\s*", qtext)
+                            if nm:
+                                for sec in sections:
+                                    sm = _re.match(r"^##\s*(\d+)\.\s*", sec.strip())
+                                    if sm and sm.group(1) == nm.group(1):
+                                        best_sec = sec
+                                        break
+                            # Fall back to word overlap
+                            if not best_sec:
+                                qwords = set(_re.sub(r"^\d+\.\s*", "", qtext.lower())[:100].split())
+                                best_score = 0
+                                for sec in sections:
+                                    sec_words = set(_re.sub(r"^## \d+\.\s*", "", sec.strip().lower())[:100].split())
+                                    score = len(qwords & sec_words)
+                                    if score > best_score:
+                                        best_score = score
+                                        best_sec = sec
+                                if best_score < 2:
+                                    continue
+                            # Extract bullet options
+                            if needs_opts:
+                                opt_lines = _re.findall(r"^-\s+(.*)", best_sec, _re.MULTILINE)
+                                clean_opts = [o.strip() for o in opt_lines if o.strip() and o.strip() != "-"]
+                                clean_opts = list(dict.fromkeys(clean_opts))  # dedup preserving order
+                                if len(clean_opts) >= 2:
+                                    pq.options = clean_opts
+                                    if pq.type in ("", "unknown"):
+                                        pq.type = "single"
+                            # Extract answer
+                            if needs_ans or (pq.options and not pq.correct_answers):
+                                am = _re.search(r"\*\*Answer:\*\*\s*(.*?)(?:\n_(?:Page|Seite)|$)", best_sec, _re.IGNORECASE | _re.DOTALL)
+                                if am:
+                                    ans_text = am.group(1).strip()
+                                    if pq.options:
+                                        matched = False
+                                        for opt in pq.options:
+                                            optc = _re.sub(r"^[A-Za-z][)\s.]+\s*", "", opt).strip().lower()
+                                            ansl = ans_text.strip().lower()
+                                            if ansl == optc or ansl in optc or optc in ansl:
+                                                pq.correct_answers = [opt]
+                                                matched = True
+                                                break
+                                        if not matched:
+                                            pq.correct_answers = [ans_text]
+                                    else:
+                                        pq.correct_answers = [ans_text]
+                                    recovered_count += 1
+                            # Also count option-only recoveries
+                            if needs_opts and pq.options and len(pq.options) >= 2:
+                                recovered_count += 1
                         if recovered_count:
-                            parsed = [ParsedQuestion(**v) for v in validated]
                             logger.info(f"[BACKGROUND] Recovery: patched {recovered_count} questions for {file_info.filename}")
                     all_questions.extend(parsed)
                     await update_file_status(import_id, file_info.filename, "parsed", questions_count=len(parsed))
