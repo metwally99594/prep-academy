@@ -172,6 +172,17 @@ def _detect_merge_indicators(text: str) -> list:
     return indicators
 
 
+def _is_garbage_option(text: str) -> bool:
+    """Detect garbage options like page footers that pass length checks."""
+    t = text.strip().lower()
+    if not t:
+        return True
+    # _Page: N or _Page: N_
+    if '_page:' in t or t == '1_' or t == '0_':
+        return True
+    return False
+
+
 def validate_extracted_question(q: dict, index: int) -> Optional[dict]:
     """Validate a single extracted question dict. Returns cleaned dict or None."""
     if not isinstance(q, dict):
@@ -192,11 +203,15 @@ def validate_extracted_question(q: dict, index: int) -> Optional[dict]:
     if not isinstance(options, list):
         options = []
     options = [str(o).strip() for o in options if str(o).strip()]
+    # Filter out garbage options like page footers
+    options = [o for o in options if not _is_garbage_option(o)]
 
     correct_answers = q.get("correct_answers", [])
     if not isinstance(correct_answers, list):
         correct_answers = []
     correct_answers = [str(ca).strip() for ca in correct_answers if str(ca).strip()]
+    # Filter out garbage answers
+    correct_answers = [a for a in correct_answers if not _is_garbage_option(a)]
 
     # Log missing answers
     if not correct_answers:
