@@ -110,14 +110,6 @@ async def _background_process_job(import_id: str):
 
                 parsed = await parse_questions_from_text_async(text, source_file=file_info.filename)
                 if parsed:
-                    # DEBUG: force-set one question to test persistence
-                    for pq in parsed[:5]:
-                        if not pq.options or len(pq.options) < 2:
-                            # Try force-setting to test if MongoDB stores the change
-                            pq.options = ["DEBUG: Test option A", "DEBUG: Test option B"]
-                            pq.correct_answers = ["DEBUG: Test option A"]
-                            logger.info(f"[BACKGROUND] DEBUG: Force-set test data for Q: {pq.question[:40]}")
-                            break
                     # Run recovery on extracted questions using original file text
                     recovered_count = 0
                     if text and parsed:
@@ -530,6 +522,10 @@ async def debug_recovery_test(
     """DEBUG: Test recovery on the latest import job. Returns pre/post comparison."""
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
+    debug_enabled = _os.environ.get("ENABLE_DEBUG_ENDPOINTS", "").lower() in ("1", "true", "yes")
+    if _os.environ.get("ENVIRONMENT", "production").lower() == "production" and not debug_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+
     from services.ocr_service import extract_text_from_markdown
     from services.ai_extractor import _recover_missing_content as _recover_fn
 

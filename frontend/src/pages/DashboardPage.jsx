@@ -75,7 +75,7 @@ export default function DashboardPage() {
     if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      axios.get(`${API}/dashboard/stats`, { headers }),
+      axios.get(`${API}/stats`, { headers }),
       axios.get(`${API}/dashboard/weekly-activity`, { headers }),
       axios.get(`${API}/gamification/profile`, { headers }),
       axios.get(`${API}/dashboard/weakness-map`, { headers }).catch(() => ({ data: null })),

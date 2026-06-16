@@ -325,7 +325,7 @@ export default function HomePage() {
                   <p className="text-[11px] sm:text-xs text-white/30 leading-snug mb-2 line-clamp-2">{exam.subtitle}</p>
                   <div className="flex items-center gap-2 mb-1">
                     {exam.country && (
-                      <button
+                      <span
                         onClick={(e) => { e.stopPropagation(); setSelectedCountryFilter(prev => prev === exam.country ? "" : exam.country); }}
                         className={`text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-all hover:ring-1 hover:ring-current ${
                           exam.country === 'austria' ? 'bg-red-500/15 text-red-400' :
@@ -337,7 +337,7 @@ export default function HomePage() {
                         {exam.country === 'austria' ? 'AT' :
                          exam.country === 'germany' ? 'DE' :
                          exam.country === 'switzerland' ? 'CH' : exam.country}
-                      </button>
+                      </span>
                     )}
                   </div>
                   <p className="text-xs font-mono" style={{ color: hasProtocols ? '#f59e0b' : (isActive ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.25)') }}>
