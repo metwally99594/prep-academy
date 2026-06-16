@@ -1,5 +1,7 @@
 backend/.env
 frontend/.env
+.env
+.env.*
 __pycache__/
 *.pyc
 *.pyo
@@ -11,6 +13,8 @@ venv/
 .venv/
 *.pdf
 *.log
+*.zip
+*.stackdump
 .DS_Store
 node_modules/
 
@@ -28,6 +32,10 @@ extract_vision_log.txt
 
 # ChromaDB vector store (auto-generated on first RAG request)
 .chroma/
+backend/chroma_db/
+
+# Local assistant/tooling workspaces
+MiMo-Code/
 
 # IDE/editor config
 .claude/
