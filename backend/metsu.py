@@ -198,13 +198,43 @@ async def run_consensus(
 
 async def search_and_consensus(question: str, specialty_id: str = None, chapter_index: int = None, force_full: bool = False) -> dict:
     """Qdrant → evidence → Metsu consensus. Falls back to simple answer if Qdrant unavailable."""
-    from vector_store import search_chapters
+    from services.retrieval_orchestrator import RetrievalRequest, retrieve as unified_retrieve
 
     evidence = ""
     evidence_objects = []
     doc_results = []
     try:
-        doc_results = await search_chapters(question, specialty_id=specialty_id, chapter_index=chapter_index, limit=5)
+        filters = {}
+        if specialty_id:
+            filters["specialty_id"] = specialty_id
+        if chapter_index is not None:
+            filters["chapter_index"] = chapter_index
+
+        retrieval = await unified_retrieve(
+            RetrievalRequest(
+                query=question,
+                top_k=5,
+                filters=filters or None,
+                use_hybrid=True,
+                use_reranker=True,
+            )
+        )
+        doc_results = [
+            {
+                "document_id": src.get("document_id") or src.get("id") or "",
+                "filename": src.get("source") or src.get("title") or src.get("note_title") or "Knowledge source",
+                "chapter_title": src.get("chunk_title") or src.get("title") or "",
+                "page_start": src.get("page_start"),
+                "page_end": src.get("page_end"),
+                "text": src.get("excerpt") or "",
+                "score": src.get("final_score", src.get("score", 0.0)),
+                "document_type": src.get("document_type"),
+                "source_type": src.get("source_type"),
+                "vault_path": src.get("vault_path"),
+                "note_title": src.get("note_title"),
+            }
+            for src in retrieval.get("sources", [])
+        ]
         if doc_results:
             parts = []
             for i, d in enumerate(doc_results, 1):
