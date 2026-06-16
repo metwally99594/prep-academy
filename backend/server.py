@@ -8512,9 +8512,24 @@ TAGS: [tag1, tag2, tag3]
 # ============ ROOT ============
 
 # Health check — both paths needed: render.yaml uses /api/health, some proxies use /health
+def _deployment_metadata() -> dict:
+    commit = (
+        os.environ.get("RENDER_GIT_COMMIT")
+        or os.environ.get("RENDER_COMMIT")
+        or os.environ.get("VERCEL_GIT_COMMIT_SHA")
+        or os.environ.get("GIT_COMMIT")
+        or os.environ.get("COMMIT_SHA")
+        or ""
+    )
+    return {
+        "environment": os.environ.get("ENVIRONMENT", "production"),
+        "commit": commit[:12] if commit else "",
+    }
+
+
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "deployment": _deployment_metadata()}
 
 @api_router.get("/health")
 async def api_health_check():
@@ -8527,6 +8542,7 @@ async def api_health_check():
             "sender": sender,
             "admin_contact": admin_contact(),
         },
+        "deployment": _deployment_metadata(),
     }
 
 @app.get("/")
