@@ -10,6 +10,11 @@ jobs:
   backend-critical-tests:
     name: Backend critical tests
     runs-on: ubuntu-latest
+    env:
+      ENV: development
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: prep_academy_ci
+      JWT_SECRET: ci-only-jwt-secret-with-more-than-thirty-two-characters
     defaults:
       run:
         working-directory: backend
