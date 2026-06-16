@@ -1835,7 +1835,7 @@ Return a JSON object with a "questions" array containing all generated questions
 
 
 @api_router.post("/admin/batch-generator/extract-pdf")
-async def extract_pdf_text(file: bytes = File(...)):
+async def extract_pdf_text(file: bytes = File(...), admin: dict = Depends(get_admin_user)):
     """Extract text from uploaded PDF using PyMuPDF"""
     import fitz
     doc = fitz.open(stream=file, filetype="pdf")

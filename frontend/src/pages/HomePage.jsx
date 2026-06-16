@@ -677,7 +677,7 @@ export default function HomePage() {
             Prep Academy ist Ihr strategischer Partner für den Erfolg in der Österreichischen Medizinwelt. Nutzen Sie die fortschrittlichste Technologie für Ihre medizinische Karriere.
           </p>
 
-          <div className="flex items-center justify-center gap-8 mb-12 text-xs tracking-[0.2em] uppercase text-white/20">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 sm:gap-8 mb-12 max-w-full text-[11px] sm:text-xs tracking-[0.12em] sm:tracking-[0.2em] uppercase text-white/20">
             <span>Partnerschaft</span>
             <span>Wettbewerbsvorteil</span>
             <span>Excellence</span>
