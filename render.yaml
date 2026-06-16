@@ -33,3 +33,9 @@ services:
         value: "false"       # شغّل RAG/DICOM بعد ما تتأكد الـ basic features شغالة
       - key: HF_HOME
         value: /tmp/hf_cache
+      - key: OBSIDIAN_VAULT_PATH
+        sync: false
+      - key: OBSIDIAN_AUTO_SYNC
+        value: "true"
+      - key: OBSIDIAN_WATCH_CHANGES
+        value: "false"
