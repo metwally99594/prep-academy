@@ -1,7 +1,7 @@
-import os
+﻿import os
 import hashlib
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
@@ -19,6 +19,11 @@ def _point_id(doc_id: str, chapter_index: int) -> int:
     """Deterministic 64-bit unsigned integer from doc_id + chapter index."""
     raw = f"{doc_id}_{chapter_index}"
     return int(hashlib.sha256(raw.encode()).hexdigest()[:16], 16)
+
+
+def stable_point_id(doc_id: str, chunk_index: int) -> int:
+    """Public deterministic point id helper for unified ingestion."""
+    return _point_id(doc_id, chunk_index)
 
 
 def _qdrant_search(client, collection_name, query_vector, query_filter, limit, with_payload):
@@ -88,12 +93,29 @@ def _ensure_collection():
                 field_name="chapter_index",
                 field_schema=qmodels.PayloadSchemaType.INTEGER,
             )
+            _client.create_payload_index(
+                collection_name=COLLECTION,
+                field_name="document_type",
+                field_schema=qmodels.PayloadSchemaType.KEYWORD,
+            )
+            _client.create_payload_index(
+                collection_name=COLLECTION,
+                field_name="vault_path",
+                field_schema=qmodels.PayloadSchemaType.KEYWORD,
+            )
             logger.info(f"Created Qdrant collection '{COLLECTION}'")
         else:
             # Ensure indexes exist on existing collections (idempotent)
-            for field, schema in [("specialty_id", qmodels.PayloadSchemaType.KEYWORD),
-                                  ("document_id", qmodels.PayloadSchemaType.KEYWORD),
-                                  ("chapter_index", qmodels.PayloadSchemaType.INTEGER)]:
+            for field, schema in [
+                ("specialty_id", qmodels.PayloadSchemaType.KEYWORD),
+                ("document_id", qmodels.PayloadSchemaType.KEYWORD),
+                ("chapter_index", qmodels.PayloadSchemaType.INTEGER),
+                ("document_type", qmodels.PayloadSchemaType.KEYWORD),
+                ("source_type", qmodels.PayloadSchemaType.KEYWORD),
+                ("source", qmodels.PayloadSchemaType.KEYWORD),
+                ("category", qmodels.PayloadSchemaType.KEYWORD),
+                ("vault_path", qmodels.PayloadSchemaType.KEYWORD),
+            ]:
                 try:
                     _client.create_payload_index(
                         collection_name=COLLECTION,
@@ -142,6 +164,8 @@ async def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters
                 vector=vec,
                 payload={
                     "document_id": doc_id,
+                    "document_type": "tutor_document",
+                    "source_type": "tutor",
                     "filename": filename,
                     "specialty_id": specialty_id,
                     "chapter_index": ch.get("index", 0),
@@ -165,6 +189,300 @@ async def index_chapters(doc_id: str, filename: str, specialty_id: str, chapters
             logger.warning(f"[INDEX] No valid points to upsert for '{filename}' — all chapters skipped")
     except Exception as e:
         logger.error(f"[INDEX] Index chapters error: {e}")
+
+
+async def index_obsidian_chunks(chunks: list[dict]) -> int:
+    """Upsert Obsidian note chunks into the existing tutor Qdrant collection."""
+    if not chunks:
+        return 0
+    try:
+        client = _get_client()
+        valid_chunks = [c for c in chunks if c.get("text", "").strip()]
+        vectors = await embed_batch([c["text"] for c in valid_chunks])
+        points = []
+        for chunk, vec in zip(valid_chunks, vectors):
+            if not vec or all(v == 0.0 for v in vec):
+                continue
+            text = chunk.get("text", "")
+            snippet = (text[:2000] + "...") if len(text) > 2000 else text
+            points.append(qmodels.PointStruct(
+                id=_point_id(chunk["document_id"], chunk["chunk_index"]),
+                vector=vec,
+                payload={
+                    "document_id": chunk["document_id"],
+                    "document_type": "obsidian_note",
+                    "source_type": "obsidian",
+                    "source": "Obsidian Vault",
+                    "category": "Obsidian",
+                    "filename": chunk.get("note_title", ""),
+                    "specialty_id": chunk.get("specialty_id", "obsidian"),
+                    "chapter_index": chunk["chunk_index"],
+                    "chapter_title": chunk.get("chunk_title", ""),
+                    "note_title": chunk.get("note_title", ""),
+                    "vault_path": chunk.get("vault_path", ""),
+                    "folder": chunk.get("folder", ""),
+                    "headings": chunk.get("headings", []),
+                    "tags": chunk.get("tags", []),
+                    "backlinks": chunk.get("backlinks", []),
+                    "file_hash": chunk.get("file_hash", ""),
+                    "page_start": 1,
+                    "page_end": 1,
+                    "text": snippet,
+                    "word_count": chunk.get("word_count", 0),
+                    "updated_at": chunk.get("updated_at", ""),
+                },
+            ))
+        if not points:
+            return 0
+        client.upsert(collection_name=COLLECTION, points=points, wait=True)
+        logger.info("[Obsidian] Indexed %s chunks into Qdrant", len(points))
+        return len(points)
+    except Exception as e:
+        logger.error("[Obsidian] Index chunks error: %s", e)
+        return 0
+
+
+async def delete_obsidian_note(vault_path: str) -> None:
+    """Delete all vector chunks for one Obsidian vault path."""
+    if not vault_path:
+        return
+    try:
+        client = _get_client()
+        client.delete(
+            collection_name=COLLECTION,
+            points_selector=qmodels.FilterSelector(filter=qmodels.Filter(must=[
+                qmodels.FieldCondition(key="document_type", match=qmodels.MatchValue(value="obsidian_note")),
+                qmodels.FieldCondition(key="vault_path", match=qmodels.MatchValue(value=vault_path)),
+            ])),
+            wait=True,
+        )
+    except Exception as e:
+        logger.warning("[Obsidian] Delete vectors failed for %s: %s", vault_path, e)
+
+
+async def delete_all_obsidian_notes() -> None:
+    """Delete all Obsidian vectors from the tutor Qdrant collection."""
+    try:
+        client = _get_client()
+        client.delete(
+            collection_name=COLLECTION,
+            points_selector=qmodels.FilterSelector(filter=qmodels.Filter(must=[
+                qmodels.FieldCondition(key="document_type", match=qmodels.MatchValue(value="obsidian_note")),
+            ])),
+            wait=True,
+        )
+    except Exception as e:
+        logger.warning("[Obsidian] Delete all vectors failed: %s", e)
+
+
+async def upsert_unified_chunks(chunks: list[dict]) -> int:
+    """Upsert chunks for any RAG source into the unified Qdrant collection.
+
+    Expected chunk keys: document_id, chunk_index, text, source_type, source.
+    Additional metadata is copied into the payload when JSON-serializable.
+    """
+    if not chunks:
+        return 0
+    try:
+        client = _get_client()
+        valid_chunks = [c for c in chunks if c.get("text", "").strip()]
+        vectors = await embed_batch([c["text"] for c in valid_chunks])
+        points = []
+        for chunk, vec in zip(valid_chunks, vectors):
+            if not vec or all(v == 0.0 for v in vec):
+                continue
+            text = chunk.get("text", "")
+            payload = dict(chunk.get("metadata") or {})
+            payload.update({
+                "document_id": chunk["document_id"],
+                "document_type": chunk.get("document_type", chunk.get("source_type", "document")),
+                "source_type": chunk.get("source_type", "medical"),
+                "source": chunk.get("source", chunk.get("filename", "Unknown")),
+                "filename": chunk.get("filename", chunk.get("source", "")),
+                "category": chunk.get("category", ""),
+                "specialty_id": chunk.get("specialty_id", ""),
+                "chapter_index": chunk["chunk_index"],
+                "chapter_title": chunk.get("chunk_title", ""),
+                "page_start": chunk.get("page_start", 1),
+                "page_end": chunk.get("page_end", 1),
+                "text": (text[:2000] + "...") if len(text) > 2000 else text,
+                "word_count": chunk.get("word_count", len(text.split())),
+                "updated_at": chunk.get("updated_at", ""),
+            })
+            points.append(qmodels.PointStruct(
+                id=stable_point_id(chunk["document_id"], chunk["chunk_index"]),
+                vector=vec,
+                payload=payload,
+            ))
+        if not points:
+            return 0
+        client.upsert(collection_name=COLLECTION, points=points, wait=True)
+        logger.info("[UnifiedRAG] Upserted %s chunks into Qdrant", len(points))
+        return len(points)
+    except Exception as e:
+        logger.error("[UnifiedRAG] Upsert chunks error: %s", e)
+        return 0
+
+
+def _conditions_from_filters(filters: Optional[dict]) -> list:
+    conditions = []
+    for key, value in (filters or {}).items():
+        if value is None or value == "":
+            continue
+        conditions.append(qmodels.FieldCondition(
+            key=key,
+            match=qmodels.MatchValue(value=value),
+        ))
+    return conditions
+
+
+def count_unified(filters: Optional[dict] = None) -> int:
+    """Count unified Qdrant points, optionally filtered by payload."""
+    try:
+        client = _get_client()
+        query_filter = qmodels.Filter(must=_conditions_from_filters(filters)) if filters else None
+        result = client.count(collection_name=COLLECTION, count_filter=query_filter, exact=True)
+        return int(result.count)
+    except Exception as e:
+        logger.warning("[UnifiedRAG] Count error: %s", e)
+        return 0
+
+
+def delete_unified(filters: dict[str, Any]) -> int:
+    """Delete unified Qdrant points matching payload filters."""
+    if not filters:
+        raise ValueError("delete_unified requires at least one filter")
+    try:
+        before = count_unified(filters)
+        client = _get_client()
+        client.delete(
+            collection_name=COLLECTION,
+            points_selector=qmodels.FilterSelector(
+                filter=qmodels.Filter(must=_conditions_from_filters(filters))
+            ),
+            wait=True,
+        )
+        return before
+    except Exception as e:
+        logger.warning("[UnifiedRAG] Delete error: %s", e)
+        return 0
+
+
+def list_unified_sources(limit: int = 1000) -> list[dict[str, Any]]:
+    """Aggregate source metadata from Qdrant payloads for admin/source views."""
+    try:
+        client = _get_client()
+        points, _ = client.scroll(
+            collection_name=COLLECTION,
+            limit=max(1, min(limit, 10000)),
+            with_payload=True,
+            with_vectors=False,
+        )
+        sources: dict[str, dict[str, Any]] = {}
+        for point in points:
+            payload = point.payload or {}
+            source = payload.get("source") or payload.get("filename") or "Unknown"
+            key = f"{payload.get('source_type', '')}:{source}"
+            if key not in sources:
+                sources[key] = {
+                    "source": source,
+                    "source_type": payload.get("source_type", payload.get("document_type", "")),
+                    "document_type": payload.get("document_type", ""),
+                    "category": payload.get("category", ""),
+                    "language": payload.get("language", ""),
+                    "version": payload.get("version", ""),
+                    "uploaded_at": payload.get("uploaded_at") or payload.get("updated_at", ""),
+                    "chunks": 0,
+                }
+            sources[key]["chunks"] += 1
+        return sorted(sources.values(), key=lambda s: (s.get("source_type", ""), s.get("source", "")))
+    except Exception as e:
+        logger.warning("[UnifiedRAG] List sources error: %s", e)
+        return []
+
+
+def list_unified_source_versions(source_name: str, limit: int = 1000) -> list[dict[str, Any]]:
+    """Aggregate versions for a single source from Qdrant payloads."""
+    try:
+        client = _get_client()
+        points, _ = client.scroll(
+            collection_name=COLLECTION,
+            scroll_filter=qmodels.Filter(must=_conditions_from_filters({"source": source_name})),
+            limit=max(1, min(limit, 10000)),
+            with_payload=True,
+            with_vectors=False,
+        )
+        versions: dict[str, dict[str, Any]] = {}
+        for point in points:
+            payload = point.payload or {}
+            version = payload.get("version") or "1.0"
+            if version not in versions:
+                versions[version] = {
+                    "version": version,
+                    "source": source_name,
+                    "chunks": 0,
+                    "uploaded_at": payload.get("uploaded_at") or payload.get("updated_at", ""),
+                }
+            versions[version]["chunks"] += 1
+        return sorted(versions.values(), key=lambda v: v.get("version", ""))
+    except Exception as e:
+        logger.warning("[UnifiedRAG] List source versions error: %s", e)
+        return []
+
+
+async def search_unified(
+    query: str,
+    *,
+    filters: Optional[dict] = None,
+    limit: int = 10,
+    candidate_limit: int = 50,
+) -> list[dict]:
+    """Unified vector search across all source types in Qdrant."""
+    if not query or len(query.strip()) < 2:
+        return []
+    try:
+        client = _get_client()
+        vec = await embed_query(query)
+        if not vec or all(v == 0.0 for v in vec):
+            return []
+        query_filter = qmodels.Filter(must=_conditions_from_filters(filters)) if filters else None
+        results = _qdrant_search(
+            client,
+            collection_name=COLLECTION,
+            query_vector=vec,
+            query_filter=query_filter,
+            limit=max(limit, candidate_limit),
+            with_payload=True,
+        )
+        docs = []
+        for r in results[: max(limit, candidate_limit)]:
+            p = r.payload or {}
+            docs.append({
+                "document_id": p.get("document_id", ""),
+                "source_type": p.get("source_type", p.get("document_type", "")),
+                "document_type": p.get("document_type", ""),
+                "source": p.get("source", p.get("filename", "Unknown")),
+                "filename": p.get("filename", ""),
+                "category": p.get("category", ""),
+                "specialty_id": p.get("specialty_id", ""),
+                "chunk_title": p.get("chapter_title", ""),
+                "chapter_title": p.get("chapter_title", ""),
+                "chunk_index": p.get("chapter_index"),
+                "text": p.get("text", ""),
+                "score": round(float(r.score), 4) if r.score is not None else 0.0,
+                "vector_score": round(float(r.score), 4) if r.score is not None else 0.0,
+                "page_start": p.get("page_start", 1),
+                "page_end": p.get("page_end", 1),
+                "note_title": p.get("note_title", ""),
+                "vault_path": p.get("vault_path", ""),
+                "tags": p.get("tags", []),
+                "backlinks": p.get("backlinks", []),
+                "metadata": p,
+            })
+        return docs[:limit]
+    except Exception as e:
+        logger.warning("[UnifiedRAG] Search error: %s", e)
+        return []
 
 _COMMON_CAPS = frozenset(['Der','Die','Das','Den','Dem','Des','Ein','Eine','Einen','Einer','Einem','Im','In','Bei','Mit','Von','Zum','Zur','Auf','Für','Aus','Nach','Vor','Durch','Über','Unter','Neben','An','Am','Um','Ohne','Gegen','Bis','Seit','Außer','Innerhalb','Außerhalb','Wegen'])
 
@@ -215,67 +533,40 @@ _re_split_sep = _re_mod.compile(r'\s*[,;.:]+\s*|\s+(?:und|oder|sowie|bzw\.?)\s+'
 
 
 async def search_chapters(query: str, specialty_id: Optional[str] = None, chapter_index: Optional[int] = None, limit: int = 5) -> list[dict]:
+    """Deprecated compatibility wrapper over the unified Qdrant schema."""
     if not query or len(query) < 2:
         return []
     try:
-        client = _get_client()
-        sub_queries = _split_query(query)
-        logger.info(f"[Qdrant] Query: '{query[:60]}' | sub_queries={len(sub_queries)} | specialty={specialty_id}")
-
-        filters = []
+        filters: dict[str, Any] = {}
         if specialty_id:
-            filters.append(qmodels.FieldCondition(
-                key="specialty_id",
-                match=qmodels.MatchValue(value=specialty_id),
-            ))
+            filters["specialty_id"] = specialty_id
         if chapter_index is not None:
-            filters.append(qmodels.FieldCondition(
-                key="chapter_index",
-                match=qmodels.MatchValue(value=chapter_index),
-            ))
-        query_filter = qmodels.Filter(must=filters) if filters else None
-
-        search_limit = max(limit, 10)
-        merged = {}  # (document_id, chapter_index) -> (score, payload)
-        for sq in sub_queries:
-            vec = await embed_query(sq)
-            if not vec or all(v == 0.0 for v in vec):
-                continue
-            results = _qdrant_search(
-                client,
-                collection_name=COLLECTION,
-                query_vector=vec,
-                query_filter=query_filter,
-                limit=search_limit,
-                with_payload=True,
-            )
-            logger.info(f"[Qdrant] sub-query '{sq[:40]}' → {len(results)} hits")
-            for r in results:
-                p = r.payload
-                key = (p.get("document_id", ""), p.get("chapter_index"))
-                if key not in merged or r.score > merged[key][0]:
-                    merged[key] = (r.score, p)
-
-        # Convert to sorted list
-        sorted_results = sorted(merged.values(), key=lambda x: -x[0])
-        logger.info(f"[Qdrant] Merged {len(merged)} unique results from {len(sub_queries)} sub-queries")
-        for i, (score, p) in enumerate(sorted_results[:10]):
-            logger.info(f"[Qdrant] #{i+1}: doc={p.get('filename','?')} ch={p.get('chapter_title','?')} score={score:.4f}")
-
-        docs = []
-        for score, p in sorted_results[:limit]:
-            docs.append({
-                "document_id": p.get("document_id", ""),
-                "specialty_id": p.get("specialty_id", ""),
-                "filename": p.get("filename", "Unbekannt"),
-                "chapter_title": p.get("chapter_title", ""),
-                "chapter_index": p.get("chapter_index"),
-                "text": p.get("text", ""),
-                "score": round(score, 4),
-                "page_start": p.get("page_start", 1),
-                "page_end": p.get("page_end", 1),
-            })
-        return docs
+            filters["chapter_index"] = chapter_index
+        docs = await search_unified(
+            query,
+            filters=filters or None,
+            limit=limit,
+            candidate_limit=max(limit, 10),
+        )
+        return [
+            {
+                "document_id": d.get("document_id", ""),
+                "specialty_id": d.get("specialty_id", ""),
+                "filename": d.get("filename") or d.get("source") or "Unbekannt",
+                "chapter_title": d.get("chapter_title", ""),
+                "chapter_index": d.get("chunk_index"),
+                "text": d.get("text", ""),
+                "score": d.get("score", 0.0),
+                "page_start": d.get("page_start", 1),
+                "page_end": d.get("page_end", 1),
+                "document_type": d.get("document_type", "document"),
+                "note_title": d.get("note_title", ""),
+                "vault_path": d.get("vault_path", ""),
+                "tags": d.get("tags", []),
+                "backlinks": d.get("backlinks", []),
+            }
+            for d in docs
+        ]
     except Exception as e:
-        logger.warning(f"[Qdrant] Search error: {e}")
+        logger.warning(f"[UnifiedRAG] Legacy search_chapters wrapper failed: {e}")
         return []

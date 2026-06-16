@@ -4,23 +4,53 @@ Medical RAG (Retrieval-Augmented Generation) System
 - Vector Store: ChromaDB (persistent, local, free)
 - Embeddings: BGE-M3 (multilingual, local, free) via sentence-transformers
   with graceful fallback to a lighter multilingual model
+- CrossEncoder reranking for improved answer quality
 - LLM: DeepSeek-V3 via OpenRouter (cheap, high-quality)
 - Knowledge Base: ICD-10 (DE), WHO Guidelines, RKI Protocols (seed)
+- Hallucination guard, prompt injection protection, query expansion
+- Embedding cache (Redis), source versioning, confidence scores
 
 The models are lazy-loaded on first request to keep the server's startup fast
 and the health-check responsive.
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+import hashlib
+import re as _re
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import os
 import uuid
 import asyncio
 import json
 from datetime import datetime, timezone
 
+import io
+
 from database import db, logger
 from auth import get_current_user, get_admin_user
+from limiter import limiter
+from services.obsidian_rag import (
+    get_obsidian_status,
+    reindex_obsidian_vault,
+    search_obsidian,
+    sync_obsidian_vault,
+)
+from services.ingestion_jobs import (
+    create_job,
+    get_job,
+    list_jobs,
+    start_job,
+    status_summary,
+    update_job_progress,
+)
+from services.retrieval_orchestrator import RetrievalRequest, retrieve as unified_retrieve
+from vector_store import (
+    count_unified,
+    delete_unified,
+    list_unified_source_versions,
+    list_unified_sources,
+    upsert_unified_chunks,
+)
 
 router = APIRouter(prefix="/api/rag", tags=["rag"])
 
@@ -28,14 +58,29 @@ router = APIRouter(prefix="/api/rag", tags=["rag"])
 _CHROMA_DEFAULT = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".chroma")
 CHROMA_DIR = os.environ.get("CHROMA_DIR", _CHROMA_DEFAULT)
 COLLECTION_NAME = "medical_kb"
-# Primary embedding model (multilingual, supports DE + AR + EN + RU)
 PRIMARY_EMBED_MODEL = os.environ.get("RAG_EMBED_MODEL", "BAAI/bge-m3")
-# Fallback if BGE-M3 fails to load (disk/memory): lighter multilingual
 FALLBACK_EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+CROSSENCODER_MODEL = os.environ.get("RAG_CROSSENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+ENABLE_LEGACY_CHROMA = os.environ.get("ENABLE_LEGACY_CHROMA", "false").lower() in ("1", "true", "yes")
+LEGACY_CHROMA_READ_ONLY = os.environ.get("LEGACY_CHROMA_READ_ONLY", "true").lower() not in ("0", "false", "no")
 
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_LLM_MODEL = "openai/gpt-oss-120b:free"
+
+RAG_CHUNK_SIZE = int(os.environ.get("RAG_CHUNK_SIZE", "512"))
+RAG_CHUNK_OVERLAP = int(os.environ.get("RAG_CHUNK_OVERLAP", "50"))
+QUERY_MAX_LENGTH = 2000
+
+_RATE_LIMIT = "20/minute"
+
+_INJECTION_PATTERNS = [
+    r"ignore\s+(all\s+)?(previous|prior)\s+(instructions|directives|commands)",
+    r"(you\s+are\s+now|act\s+as\s+if\s+you\s+are|from\s+now\s+on\s+you\s+are)",
+    r"system\s*:\s*(You\s+are|you\s+should|your\s+(task|role|purpose))",
+    r"forget\s+(all\s+)?(previous\s+)?(instructions|context|guidelines)",
+    r"override\s+(system|safety|guidelines|restrictions)",
+]
 
 # ───────────────────────── LAZY SINGLETONS ─────────────────────────
 _embed_model = None
@@ -43,10 +88,100 @@ _chroma_client = None
 _collection = None
 _init_lock = asyncio.Lock()
 _init_state: Dict[str, Any] = {"ready": False, "error": "", "model": ""}
+_crossencoder = None
+_crossencoder_lock = asyncio.Lock()
+
+_redis_client = None
+_redis_available = False
+_EMBED_CACHE_TTL = 86400  # 24 hours
+
+# ───────────────────────── MULTILINGUAL EXPANSION DICT ─────────────────────────
+_MEDICAL_TERM_MAP = {
+    "heart": "Herz coeur",
+    "chest": "Brustkorb thorax poitrine",
+    "brain": "Gehirn cerveau",
+    "lung": "Lunge poumon",
+    "kidney": "Niere rein",
+    "liver": "Leber foie",
+    "bone": "Knochen os",
+    "blood": "Blut sang",
+    "pain": "Schmerz douleur",
+    "fever": "Fieber fièvre",
+    "infection": "Infektion infection",
+    "fracture": "Fraktur fracture",
+    "tumor": "Tumor tumeur",
+    "surgery": "Operation chirurgie",
+    "diabetes": "Diabetes diabète",
+    "hypertension": "Hypertonie hypertension",
+    "stroke": "Schlaganfall accident vasculaire cérébral",
+    "pneumonia": "Pneumonie pneumonie",
+    "therapy": "Therapie thérapie",
+    "diagnosis": "Diagnose diagnostic",
+}
+
+# ───────────────────────── REDIS ─────────────────────────
+def _get_redis():
+    global _redis_client, _redis_available
+    if _redis_client is not None:
+        return _redis_client
+    redis_url = os.environ.get("REDIS_URL", "")
+    if not redis_url:
+        _redis_available = False
+        return None
+    try:
+        import redis.asyncio as aioredis
+        _redis_client = aioredis.from_url(redis_url, decode_responses=True)
+        _redis_available = True
+        logger.info("[RAG] Redis cache enabled at %s", redis_url.split("@")[-1] if "@" in redis_url else redis_url)
+        return _redis_client
+    except Exception as e:
+        _redis_available = False
+        logger.warning("[RAG] Redis cache unavailable: %s", e)
+        return None
+
+
+async def _cache_embedding(key: str, vector: List[float]) -> None:
+    r = _get_redis()
+    if not r:
+        return
+    try:
+        await r.setex(f"rag_embed:{key}", _EMBED_CACHE_TTL, json.dumps(vector))
+    except Exception as e:
+        logger.debug("[RAG] Cache set failed: %s", e)
+
+
+async def _get_cached_embedding(key: str) -> Optional[List[float]]:
+    r = _get_redis()
+    if not r:
+        return None
+    try:
+        raw = await r.get(f"rag_embed:{key}")
+        if raw:
+            return json.loads(raw)
+    except Exception as e:
+        logger.debug("[RAG] Cache get failed: %s", e)
+    return None
+
+
+_cache_hits = 0
+_cache_misses = 0
+
+
+async def _get_embedding_cached(text: str) -> Tuple[List[float], bool]:
+    global _cache_hits, _cache_misses
+    key = hashlib.sha256(f"{text}|{PRIMARY_EMBED_MODEL}".encode()).hexdigest()
+    cached = await _get_cached_embedding(key)
+    if cached is not None:
+        _cache_hits += 1
+        return cached, True
+    _cache_misses += 1
+    loop = asyncio.get_event_loop()
+    vec = await loop.run_in_executor(None, lambda: _embed_texts([text])[0])
+    asyncio.create_task(_cache_embedding(key, vec))
+    return vec, False
 
 
 def _load_embed_model_sync():
-    """Load the sentence-transformer model (blocking, run in executor)."""
     from sentence_transformers import SentenceTransformer
     try:
         logger.info(f"[RAG] Loading primary embedding model: {PRIMARY_EMBED_MODEL}")
@@ -57,20 +192,19 @@ def _load_embed_model_sync():
 
 
 async def _ensure_initialized():
-    """Lazy-init embedding model, Chroma collection, and seed KB once."""
     global _embed_model, _chroma_client, _collection
+    if not ENABLE_LEGACY_CHROMA:
+        raise HTTPException(status_code=410, detail="Legacy Chroma RAG is disabled; use unified Qdrant RAG.")
     if _init_state["ready"]:
         return
     async with _init_lock:
         if _init_state["ready"]:
             return
         try:
-            # 1) Embedding model (in executor — heavy I/O and CPU)
             loop = asyncio.get_event_loop()
             _embed_model, model_name = await loop.run_in_executor(None, _load_embed_model_sync)
             _init_state["model"] = model_name
 
-            # 2) ChromaDB persistent client
             import chromadb
             from chromadb.config import Settings
             os.makedirs(CHROMA_DIR, exist_ok=True)
@@ -83,8 +217,7 @@ async def _ensure_initialized():
                 metadata={"hnsw:space": "cosine"},
             )
 
-            # 3) Seed initial KB if empty
-            if _collection.count() == 0:
+            if _collection.count() == 0 and not LEGACY_CHROMA_READ_ONLY:
                 await loop.run_in_executor(None, _seed_initial_kb)
 
             _init_state["ready"] = True
@@ -97,18 +230,109 @@ async def _ensure_initialized():
 
 
 def _embed_texts(texts: List[str]) -> List[List[float]]:
-    """Synchronous embedding — call via executor from async code."""
     vecs = _embed_model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
-    # sentence-transformers returns numpy array
     return vecs.tolist() if hasattr(vecs, "tolist") else [list(v) for v in vecs]
+
+
+# ───────────────────────── CROSSENCODER ─────────────────────────
+async def _ensure_crossencoder():
+    global _crossencoder
+    if _crossencoder is not None:
+        return
+    async with _crossencoder_lock:
+        if _crossencoder is not None:
+            return
+        try:
+            from sentence_transformers import CrossEncoder
+            loop = asyncio.get_event_loop()
+            _crossencoder = await loop.run_in_executor(
+                None, lambda: CrossEncoder(CROSSENCODER_MODEL, device="cpu")
+            )
+            logger.info("[RAG] CrossEncoder loaded: %s", CROSSENCODER_MODEL)
+        except Exception as e:
+            logger.warning("[RAG] CrossEncoder load failed (non-fatal): %s", e)
+
+
+async def _rerank_with_crossencoder(query: str, sources: List[Dict]) -> List[Dict]:
+    if not sources:
+        return sources
+    await _ensure_crossencoder()
+    if _crossencoder is None:
+        return sources
+    pairs = [(query, s["content"]) for s in sources]
+    try:
+        loop = asyncio.get_event_loop()
+        scores = await loop.run_in_executor(None, lambda: _crossencoder.predict(pairs))
+        for s, sc in zip(sources, scores):
+            s["rerank_score"] = float(sc)
+        sources.sort(key=lambda s: s.get("rerank_score", 0), reverse=True)
+    except Exception as e:
+        logger.debug("[RAG] CrossEncoder predict failed: %s", e)
+    return sources
+
+
+# ───────────────────────── PROMPT INJECTION PROTECTION ─────────────────────────
+def _sanitize_query(query: str) -> str:
+    q = query.strip()
+    if len(q) > QUERY_MAX_LENGTH:
+        q = q[:QUERY_MAX_LENGTH]
+    for pattern in _INJECTION_PATTERNS:
+        if _re.search(pattern, q, _re.IGNORECASE):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Anfrage enthält nicht erlaubte Anweisungsmuster. Bitte formulieren Sie Ihre Frage medizinisch.",
+            )
+    return q
+
+
+# ───────────────────────── HALLUCINATION GUARD ─────────────────────────
+def _check_citations(answer: str, num_sources: int) -> Tuple[str, bool, float]:
+    hallucination_detected = False
+    def _replace_bad_citation(match):
+        nonlocal hallucination_detected
+        num = int(match.group(1))
+        if num < 1 or num > num_sources:
+            hallucination_detected = True
+            return ""
+        return match.group(0)
+
+    cleaned = _re.sub(r"\[(\d+)\]", _replace_bad_citation, answer)
+    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
+    num_valid = len(set(_re.findall(r"\[(\d+)\]", cleaned)))
+    total_possible = num_sources
+    coverage = num_valid / max(total_possible, 1)
+    return cleaned, hallucination_detected, coverage
+
+
+# ───────────────────────── QUERY EXPANSION ─────────────────────────
+def _expand_query(query: str) -> List[str]:
+    variants = [query]
+    q_lower = query.lower()
+    matched_terms = []
+    for en_term, de_term in _MEDICAL_TERM_MAP.items():
+        if en_term in q_lower:
+            matched_terms.append(de_term)
+    if matched_terms:
+        expansion_suffix = " ".join(matched_terms)
+        variants.append(f"{query} {expansion_suffix}")
+        variants.append(f"{expansion_suffix} {query}")
+    return variants[:3]
+
+
+async def _embed_and_merge(query: str) -> Tuple[List[float], int]:
+    variants = _expand_query(query)
+    all_vectors = []
+    for v in variants:
+        vec, cached = await _get_embedding_cached(v)
+        all_vectors.append((vec, cached))
+    avg_vec = [sum(c) / len(all_vectors) for c in zip(*[v for v, _ in all_vectors])]
+    cache_info = sum(1 for _, c in all_vectors if c)
+    return avg_vec, cache_info
 
 
 # ───────────────────────── SEED KNOWLEDGE BASE ─────────────────────────
 def _seed_initial_kb():
-    """Seed the collection with medically verified content (German primary).
-    Sources: ICD-10-GM (public domain), WHO treatment guidelines (open), RKI recommendations (public)."""
     seed_docs = [
-        # ═══ ICD-10-GM (deutsch, gekürzt) ═══
         {
             "content": "ICD-10 S06.0 (Commotio cerebri / Gehirnerschütterung): Leichte, gedeckte Kopfverletzung mit kurzzeitigem Bewusstseinsverlust (<30 min). Klinische Zeichen: Kopfschmerzen, Übelkeit, Erbrechen, Amnesie, Konzentrationsstörungen. Therapie: 24–48h Überwachung, Bettruhe, Analgesie (Paracetamol), keine NSAR bei intrakranieller Blutung. GCS-Monitoring engmaschig.",
             "metadata": {"source": "ICD-10-GM", "code": "S06.0", "category": "Neurologie", "language": "de"},
@@ -157,7 +381,6 @@ def _seed_initial_kb():
             "content": "ICD-10 F32 (Depression, depressive Episode): Hauptsymptome (≥2 von 3, >2 Wochen): gedrückte Stimmung, Interesseverlust, Antriebsmangel. Zusatzsymptome: Konzentration, Selbstwert, Schuldgefühle, Suizidgedanken, Schlafstörung, Appetitverlust. Schweregradeinteilung nach ICD-10. Therapie: mild/mittel — Psychotherapie (KVT, IPT). Mittel/schwer — SSRI (Sertralin, Citalopram) + Psychotherapie. Suizidalität abfragen, stationär bei akuter Gefährdung.",
             "metadata": {"source": "S3-NVL Unipolare Depression", "code": "F32", "category": "Psychiatrie", "language": "de"},
         },
-        # ═══ WHO / Notfallprotokolle (englisch referenziert, deutscher Inhalt) ═══
         {
             "content": "ATLS ABCDE-Schema (Advanced Trauma Life Support): A — Airway mit HWS-Immobilisation, B — Breathing (Atmung, O2, Spannungspneumothorax entlasten), C — Circulation (Blutungskontrolle, 2× großlumige iv-Zugänge, Volumen), D — Disability (GCS, Pupillen, BZ), E — Exposure (komplettes Entkleiden + Wärmeerhalt). Reevaluation nach jedem Schritt. FAST-Sonographie bei hämodynamischer Instabilität.",
             "metadata": {"source": "WHO / ATLS", "code": "ATLS", "category": "Notfallmedizin", "language": "de"},
@@ -170,7 +393,6 @@ def _seed_initial_kb():
             "content": "Anaphylaxie-Therapie (ESA/EAACI 2021): Leitsymptome: Urtikaria, Angioödem, Bronchospasmus, Hypotonie, Übelkeit/Erbrechen. Sofort: 1. Adrenalin IM 0,3–0,5 mg (lat. Oberschenkel, wdh. nach 5–15 min), 2. Trendelenburg-Lage, 3. O2, 4. iv-Zugang + kristalloide Infusion 20 ml/kg Bolus, 5. H1-Blocker (Dimetinden 0,1 mg/kg) + H2-Blocker (Ranitidin) + Prednisolon 1 mg/kg iv (wirkt verzögert). Bei Bronchospasmus Salbutamol inhal. Monitoring ≥6h (biphasischer Verlauf).",
             "metadata": {"source": "EAACI Anaphylaxis Guidelines", "code": "T78.2", "category": "Notfallmedizin", "language": "de"},
         },
-        # ═══ Pharmakologie-Basics ═══
         {
             "content": "Betablocker (z. B. Metoprolol, Bisoprolol): Indikationen: Hypertonie, KHK, Herzinsuffizienz (NYHA II–IV), Vorhofflimmern (Frequenzkontrolle), Migräneprophylaxe, Hyperthyreose. KI: Asthma bronchiale (relativ bei kardioselektiven), AV-Block II/III, akute dekompensierte HI, schwere Bradykardie (<50/min), Hypotonie. NW: Bradykardie, Müdigkeit, erektile Dysfunktion, Bronchokonstriktion.",
             "metadata": {"source": "Pharma-Lexikon", "code": "C07", "category": "Pharmakologie", "language": "de"},
@@ -180,34 +402,69 @@ def _seed_initial_kb():
             "metadata": {"source": "Pharma-Lexikon", "code": "C09A", "category": "Pharmakologie", "language": "de"},
         },
     ]
-
+    now = datetime.now(timezone.utc).isoformat()
     ids = [f"seed_{i}" for i in range(len(seed_docs))]
     contents = [d["content"] for d in seed_docs]
-    metadatas = [d["metadata"] for d in seed_docs]
+    metadatas = [{**d["metadata"], "version": "1.0", "uploaded_at": now} for d in seed_docs]
     embeddings = _embed_texts(contents)
-
     _collection.add(ids=ids, documents=contents, metadatas=metadatas, embeddings=embeddings)
     logger.info(f"[RAG] Seeded {len(seed_docs)} medical KB documents")
 
 
 # ───────────────────────── CHUNKER ─────────────────────────
-def _chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> List[str]:
-    """Simple word-based chunker with overlap."""
+def _chunk_text(text: str, chunk_size: Optional[int] = None, overlap: Optional[int] = None) -> List[str]:
+    cs = chunk_size or RAG_CHUNK_SIZE
+    ov = overlap or RAG_CHUNK_OVERLAP
     words = text.split()
     if not words:
         return []
     chunks, i = [], 0
     while i < len(words):
-        chunk = " ".join(words[i : i + chunk_size])
+        chunk = " ".join(words[i : i + cs])
         if chunk.strip():
             chunks.append(chunk)
-        i += chunk_size - overlap
+        i += cs - ov
     return chunks
+
+
+def _unified_chunks_from_text(
+    *,
+    source: str,
+    content_chunks: list[str],
+    category: str,
+    language: str,
+    version: str,
+    filename: str = "",
+) -> list[dict]:
+    document_id = "med_" + hashlib.sha256(f"{source}|{version}|{filename}".encode("utf-8")).hexdigest()[:24]
+    now = datetime.now(timezone.utc).isoformat()
+    return [
+        {
+            "document_id": document_id,
+            "chunk_index": i,
+            "text": text,
+            "source_type": "medical",
+            "document_type": "medical_kb",
+            "source": source,
+            "filename": filename or source,
+            "category": category,
+            "chunk_title": source,
+            "word_count": len(text.split()),
+            "updated_at": now,
+            "metadata": {
+                "language": language,
+                "version": version,
+                "source": source,
+                "category": category,
+                "filename": filename,
+            },
+        }
+        for i, text in enumerate(content_chunks)
+    ]
 
 
 # ───────────────────────── LLM CALL ─────────────────────────
 async def _llm_call(system: str, user: str, model: str = DEFAULT_LLM_MODEL, max_tokens: int = 1500) -> str:
-    """Call DeepSeek-V3 (or configured model) via OpenRouter."""
     if not OPENROUTER_KEY:
         raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY nicht konfiguriert")
     import httpx
@@ -238,6 +495,28 @@ async def _llm_call(system: str, user: str, model: str = DEFAULT_LLM_MODEL, max_
         return data["choices"][0]["message"]["content"]
 
 
+async def _llm_call_with_fallback(system: str, user: str, model: str = DEFAULT_LLM_MODEL, max_tokens: int = 1500) -> Tuple[Optional[str], bool]:
+    try:
+        return await _llm_call(system, user, model=model, max_tokens=max_tokens), True
+    except HTTPException as e:
+        if "503" in str(e.status_code):
+            logger.warning("[RAG] LLM unavailable, retrying once after 2s...")
+            await asyncio.sleep(2)
+            try:
+                return await _llm_call(system, user, model=model, max_tokens=max_tokens), True
+            except Exception:
+                pass
+        return None, False
+    except Exception as e:
+        logger.warning("[RAG] LLM call failed: %s", e)
+        await asyncio.sleep(2)
+        try:
+            return await _llm_call(system, user, model=model, max_tokens=max_tokens), True
+        except Exception:
+            pass
+        return None, False
+
+
 # ───────────────────────── LANGUAGE PROMPTS ─────────────────────────
 LANG_INSTRUCT = {
     "de": "Antworte auf Deutsch. Nutze medizinische Fachsprache präzise.",
@@ -248,8 +527,8 @@ LANG_INSTRUCT = {
 }
 
 
-def _build_rag_prompt(query: str, sources: List[Dict], language: str = "de") -> str:
-    """Build the user prompt with numbered sources."""
+def _build_rag_prompt(query: str, sources: List[Dict], language: str = "de",
+                      conversation_history: Optional[List[Dict]] = None) -> str:
     lang = LANG_INSTRUCT.get(language, LANG_INSTRUCT["de"])
     sources_block = "\n\n".join(
         [
@@ -257,19 +536,46 @@ def _build_rag_prompt(query: str, sources: List[Dict], language: str = "de") -> 
             for i, s in enumerate(sources)
         ]
     )
+    history_block = ""
+    if conversation_history:
+        turns = []
+        for turn in conversation_history[-6:]:
+            role = turn.get("role", "user")
+            text = turn.get("content", "")
+            prefix = "Frage" if role == "user" else "Antwort"
+            turns.append(f"{prefix}: {text}")
+        if turns:
+            history_block = "Bisheriger Verlauf:\n" + "\n".join(turns) + "\n\n"
     return f"""{lang}
 
 Beantworte die folgende medizinische Frage AUSSCHLIESSLICH auf Basis der untenstehenden, nummerierten Quellen.
 Zitiere jede verwendete Quelle am Satzende mit [1], [2], usw.
 Wenn die Quellen keine Antwort enthalten, sage das ehrlich.
 
-FRAGE:
+{history_block}FRAGE:
 {query}
 
 QUELLEN:
 {sources_block}
 
 Antwort (mit [Nummer]-Zitaten):"""
+
+
+# ═════════════════════════ CONFIDENCE SCORE ═════════════════════════
+def _compute_confidence(sources: List[Dict], citation_coverage: float) -> Tuple[float, bool]:
+    if not sources:
+        return 0.0, True
+    rerank_scores = [s.get("rerank_score") for s in sources if s.get("rerank_score") is not None]
+    if rerank_scores:
+        avg_rerank = sum(rerank_scores) / len(rerank_scores)
+        rerank_score = max(0.0, min(1.0, (avg_rerank + 1) / 2))
+    else:
+        chroma_scores = [s.get("score", 0) for s in sources if s.get("score") is not None]
+        rerank_score = sum(chroma_scores) / max(len(chroma_scores), 1) if chroma_scores else 0.3
+    confidence = 0.6 * rerank_score + 0.4 * citation_coverage
+    confidence = max(0.0, min(1.0, confidence))
+    low_conf = confidence < 0.5
+    return round(confidence, 4), low_conf
 
 
 # ═════════════════════════ ENDPOINTS ═════════════════════════
@@ -280,6 +586,7 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     model: str = DEFAULT_LLM_MODEL
     filter_category: Optional[str] = None
+    session_id: Optional[str] = None
 
 
 class IngestTextRequest(BaseModel):
@@ -287,110 +594,363 @@ class IngestTextRequest(BaseModel):
     source: str = "user_upload"
     category: str = "Allgemein"
     language: str = "de"
+    force: bool = False
+
+
+class KBFeedbackRequest(BaseModel):
+    source_name: str
+    feedback_type: str
+    comment: str = ""
+    suggested_correction: str = ""
 
 
 class AnalyzerRAGRequest(BaseModel):
-    finding: str  # AI-generated X-ray/image finding
+    finding: str
     patient_context: str = ""
     language: str = "de"
     top_k: int = 4
 
 
+# ───────────────────────── SESSION / CONVERSATION ─────────────────────────
+async def _get_session_history(session_id: str) -> Optional[List[Dict]]:
+    r = _get_redis()
+    if not r or not session_id:
+        return None
+    try:
+        raw = await r.get(f"rag_session:{session_id}")
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+    return None
+
+
+async def _save_session_history(session_id: str, history: List[Dict]) -> None:
+    r = _get_redis()
+    if not r:
+        return
+    try:
+        history = history[-10:]
+        await r.setex(f"rag_session:{session_id}", 7200, json.dumps(history))
+    except Exception:
+        pass
+
+
+# ───────────────────────── STATUS ─────────────────────────
+
 @router.get("/status")
 async def rag_status():
-    """Check if RAG is initialized (public — does NOT trigger init)."""
+    """Check unified RAG status. Legacy Chroma is reported separately."""
     try:
-        count = _collection.count() if _collection else 0
+        legacy_count = _collection.count() if _collection else 0
     except Exception:
-        count = 0
+        legacy_count = 0
+    unified_count = count_unified()
     return {
-        "ready": _init_state["ready"],
-        "model": _init_state["model"],
+        "ready": unified_count > 0 or _init_state["ready"],
+        "active_vector_store": "qdrant",
+        "model": "openai/text-embedding-3-small",
         "error": _init_state["error"],
-        "kb_document_count": count,
+        "kb_document_count": unified_count,
+        "unified_document_count": unified_count,
+        "legacy_chroma_document_count": legacy_count,
+        "legacy_chroma_ready": _init_state["ready"],
+        "legacy_chroma_model": _init_state["model"],
+        "chunk_size": RAG_CHUNK_SIZE,
+        "chunk_overlap": RAG_CHUNK_OVERLAP,
+        "cache_hits": _cache_hits,
+        "cache_misses": _cache_misses,
+        "redis_connected": _redis_available,
     }
 
 
+@router.get("/ingestion/status")
+async def rag_ingestion_status(user: dict = Depends(get_admin_user)):
+    """Admin: summarize background RAG ingestion jobs."""
+    return {
+        "queue": await status_summary(),
+        "recent_jobs": await list_jobs(limit=10),
+    }
+
+
+@router.get("/ingestion/jobs/{job_id}")
+async def rag_ingestion_job(job_id: str, user: dict = Depends(get_admin_user)):
+    """Admin: fetch one background ingestion job."""
+    job = await get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Ingestion job not found")
+    return job
+
+
+@router.get("/ingestion/jobs")
+async def rag_ingestion_jobs(limit: int = 20, user: dict = Depends(get_admin_user)):
+    """Admin: list recent background ingestion jobs."""
+    return {"jobs": await list_jobs(limit=limit)}
+
+
+# SOURCE VERSIONING ─────────────────────────
+
+async def _get_source_version(source_name: str) -> str:
+    meta = _collection.get(where={"source": source_name}, include=["metadatas"])
+    metas = meta.get("metadatas", []) or []
+    versions = set()
+    for m in metas:
+        v = m.get("version", "1.0")
+        versions.add(v)
+    return max(versions) if versions else "1.0"
+
+
+async def _resolve_source_name(source_name: str, force: bool = False) -> str:
+    existing = _collection.get(where={"source": source_name}, include=["metadatas"])
+    existing_metas = existing.get("metadatas", []) or []
+    if not existing_metas:
+        return source_name
+    if force:
+        current_ver = await _get_source_version(source_name)
+        parts = current_ver.split(".")
+        major = int(parts[0]) if parts[0].isdigit() else 1
+        minor = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+        new_ver = f"{major}.{minor + 1}"
+        logger.info("[RAG] Auto-versioning source '%s': %s -> %s", source_name, current_ver, new_ver)
+        return source_name
+    return source_name
+
+
+# ───────────────────────── QUERY ─────────────────────────
+
 @router.post("/query")
-async def rag_query(req: QueryRequest, user: dict = Depends(get_current_user)):
+@limiter.limit(_RATE_LIMIT)
+async def rag_query(request: Request, req: QueryRequest, user: dict = Depends(get_current_user)):
     """RAG answer: retrieve top-K relevant docs + DeepSeek-V3 answer with citations."""
-    if not req.query.strip():
+    sanitized = _sanitize_query(req.query)
+    if not sanitized:
         raise HTTPException(status_code=400, detail="Leere Anfrage")
 
-    await _ensure_initialized()
-
-    loop = asyncio.get_event_loop()
-    q_vec = await loop.run_in_executor(None, lambda: _embed_texts([req.query]))
-    where = {"category": req.filter_category} if req.filter_category else None
-
-    results = _collection.query(
-        query_embeddings=q_vec,
-        n_results=max(1, min(req.top_k, 10)),
-        where=where,
-    )
-
-    docs = results.get("documents", [[]])[0]
-    metas = results.get("metadatas", [[]])[0]
-    distances = results.get("distances", [[]])[0]
-
-    if not docs:
-        return {"answer": "Keine relevanten Quellen gefunden.", "sources": [], "model": req.model}
+    retrieval = await unified_retrieve(RetrievalRequest(
+        query=sanitized,
+        top_k=req.top_k,
+        filters={"category": req.filter_category} if req.filter_category else None,
+        use_hybrid=True,
+        use_reranker=True,
+    ))
+    source_records = retrieval["sources"]
+    if not source_records:
+        return {"answer": "Keine relevanten Quellen gefunden.", "sources": [], "model": req.model,
+                "session_id": req.session_id}
 
     sources = [
         {
-            "content": doc,
-            "metadata": meta,
-            "score": round(1 - dist, 4) if dist is not None else None,
+            "content": s.get("excerpt", ""),
+            "metadata": {
+                "source": s.get("source", "Unbekannt"),
+                "code": "",
+                "category": s.get("category", ""),
+                "note_title": s.get("note_title", ""),
+                "vault_path": s.get("vault_path", ""),
+                "source_type": s.get("source_type", ""),
+            },
+            "score": s.get("retrieval_score") or s.get("score"),
+            "rerank_score": s.get("score") if isinstance(s.get("score"), (int, float)) else None,
         }
-        for doc, meta, dist in zip(docs, metas, distances)
+        for s in source_records
     ]
 
-    prompt = _build_rag_prompt(req.query, sources, req.language)
-    system = "Du bist ein präziser medizinischer Assistent für Prüfungsvorbereitung. Zitiere IMMER die Quellen mit [N]."
-    answer = await _llm_call(system, prompt, model=req.model)
+    session_history = None
+    if req.session_id:
+        session_history = await _get_session_history(req.session_id)
 
+    prompt = _build_rag_prompt(sanitized, sources, req.language, session_history)
+    system = "Du bist ein präziser medizinischer Assistent für Prüfungsvorbereitung. Zitiere IMMER die Quellen mit [N]."
+
+    answer_text, llm_ok = await _llm_call_with_fallback(system, prompt, model=req.model)
+
+    query_id = str(uuid.uuid4())
+    answer_reply = answer_text if llm_ok else None
     await db.rag_queries.insert_one({
-        "id": str(uuid.uuid4()),
+        "id": query_id,
         "user_id": user["id"],
-        "query": req.query,
+        "query": sanitized,
         "language": req.language,
         "model": req.model,
         "source_count": len(sources),
+        "sources": source_records,
+        "answer_reply": answer_reply,
+        "llm_generated": llm_ok,
+        "retrieval": retrieval.get("orchestrator", {}),
+        "retrieval_latency_ms": retrieval.get("latency_ms"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
-    return {
-        "answer": answer,
-        "sources": [
-            {
-                "index": i + 1,
-                "source": s["metadata"].get("source", "Unbekannt"),
-                "code": s["metadata"].get("code", ""),
-                "category": s["metadata"].get("category", ""),
-                "excerpt": s["content"][:300] + ("..." if len(s["content"]) > 300 else ""),
-                "score": s["score"],
-            }
-            for i, s in enumerate(sources)
-        ],
+    if not llm_ok or not answer_text:
+        return {
+            "answer": None,
+            "llm_unavailable": True,
+            "sources": source_records,
+            "model": req.model,
+            "language": req.language,
+            "query_id": query_id,
+            "session_id": req.session_id,
+            "note": "LLM temporär nicht verfügbar — Quellen werden direkt angezeigt.",
+        }
+
+    clean_answer, hallucination, citation_coverage = _check_citations(answer_text, len(sources))
+    confidence, low_conf_warning = _compute_confidence(sources, citation_coverage)
+
+    if req.session_id:
+        new_history = (session_history or []) + [
+            {"role": "user", "content": sanitized},
+            {"role": "assistant", "content": clean_answer},
+        ]
+        await _save_session_history(req.session_id, new_history)
+
+    response = {
+        "answer": clean_answer,
+        "hallucination_detected": hallucination,
+        "sources": source_records,
         "model": req.model,
         "language": req.language,
+        "query_id": query_id,
+        "session_id": req.session_id or "",
+        "confidence_score": confidence,
+        "low_confidence_warning": low_conf_warning,
+        "citation_coverage": round(citation_coverage, 4),
+        "retrieval": retrieval.get("orchestrator", {}),
+        "retrieval_latency_ms": retrieval.get("latency_ms"),
     }
+    return response
 
+
+# ───────────────────────── QUERY EXPORT PDF ─────────────────────────
+
+@router.post("/export-pdf/{query_id}")
+async def export_rag_pdf(query_id: str, user: dict = Depends(get_current_user)):
+    """Generate a PDF of a previous RAG query result."""
+    from fastapi.responses import StreamingResponse
+    from fpdf import FPDF
+
+    query_doc = await db.rag_queries.find_one({"id": query_id, "user_id": user["id"]}, {"_id": 0})
+    if not query_doc:
+        raise HTTPException(status_code=404, detail="Query-ID nicht gefunden oder nicht berechtigt")
+    query_text = query_doc.get("query", "")
+    sources = query_doc.get("sources", [])
+
+    font_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fonts")
+    font_regular = os.path.join(font_dir, "DejaVuSans.ttf")
+    font_bold = os.path.join(font_dir, "DejaVuSans-Bold.ttf")
+
+    pdf = FPDF()
+    pdf.add_page()
+    if os.path.exists(font_regular):
+        pdf.add_font("DejaVu", "", font_regular)
+        pdf.set_font("DejaVu", size=10)
+        has_bold = os.path.exists(font_bold)
+        if has_bold:
+            pdf.add_font("DejaVu", "B", font_bold)
+    else:
+        pdf.set_font("Helvetica", size=10)
+        has_bold = True
+
+    def _font(bold=False, size=10):
+        if os.path.exists(font_regular):
+            pdf.set_font("DejaVu", "B" if (bold and has_bold) else "", size)
+        else:
+            pdf.set_font("Helvetica", "B" if bold else "", size)
+
+    _font(bold=True, size=16)
+    pdf.set_text_color(201, 168, 76)
+    pdf.cell(0, 10, "Prep Academy - Medical RAG", ln=True, align="C")
+    pdf.set_text_color(0, 0, 0)
+    _font(size=8)
+    pdf.cell(0, 5, f"Query-ID: {query_id}  |  {query_doc.get('created_at','')[:19]}  |  Sprache: {query_doc.get('language','de')}", ln=True, align="C")
+    pdf.ln(6)
+
+    _font(bold=True, size=12)
+    pdf.set_text_color(50, 50, 50)
+    pdf.cell(0, 8, "Frage:", ln=True)
+    _font(size=10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.multi_cell(0, 5, query_text)
+    pdf.ln(4)
+
+    if query_doc.get("llm_generated", True) and query_doc.get("answer_reply"):
+        _font(bold=True, size=12)
+        pdf.set_text_color(50, 50, 50)
+        pdf.cell(0, 8, "Antwort:", ln=True)
+        _font(size=10)
+        pdf.set_text_color(0, 0, 0)
+        answer_text = query_doc.get("answer_reply", "")
+        for line in answer_text.split("\n"):
+            if line.strip():
+                pdf.multi_cell(0, 5, line)
+            else:
+                pdf.ln(2)
+        pdf.ln(4)
+
+    _font(bold=True, size=11)
+    pdf.set_text_color(50, 50, 50)
+    pdf.cell(0, 8, "Quellen:", ln=True)
+    _font(size=9)
+    pdf.set_text_color(0, 0, 0)
+    for s in sources:
+        src_name = s.get("source", "Unbekannt")
+        code = s.get("code", "")
+        excerpt = s.get("excerpt", "")[:400]
+        score = s.get("score", "")
+        label = f"[{s.get('index','?')}] {src_name}"
+        if code:
+            label += f" ({code})"
+        if score:
+            label += f" — Score: {score:.2f}" if isinstance(score, (int, float)) else f" — Score: {score}"
+        _font(bold=True, size=9)
+        pdf.multi_cell(0, 5, label, new_x="LMARGIN", new_y="NEXT")
+        _font(size=9)
+        pdf.multi_cell(0, 5, excerpt[:400], new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+
+    pdf.ln(4)
+    _font(size=7)
+    pdf.set_text_color(150, 150, 150)
+    pdf.cell(0, 4, f"Erstellt: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} | KB-Version: v1", ln=True)
+
+    buf = io.BytesIO()
+    pdf.output(buf)
+    buf.seek(0)
+    filename = f"rag_answer_{query_id[:8]}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ───────────────────────── ANALYZER ─────────────────────────
 
 @router.post("/analyzer")
-async def rag_analyzer(req: AnalyzerRAGRequest, user: dict = Depends(get_current_user)):
+@limiter.limit(_RATE_LIMIT)
+async def rag_analyzer(request: Request, req: AnalyzerRAGRequest, user: dict = Depends(get_current_user)):
     """Combine an X-ray AI finding with Medscape-style protocol lookup."""
-    await _ensure_initialized()
-
     combined_query = f"{req.finding}\n{req.patient_context}".strip()
-    loop = asyncio.get_event_loop()
-    q_vec = await loop.run_in_executor(None, lambda: _embed_texts([combined_query]))
-    results = _collection.query(query_embeddings=q_vec, n_results=req.top_k)
-
-    docs = results.get("documents", [[]])[0]
-    metas = results.get("metadatas", [[]])[0]
-
-    sources = [{"content": d, "metadata": m} for d, m in zip(docs, metas)]
+    retrieval = await unified_retrieve(RetrievalRequest(
+        query=combined_query,
+        top_k=req.top_k,
+        use_hybrid=True,
+        use_reranker=True,
+    ))
+    sources = [
+        {
+            "content": s.get("excerpt", ""),
+            "metadata": {
+                "source": s.get("source", ""),
+                "code": "",
+                "category": s.get("category", ""),
+                "note_title": s.get("note_title", ""),
+                "vault_path": s.get("vault_path", ""),
+            },
+            "score": s.get("retrieval_score") or s.get("score"),
+            "rerank_score": s.get("score") if isinstance(s.get("score"), (int, float)) else None,
+        }
+        for s in retrieval.get("sources", [])
+    ]
 
     system = "Du bist ein klinischer Entscheidungsunterstützungsassistent. Kombiniere Befunde mit Leitlinien. Zitiere IMMER mit [N]."
     user_prompt = f"""{LANG_INSTRUCT.get(req.language, LANG_INSTRUCT['de'])}
@@ -411,10 +971,16 @@ Erstelle:
 4) Warnzeichen / Red Flags
 5) Monitoring"""
 
-    answer = await _llm_call(system, user_prompt, max_tokens=2000)
+    answer_text, llm_ok = await _llm_call_with_fallback(system, user_prompt, max_tokens=2000)
+    if answer_text:
+        clean_answer, hallucination, _ = _check_citations(answer_text, len(sources))
+    else:
+        clean_answer = None
+        hallucination = False
 
     return {
-        "clinical_report": answer,
+        "clinical_report": clean_answer or "LLM temporär nicht verfügbar.",
+        "hallucination_detected": hallucination,
         "sources": [
             {
                 "index": i + 1,
@@ -422,6 +988,7 @@ Erstelle:
                 "code": s["metadata"].get("code", ""),
                 "category": s["metadata"].get("category", ""),
                 "excerpt": s["content"][:250],
+                "score": s.get("rerank_score") or s.get("score"),
             }
             for i, s in enumerate(sources)
         ],
@@ -429,24 +996,90 @@ Erstelle:
     }
 
 
+# ───────────────────────── INGEST TEXT ─────────────────────────
+
 @router.post("/ingest-text")
 async def ingest_text(req: IngestTextRequest, user: dict = Depends(get_admin_user)):
-    """Admin: add a single text document to the KB."""
-    await _ensure_initialized()
-
+    """Admin: enqueue a text document ingestion job."""
     chunks = _chunk_text(req.content)
     if not chunks:
         raise HTTPException(status_code=400, detail="Inhalt zu kurz")
 
-    loop = asyncio.get_event_loop()
-    embeddings = await loop.run_in_executor(None, lambda: _embed_texts(chunks))
-    ids = [f"doc_{uuid.uuid4().hex[:12]}" for _ in chunks]
-    metas = [
-        {"source": req.source, "category": req.category, "language": req.language, "chunk": i}
-        for i in range(len(chunks))
-    ]
-    _collection.add(ids=ids, documents=chunks, metadatas=metas, embeddings=embeddings)
-    return {"added_chunks": len(chunks), "source": req.source, "total_kb_docs": _collection.count()}
+    now = datetime.now(timezone.utc).isoformat()
+    version = now if req.force else "1.0"
+    job = await create_job(
+        job_type="rag_ingest_text",
+        source_type="medical",
+        requested_by=user.get("id", ""),
+        payload={
+            "source": req.source,
+            "category": req.category,
+            "language": req.language,
+            "version": version,
+            "chunk_count": len(chunks),
+        },
+    )
+
+    async def worker():
+        await update_job_progress(job["id"], total=len(chunks), processed=0, message="Embedding text chunks")
+        unified_chunks = _unified_chunks_from_text(
+            source=req.source,
+            content_chunks=chunks,
+            category=req.category,
+            language=req.language,
+            version=version,
+        )
+        added = await upsert_unified_chunks(unified_chunks)
+        failed = max(0, len(chunks) - added)
+        await update_job_progress(job["id"], total=len(chunks), processed=added, failed=failed)
+        return {
+            "source": req.source,
+            "version": version,
+            "added_chunks": added,
+            "failed_chunks_count": failed,
+            "total_kb_docs": count_unified(),
+        }
+
+    start_job(job["id"], worker)
+    return {
+        "accepted": True,
+        "job_id": job["id"],
+        "status": job["status"],
+        "source": req.source,
+        "queued_chunks": len(chunks),
+    }
+
+
+# ───────────────────────── INGEST PDF ─────────────────────────
+
+def _validate_pdf(content: bytes) -> Tuple[bool, str, str]:
+    """Validate PDF integrity and extractability. Returns (valid, error_msg, text)."""
+    if not content or len(content) < 20:
+        return False, "Leere oder zu kurze Datei", ""
+    if content[:5] != b"%PDF-":
+        return False, "Datei ist kein gültiges PDF (fehlende PDF-Signatur)", ""
+    try:
+        import fitz
+        doc = fitz.open(stream=content, filetype="pdf")
+        if len(doc) == 0:
+            doc.close()
+            return False, "PDF enthält keine Seiten", ""
+        text_parts = []
+        for page in doc:
+            t = page.get_text() or ""
+            text_parts.append(t)
+        doc.close()
+        text = "\n".join(text_parts)
+        if not text.strip():
+            return False, "PDF enthält keinen extrahierbaren Text (möglicherweise ein gescanntes Dokument ohne OCR)", ""
+        if len(text.strip()) < 100:
+            return False, f"PDF enthält nur {len(text.strip())} Zeichen extrahierbaren Text — zu wenig für eine sinnvolle Verarbeitung (min. 100)", ""
+        return True, "", text
+    except Exception as e:
+        err_msg = str(e)
+        if "encrypted" in err_msg.lower() or "password" in err_msg.lower():
+            return False, "PDF ist verschlüsselt und kann nicht gelesen werden", ""
+        return False, f"PDF konnte nicht gelesen werden: {err_msg}", ""
 
 
 @router.post("/ingest-pdf")
@@ -455,70 +1088,216 @@ async def ingest_pdf(
     source: str = Form(...),
     category: str = Form("Allgemein"),
     language: str = Form("de"),
+    force: bool = Form(False),
     user: dict = Depends(get_admin_user),
 ):
-    """Admin: upload a PDF and ingest its text into the KB."""
-    await _ensure_initialized()
-
+    """Admin: upload a PDF and enqueue ingestion into the unified KB."""
     content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Leere Datei")
-
-    text = ""
-    try:
-        import io
-        import PyPDF2
-        reader = PyPDF2.PdfReader(io.BytesIO(content))
-        text = "\n".join((p.extract_text() or "") for p in reader.pages)
-    except Exception as e:
-        logger.error(f"[RAG] PDF parse error: {e}")
-        raise HTTPException(status_code=400, detail=f"PDF konnte nicht gelesen werden: {e}")
-
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="PDF enthält keinen extrahierbaren Text")
+    valid, error_msg, text = _validate_pdf(content)
+    if not valid:
+        raise HTTPException(status_code=400, detail=error_msg)
 
     chunks = _chunk_text(text)
-    loop = asyncio.get_event_loop()
-    embeddings = await loop.run_in_executor(None, lambda: _embed_texts(chunks))
-    ids = [f"pdf_{uuid.uuid4().hex[:10]}_{i}" for i in range(len(chunks))]
-    metas = [
-        {"source": source, "category": category, "language": language, "filename": file.filename, "chunk": i}
-        for i in range(len(chunks))
-    ]
-    _collection.add(ids=ids, documents=chunks, metadatas=metas, embeddings=embeddings)
+    if not chunks:
+        raise HTTPException(status_code=400, detail="PDF text too short after chunking")
+
+    now = datetime.now(timezone.utc).isoformat()
+    version = now if force else "1.0"
+    job = await create_job(
+        job_type="rag_ingest_pdf",
+        source_type="medical",
+        requested_by=user.get("id", ""),
+        payload={
+            "source": source,
+            "category": category,
+            "language": language,
+            "filename": file.filename,
+            "version": version,
+            "chunk_count": len(chunks),
+            "total_chars": len(text),
+        },
+    )
+
+    async def worker():
+        await update_job_progress(job["id"], total=len(chunks), processed=0, message="Embedding PDF chunks")
+        unified_chunks = _unified_chunks_from_text(
+            source=source,
+            content_chunks=chunks,
+            category=category,
+            language=language,
+            version=version,
+            filename=file.filename or "",
+        )
+        added = await upsert_unified_chunks(unified_chunks)
+        failed = max(0, len(chunks) - added)
+        await update_job_progress(job["id"], total=len(chunks), processed=added, failed=failed)
+        return {
+            "filename": file.filename,
+            "source": source,
+            "version": version,
+            "total_chars": len(text),
+            "added_chunks": added,
+            "failed_chunks_count": failed,
+            "total_kb_docs": count_unified(),
+        }
+
+    start_job(job["id"], worker)
 
     return {
+        "accepted": True,
+        "job_id": job["id"],
+        "status": job["status"],
         "filename": file.filename,
         "total_chars": len(text),
-        "added_chunks": len(chunks),
-        "total_kb_docs": _collection.count(),
+        "queued_chunks": len(chunks),
+        "version": version,
     }
 
 
+# ───────────────────────── SOURCES ─────────────────────────
+
 @router.get("/sources")
 async def list_sources(user: dict = Depends(get_current_user)):
-    """List all unique sources currently in the KB (requires auth)."""
-    await _ensure_initialized()
-    # Chroma doesn't support distinct directly; fetch metadata only
-    all_items = _collection.get(include=["metadatas"])
-    metas = all_items.get("metadatas", []) or []
-    counts: Dict[str, Dict[str, Any]] = {}
-    for m in metas:
-        key = m.get("source", "unknown")
-        if key not in counts:
-            counts[key] = {
-                "source": key,
-                "category": m.get("category", ""),
-                "language": m.get("language", ""),
-                "chunks": 0,
-            }
-        counts[key]["chunks"] += 1
-    return {"sources": list(counts.values()), "total_docs": _collection.count()}
+    """List all unique sources currently in the unified Qdrant KB."""
+    sources = list_unified_sources()
+    return {"sources": sources, "total_docs": count_unified()}
+
+
+@router.post("/obsidian/sync")
+async def obsidian_sync(user: dict = Depends(get_admin_user)):
+    """Admin: enqueue an incremental Obsidian vault sync."""
+    job = await create_job(
+        job_type="obsidian_sync",
+        source_type="obsidian",
+        requested_by=user.get("id", ""),
+        payload={"force": False},
+    )
+
+    async def worker():
+        await update_job_progress(job["id"], message="Syncing Obsidian vault")
+        result = await sync_obsidian_vault(force=False)
+        if not result.get("ok"):
+            raise RuntimeError(result.get("error", "Obsidian sync failed"))
+        await update_job_progress(
+            job["id"],
+            total=result.get("notes_scanned", 0),
+            processed=result.get("notes_indexed", 0) + result.get("notes_skipped", 0),
+            failed=0,
+        )
+        return result
+
+    start_job(job["id"], worker)
+    return {"accepted": True, "job_id": job["id"], "status": job["status"]}
+
+
+@router.get("/obsidian/status")
+async def obsidian_status(user: dict = Depends(get_admin_user)):
+    """Admin: return Obsidian vault indexing status."""
+    return await get_obsidian_status()
+
+
+@router.post("/obsidian/reindex")
+async def obsidian_reindex(user: dict = Depends(get_admin_user)):
+    """Admin: enqueue a full Obsidian vault reindex."""
+    job = await create_job(
+        job_type="obsidian_reindex",
+        source_type="obsidian",
+        requested_by=user.get("id", ""),
+        payload={"force": True},
+    )
+
+    async def worker():
+        await update_job_progress(job["id"], message="Reindexing Obsidian vault")
+        result = await reindex_obsidian_vault()
+        if not result.get("ok"):
+            raise RuntimeError(result.get("error", "Obsidian reindex failed"))
+        await update_job_progress(
+            job["id"],
+            total=result.get("notes_scanned", 0),
+            processed=result.get("notes_indexed", 0),
+            failed=0,
+        )
+        return result
+
+    start_job(job["id"], worker)
+    return {"accepted": True, "job_id": job["id"], "status": job["status"]}
+
+
+@router.get("/obsidian/search")
+async def obsidian_search(q: str, limit: int = 5, user: dict = Depends(get_current_user)):
+    """Search only Obsidian-backed RAG chunks."""
+    return {"results": await search_obsidian(q, limit=min(max(limit, 1), 20))}
+
+
+@router.get("/source/{source_name}/versions")
+async def list_source_versions(source_name: str, user: dict = Depends(get_current_user)):
+    """List all versions of a given source from unified Qdrant payloads."""
+    versions = list_unified_source_versions(source_name)
+    return {"source": source_name, "versions": versions, "total_chunks": sum(v.get("chunks", 0) for v in versions)}
 
 
 @router.delete("/source/{source_name}")
-async def delete_source(source_name: str, user: dict = Depends(get_admin_user)):
-    """Admin: delete all chunks belonging to a given source."""
-    await _ensure_initialized()
-    _collection.delete(where={"source": source_name})
-    return {"deleted_source": source_name, "remaining_docs": _collection.count()}
+async def delete_source(source_name: str, version: Optional[str] = None, user: dict = Depends(get_admin_user)):
+    """Admin: delete unified Qdrant chunks for a source. Optionally filter by version."""
+    filters: Dict[str, Any] = {"source": source_name}
+    if version:
+        filters["version"] = version
+    deleted = delete_unified(filters)
+    return {
+        "deleted_source": source_name,
+        "version": version or "all",
+        "deleted_chunks": deleted,
+        "remaining_docs": count_unified(),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# KB FEEDBACK LOOP
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/feedback")
+async def submit_kb_feedback(req: KBFeedbackRequest, user: dict = Depends(get_current_user)):
+    """Submit user feedback on a KB source entry."""
+    if req.feedback_type not in ("correct", "incorrect", "outdated", "irrelevant", "suggestion"):
+        raise HTTPException(status_code=400, detail="Invalid feedback_type.")
+    entry = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "source_name": req.source_name,
+        "feedback_type": req.feedback_type,
+        "comment": req.comment[:500],
+        "suggested_correction": req.suggested_correction[:2000],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        await db.kb_feedback.insert_one(entry)
+    except Exception as e:
+        logger.error(f"[KB] Failed to save feedback: {e}")
+        raise HTTPException(status_code=500, detail="Feedback konnte nicht gespeichert werden")
+    return {"success": True, "feedback_id": entry["id"]}
+
+
+@router.get("/feedback")
+async def list_kb_feedback(user: dict = Depends(get_admin_user), limit: int = 50):
+    """Admin: list all submitted KB feedback entries."""
+    items = await db.kb_feedback.find({}, {"_id": 0}).sort("created_at", -1).to_list(min(limit, 200))
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/feedback/stats")
+async def kb_feedback_stats(user: dict = Depends(get_admin_user)):
+    """Admin: aggregate KB feedback stats by source and type."""
+    pipeline = [
+        {"$group": {"_id": {"source": "$source_name", "type": "$feedback_type"}, "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    try:
+        results = await db.kb_feedback.aggregate(pipeline).to_list(200)
+    except Exception:
+        return {"stats": [], "total": 0}
+    stats = []
+    total = 0
+    for r in results:
+        stats.append({"source": r["_id"]["source"], "feedback_type": r["_id"]["type"], "count": r["count"]})
+        total += r["count"]
+    return {"stats": stats, "total": total}

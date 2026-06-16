@@ -24,7 +24,7 @@ if str(SRC) not in sys.path:
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
-from vector_store import search_chapters
+from services.retrieval_orchestrator import RetrievalRequest, retrieve
 from evaluation.questions import EVAL_QUESTIONS
 
 
@@ -51,7 +51,15 @@ async def run_evaluation() -> dict:
         cat = q.get("category", "Allgemein")
 
         start = time.time()
-        docs = await search_chapters(query, limit=5)
+        retrieval = await retrieve(RetrievalRequest(query=query, top_k=5, use_hybrid=True, use_reranker=True))
+        docs = [
+            {
+                "chapter_title": r.get("chunk_title") or r.get("title", ""),
+                "text": r.get("excerpt", ""),
+                "score": r.get("score") or r.get("retrieval_score"),
+            }
+            for r in retrieval.get("sources", [])
+        ]
         elapsed = time.time() - start
 
         top1_ok = False
