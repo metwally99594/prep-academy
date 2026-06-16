@@ -36,6 +36,7 @@ OBSIDIAN_CHUNK_WORDS = int(os.environ.get("OBSIDIAN_CHUNK_WORDS", "350"))
 OBSIDIAN_CHUNK_OVERLAP = int(os.environ.get("OBSIDIAN_CHUNK_OVERLAP", "40"))
 
 STATE_COLLECTION = "obsidian_rag_files"
+STATUS_COLLECTION = "obsidian_rag_status"
 STATUS_ID = "obsidian_rag_status"
 LOCK_ID = "obsidian_watcher_lock"
 
