@@ -7,7 +7,13 @@ ROOT = Path(__file__).resolve().parents[1]
 def _python_files():
     for path in ROOT.rglob("*.py"):
         rel = path.relative_to(ROOT).as_posix()
-        if "__pycache__" in rel:
+        if (
+            "__pycache__" in rel
+            or rel.startswith("venv/")
+            or rel.startswith(".venv/")
+            or rel.startswith("chroma_db/")
+            or rel.startswith(".qdrant_data/")
+        ):
             continue
         yield rel, path
 
