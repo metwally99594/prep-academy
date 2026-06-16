@@ -50,7 +50,7 @@ from auth import (
     hash_password, verify_password, create_token,
     get_current_user, get_admin_user, security
 )
-from vector_store import index_chapters, search_chapters
+from vector_store import index_chapters
 from scoring import compute_evidence_coverage, compute_confidence
 from tracker import record_answer
 from services.analyzer_prompts import (
@@ -4327,11 +4327,41 @@ def _get_relevant_images(wiki_sources: list, user_query: str = "") -> list:
 
 
 async def _search_tutor_docs(query: str, specialty_id: str, limit: int = 5, chapter_index: int = None) -> list:
-    """Semantic search via Qdrant, falls back to $regex."""
+    """Semantic search via the unified retrieval orchestrator, falls back to $regex."""
     if not query or len(query) < 2:
         return []
     try:
-        results = await search_chapters(query, specialty_id=specialty_id or None, chapter_index=chapter_index, limit=limit)
+        from services.retrieval_orchestrator import RetrievalRequest, retrieve as unified_retrieve
+        filters = {}
+        if specialty_id:
+            filters["specialty_id"] = specialty_id
+        if chapter_index is not None:
+            filters["chapter_index"] = chapter_index
+        retrieval = await unified_retrieve(RetrievalRequest(
+            query=query,
+            top_k=limit,
+            filters=filters or None,
+            use_hybrid=True,
+            use_reranker=True,
+        ))
+        results = [
+            {
+                "document_id": s.get("document_id", ""),
+                "specialty_id": specialty_id or "",
+                "filename": s.get("source") or s.get("title") or "Unbekannt",
+                "chapter_title": s.get("chunk_title") or s.get("title", ""),
+                "chapter_index": None,
+                "text": s.get("excerpt", ""),
+                "score": s.get("retrieval_score") or s.get("score"),
+                "page_start": s.get("page_start", 1),
+                "page_end": s.get("page_end", 1),
+                "document_type": s.get("source_type", ""),
+                "note_title": s.get("note_title", ""),
+                "vault_path": s.get("vault_path", ""),
+                "tags": s.get("tags", []),
+            }
+            for s in retrieval.get("sources", [])
+        ]
         if results:
             logger.info(f"[Tutor] Qdrant branch — {len(results)} results for '{query[:60]}'")
             for i, r in enumerate(results[:5]):
