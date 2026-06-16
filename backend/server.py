@@ -351,6 +351,12 @@ async def startup_event():
             logger.info("Telegram bot task launched.")
     except Exception as e:
         logger.warning(f"Telegram bot not started: {e}")
+    try:
+        from services.obsidian_rag import start_obsidian_watcher_once
+        if start_obsidian_watcher_once():
+            logger.info("Obsidian RAG watcher task launched.")
+    except Exception as e:
+        logger.warning(f"Obsidian RAG watcher not started: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
@@ -1646,7 +1652,9 @@ async def batch_generate(data: dict, admin: dict = Depends(get_admin_user)):
     source_type = data.get("source_type", "text")
     raw_text = data.get("raw_text", "")
     notebook_id = data.get("notebook_id")
-    mix = data.get("mix", {"mcq": 3, "multi_select": 2, "drag_drop": 1, "kategorisierung": 1, "lueckentext": 1})
+    mix = data.get("mix", {"mcq": 3, "multi_select": 2, "drag_drop": 1, "kategorisierung": 1, "luckentext": 1})
+    if "lueckentext" in mix:
+        mix["luckentext"] = mix.get("luckentext", 0) + mix.pop("lueckentext", 0)
     fachgebiet = data.get("fachgebiet", "Innere Medizin")
     jahr = data.get("jahr", 2024)
     stadt = data.get("stadt", "Wien")
@@ -1685,12 +1693,12 @@ JSON FORMATS BY QUESTION TYPE:
 4. kategorisierung (same as drag_drop):
 {"question_type":"kategorisierung","question_text":"...","drag_drop_items":[{"id":"i1","text":"Item1","correct_category":"Kategorie X"},...],"drag_drop_categories":["Kategorie X","Kategorie Y"],"explanation_de":"..."}
 
-5. lueckentext (fill in blank):
-{"question_type":"lueckentext","question_text":"Der ___ ist das wichtigste Organ für ___ .","blanks":[{"type":"text","answer":"Leber"},{"type":"text","answer":"Entgiftung"}],"explanation_de":"..."}
+5. luckentext (fill in blank):
+{"question_type":"luckentext","question_text":"Der ___ ist das wichtigste Organ für ___ .","blanks":[{"type":"text","answer":"Leber"},{"type":"text","answer":"Entgiftung"}],"explanation_de":"..."}
 
 Return ONLY a JSON object with a "questions" array containing ALL generated questions."""
 
-    type_labels = {"mcq": "MCQ (single choice)", "multi_select": "Multi-Select (multiple correct)", "drag_drop": "Drag & Drop matching", "kategorisierung": "Kategorisierung (sort into categories)", "lueckentext": "Lückentext (fill in blanks)"}
+    type_labels = {"mcq": "MCQ (single choice)", "multi_select": "Multi-Select (multiple correct)", "drag_drop": "Drag & Drop matching", "kategorisierung": "Kategorisierung (sort into categories)", "luckentext": "Lückentext (fill in blanks)"}
     type_counts = "\n".join(f"- {type_labels[k]}: {v}" for k, v in mix.items() if v > 0)
 
     user_prompt = f"""Generate {total_requested} medical exam questions based on this content:
@@ -4683,6 +4691,10 @@ REGELN:
                 "document_id": d.get("document_id", ""),
                 "filename": d.get("filename", ""),
                 "chapter": d.get("chapter_title", ""),
+                "document_type": d.get("document_type", "tutor_document"),
+                "note_title": d.get("note_title", ""),
+                "vault_path": d.get("vault_path", ""),
+                "score": d.get("score"),
                 "page_start": d.get("page_start"),
                 "page_end": d.get("page_end"),
                 "excerpt": excerpt,
@@ -4867,6 +4879,10 @@ async def ai_tutor_stream(request: Request, body: AITutorRequest, user: dict = D
                     "document_id": d.get("document_id", ""),
                     "filename": d.get("filename", ""),
                     "chapter": d.get("chapter_title", ""),
+                    "document_type": d.get("document_type", "tutor_document"),
+                    "note_title": d.get("note_title", ""),
+                    "vault_path": d.get("vault_path", ""),
+                    "score": d.get("score"),
                     "page_start": d.get("page_start"),
                     "page_end": d.get("page_end"),
                     "excerpt": excerpt,
@@ -8625,20 +8641,49 @@ async def _start_trial_system():
     asyncio.create_task(trial_loop(db))
     logger.info("Trial system started")
 
-# CORS Configuration — production origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=[
+# CORS Configuration — production origins from env or defaults
+_CORS_ORIGINS_ENV = os.environ.get("CORS_ORIGINS", "")
+if _CORS_ORIGINS_ENV:
+    _ALLOWED_ORIGINS = [o.strip() for o in _CORS_ORIGINS_ENV.split(",") if o.strip()]
+else:
+    _ALLOWED_ORIGINS = [
         "https://prepacademy-med.com",
         "https://www.prepacademy-med.com",
         "https://prep-academy-rho.vercel.app",
         "https://prep-academy.vercel.app",
         "http://localhost:3000",
-    ],
+    ]
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Data Retention Policy (daily cleanup) ─────────────────────
+
+_RETENTION_DAYS = int(os.environ.get("DICOM_RETENTION_DAYS", "365"))
+
+async def _data_retention_loop():
+    """Background job: delete DICOM analyses older than retention period."""
+    while True:
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=_RETENTION_DAYS)
+            cutoff_str = cutoff.isoformat()
+            result = await db.dicom_analyses.delete_many({
+                "created_at": {"$lt": cutoff_str},
+            })
+            if result.deleted_count > 0:
+                logger.info(f"[Retention] Deleted {result.deleted_count} old DICOM analyses (>{_RETENTION_DAYS}d)")
+        except Exception as e:
+            logger.warning(f"[Retention] Error: {e}")
+        await asyncio.sleep(86400)  # once daily
+
+@app.on_event("startup")
+async def _start_retention_loop():
+    asyncio.create_task(_data_retention_loop())
+    logger.info(f"Data retention loop started (>{_RETENTION_DAYS}d)")
 
 
 if __name__ == "__main__":
