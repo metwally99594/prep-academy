@@ -37,6 +37,9 @@ backend/chroma_db/
 # Local assistant/tooling workspaces
 MiMo-Code/
 
+# Experimental edge functions not part of the production Vercel app
+frontend/api/
+
 # IDE/editor config
 .claude/
 .vscode/
