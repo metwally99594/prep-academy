@@ -1765,7 +1765,7 @@ Return a JSON object with a "questions" array containing all generated questions
         qtext = q.get("question_text", "")
         if len(qtext) < 20:
             continue
-        qtype = q.get("question_type", "mcq")
+        qtype = _normalize_question_type(q.get("question_type", "mcq"))
         qid = str(uuid.uuid4())
         doc = {
             "id": qid,
@@ -1796,7 +1796,7 @@ Return a JSON object with a "questions" array containing all generated questions
                 continue
             doc["drag_drop_items"] = items
             doc["drag_drop_categories"] = cats
-        elif qtype == "lueckentext":
+        elif qtype == "luckentext":
             blanks = q.get("blanks", [])
             if not blanks:
                 continue
@@ -1996,6 +1996,12 @@ async def bulk_update_status(data: dict, admin: dict = Depends(get_admin_user)):
 
 # ============ ANSWER ROUTES ============
 
+def _normalize_question_type(question_type: str | None) -> str:
+    qtype = (question_type or "mcq").lower()
+    if qtype == "lueckentext":
+        return "luckentext"
+    return qtype
+
 @api_router.post("/questions/{question_id}/answer", response_model=AnswerResult)
 async def submit_answer(question_id: str, answer: AnswerSubmit, user: dict = Depends(get_current_user)):
     question = await db.questions.find_one({"id": question_id}, {"_id": 0})
@@ -2008,7 +2014,7 @@ async def submit_answer(question_id: str, answer: AnswerSubmit, user: dict = Dep
     if not correct_ids:
         # Fall back to correct_answers list (used by imported questions)
         correct_ids = question.get("correct_answers", [])
-    question_type = question.get("question_type", "single_choice")
+    question_type = _normalize_question_type(question.get("question_type", "single_choice"))
     if question_type == "drag_drop" or question_type == "kategorisierung":
         if answer.drag_drop_answer:
             items = question.get("drag_drop_items", [])
@@ -4016,7 +4022,7 @@ def _validate_question(item: QuestionImportItem, index: int) -> list:
         errors.append({"index": index, "field": "question_text_de", "message": "Question text too long (max 5000 chars)"})
     elif len(item.question_text_de.strip()) < 5:
         errors.append({"index": index, "field": "question_text_de", "message": "Question text too short (min 5 chars)"})
-    qtype = (item.question_type or "mcq").lower()
+    qtype = _normalize_question_type(item.question_type)
     if qtype in ("mcq", "multi_select", "single_choice"):
         if not item.choices_de or len(item.choices_de) < 2:
             errors.append({"index": index, "field": "choices_de", "message": "At least 2 choices are required"})
@@ -4042,7 +4048,7 @@ def _validate_question(item: QuestionImportItem, index: int) -> list:
             errors.append({"index": index, "field": "drag_drop_items", "message": "At least 2 drag & drop items required"})
         if not item.drag_drop_categories or len(item.drag_drop_categories) < 2:
             errors.append({"index": index, "field": "drag_drop_categories", "message": "At least 2 categories required"})
-    elif qtype == "lueckentext":
+    elif qtype == "luckentext":
         if not item.blanks or len(item.blanks) < 1:
             errors.append({"index": index, "field": "blanks", "message": "At least 1 blank required"})
     if item.explanation_de is not None and not item.explanation_de.strip():
@@ -4118,7 +4124,7 @@ async def admin_import_questions(
             "id": str(uuid.uuid4()),
             "specialty_id": q.specialty_id.strip(),
             "question_text_de": q.question_text_de.strip(),
-            "question_type": q.question_type or "mcq",
+            "question_type": _normalize_question_type(q.question_type),
             "choices_de": q.choices_de,
             "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
             "year": q.year,
