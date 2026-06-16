@@ -61,12 +61,14 @@ import {
   MessageSquare,
   Users,
   ShieldAlert,
+  Star,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import NotificationBell from "@/components/NotificationBell";
 import TrialBanner from "@/components/TrialBanner";
 import AIChat from "@/components/AIChat";
+import { ADVANCED_FEATURES_ENABLED } from "@/lib/features";
 
 const SPECIALTIES = [
   { id: "surgery", name: "Chirurgie" },
@@ -395,7 +397,7 @@ export const Layout = () => {
                       <Lock className="w-3 h-3 opacity-60" />
                     </Button>
                   )}
-                  {process.env.REACT_APP_ADVANCED === "true" && (
+                  {ADVANCED_FEATURES_ENABLED && (
                     <>
                       <Link to="/rag">
                         <Button variant="ghost" size="sm" className="gap-1.5 px-2.5 flex-shrink-0" data-testid="rag-nav-btn">
@@ -728,7 +730,7 @@ export const Layout = () => {
                 <Lock className="w-3 h-3 ml-auto opacity-60" />
               </Button>
             )}
-            {process.env.REACT_APP_ADVANCED === "true" && (
+            {ADVANCED_FEATURES_ENABLED && (
               <>
                 <Link to="/rag" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start gap-2" data-testid="rag-nav-mobile">

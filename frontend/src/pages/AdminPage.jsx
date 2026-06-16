@@ -40,6 +40,7 @@ import AdminTagsTab from "@/components/AdminTagsTab";
 import AdminPodcastTab from "@/components/AdminPodcastTab";
 import AdminRagTab from "@/components/AdminRagTab";
 import AdminAccessRequestsTab from "@/components/AdminAccessRequestsTab";
+import { ADVANCED_FEATURES_ENABLED } from "@/lib/features";
 import {
   Table,
   TableBody,
@@ -1488,7 +1489,7 @@ export default function AdminPage() {
             <Database className="w-4 h-4" />
             Tutor Docs
           </TabsTrigger>
-          {process.env.REACT_APP_ADVANCED === "true" && (
+          {ADVANCED_FEATURES_ENABLED && (
             <TabsTrigger value="rag" className="px-3 py-2 text-sm font-medium rounded-t-lg flex items-center gap-1.5 whitespace-nowrap border border-border border-b-0 data-[state=active]:bg-background data-[state=active]:border-b-background" data-testid="rag-tab">
               <ShieldCheck className="w-4 h-4" />
               RAG Knowledge
@@ -2763,7 +2764,7 @@ export default function AdminPage() {
           <TutorDocsAdminTab token={token} />
         </TabsContent>
 
-        {process.env.REACT_APP_ADVANCED === "true" && (
+        {ADVANCED_FEATURES_ENABLED && (
           <TabsContent value="rag">
             <AdminRagTab token={token} />
           </TabsContent>

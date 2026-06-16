@@ -47,6 +47,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ADVANCED_FEATURES_ENABLED } from "@/lib/features";
 
 export default function QuizPage() {
   const { specialtyId } = useParams();
@@ -173,6 +174,10 @@ export default function QuizPage() {
 
   const explainWithRag = async () => {
     if (!currentQuestion) return;
+    if (!ADVANCED_FEATURES_ENABLED) {
+      toast.error("RAG-Erklärungen sind derzeit deaktiviert.");
+      return;
+    }
     setRagLoading(true);
     setRagExplanation(null);
     try {
@@ -1140,7 +1145,7 @@ export default function QuizPage() {
         )}
 
         {/* RAG Explain Button — only after the user answered (and only if advanced features enabled) */}
-        {showResult && !ragExplanation && process.env.REACT_APP_ADVANCED === "true" && (
+        {showResult && !ragExplanation && ADVANCED_FEATURES_ENABLED && (
           <div className="mt-4">
             <Button
               onClick={explainWithRag}

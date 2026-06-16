@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
 import { API } from "@/App";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Loader2, Upload, Database, Trash2, FileUp, RefreshCw } from "lucide-react";
+import { Loader2, Upload, Database, Trash2, FileUp, RefreshCw, FileText, BookOpenCheck } from "lucide-react";
 import { toast } from "sonner";
 
 // Specialties shown in the dropdown — matches BODY_PART_CONTEXT rag_categories in backend.
@@ -30,16 +30,35 @@ export default function AdminRagTab({ token }) {
   const [pdfName, setPdfName] = useState("");
   const [pdfCategory, setPdfCategory] = useState("Allgemein");
   const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfDragOver, setPdfDragOver] = useState(false);
+  const [obsidianStatus, setObsidianStatus] = useState(null);
+  const [obsidianBusy, setObsidianBusy] = useState(false);
+  const pdfInputRef = useRef(null);
+
+  const showJobAcceptedToast = (data, fallback) => {
+    if (data?.accepted || data?.job_id) {
+      const details = [
+        data.job_id ? `Job ${data.job_id}` : null,
+        data.queued_chunks != null ? `${data.queued_chunks} Chunks in Warteschlange` : null,
+        data.status ? `Status: ${data.status}` : null,
+      ].filter(Boolean).join(" - ");
+      toast.success(details ? `${fallback}: ${details}` : fallback);
+      return true;
+    }
+    return false;
+  };
 
   const reload = async () => {
     setLoading(true);
     try {
-      const [s, src] = await Promise.all([
+      const [s, src, obs] = await Promise.all([
         axios.get(`${API}/rag/status`),
         axios.get(`${API}/rag/sources`, { headers }),
+        axios.get(`${API}/rag/obsidian/status`, { headers }).catch(() => ({ data: null })),
       ]);
       setStatus(s.data);
       setSources(src.data.sources || []);
+      setObsidianStatus(obs.data);
     } catch (e) {
       toast.error("Fehler beim Laden");
     } finally {
@@ -63,7 +82,9 @@ export default function AdminRagTab({ token }) {
         { content: ingestText, source: ingestName, category: ingestCategory, language: "de" },
         { headers, timeout: 60000 }
       );
-      toast.success(`${r.data.added_chunks} Abschnitte hinzugefügt`);
+      if (!showJobAcceptedToast(r.data, "Text-Import gestartet")) {
+        toast.success(`${r.data.added_chunks ?? 0} Abschnitte hinzugefügt`);
+      }
       setIngestText("");
       setIngestName("");
       reload();
@@ -73,6 +94,26 @@ export default function AdminRagTab({ token }) {
       setIngesting(false);
     }
   };
+
+  const handlePdfDrop = useCallback((e) => {
+    e.preventDefault();
+    setPdfDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type === "application/pdf") {
+      setPdfFile(file);
+    } else if (file) {
+      toast.error("Nur PDF-Dateien werden unterstützt");
+    }
+  }, []);
+
+  const handlePdfDragOver = useCallback((e) => {
+    e.preventDefault();
+    setPdfDragOver(true);
+  }, []);
+
+  const handlePdfDragLeave = useCallback(() => {
+    setPdfDragOver(false);
+  }, []);
 
   const doIngestPdf = async () => {
     if (!pdfFile || !pdfName.trim()) return toast.error("PDF und Name erforderlich");
@@ -87,7 +128,9 @@ export default function AdminRagTab({ token }) {
         headers: { ...headers, "Content-Type": "multipart/form-data" },
         timeout: 180000,
       });
-      toast.success(`${r.data.added_chunks} Abschnitte aus PDF hinzugefügt`);
+      if (!showJobAcceptedToast(r.data, "PDF-Import gestartet")) {
+        toast.success(`${r.data.added_chunks ?? 0} Abschnitte aus PDF hinzugefügt`);
+      }
       setPdfFile(null);
       setPdfName("");
       reload();
@@ -106,6 +149,37 @@ export default function AdminRagTab({ token }) {
       reload();
     } catch (e) {
       toast.error(e.response?.data?.detail || "Fehler beim Löschen");
+    }
+  };
+
+  const syncObsidian = async () => {
+    setObsidianBusy(true);
+    try {
+      const r = await axios.post(`${API}/rag/obsidian/sync`, {}, { headers, timeout: 180000 });
+      if (!showJobAcceptedToast(r.data, "Obsidian-Sync gestartet")) {
+        toast.success(`Obsidian synchronisiert: ${r.data.notes_indexed ?? 0} Notizen, ${r.data.chunks_indexed ?? 0} Chunks`);
+      }
+      reload();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Obsidian-Sync fehlgeschlagen");
+    } finally {
+      setObsidianBusy(false);
+    }
+  };
+
+  const reindexObsidian = async () => {
+    if (!window.confirm("Obsidian Vault vollständig neu indexieren?")) return;
+    setObsidianBusy(true);
+    try {
+      const r = await axios.post(`${API}/rag/obsidian/reindex`, {}, { headers, timeout: 300000 });
+      if (!showJobAcceptedToast(r.data, "Obsidian-Reindex gestartet")) {
+        toast.success(`Obsidian neu indexiert: ${r.data.notes_indexed ?? 0} Notizen`);
+      }
+      reload();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Obsidian-Reindex fehlgeschlagen");
+    } finally {
+      setObsidianBusy(false);
     }
   };
 
@@ -176,19 +250,95 @@ export default function AdminRagTab({ token }) {
         </Button>
       </Card>
 
+      {/* OBSIDIAN VAULT */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <BookOpenCheck className="w-5 h-5 text-amber-500" />
+          <h3 className="font-bold">Obsidian Vault</h3>
+          {obsidianStatus?.configured ? (
+            <Badge className="bg-green-500/20 text-green-700">konfiguriert</Badge>
+          ) : (
+            <Badge variant="secondary">nicht konfiguriert</Badge>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 text-sm">
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <p className="text-muted-foreground text-xs">Notizen</p>
+            <p className="font-bold">{obsidianStatus?.indexed_notes_count ?? 0}</p>
+          </div>
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <p className="text-muted-foreground text-xs">Chunks</p>
+            <p className="font-bold">{obsidianStatus?.indexed_chunks_count ?? 0}</p>
+          </div>
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <p className="text-muted-foreground text-xs">Letzter Sync</p>
+            <p className="font-bold text-xs truncate">{obsidianStatus?.last_sync_at || "nie"}</p>
+          </div>
+        </div>
+        {obsidianStatus?.vault_path && (
+          <p className="text-xs text-muted-foreground mb-4 truncate">
+            {obsidianStatus.vault_path}
+          </p>
+        )}
+        {obsidianStatus?.last_error && (
+          <p className="text-xs text-red-600 mb-4">{obsidianStatus.last_error}</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={syncObsidian} disabled={obsidianBusy || !obsidianStatus?.configured} size="sm">
+            {obsidianBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Sync Obsidian Vault
+          </Button>
+          <Button onClick={reindexObsidian} disabled={obsidianBusy || !obsidianStatus?.configured} size="sm" variant="outline">
+            <Database className="w-4 h-4 mr-2" />
+            Reindex Vault
+          </Button>
+        </div>
+      </Card>
+
       {/* INGEST PDF */}
       <Card className="p-5">
         <div className="flex items-center gap-2 mb-3">
           <FileUp className="w-5 h-5 text-amber-500" />
           <h3 className="font-bold">PDF importieren</h3>
         </div>
-        <input
-          type="file"
-          accept=".pdf,application/pdf"
-          onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-          className="block w-full text-sm mb-3 border rounded px-3 py-2 bg-background"
-          data-testid="admin-rag-pdf-file"
-        />
+        <div
+          onDrop={handlePdfDrop}
+          onDragOver={handlePdfDragOver}
+          onDragLeave={handlePdfDragLeave}
+          onClick={() => { const el = document.querySelector('[data-testid="admin-rag-pdf-file"]'); if (el) el.click(); }}
+          className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 mb-3 cursor-pointer transition-colors ${
+            pdfDragOver
+              ? "border-amber-500 bg-amber-500/10"
+              : pdfFile
+                ? "border-green-500 bg-green-500/5"
+                : "border-muted-foreground/30 hover:border-amber-500/50"
+          }`}
+          data-testid="admin-rag-pdf-dropzone"
+        >
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+            className="hidden"
+            data-testid="admin-rag-pdf-file"
+          />
+          {pdfFile ? (
+            <div className="flex items-center gap-3 text-sm">
+              <FileText className="w-8 h-8 text-green-500" />
+              <div>
+                <p className="font-medium">{pdfFile.name}</p>
+                <p className="text-xs text-muted-foreground">{(pdfFile.size / 1024).toFixed(1)} KB</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1 text-sm text-muted-foreground">
+              <FileUp className="w-8 h-8 mb-1" />
+              <p className="font-medium">{pdfDragOver ? "PDF hier fallen lassen" : "PDF hierher ziehen oder klicken zum Auswählen"}</p>
+              <p className="text-xs">Nur .pdf Dateien</p>
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
           <Input
             value={pdfName}

@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { Loader2 } from "lucide-react";
+import { ADVANCED_FEATURES_ENABLED } from "@/lib/features";
 
 // Eager load critical pages — dashboard is the primary destination after login,
 // lazy loading it adds an unnecessary Suspense spinner during the login→dashboard transition.
@@ -319,7 +320,7 @@ function AppRouter() {
           <Route path="/analyzer" element={
             <ProtectedRoute><AnalyzerPage /></ProtectedRoute>
           } />
-          {process.env.REACT_APP_ADVANCED === "true" && (
+          {ADVANCED_FEATURES_ENABLED && (
             <>
               <Route path="/rag" element={
                 <ProtectedRoute><RagPage /></ProtectedRoute>
