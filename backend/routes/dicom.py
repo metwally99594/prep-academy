@@ -11,10 +11,17 @@ Endpoints (all /api/dicom/*):
   POST /upload              multipart .dcm or .zip → returns analysis_id + previews
   POST /analyze/{id}        runs the pipeline + synthesises a clinical report
   GET  /{id}                retrieves a past analysis (for longitudinal tracking)
-  GET  /list                lists the user's past analyses
+  GET  /list/mine            lists the user's past analyses
   POST /compare/{id1}/{id2} Patient Longitudinal Tracking — diff between two scans
+  GET  /report-pdf/{id}     download clinical report as PDF
+  GET  /timeline/{label}    Hospital Mode: aggregate all scans for a patient label
+  POST /review/{id}         Human review queue — submit radiologist feedback
+  GET  /review              List all items pending human review (admin)
+  POST /feedback/{id}       Radiologist feedback loop — correct / validate AI output
+  GET  /export-sr/{id}      DICOM Structured Report export
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import os
@@ -23,20 +30,177 @@ import base64
 import uuid
 import zipfile
 import asyncio
-from datetime import datetime, timezone
+import json
+from datetime import datetime, timezone, timedelta
+from uuid import UUID
 
 import numpy as np
 import pydicom
 import cv2
+from services.retrieval_orchestrator import RetrievalRequest, retrieve as unified_retrieve
+
+try:
+    import SimpleITK as sitk
+    _SITK_AVAILABLE = True
+except ImportError:
+    sitk = None
+    _SITK_AVAILABLE = False
 
 from database import db, logger
-from auth import get_current_user
+from auth import get_current_user, get_admin_user
 from routes.rag import _ensure_initialized, _embed_texts, _llm_call, LANG_INSTRUCT
 from routes import rag as rag_module
+from limiter import limiter
 
 router = APIRouter(prefix="/api/dicom", tags=["dicom"])
 
-# ═══════════════════════ HELPERS ═══════════════════════
+# ═══════════════════════════════════════════════════════════════
+# CONFIG
+# ═══════════════════════════════════════════════════════════════
+MAX_UPLOAD_SIZE_MB = int(os.environ.get("DICOM_MAX_UPLOAD_MB", "200"))
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+ALLOWED_EXTENSIONS = {".dcm", ".zip"}
+PHI_TAGS_TO_STRIP = {
+    # Patient identification
+    0x00100010,  # PatientName
+    0x00100020,  # PatientID
+    0x00100021,  # IssuerOfPatientID
+    0x00100030,  # PatientBirthDate
+    0x00100032,  # PatientBirthTime
+    0x00100040,  # PatientSex
+    0x00100050,  # PatientInsurancePlanCodeSequence
+    0x00101000,  # OtherPatientIDs
+    0x00101001,  # OtherPatientNames
+    0x00101002,  # OtherPatientIDsSequence
+    0x00101005,  # PatientBirthName
+    0x00101010,  # PatientAge (keep for clinical use)
+    0x00101040,  # PatientAddress
+    0x00101050,  # InsurancePlanIdentification
+    0x00101060,  # PatientMotherBirthName
+    0x00101080,  # MilitaryRank
+    0x00101081,  # BranchOfService
+    0x00101090,  # MedicalRecordLocator
+    0x00102000,  # MedicalAlerts
+    0x00102150,  # CountryOfResidence
+    0x00102152,  # RegionOfResidence
+    0x00102154,  # PatientTelephoneNumbers
+    0x00102160,  # EthnicGroup
+    0x00104000,  # PatientComments
+    # Study/Institution identification
+    0x00080050,  # AccessionNumber
+    0x00080080,  # InstitutionName
+    0x00080081,  # InstitutionAddress
+    0x00080090,  # ReferringPhysicianName
+    0x00080092,  # ReferringPhysicianAddress
+    0x00080094,  # ReferringPhysicianTelephoneNumbers
+    0x00080096,  # ReferringPhysicianIdentificationSequence
+    0x00081048,  # Physician(s)OfRecord
+    0x00081050,  # PerformingPhysicianName
+    0x00081060,  # NameOfPhysician(s)ReadingStudy
+    0x00081070,  # OperatorsName
+    0x00081080,  # AdmittingDiagnosesDescription
+    0x00081084,  # AdmittingDiagnosesCodeSequence
+    0x00081090,  # ManufacturerModelName
+    # Device identification
+    0x00181000,  # DeviceSerialNumber
+    0x00181020,  # SoftwareVersion(s)
+    0x00181030,  # ProtocolName
+    0x00181040,  # ContrastBolusRoute
+    0x00181050,  # SpatialResolution
+    0x00181060,  # TriggerTime
+    0x00181070,  # NominalInterval
+    0x00181080,  # BeatRejectionFlag
+    0x00181090,  # CardiacNumberOfImages
+    0x00181100,  # TriggerWindow
+    0x00181110,  # ReconstructionDiameter
+    0x00181120,  # DistanceSourceToDetector
+    0x00181130,  # DistanceSourceToPatient
+    0x00181140,  # EstimatedRadiographicMagnificationFactor
+    0x00181150,  # ExposureTime
+    0x00181160,  # XRayTubeCurrent
+    0x00181170,  # Exposure
+    0x00181180,  # ExposureInuAs
+    0x00181190,  # FocalSpot
+}
+
+# ═══════════════════════════════════════════════════════════════
+# HELPER: Audit Log
+# ═══════════════════════════════════════════════════════════════
+
+async def _audit_log(action: str, actor_id: str, target_id: str, details: dict = None):
+    """Write an immutable audit trail entry."""
+    try:
+        await db.audit_logs.insert_one({
+            "action": action,
+            "actor_id": actor_id,
+            "target_id": target_id,
+            "target_type": "dicom_analysis",
+            "details": details or {},
+            "ip": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        logger.warning(f"[AUDIT] Failed to write log: {e}")
+
+# ═══════════════════════════════════════════════════════════════
+# HELPER: AES-256 encrypted storage for DICOM files
+# ═══════════════════════════════════════════════════════════════
+
+_ENCRYPT_STORAGE = bool(os.environ.get("DICOM_ENCRYPTION_KEY"))
+_STORE_RAW_DICOM = (
+    os.environ.get("DICOM_STORE_RAW_ENCRYPTED", "false").strip().lower() == "true"
+    and _ENCRYPT_STORAGE
+)
+
+if _ENCRYPT_STORAGE:
+    _raw_key = os.environ["DICOM_ENCRYPTION_KEY"].encode("utf-8")
+    if len(_raw_key) < 32:
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
+        _DICOM_ENCRYPTION_KEY = HKDF(
+            algorithm=hashes.SHA256(), length=32, salt=None,
+            info=b"dicom-aes256",
+        ).derive(_raw_key)
+    elif len(_raw_key) == 32:
+        _DICOM_ENCRYPTION_KEY = _raw_key
+    else:
+        raise RuntimeError(
+            f"DICOM_ENCRYPTION_KEY must be ≤ 32 bytes (got {len(_raw_key)}). "
+            "Set a passphrase or exactly 32 raw bytes."
+        )
+    del _raw_key
+else:
+    _DICOM_ENCRYPTION_KEY = b""
+
+def _encrypt_bytes(data: bytes) -> bytes:
+    if not _ENCRYPT_STORAGE:
+        raise RuntimeError("Encryption is enabled but _encrypt_bytes called without a key")
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives import padding
+    iv = os.urandom(16)
+    cipher = Cipher(algorithms.AES(_DICOM_ENCRYPTION_KEY), modes.CBC(iv))
+    encryptor = cipher.encryptor()
+    padder = padding.PKCS7(128).padder()
+    padded = padder.update(data) + padder.finalize()
+    ct = encryptor.update(padded) + encryptor.finalize()
+    return iv + ct
+
+def _decrypt_bytes(data: bytes) -> bytes:
+    if not _ENCRYPT_STORAGE or not _DICOM_ENCRYPTION_KEY:
+        raise RuntimeError("Decryption attempted but encryption is not configured")
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives import padding
+    iv = data[:16]
+    ct = data[16:]
+    cipher = Cipher(algorithms.AES(_DICOM_ENCRYPTION_KEY), modes.CBC(iv))
+    decryptor = cipher.decryptor()
+    padded = decryptor.update(ct) + decryptor.finalize()
+    unpadder = padding.PKCS7(128).unpadder()
+    return unpadder.update(padded) + unpadder.finalize()
+
+# ═══════════════════════════════════════════════════════════════
+# HELPERS — DICOM parsing
+# ═══════════════════════════════════════════════════════════════
 
 def _apply_windowing(pixel_array: np.ndarray, ds: pydicom.Dataset) -> np.ndarray:
     """Convert raw DICOM pixels to 8-bit display image using WindowCenter/Width if present."""
@@ -66,6 +230,57 @@ def _apply_windowing(pixel_array: np.ndarray, ds: pydicom.Dataset) -> np.ndarray
     return np.clip(arr, 0, 255).astype(np.uint8)
 
 
+def _read_dicoms_sitk(dicom_bytes_list: List[bytes]) -> Optional[List[Dict[str, Any]]]:
+    """Try reading a multi-file DICOM series via SimpleITK for better spatial metadata."""
+    if not _SITK_AVAILABLE:
+        return None
+    import tempfile
+    import os as _os
+    tmpdir = tempfile.mkdtemp(prefix="sitk_")
+    try:
+        paths = []
+        for i, data in enumerate(dicom_bytes_list):
+            p = _os.path.join(tmpdir, f"img_{i:04d}.dcm")
+            with open(p, "wb") as f:
+                f.write(data)
+            paths.append(p)
+        reader = sitk.ImageSeriesReader()
+        series_ids = reader.GetGDCMSeriesIDs(tmpdir)
+        if not series_ids:
+            return None
+        reader.SetFileNames(reader.GetGDCMSeriesFileNames(tmpdir, series_ids[0]))
+        reader.MetaDataDictionaryArrayUpdateOn()
+        reader.LoadPrivateTagsOn()
+        vol = reader.Execute()
+        slices = []
+        for i in range(vol.GetSize()[2]):
+            arr = sitk.GetArrayFromImage(vol[:, :, i])
+            ds = pydicom.dcmread(paths[i], force=True)
+            origin = vol.GetOrigin()
+            spacing = vol.GetSpacing()
+            direction = vol.GetDirection()
+            slices.append({
+                "name": _os.path.basename(paths[i]),
+                "ds": ds,
+                "pixels": arr,
+                "instance": int(getattr(ds, "InstanceNumber", 0) or 0),
+                "sitk_origin": list(origin),
+                "sitk_spacing": list(spacing),
+                "sitk_direction": list(direction),
+            })
+        slices.sort(key=lambda s: s["instance"])
+        return slices
+    except Exception as e:
+        logger.debug(f"[DICOM] SimpleITK series read failed, falling back: {e}")
+        return None
+    finally:
+        import shutil
+        try:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        except Exception:
+            pass
+
+
 def _read_dicoms_from_bytes(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
     """Accepts a single .dcm or a .zip bundle of .dcm files. Returns ordered slice dicts."""
     slices: List[Dict[str, Any]] = []
@@ -76,10 +291,9 @@ def _read_dicoms_from_bytes(file_bytes: bytes, filename: str) -> List[Dict[str, 
             if not hasattr(ds, "pixel_array"):
                 return
             px = ds.pixel_array
-            # Skip RGB/multi-frame colour for MVP
             if px.ndim >= 3 and px.shape[-1] == 3:
                 px = cv2.cvtColor(px.astype(np.uint8), cv2.COLOR_RGB2GRAY)
-            if px.ndim == 3:  # multi-frame → explode frames
+            if px.ndim == 3:
                 for fi in range(px.shape[0]):
                     slices.append({
                         "name": f"{name}#frame{fi}",
@@ -98,36 +312,67 @@ def _read_dicoms_from_bytes(file_bytes: bytes, filename: str) -> List[Dict[str, 
             logger.warning(f"[DICOM] Skip {name}: {e}")
 
     if filename.lower().endswith(".zip"):
+        dcm_files = []
         with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
-            for n in z.namelist():
-                if n.lower().endswith(".dcm") and not n.startswith("__MACOSX"):
-                    _parse_one(z.read(n), os.path.basename(n))
+            dcm_names = sorted(n for n in z.namelist() if n.lower().endswith(".dcm") and not n.startswith("__MACOSX"))
+            dcm_files = [z.read(n) for n in dcm_names]
+        sitk_result = _read_dicoms_sitk(dcm_files) if len(dcm_files) > 1 else None
+        if sitk_result:
+            return sitk_result
+        for n, data in zip(dcm_names, dcm_files):
+            _parse_one(data, os.path.basename(n))
     else:
+        sitk_result = _read_dicoms_sitk([file_bytes])
+        if sitk_result:
+            return sitk_result
         _parse_one(file_bytes, filename)
 
-    # Sort by InstanceNumber for anatomical ordering
     slices.sort(key=lambda s: s["instance"])
     return slices
 
 
-def _score_slice(img8: np.ndarray) -> Dict[str, float]:
-    """Per-slice feature extraction — 100% CPU, no AI."""
+def _strip_phi(ds: pydicom.Dataset) -> pydicom.Dataset:
+    """Remove all PHI tags from a DICOM dataset."""
+    for tag in PHI_TAGS_TO_STRIP:
+        try:
+            if tag in ds:
+                del ds[tag]
+        except Exception:
+            pass
+    # Also clear the meta-header info that may leak PHI
+    if hasattr(ds, "file_meta"):
+        for meta_tag in [0x00020003, 0x00020010, 0x00020016]:
+            try:
+                if meta_tag in ds.file_meta:
+                    del ds.file_meta[meta_tag]
+            except Exception:
+                pass
+    return ds
+
+
+def _score_slice(img8: np.ndarray, window_preset: str = "standard") -> Dict[str, float]:
+    """Per-slice feature extraction with multiple window presets."""
+    if window_preset == "bone":
+        _, thr = cv2.threshold(img8, 200, 255, cv2.THRESH_BINARY)
+    elif window_preset == "lung":
+        img8_proc = np.clip(img8.astype(np.float32) * 1.5, 0, 255).astype(np.uint8)
+        _, thr = cv2.threshold(img8_proc, 80, 255, cv2.THRESH_BINARY)
+    else:
+        img8_proc = img8
+
     edges = cv2.Canny(img8, 50, 150)
-    edge_density = float(edges.sum()) / (img8.size * 255)  # normalised 0–1
+    edge_density = float(edges.sum()) / (img8.size * 255)
     variance = float(img8.var())
-    # Shannon entropy — higher = more information / heterogeneity
     hist, _ = np.histogram(img8.ravel(), bins=256, range=(0, 256))
     p = hist / max(hist.sum(), 1)
     entropy = float(-np.sum(p[p > 0] * np.log2(p[p > 0])))
-    # Count dense regions (potential lesions/haemorrhage/masses)
-    _, thr = cv2.threshold(img8, 160, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    _, thr_bright = cv2.threshold(img8, 160, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thr_bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     large_bright_regions = sum(1 for c in contours if cv2.contourArea(c) > 150)
-    # Dark regions (potential fluid/air)
     _, thr_dark = cv2.threshold(img8, 40, 255, cv2.THRESH_BINARY_INV)
     contours_d, _ = cv2.findContours(thr_dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     large_dark_regions = sum(1 for c in contours_d if cv2.contourArea(c) > 200)
-    # Upgraded saliency: edges + entropy + region counts
+
     saliency = edge_density * 1000 + entropy * 50 + large_bright_regions * 2 + large_dark_regions * 1.5
     return {
         "edge_density": round(edge_density, 5),
@@ -164,36 +409,17 @@ def _extract_dicom_header(ds: pydicom.Dataset) -> Dict[str, Any]:
     }
 
 
-# ═══════════════════════ QUALITY GATE (upload-time) ═══════════════════════
-# Rejects garbage input BEFORE it reaches the analysis pipeline.
-# Principle: "Garbage in → Garbage out".
+# ═══════════════════════════════════════════════════════════════
+# QUALITY GATE (upload-time)
+# ═══════════════════════════════════════════════════════════════
 
-# Modalities that are NOT diagnostic-grade original scans
-_SECONDARY_CAPTURE_MODALITIES = {
-    "OT",   # Other (often screenshots)
-    "SC",   # Secondary Capture (re-digitised from film, screenshots, etc.)
-    "PR",   # Presentation State (overlay)
-    "KO",   # Key Object Selection
-    "SR",   # Structured Report
-}
-
-# Modalities where a single slice is legitimate (projection imaging)
-_SINGLE_SLICE_OK_MODALITIES = {
-    "CR",   # Computed Radiography (classic X-ray)
-    "DX",   # Digital Radiography
-    "MG",   # Mammography
-    "XA",   # X-ray Angiography
-    "RF",   # Radio-Fluoroscopy
-    "US",   # Ultrasound (single still)
-    "ES",   # Endoscopy
-}
-
-MIN_SLICES_FOR_CROSS_SECTIONAL = 5  # CT / MR below this are unreliable
+_SECONDARY_CAPTURE_MODALITIES = {"OT", "SC", "PR", "KO", "SR"}
+_SINGLE_SLICE_OK_MODALITIES = {"CR", "DX", "MG", "XA", "RF", "US", "ES"}
+MIN_SLICES_FOR_CROSS_SECTIONAL = 5
 
 
 def _check_quality_gate(slices: List[Dict]) -> Dict[str, Any]:
-    """Validate uploaded DICOM meets diagnostic quality requirements.
-    Returns {"valid": bool, "reason": str|None, "action": str|None, "code": str|None}."""
+    """Validate uploaded DICOM meets diagnostic quality requirements."""
     if not slices:
         return {"valid": False, "reason": "Keine gültigen DICOM-Schichten gefunden", "action": "Gültige .dcm-Datei oder ZIP hochladen", "code": "no_slices"}
 
@@ -202,7 +428,6 @@ def _check_quality_gate(slices: List[Dict]) -> Dict[str, Any]:
     modality = str(getattr(ds, "Modality", "") or "").upper()
     sop_class = str(getattr(ds, "SOPClassUID", "") or "")
 
-    # 1) Reject Secondary Capture / Other / Presentation State
     if modality in _SECONDARY_CAPTURE_MODALITIES:
         return {
             "valid": False,
@@ -211,7 +436,6 @@ def _check_quality_gate(slices: List[Dict]) -> Dict[str, Any]:
             "code": "secondary_capture",
         }
 
-    # Also catch by SOP Class UID (some tools set Modality=CT but SOP=SecondaryCapture)
     if "secondary" in sop_class.lower() or sop_class == "1.2.840.10008.5.1.4.1.1.7":
         return {
             "valid": False,
@@ -220,7 +444,6 @@ def _check_quality_gate(slices: List[Dict]) -> Dict[str, Any]:
             "code": "secondary_capture_sop",
         }
 
-    # 2) Check slice count vs modality
     if modality in ("CT", "MR", "PT", "NM") and len(slices) < MIN_SLICES_FOR_CROSS_SECTIONAL:
         return {
             "valid": False,
@@ -229,29 +452,28 @@ def _check_quality_gate(slices: List[Dict]) -> Dict[str, Any]:
             "code": "insufficient_slices",
         }
 
-    # 3) Warn (but do not reject) if modality is empty — some exports strip it.
     if not modality:
         return {
             "valid": True,
             "reason": None,
             "action": None,
-            "code": "modality_missing",  # soft warning; analysis can still proceed
+            "code": "modality_missing",
             "warning": "Modalität nicht angegeben — automatische Körperregion-Erkennung könnte scheitern.",
         }
 
     return {"valid": True, "reason": None, "action": None, "code": "ok"}
 
 
-def _select_top_slices(slices: List[Dict], top_k: int = 8) -> List[int]:
-    """Return indices of top-K slices by saliency score."""
+def _select_top_slices(slices: List[Dict], top_k: int = 8, window_preset: str = "standard") -> List[int]:
+    """Return indices of top-K slices by saliency score, with optional window preset."""
     ranked = sorted(range(len(slices)), key=lambda i: slices[i]["score"]["saliency"], reverse=True)
     return ranked[: min(top_k, len(slices))]
 
 
-# ═══════════════════════ CONTEXT-AWARE (Phase 2) ═══════════════════════
+# ═══════════════════════════════════════════════════════════════
+# BODY-PART CONTEXT
+# ═══════════════════════════════════════════════════════════════
 
-# Maps detected body part to: allowed pathologies (guides prompt) + RAG category filter +
-# allowed ICD-10 prefixes (validates LLM output) + blocklist (detects hallucinations).
 BODY_PART_CONTEXT: Dict[str, Dict[str, Any]] = {
     "chest": {
         "allowed_conditions": [
@@ -259,7 +481,6 @@ BODY_PART_CONTEXT: Dict[str, Dict[str, Any]] = {
             "Lungenkarzinom", "COPD-Exazerbation", "ARDS", "Rippenfraktur", "Mediastinalverschiebung",
         ],
         "rag_categories": ["Pneumologie", "Notfallmedizin", "Kardiologie", "Chirurgie"],
-        # Include respiratory R-codes (R05 cough, R06 dyspnea, R07 chest pain, R09 resp-other, R91 lung findings)
         "icd10_prefixes": ("J", "I2", "I3", "S2", "C34", "R05", "R06", "R07", "R09", "R91"),
         "forbidden_terms": ["Schlaganfall", "Hirninfarkt", "Hirnblutung", "Appendizitis", "Fraktur des Schädels"],
         "label_de": "Thorax",
@@ -270,7 +491,6 @@ BODY_PART_CONTEXT: Dict[str, Dict[str, Any]] = {
             "Epiduralhämatom", "Hirntumor", "Hirnabszess", "Hirnödem", "Hydrozephalus", "Commotio cerebri",
         ],
         "rag_categories": ["Neurologie", "Notfallmedizin"],
-        # Include neuro R-codes (R51 headache, R55 syncope, R40-42 coma/mental)
         "icd10_prefixes": ("I6", "S06", "C71", "G", "I67", "R4", "R51", "R55"),
         "forbidden_terms": ["Pneumonie", "Hämatothorax", "Appendizitis", "Rippenfraktur"],
         "label_de": "Schädel/Gehirn",
@@ -281,7 +501,6 @@ BODY_PART_CONTEXT: Dict[str, Dict[str, Any]] = {
             "Leberzirrhose", "Hepatozelluläres Karzinom", "Nephrolithiasis", "Divertikulitis", "Aortenaneurysma",
         ],
         "rag_categories": ["Gastroenterologie", "Chirurgie", "Urologie", "Notfallmedizin"],
-        # Include abdominal R-codes (R10 pain, R14 flatulence, R19 other)
         "icd10_prefixes": ("K", "N", "I71", "R10", "R11", "R14", "R19", "C22"),
         "forbidden_terms": ["Hirninfarkt", "Pneumothorax", "Commotio"],
         "label_de": "Abdomen",
@@ -319,7 +538,6 @@ BODY_PART_CONTEXT: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Keyword table for heuristic body-part detection from DICOM header / description
 _BODY_KEYWORDS = [
     ("chest", ["chest", "thorax", "thora", "lung", "pulmon", "pleura", "mediastin", "cardiac", "heart"]),
     ("brain", ["brain", "head", "cerebr", "crani", "kopf", "schädel", "neuro", "ct-schädel"]),
@@ -331,13 +549,7 @@ _BODY_KEYWORDS = [
 
 
 def _detect_body_part(header: Dict[str, Any], sample_shape: Optional[tuple] = None) -> Dict[str, Any]:
-    """Hybrid detection — fastest path wins:
-    1) DICOM BodyPartExamined (direct mapping)
-    2) StudyDescription / SeriesDescription keyword match
-    3) Image aspect-ratio heuristic (portrait = likely limb)
-    Returns {"body_part", "method", "confidence"}."""
     bp_raw = (header.get("body_part") or "").strip().lower()
-    # DICOM standard BodyPartExamined values
     direct_map = {
         "chest": "chest", "thorax": "chest", "heart": "chest", "lung": "chest",
         "head": "brain", "brain": "brain", "skull": "brain", "neck": "brain",
@@ -350,7 +562,6 @@ def _detect_body_part(header: Dict[str, Any], sample_shape: Optional[tuple] = No
     if bp_raw in direct_map:
         return {"body_part": direct_map[bp_raw], "method": "dicom_metadata", "confidence": 0.99}
 
-    # Keyword match against descriptions
     blob = " ".join([
         bp_raw,
         (header.get("study_description") or "").lower(),
@@ -360,7 +571,6 @@ def _detect_body_part(header: Dict[str, Any], sample_shape: Optional[tuple] = No
         if any(k in blob for k in kws):
             return {"body_part": body, "method": "keyword_match", "confidence": 0.85}
 
-    # Aspect-ratio heuristic (portrait/tall → likely limb)
     if sample_shape and len(sample_shape) >= 2:
         h, w = sample_shape[:2]
         if w > 0:
@@ -372,22 +582,19 @@ def _detect_body_part(header: Dict[str, Any], sample_shape: Optional[tuple] = No
 
 
 def _validate_output_vs_body_part(structured: Dict[str, Any], body_part: str) -> Dict[str, Any]:
-    """Check structured LLM output against body-part constraints.
-    Returns {"valid": bool, "flags": [...]}."""
     ctx = BODY_PART_CONTEXT.get(body_part, BODY_PART_CONTEXT["unknown"])
     flags = []
 
-    # 1) Forbidden terms in findings
     findings_blob = " ".join([
         str(structured.get("findings", "")).lower(),
         " ".join(structured.get("red_flags", [])).lower(),
         " ".join(structured.get("explainability", [])).lower(),
+        " ".join(structured.get("differential_diagnoses", [{}])[0].get("diagnosis", "") if isinstance(structured.get("differential_diagnoses"), list) and structured.get("differential_diagnoses") else "").lower(),
     ])
     for term in ctx.get("forbidden_terms", []):
         if term.lower() in findings_blob:
             flags.append(f"Forbidden term '{term}' detected for body_part={body_part}")
 
-    # 2) ICD-10 prefix consistency (only enforced if we have prefixes for this body part)
     prefixes = ctx.get("icd10_prefixes", ())
     if prefixes:
         for code in structured.get("icd10", []) or []:
@@ -398,7 +605,6 @@ def _validate_output_vs_body_part(structured: Dict[str, Any], body_part: str) ->
 
 
 def _confidence_gate(structured: Dict[str, Any], min_conf: float = 0.5) -> Dict[str, Any]:
-    """Downgrade uncertain outputs to LOW urgency with a clear warning."""
     try:
         conf = float(structured.get("confidence", 0))
     except Exception:
@@ -414,16 +620,17 @@ def _confidence_gate(structured: Dict[str, Any], min_conf: float = 0.5) -> Dict[
     return structured
 
 
-# ═══════════════════════ MODELS ═══════════════════════
+# ═══════════════════════════════════════════════════════════════
+# MODELS
+# ═══════════════════════════════════════════════════════════════
 
 class AnalyzeRequest(BaseModel):
     patient_context: str = ""
     language: str = "de"
     top_k: int = 8
     model: str = "openai/gpt-oss-120b:free"
-    # Manual override — user can force a body part when DICOM metadata is missing
-    # (e.g., when uploading JPEG X-ray or when BodyPartExamined was not set)
     body_part_override: Optional[str] = None
+    window_preset: str = "standard"
 
 
 class CompareRequest(BaseModel):
@@ -431,12 +638,28 @@ class CompareRequest(BaseModel):
     model: str = "openai/gpt-oss-120b:free"
 
 
-# ═══════════════════════ ENDPOINTS ═══════════════════════
+class FeedbackRequest(BaseModel):
+    feedback_text: str
+    correct_urgency: Optional[str] = None
+    correct_icd10: Optional[List[str]] = None
+    rating: Optional[int] = None
+
+
+class DICOMSRExportRequest(BaseModel):
+    include_pixel_data: bool = True
+
+
+# ═══════════════════════════════════════════════════════════════
+# ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
 
 @router.post("/upload")
+@limiter.limit("10/minute")
 async def upload_dicom(
+    request: Request,
     file: UploadFile = File(...),
     patient_label: Optional[str] = Form(None),
+    window_preset: str = Form("standard"),
     user: dict = Depends(get_current_user),
 ):
     """Upload .dcm or .zip and run smart sampling. Returns analysis_id + previews."""
@@ -444,14 +667,39 @@ async def upload_dicom(
     if not raw:
         raise HTTPException(status_code=400, detail="Leere Datei")
 
+    # File size validation
+    if len(raw) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Datei zu groß ({len(raw) / 1024 / 1024:.1f} MB). Maximum: {MAX_UPLOAD_SIZE_MB} MB.",
+        )
+
+    # File type validation
+    ext = os.path.splitext(file.filename or "upload.dcm")[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Dateityp '{ext}' nicht erlaubt. Erlaubt: .dcm, .zip",
+        )
+
+    # DICOM magic bytes check for .dcm files
+    if ext == ".dcm" and len(raw) >= 4:
+        dicom_prefix = raw[:4]
+        if dicom_prefix not in (b"DICM", bytes([0, 0, 0, 0])):
+            raise HTTPException(
+                status_code=400,
+                detail="Datei hat keine gültige DICOM-Signatur. Bitte eine gültige .dcm-Datei hochladen.",
+            )
+
     loop = asyncio.get_event_loop()
     slices = await loop.run_in_executor(None, lambda: _read_dicoms_from_bytes(raw, file.filename or "upload.dcm"))
     if not slices:
+        await _audit_log("dicom_upload_failed", user["id"], file.filename or "?", {"reason": "no_valid_slices"})
         raise HTTPException(status_code=400, detail="Keine gültigen DICOM-Schichten gefunden")
 
-    # ═══ QUALITY GATE — reject garbage input early ═══
     gate = _check_quality_gate(slices)
     if not gate["valid"]:
+        await _audit_log("dicom_upload_rejected", user["id"], file.filename or "?", {"code": gate["code"], "reason": gate["reason"]})
         raise HTTPException(
             status_code=422,
             detail={
@@ -463,13 +711,13 @@ async def upload_dicom(
             },
         )
 
-    # Score each slice
     for s in slices:
         img8 = _apply_windowing(s["pixels"], s["ds"])
+        score = _score_slice(img8, window_preset)
         s["img8"] = img8
-        s["score"] = _score_slice(img8)
+        s["score"] = score
 
-    selected_idx = _select_top_slices(slices, top_k=8)
+    selected_idx = _select_top_slices(slices, top_k=8, window_preset=window_preset)
     previews = []
     for idx in selected_idx:
         s = slices[idx]
@@ -481,13 +729,16 @@ async def upload_dicom(
             "thumbnail": _png_thumbnail_b64(s["img8"]),
         })
 
-    # Store compact meta in DB — NOT the full pixel arrays (too big)
     analysis_id = str(uuid.uuid4())
     header = _extract_dicom_header(slices[0]["ds"]) if slices else {}
     per_slice_compact = [
         {"index": i, "name": s["name"], "instance": s["instance"], "score": s["score"]}
         for i, s in enumerate(slices)
     ]
+
+    # Raw DICOM persistence is disabled by default to avoid storing PHI-heavy
+    # imaging payloads in MongoDB. Enable only with explicit encrypted storage.
+    encrypted_data = _encrypt_bytes(raw) if _STORE_RAW_DICOM else None
 
     await db.dicom_analyses.insert_one({
         "id": analysis_id,
@@ -500,7 +751,15 @@ async def upload_dicom(
         "selected_indices": selected_idx,
         "previews": previews,
         "status": "uploaded",
+        "window_preset": window_preset,
+        "encrypted_data": encrypted_data,
         "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    await _audit_log("dicom_upload", user["id"], analysis_id, {
+        "filename": file.filename,
+        "total_slices": len(slices),
+        "modality": header.get("modality"),
     })
 
     return {
@@ -511,6 +770,8 @@ async def upload_dicom(
         "header": header,
         "previews": previews,
         "quality_warning": gate.get("warning"),
+        "encryption_enabled": _ENCRYPT_STORAGE,
+        "raw_storage_enabled": _STORE_RAW_DICOM,
     }
 
 
@@ -537,7 +798,6 @@ def _build_findings_summary(doc: dict) -> str:
         f"Hyperdense Regionen — Summe: {sum(bright)} (Peak in Schicht {scores[max_bright_idx]['instance']}: {scores[max_bright_idx]['score']['bright_regions']} Regionen)",
         f"Hypodense/luftige Regionen — Summe: {sum(dark)} (Peak in Schicht {scores[max_dark_idx]['instance']}: {scores[max_dark_idx]['score']['dark_regions']} Regionen)",
     ]
-    # Flag top-3 most salient slices
     top3 = sorted(scores, key=lambda s: s["score"]["saliency"], reverse=True)[:3]
     lines.append("Top-3 auffällige Schichten:")
     for s in top3:
@@ -555,7 +815,6 @@ async def analyze_dicom(analysis_id: str, req: AnalyzeRequest, user: dict = Depe
     if not doc:
         raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
 
-    # If already analyzed or in-flight, return current state
     if doc.get("status") == "analyzing":
         return {"analysis_id": analysis_id, "status": "analyzing", "message": "Analyse läuft bereits"}
 
@@ -564,33 +823,57 @@ async def analyze_dicom(analysis_id: str, req: AnalyzeRequest, user: dict = Depe
         {"$set": {"status": "analyzing", "analyze_error": None, "analyze_started_at": datetime.now(timezone.utc).isoformat()}},
     )
 
-    # Fire-and-forget background task — survives ingress 60s timeout
+    await _audit_log("dicom_analyze_started", user["id"], analysis_id, {"model": req.model, "language": req.language})
     asyncio.create_task(_run_analysis_job(analysis_id, user["id"], req))
 
     return {"analysis_id": analysis_id, "status": "analyzing", "message": "Analyse gestartet; bitte Status pollen"}
 
 
+async def _llm_call_with_retry(system: str, user_prompt: str, model: str = "openai/gpt-oss-120b:free", max_tokens: int = 1600, max_retries: int = 2) -> str:
+    """Call LLM with automatic retry on transient failures."""
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await _llm_call(system, user_prompt, model=model, max_tokens=max_tokens)
+        except HTTPException as e:
+            last_error = e
+            if attempt < max_retries:
+                wait = 2 ** attempt
+                logger.warning(f"[DICOM] LLM call attempt {attempt + 1} failed, retrying in {wait}s: {e.detail}")
+                await asyncio.sleep(wait)
+            else:
+                raise
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries:
+                wait = 2 ** attempt
+                logger.warning(f"[DICOM] LLM call attempt {attempt + 1} failed with unexpected error, retrying in {wait}s: {e}")
+                await asyncio.sleep(wait)
+            else:
+                raise
+    raise last_error or HTTPException(status_code=503, detail="LLM-Aufruf nach mehreren Versuchen fehlgeschlagen")
+
+
 async def _run_analysis_job(analysis_id: str, user_id: str, req: "AnalyzeRequest"):
     """Background worker: runs Context-Aware RAG+DeepSeek and writes result to MongoDB."""
+    import re as _re
+    import json as _json
+
     try:
         doc = await db.dicom_analyses.find_one({"id": analysis_id, "user_id": user_id}, {"_id": 0})
         if not doc:
             return
 
-        # ═══ PHASE 2: Context-Aware Auto-Detection ═══
         header = doc.get("header", {})
         sample_shape = (header.get("rows", 0), header.get("columns", 0))
         detection = _detect_body_part(header, sample_shape)
 
-        # ═══ GATEKEEPER: No context = No analysis ═══
-        # Allow manual override when automatic detection fails
         override = (req.body_part_override or "").strip().lower()
         if override and override in BODY_PART_CONTEXT:
             detection = {"body_part": override, "method": "manual_override", "confidence": 1.0}
 
         body_part = detection["body_part"]
 
-        # Hard-stop if still unknown — prevents hallucinated reports without anatomical context
         if body_part == "unknown":
             ctx = BODY_PART_CONTEXT["unknown"]
             await db.dicom_analyses.update_one(
@@ -627,34 +910,27 @@ async def _run_analysis_job(analysis_id: str, user_id: str, req: "AnalyzeRequest
 
         findings_text = _build_findings_summary(doc)
 
-        await _ensure_initialized()
-
-        # ═══ RAG query with body-part-aware focus ═══
         focus_conditions = ", ".join(ctx["allowed_conditions"][:6])
         query = f"{ctx['label_de']} {header.get('modality','')} {req.patient_context} {focus_conditions}".strip()
-        loop = asyncio.get_event_loop()
-        q_vec = await loop.run_in_executor(None, lambda: _embed_texts([query]))
-
-        # Filter RAG by category if body part has preferred categories
-        where_filter = None
-        if ctx["rag_categories"]:
-            where_filter = {"category": {"$in": ctx["rag_categories"]}}
-        try:
-            results = rag_module._collection.query(
-                query_embeddings=q_vec,
-                n_results=max(1, min(req.top_k, 8)),
-                where=where_filter,
-            )
-            if not results.get("documents", [[]])[0] and where_filter:
-                # No hits with filter — retry unfiltered
-                results = rag_module._collection.query(query_embeddings=q_vec, n_results=max(1, min(req.top_k, 8)))
-        except Exception:
-            # Chroma may reject complex filters on older schemas — graceful fallback
-            results = rag_module._collection.query(query_embeddings=q_vec, n_results=max(1, min(req.top_k, 8)))
-
-        rag_docs = results.get("documents", [[]])[0]
-        rag_metas = results.get("metadatas", [[]])[0]
-        rag_sources = [{"content": d, "metadata": m} for d, m in zip(rag_docs, rag_metas)]
+        retrieval = await unified_retrieve(RetrievalRequest(
+            query=query,
+            top_k=max(1, min(req.top_k, 8)),
+            use_hybrid=True,
+            use_reranker=True,
+        ))
+        rag_sources = [
+            {
+                "content": s.get("excerpt", ""),
+                "metadata": {
+                    "source": s.get("source", ""),
+                    "code": "",
+                    "category": s.get("category", ""),
+                    "note_title": s.get("note_title", ""),
+                    "vault_path": s.get("vault_path", ""),
+                },
+            }
+            for s in retrieval.get("sources", [])
+        ]
 
         sources_block = "\n\n".join(
             f"[{i+1}] ({s['metadata'].get('source','')} — {s['metadata'].get('code','')}): {s['content']}"
@@ -686,16 +962,17 @@ Erstelle einen strukturierten klinischen Bericht. Verwende AUSSCHLIESSLICH die Z
 die exakt zu den oben gelisteten Leitlinien-Nummern passen. Verwende NIEMALS [N1], [N2], [N3] oder Platzhalter.
 
 WICHTIG — Ausgabeformat STRIKT einhalten:
-Beginne die Antwort mit ZWEI JSON-Zeilen (ohne Code-Fences), danach der narrative Bericht:
+Beginne die Antwort mit DREI JSON-Zeilen (ohne Code-Fences), danach der narrative Bericht:
 
 STRUCTURED_JSON: {{"findings": "kurze Befund-Zusammenfassung in 1-2 Sätzen", "urgency": "LOW|MEDIUM|HIGH", "confidence": 0.85, "red_flags": ["Liste", "von", "konkreten Warnsymptomen"], "explainability": ["Warum Urgency: Grund 1 mit Slice-Referenz", "Grund 2", "Grund 3"], "icd10": ["passende ICD-10-Codes NUR für {ctx['label_de']}"]}}
+DIFFERENTIAL_JSON: {{"diagnoses": [{{"diagnosis": "Diagnose 1", "probability": "hoch", "icd10": "Code1", "rationale": "Begründung mit Zitat [N]"}}, {{"diagnosis": "Diagnose 2", "probability": "mittel", "icd10": "Code2", "rationale": "Begründung mit Zitat [N]"}}]}}
 CROSS_CHECK_JSON: {{"has_contradictions": false, "contradictions": [], "confidence": "high"}}
 
 ## 1) Technische Befunde
 Interpretation der numerischen Auffälligkeiten.
 
-## 2) Differenzialdiagnosen
-Plausible Ursachen mit ICD-10, wenn möglich, mit Zitaten.
+## 2) Differenzialdiagnosen (RANGLISTE — wahrscheinlichste zuerst)
+Jede mit ICD-10, Wahrscheinlichkeit, Begründung und Zitat.
 
 ## 3) Empfehlung
 Weiterführende Diagnostik + Therapievorschlag mit Zitaten.
@@ -722,22 +999,33 @@ Beachte: Die numerische Bildanalyse ersetzt KEINE ärztliche Beurteilung — sie
             "Erfinde KEINE Diagnosen außerhalb der erlaubten Liste. "
             "Gib ZUERST die geforderten JSON-Zeilen aus, DANACH den narrativen Bericht."
         )
-        report_raw = await _llm_call(system, user_prompt, model=req.model, max_tokens=1600)
 
-        # Parse structured + cross-check JSON (at the TOP of response)
-        import re as _re
-        import json as _json
+        # Use retry-aware LLM call
+        report_raw = await _llm_call_with_retry(system, user_prompt, model=req.model, max_tokens=1600)
+
         cross_check = {"has_contradictions": False, "contradictions": [], "confidence": "low"}
         structured = {
             "findings": "", "urgency": "UNKNOWN", "confidence": 0.0,
             "red_flags": [], "explainability": [], "icd10": [],
         }
+        differential = {"diagnoses": []}
 
-        m_st = _re.search(r"STRUCTURED_JSON:\s*(\{.*?\})(?=\s*\n|\s*CROSS_CHECK_JSON)", report_raw, _re.DOTALL)
+        m_st = _re.search(r"STRUCTURED_JSON:\s*(\{.*?\})(?=\s*\n|\s*DIFFERENTIAL_JSON|\s*CROSS_CHECK_JSON)", report_raw, _re.DOTALL)
+        m_dd = _re.search(r"DIFFERENTIAL_JSON:\s*(\{.*?\})(?=\s*\n|\s*CROSS_CHECK_JSON|\Z)", report_raw, _re.DOTALL)
         m_cc = _re.search(r"CROSS_CHECK_JSON:\s*(\{.*?\})(?=\s*\n|\s*##|\Z)", report_raw, _re.DOTALL)
+
         if m_st:
             try:
                 structured = {**structured, **_json.loads(m_st.group(1))}
+            except Exception:
+                pass
+        if m_dd:
+            try:
+                differential = _json.loads(m_dd.group(1))
+                if isinstance(differential, dict) and "diagnoses" in differential:
+                    # Sort diagnoses by probability (hoch > mittel > niedrig)
+                    prob_order = {"hoch": 0, "mittel": 1, "niedrig": 2, "low": 2, "medium": 1, "high": 0}
+                    differential["diagnoses"].sort(key=lambda d: prob_order.get(d.get("probability", "").lower(), 99))
             except Exception:
                 pass
         if m_cc:
@@ -746,17 +1034,15 @@ Beachte: Die numerische Bildanalyse ersetzt KEINE ärztliche Beurteilung — sie
             except Exception:
                 pass
 
-        # Strip JSON lines from displayed report (regex-based — indices-safe)
         report = report_raw
-        report = _re.sub(r"STRUCTURED_JSON:\s*\{.*?\}(?=\s*(?:\n|CROSS_CHECK_JSON|##|\Z))", "", report, flags=_re.DOTALL)
+        report = _re.sub(r"STRUCTURED_JSON:\s*\{.*?\}(?=\s*(?:\n|DIFFERENTIAL_JSON|CROSS_CHECK_JSON|##|\Z))", "", report, flags=_re.DOTALL)
+        report = _re.sub(r"DIFFERENTIAL_JSON:\s*\{.*?\}(?=\s*(?:\n|CROSS_CHECK_JSON|##|\Z))", "", report, flags=_re.DOTALL)
         report = _re.sub(r"CROSS_CHECK_JSON:\s*\{.*?\}(?=\s*(?:\n|##|\Z))", "", report, flags=_re.DOTALL)
-        report = _re.sub(r"^\s*(STRUCTURED_JSON|CROSS_CHECK_JSON):.*$", "", report, flags=_re.MULTILINE)
+        report = _re.sub(r"^\s*(STRUCTURED_JSON|DIFFERENTIAL_JSON|CROSS_CHECK_JSON):.*$", "", report, flags=_re.MULTILINE)
         report = _re.sub(r"\n{3,}", "\n\n", report).strip()
 
-        # ═══ PHASE 2: Validation Layer ═══
         validation = _validate_output_vs_body_part(structured, body_part)
         if not validation["valid"]:
-            # Soft-downgrade — flag but keep the report for human review
             structured = {
                 **structured,
                 "urgency": "LOW" if structured.get("urgency") == "HIGH" else structured.get("urgency", "LOW"),
@@ -765,7 +1051,6 @@ Beachte: Die numerische Bildanalyse ersetzt KEINE ärztliche Beurteilung — sie
             }
             logger.warning(f"[DICOM] {analysis_id} validation flags: {validation['flags']}")
 
-        # ═══ PHASE 2: Confidence Gate ═══
         structured = _confidence_gate(structured)
 
         result_doc = {
@@ -782,6 +1067,7 @@ Beachte: Die numerische Bildanalyse ersetzt KEINE ärztliche Beurteilung — sie
                 for i, s in enumerate(rag_sources)
             ],
             "cross_check": cross_check,
+            "differential_diagnoses": differential.get("diagnoses", []),
             "structured": structured,
             "detection": detection,
             "body_part": body_part,
@@ -796,7 +1082,98 @@ Beachte: Die numerische Bildanalyse ersetzt KEINE ärztliche Beurteilung — sie
             {"id": analysis_id, "user_id": user_id},
             {"$set": {"status": "analyzed", "analysis": result_doc, "analyze_error": None}},
         )
-        logger.info(f"[DICOM] Analysis {analysis_id} completed — body_part={body_part}, urgency={structured.get('urgency')}, valid={validation['valid']}")
+
+        # High Urgency Alerting — real email + in-app notification
+        urgency = structured.get("urgency", "UNKNOWN")
+        if urgency == "HIGH":
+            logger.warning(f"[DICOM] HIGH urgency alert for analysis {analysis_id}")
+            await _audit_log("dicom_high_urgency", user_id, analysis_id, {
+                "urgency": urgency,
+                "confidence": structured.get("confidence"),
+                "findings": structured.get("findings", "")[:200],
+            })
+            try:
+                await db.high_urgency_alerts.insert_one({
+                    "analysis_id": analysis_id,
+                    "user_id": user_id,
+                    "urgency": "HIGH",
+                    "findings_preview": structured.get("findings", "")[:300],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "acknowledged": False,
+                    "notified_at": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception as e:
+                logger.error(f"[DICOM] Failed to create high urgency alert: {e}")
+
+            # Real email notification
+            try:
+                from services.email_service import send_dicom_high_urgency_email
+                user_doc = await db.users.find_one({"id": user_id}, {"email": 1, "name": 1})
+                if user_doc:
+                    asyncio.create_task(send_dicom_high_urgency_email(
+                        user=user_doc,
+                        analysis_id=analysis_id,
+                        findings=structured.get("findings", ""),
+                        body_part=body_part,
+                        confidence=structured.get("confidence", 0.0),
+                    ))
+            except Exception as e:
+                logger.error(f"[DICOM] Failed to send HIGH urgency email: {e}")
+
+            # In-app notification
+            try:
+                from services.notification_service import create_notification
+                asyncio.create_task(create_notification(
+                    user_id=user_id,
+                    notification_type="dicom_high_urgency",
+                    title="🚨 HIGH Urgency Befund",
+                    message=f"Potentiell lebensbedrohlicher Befund in {ctx['label_de']}: {structured.get('findings', '')[:200]}",
+                    icon="alert-triangle",
+                    data={"analysis_id": analysis_id, "urgency": "HIGH", "body_part": body_part},
+                ))
+            except Exception as e:
+                logger.error(f"[DICOM] Failed to create in-app notification: {e}")
+
+        # Human Review Queue: flag uncertain results
+        should_review = (
+            structured.get("confidence", 1.0) < 0.6
+            or not validation["valid"]
+            or urgency == "HIGH"
+        )
+        if should_review:
+            try:
+                await db.dicom_review_queue.insert_one({
+                    "analysis_id": analysis_id,
+                    "user_id": user_id,
+                    "reason": "low_confidence" if structured.get("confidence", 1.0) < 0.6
+                              else "validation_failed" if not validation["valid"]
+                              else "high_urgency",
+                    "urgency": urgency,
+                    "confidence": structured.get("confidence"),
+                    "reviewed": False,
+                    "reviewed_by": None,
+                    "reviewed_at": None,
+                    "feedback": None,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                logger.info(f"[DICOM] Added {analysis_id} to human review queue (reason=low_confidence/validation/high_urgency)")
+            except Exception as e:
+                logger.error(f"[DICOM] Failed to add to review queue: {e}")
+
+        await _audit_log("dicom_analyze_completed", user_id, analysis_id, {
+            "body_part": body_part,
+            "urgency": urgency,
+            "confidence": structured.get("confidence"),
+            "validation_valid": validation["valid"],
+        })
+        logger.info(f"[DICOM] Analysis {analysis_id} completed — body_part={body_part}, urgency={urgency}, valid={validation['valid']}")
+
+    except HTTPException as e:
+        logger.error(f"[DICOM] Analysis {analysis_id} HTTP error: {e.detail}")
+        await db.dicom_analyses.update_one(
+            {"id": analysis_id, "user_id": user_id},
+            {"$set": {"status": "error", "analyze_error": f"LLM-Fehler: {e.detail[:300]}"}},
+        )
     except Exception as e:
         logger.error(f"[DICOM] Analysis {analysis_id} failed: {e}")
         await db.dicom_analyses.update_one(
@@ -805,9 +1182,9 @@ Beachte: Die numerische Bildanalyse ersetzt KEINE ärztliche Beurteilung — sie
         )
 
 
-@router.get("/{analysis_id}")
-async def get_analysis(analysis_id: str, user: dict = Depends(get_current_user)):
-    doc = await db.dicom_analyses.find_one({"id": analysis_id, "user_id": user["id"]}, {"_id": 0})
+@router.get("/{analysis_id:uuid}")
+async def get_analysis(analysis_id: UUID, user: dict = Depends(get_current_user)):
+    doc = await db.dicom_analyses.find_one({"id": str(analysis_id), "user_id": user["id"]}, {"_id": 0, "encrypted_data": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
     return doc
@@ -818,7 +1195,7 @@ async def list_my_analyses(user: dict = Depends(get_current_user), limit: int = 
     """List current user's DICOM analyses — feeds longitudinal tracking."""
     docs = await db.dicom_analyses.find(
         {"user_id": user["id"]},
-        {"_id": 0, "analysis.report": 0, "previews": 0, "per_slice_scores": 0},
+        {"_id": 0, "analysis.report": 0, "previews": 0, "per_slice_scores": 0, "encrypted_data": 0},
     ).sort("created_at", -1).limit(min(limit, 100)).to_list(min(limit, 100))
     return {"items": docs, "count": len(docs)}
 
@@ -834,7 +1211,6 @@ async def compare_analyses(id1: str, id2: str, req: CompareRequest, user: dict =
     s1 = _build_findings_summary(d1)
     s2 = _build_findings_summary(d2)
 
-    # Numerical delta
     scores1 = [s["score"] for s in d1.get("per_slice_scores", [])]
     scores2 = [s["score"] for s in d2.get("per_slice_scores", [])]
     mean_bright_1 = np.mean([s["bright_regions"] for s in scores1]) if scores1 else 0
@@ -876,7 +1252,7 @@ Bitte verfasse:
 4) **Vergleich zur erwarteten Heilungskurve** (falls anwendbar)"""
 
     system = "Du bist ein klinischer Verlaufs-Analyst. Interpretiere Veränderungen quantitativ und klinisch."
-    progression_report = await _llm_call(system, prompt, model=req.model, max_tokens=1000)
+    progression_report = await _llm_call_with_retry(system, prompt, model=req.model, max_tokens=1000)
 
     return {
         "id1": id1,
@@ -887,7 +1263,9 @@ Bitte verfasse:
     }
 
 
-# ═══════════════════════ PDF REPORT + TIMELINE ═══════════════════════
+# ═══════════════════════════════════════════════════════════════
+# PDF REPORT
+# ═══════════════════════════════════════════════════════════════
 
 @router.get("/report-pdf/{analysis_id}")
 async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current_user)):
@@ -905,7 +1283,6 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
     structured = analysis.get("structured", {})
     header = doc.get("header", {})
 
-    # Use a Unicode font (DejaVu already in /app/backend/fonts)
     font_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fonts")
     font_regular = os.path.join(font_dir, "DejaVuSans.ttf")
     font_bold = os.path.join(font_dir, "DejaVuSans-Bold.ttf")
@@ -928,9 +1305,8 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
         else:
             pdf.set_font("Helvetica", "B" if bold else "", size)
 
-    # Header
     _font(bold=True, size=16)
-    pdf.set_text_color(201, 168, 76)  # amber/gold
+    pdf.set_text_color(201, 168, 76)
     pdf.cell(0, 10, "Prep Academy - DICOM Klinischer Bericht", ln=True)
     pdf.set_text_color(0, 0, 0)
     _font(size=9)
@@ -938,7 +1314,6 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
     pdf.cell(0, 6, f"Erstellt: {analysis.get('analyzed_at','')[:19]}  |  Modell: {analysis.get('model','')}", ln=True)
     pdf.ln(4)
 
-    # Patient / Study meta
     _font(bold=True, size=12)
     pdf.cell(0, 8, "Untersuchungsdetails", ln=True)
     _font(size=10)
@@ -954,7 +1329,6 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
         pdf.cell(0, 6, str(val), ln=True)
     pdf.ln(3)
 
-    # Urgency banner
     urgency = (structured.get("urgency") or "UNKNOWN").upper()
     urgency_colors = {"HIGH": (220, 38, 38), "MEDIUM": (245, 158, 11), "LOW": (34, 197, 94), "UNKNOWN": (120, 120, 120)}
     pdf.set_fill_color(*urgency_colors.get(urgency, urgency_colors["UNKNOWN"]))
@@ -965,7 +1339,6 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
     pdf.set_text_color(0, 0, 0)
     pdf.ln(3)
 
-    # Red flags
     rf = structured.get("red_flags", [])
     if rf:
         _font(bold=True, size=11)
@@ -977,7 +1350,19 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
             pdf.multi_cell(0, 5, f"- {r}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
-    # Explainability
+    dd = analysis.get("differential_diagnoses", [])
+    if dd:
+        _font(bold=True, size=11)
+        pdf.cell(0, 7, "Differenzialdiagnosen (Rangliste)", ln=True)
+        _font(size=10)
+        for i, d in enumerate(dd):
+            prob = d.get("probability", "?")
+            diag = d.get("diagnosis", "?")
+            code = d.get("icd10", "")
+            rationale = d.get("rationale", "")[:200]
+            pdf.multi_cell(0, 5, f"{i+1}. {diag} ({code}) — {prob}: {rationale}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
+
     expl = structured.get("explainability", [])
     if expl:
         _font(bold=True, size=11)
@@ -987,7 +1372,6 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
             pdf.multi_cell(0, 5, f"- {e}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
-    # Full report
     _font(bold=True, size=12)
     pdf.cell(0, 8, "Vollstaendiger Befundbericht", ln=True)
     _font(size=10)
@@ -999,7 +1383,6 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
             pdf.ln(2)
     pdf.ln(3)
 
-    # Sources
     _font(bold=True, size=11)
     pdf.cell(0, 7, "Quellen", ln=True)
     _font(size=9)
@@ -1008,7 +1391,6 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
         pdf.multi_cell(0, 4, s.get("excerpt", "")[:250], new_x="LMARGIN", new_y="NEXT")
         pdf.ln(1)
 
-    # Footer
     pdf.ln(4)
     _font(size=8)
     pdf.set_text_color(120, 120, 120)
@@ -1025,12 +1407,21 @@ async def download_report_pdf(analysis_id: str, user: dict = Depends(get_current
     )
 
 
+# ═══════════════════════════════════════════════════════════════
+# PATIENT TIMELINE (Hospital Mode)
+# ═══════════════════════════════════════════════════════════════
+
 @router.get("/timeline/{patient_label}")
 async def patient_timeline(patient_label: str, user: dict = Depends(get_current_user)):
-    """Hospital Mode: aggregate all scans for a patient label, ordered chronologically."""
+    """Hospital Mode: aggregate all scans for a patient label, ordered chronologically.
+    Admins can see all; regular users see only their own."""
+    query = {"patient_label": patient_label}
+    if not user.get("is_admin"):
+        query["user_id"] = user["id"]
+
     docs = await db.dicom_analyses.find(
-        {"user_id": user["id"], "patient_label": patient_label},
-        {"_id": 0, "previews": 0, "per_slice_scores": 0, "analysis.report": 0, "analysis.findings_summary": 0},
+        query,
+        {"_id": 0, "previews": 0, "per_slice_scores": 0, "analysis.report": 0, "analysis.findings_summary": 0, "encrypted_data": 0},
     ).sort("created_at", 1).to_list(200)
 
     timeline = []
@@ -1039,6 +1430,7 @@ async def patient_timeline(patient_label: str, user: dict = Depends(get_current_
         st = a.get("structured", {}) or {}
         timeline.append({
             "id": d["id"],
+            "user_id": d.get("user_id", ""),
             "date": d.get("created_at", "")[:10],
             "modality": d.get("header", {}).get("modality", ""),
             "body_part": d.get("header", {}).get("body_part", ""),
@@ -1050,7 +1442,6 @@ async def patient_timeline(patient_label: str, user: dict = Depends(get_current_
             "summary": st.get("findings", ""),
         })
 
-    # Simple trend summary — counts per urgency
     urgency_counts = {"HIGH": 0, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0}
     for item in timeline:
         urgency_counts[item["urgency"]] = urgency_counts.get(item["urgency"], 0) + 1
@@ -1060,4 +1451,198 @@ async def patient_timeline(patient_label: str, user: dict = Depends(get_current_
         "scan_count": len(timeline),
         "timeline": timeline,
         "urgency_summary": urgency_counts,
+        "is_admin_view": user.get("is_admin", False),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# HUMAN REVIEW QUEUE
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/review/{analysis_id}")
+async def submit_review(analysis_id: str, feedback: FeedbackRequest, user: dict = Depends(get_current_user)):
+    """Submit radiologist feedback for a DICOM analysis (Human Review Queue update)."""
+    query = {"id": analysis_id}
+    if not user.get("is_admin"):
+        query["user_id"] = user["id"]
+
+    doc = await db.dicom_analyses.find_one(query, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
+
+    review_entry = {
+        "analysis_id": analysis_id,
+        "user_id": doc.get("user_id"),
+        "reviewer_id": user["id"],
+        "feedback_text": feedback.feedback_text,
+        "correct_urgency": feedback.correct_urgency,
+        "correct_icd10": feedback.correct_icd10,
+        "rating": feedback.rating,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.dicom_feedback.insert_one(review_entry)
+
+    # Update review queue if entry exists
+    await db.dicom_review_queue.update_one(
+        {"analysis_id": analysis_id},
+        {"$set": {
+            "reviewed": True,
+            "reviewed_by": user["id"],
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "feedback": feedback.feedback_text,
+        }}
+    )
+
+    await _audit_log("dicom_review_submitted", user["id"], analysis_id, {
+        "rating": feedback.rating,
+        "urgency_correction": feedback.correct_urgency,
+    })
+
+    return {"success": True, "message": "Feedback gespeichert. Vielen Dank für Ihre ärztliche Bewertung."}
+
+
+@router.get("/review")
+async def list_review_queue(user: dict = Depends(get_admin_user)):
+    """Admin: list all items pending human review."""
+    items = await db.dicom_review_queue.find(
+        {"reviewed": False},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return {"items": items, "count": len(items)}
+
+
+# ═══════════════════════════════════════════════════════════════
+# RADIOLOGIST FEEDBACK LOOP
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/feedback/{analysis_id}")
+async def get_feedback(analysis_id: str, user: dict = Depends(get_current_user)):
+    """Get all feedback entries for a given analysis."""
+    query = {"id": analysis_id}
+    if not user.get("is_admin"):
+        query["user_id"] = user["id"]
+
+    doc = await db.dicom_analyses.find_one(query, {"_id": 0, "id": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
+
+    feedbacks = await db.dicom_feedback.find(
+        {"analysis_id": analysis_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return {"items": feedbacks, "count": len(feedbacks)}
+
+
+@router.post("/feedback/{analysis_id}")
+async def submit_feedback(analysis_id: str, feedback: FeedbackRequest, user: dict = Depends(get_current_user)):
+    """Radiologist feedback loop — correct / validate AI output."""
+    return await submit_review(analysis_id, feedback, user)
+
+
+# ═══════════════════════════════════════════════════════════════
+# DICOM STRUCTURED REPORT EXPORT
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/export-sr/{analysis_id}")
+async def export_dicom_sr(analysis_id: str, user: dict = Depends(get_current_user)):
+    """Export a DICOM Structured Report (SR) from the analysis result."""
+    from fastapi.responses import StreamingResponse
+
+    doc = await db.dicom_analyses.find_one({"id": analysis_id, "user_id": user["id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Analyse nicht gefunden")
+    if doc.get("status") != "analyzed":
+        raise HTTPException(status_code=400, detail="Analyse noch nicht abgeschlossen")
+
+    analysis = doc.get("analysis", {})
+    structured = analysis.get("structured", {})
+    report_text = analysis.get("report", "")[:2000]
+
+    sr_dataset = pydicom.Dataset()
+    sr_dataset.SOPClassUID = "1.2.840.10008.5.1.4.1.1.88.22"
+    sr_dataset.SOPInstanceUID = pydicom.uid.generate_uid()
+    sr_dataset.PatientName = ""
+    sr_dataset.PatientID = analysis_id[:16]
+    sr_dataset.StudyInstanceUID = pydicom.uid.generate_uid()
+    sr_dataset.SeriesInstanceUID = pydicom.uid.generate_uid()
+    sr_dataset.Modality = "SR"
+    sr_dataset.ConversionType = "SYN"
+    sr_dataset.StudyDate = datetime.now(timezone.utc).strftime("%Y%m%d")
+    sr_dataset.StudyTime = datetime.now(timezone.utc).strftime("%H%M%S")
+    sr_dataset.Manufacturer = "Prep Academy DICOM Pipeline"
+
+    content_sequence = []
+    findings_text = structured.get("findings", "") or ""
+    if findings_text:
+        content_sequence.append({
+            "RelationshipType": "CONTAINS",
+            "ValueType": "TEXT",
+            "ConceptNameCodeSequence": [{"CodeValue": "111000", "CodingSchemeDesignator": "DCM", "CodeMeaning": "Findings"}],
+            "TextValue": findings_text,
+        })
+
+    urgency = structured.get("urgency", "UNKNOWN")
+    content_sequence.append({
+        "RelationshipType": "CONTAINS",
+        "ValueType": "TEXT",
+        "ConceptNameCodeSequence": [{"CodeValue": "111001", "CodingSchemeDesignator": "DCM", "CodeMeaning": "Urgency"}],
+        "TextValue": urgency,
+    })
+
+    for diag in analysis.get("differential_diagnoses", []):
+        content_sequence.append({
+            "RelationshipType": "CONTAINS",
+            "ValueType": "TEXT",
+            "ConceptNameCodeSequence": [{"CodeValue": "111002", "CodingSchemeDesignator": "DCM", "CodeMeaning": "Differential Diagnosis"}],
+            "TextValue": f"{diag.get('diagnosis', '')} ({diag.get('icd10', '')}) — {diag.get('probability', '')}",
+        })
+
+    sr_dataset.ContentSequence = content_sequence
+    sr_dataset.NumberOfPixels = len(findings_text)
+
+    buf = io.BytesIO()
+    pydicom.dcmwrite(buf, sr_dataset)
+    buf.seek(0)
+
+    filename = f"dicom_sr_{analysis_id[:8]}.dcm"
+    return StreamingResponse(
+        buf,
+        media_type="application/dicom",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# KNOWLEDGE BASE VERSIONING INFO
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/kb-info")
+async def kb_info(user: dict = Depends(get_current_user)):
+    """Get knowledge base version and stats."""
+    status_info = {"ready": False, "model": "", "error": "", "kb_document_count": 0}
+
+    if rag_module._collection is not None:
+        try:
+            count = rag_module._collection.count()
+            status_info["kb_document_count"] = count
+        except Exception:
+            pass
+
+    status_info["ready"] = rag_module._init_state.get("ready", False)
+    status_info["model"] = rag_module._init_state.get("model", "")
+    status_info["error"] = rag_module._init_state.get("error", "")
+
+    version_info = await db.kb_versions.find_one({}, {"_id": 0})
+    if not version_info:
+        version_info = {
+            "version": "1.0.0",
+            "last_updated": None,
+            "seed_count": rag_module._collection.count() if rag_module._collection else 0,
+        }
+
+    return {
+        "kb_status": status_info,
+        "version": version_info.get("version", "1.0.0"),
+        "last_updated": version_info.get("last_updated"),
+        "chunks": status_info["kb_document_count"],
     }

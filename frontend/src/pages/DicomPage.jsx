@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useCallback } from "react";
 import axios from "axios";
 import { AuthContext, API } from "@/App";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2, Upload, FileScan, Activity, AlertTriangle,
   ShieldCheck, Clock, GitCompare, Stethoscope, Baby,
-  FileDown, Flame, TrendingUp, Zap, Info,
+  FileDown, Flame, TrendingUp, Zap, Info, ZoomIn,
+  Sun, Moon, Star, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +17,12 @@ const LANGS = [
   { id: "de", label: "🇩🇪 DE" },
   { id: "en", label: "🇬🇧 EN" },
   { id: "ar", label: "🇪🇬 AR" },
+];
+
+const WINDOW_PRESETS = [
+  { id: "standard", label: "Standard" },
+  { id: "bone", label: "Knochen" },
+  { id: "lung", label: "Lunge" },
 ];
 
 // Render citations [N] as styled <sup>
@@ -43,19 +50,68 @@ export default function DicomPage() {
   const [file, setFile] = useState(null);
   const [patientLabel, setPatientLabel] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [current, setCurrent] = useState(null);       // uploaded/analyzed doc
+  const [current, setCurrent] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [patientContext, setPatientContext] = useState("");
   const [language, setLanguage] = useState("de");
+  const [windowPreset, setWindowPreset] = useState("standard");
 
-  // Comparison
   const [cmpA, setCmpA] = useState("");
   const [cmpB, setCmpB] = useState("");
   const [comparing, setComparing] = useState(false);
   const [comparison, setComparison] = useState(null);
 
-  // Manual body-part override for when DICOM metadata is insufficient
   const [bodyPartOverride, setBodyPartOverride] = useState("");
+
+  // Slice Viewer
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerSlice, setViewerSlice] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+
+  // Feedback
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState(0);
+
+  // Dark Mode
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("dicom-dark-mode") === "true";
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("dicom-dark-mode", darkMode);
+  }, [darkMode]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (!viewerOpen) return;
+    if (e.key === "ArrowLeft") setViewerSlice((i) => Math.max(0, i - 1));
+    if (e.key === "ArrowRight") setViewerSlice((i) => Math.min((current?.previews?.length || 1) - 1, i + 1));
+    if (e.key === "+" || e.key === "=") setZoom((z) => Math.min(5, z + 0.25));
+    if (e.key === "-") setZoom((z) => Math.max(0.25, z - 0.25));
+    if (e.key === "r" || e.key === "R") { setZoom(1); setPanX(0); setPanY(0); }
+  }, [viewerOpen, current]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  const handleMouseDown = useCallback((e) => {
+    if (!viewerOpen) return;
+    const startX = e.clientX - panX;
+    const startY = e.clientY - panY;
+    const onMove = (ev) => { setPanX(ev.clientX - startX); setPanY(ev.clientY - startY); };
+    const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [viewerOpen, panX, panY]);
 
   const VALID_REGIONS = [
     { id: "chest", label: "🫁 Thorax" },
@@ -86,6 +142,7 @@ export default function DicomPage() {
       const fd = new FormData();
       fd.append("file", file);
       if (patientLabel) fd.append("patient_label", patientLabel);
+      fd.append("window_preset", windowPreset);
       const r = await axios.post(`${API}/dicom/upload`, fd, {
         headers: { ...headers, "Content-Type": "multipart/form-data" },
         timeout: 180000,
@@ -107,13 +164,28 @@ export default function DicomPage() {
     }
   };
 
+  const submitFeedback = async () => {
+    if (!current?.analysis_id || !feedbackText) return toast.error("Bitte Feedback eingeben");
+    try {
+      await axios.post(
+        `${API}/dicom/feedback/${current.analysis_id}`,
+        { feedback_text: feedbackText, rating: feedbackRating || null },
+        { headers }
+      );
+      toast.success("Feedback gespeichert — Danke!");
+      setFeedbackText("");
+      setFeedbackRating(0);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Feedback fehlgeschlagen");
+    }
+  };
+
   const doAnalyze = async () => {
     if (!current?.analysis_id) return;
     setAnalyzing(true);
     try {
-      const body = { patient_context: patientContext, language };
+      const body = { patient_context: patientContext, language, window_preset: windowPreset };
       if (bodyPartOverride) body.body_part_override = bodyPartOverride;
-      // Kick off async job — returns immediately with status="analyzing"
       await axios.post(
         `${API}/dicom/analyze/${current.analysis_id}`,
         body,
@@ -192,6 +264,25 @@ export default function DicomPage() {
     }
   };
 
+  const downloadSr = async () => {
+    if (!current?.analysis_id) return;
+    try {
+      const r = await axios.get(`${API}/dicom/export-sr/${current.analysis_id}`, {
+        headers, responseType: "blob", timeout: 60000,
+      });
+      const url = window.URL.createObjectURL(new Blob([r.data], { type: "application/dicom" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dicom_sr_${current.analysis_id.slice(0, 8)}.dcm`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error("SR-Export fehlgeschlagen");
+    }
+  };
+
   const urgencyStyle = (u) => {
     const map = {
       HIGH:    { bg: "bg-red-500/15",    text: "text-red-600 dark:text-red-400",       label: "HIGH — Notfall", icon: Flame },
@@ -226,13 +317,21 @@ export default function DicomPage() {
           className="block w-full text-sm mb-3 border rounded px-3 py-2 bg-background"
           data-testid="dicom-file-input"
         />
-        <input
-          value={patientLabel}
-          onChange={(e) => setPatientLabel(e.target.value)}
-          placeholder="Patientenlabel (optional) — z. B. 'Hamdy 45J'"
-          className="block w-full text-sm mb-3 border rounded px-3 py-2 bg-background"
-          data-testid="dicom-patient-label"
-        />
+          <input
+            value={patientLabel}
+            onChange={(e) => setPatientLabel(e.target.value)}
+            placeholder="Patientenlabel (optional) — z. B. 'Hamdy 45J'"
+            className="block w-full text-sm mb-3 border rounded px-3 py-2 bg-background"
+            data-testid="dicom-patient-label"
+          />
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm text-muted-foreground">Fensterung:</span>
+            {WINDOW_PRESETS.map((w) => (
+              <Button key={w.id} size="sm" variant={windowPreset === w.id ? "default" : "outline"} onClick={() => setWindowPreset(w.id)}>
+                {w.label}
+              </Button>
+            ))}
+          </div>
         <Button onClick={doUpload} disabled={!file || uploading} data-testid="dicom-upload-btn">
           {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Lade hoch & analysiere ...</> : <><Upload className="w-4 h-4 mr-2" /> Upload & Smart Sampling</>}
         </Button>
@@ -334,6 +433,16 @@ export default function DicomPage() {
                 {l.label}
               </Button>
             ))}
+            <div className="ml-auto flex gap-1">
+              <Button size="sm" variant="outline" onClick={() => setDarkMode(!darkMode)} data-testid="dicom-dark-toggle">
+                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
+              {current?.previews?.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => { setViewerSlice(0); setViewerOpen(!viewerOpen); setZoom(1); setPanX(0); setPanY(0); }} data-testid="dicom-viewer-toggle">
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
           <Button onClick={doAnalyze} disabled={analyzing} data-testid="dicom-analyze-btn">
             {analyzing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> RAG + DeepSeek läuft (30–60s) ...</> : <><Stethoscope className="w-4 h-4 mr-2" /> Analyse starten</>}
@@ -353,9 +462,14 @@ export default function DicomPage() {
           <div className="flex items-center gap-2 mb-3">
             <ShieldCheck className="w-5 h-5 text-amber-500" />
             <h2 className="font-bold">Klinischer Bericht</h2>
-            <Button onClick={downloadPdf} variant="outline" size="sm" className="ml-auto gap-1.5" data-testid="dicom-pdf-btn">
-              <FileDown className="w-4 h-4" /> PDF
-            </Button>
+            <div className="ml-auto flex gap-1">
+              <Button onClick={downloadPdf} variant="outline" size="sm" className="gap-1.5" data-testid="dicom-pdf-btn">
+                <FileDown className="w-4 h-4" /> PDF
+              </Button>
+              <Button onClick={downloadSr} variant="outline" size="sm" className="gap-1.5" data-testid="dicom-sr-btn">
+                <FileScan className="w-4 h-4" /> SR
+              </Button>
+            </div>
           </div>
 
           {/* Context detection banner */}
@@ -443,6 +557,32 @@ export default function DicomPage() {
             </div>
           )}
 
+          {/* Differential Diagnoses Ranking */}
+          {current.analysis.differential_diagnoses?.length > 0 && (
+            <div className="mb-4" data-testid="dicom-differential">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-500" />
+                Differenzialdiagnosen (Rangliste)
+              </h3>
+              <div className="space-y-2">
+                {current.analysis.differential_diagnoses.map((dd, i) => {
+                  const probColor = dd.probability === "hoch" ? "text-green-600" : dd.probability === "mittel" ? "text-amber-600" : "text-muted-foreground";
+                  return (
+                    <div key={i} className="bg-muted/30 rounded-lg p-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-bold">{i + 1}</Badge>
+                        <span className="font-semibold">{dd.diagnosis}</span>
+                        {dd.icd10 && <Badge variant="secondary" className="font-mono text-[10px]">{dd.icd10}</Badge>}
+                        <span className={`ml-auto text-xs font-bold ${probColor}`}>{dd.probability}</span>
+                      </div>
+                      {dd.rationale && <p className="text-xs text-muted-foreground mt-1">{dd.rationale}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Cross-check */}
           {current.analysis.cross_check && (
             <div className={`p-3 rounded mb-4 text-sm flex items-center gap-2 ${
@@ -481,6 +621,75 @@ export default function DicomPage() {
         </Card>
         );
       })()}
+
+      {/* FEEDBACK */}
+      {current?.analysis?.report && (
+        <Card className="p-5 mb-6" data-testid="dicom-feedback-card">
+          <div className="flex items-center gap-2 mb-3">
+            <Star className="w-5 h-5 text-amber-500" />
+            <h2 className="font-bold">Radiologen-Feedback</h2>
+          </div>
+          <div className="flex items-center gap-1 mb-2">
+            <span className="text-sm text-muted-foreground mr-2">Bewertung:</span>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => setFeedbackRating(n === feedbackRating ? 0 : n)}
+                className={`p-1 rounded ${n <= feedbackRating ? "text-amber-500" : "text-muted-foreground"}`}>
+                <Star className="w-5 h-5" fill={n <= feedbackRating ? "currentColor" : "none"} />
+              </button>
+            ))}
+          </div>
+          <Textarea
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            placeholder="Korrektur der KI-Analyse, fehlende Befunde, Verbesserungsvorschläge..."
+            rows={3}
+            className="mb-3"
+          />
+          <Button onClick={submitFeedback} size="sm" disabled={!feedbackText}>
+            <Star className="w-4 h-4 mr-2" /> Feedback senden
+          </Button>
+        </Card>
+      )}
+
+      {/* SLICE VIEWER MODAL */}
+      {viewerOpen && current?.previews?.length > 0 && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setViewerOpen(false)} data-testid="dicom-viewer-modal">
+          <div className="relative max-w-4xl w-full bg-background rounded-xl p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setViewerSlice((i) => Math.max(0, i - 1))}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-semibold">Schicht {viewerSlice + 1} / {current.previews.length}</span>
+                <Button size="sm" variant="outline" onClick={() => setViewerSlice((i) => Math.min(current.previews.length - 1, i + 1))}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Button size="sm" variant="ghost" onClick={() => setZoom((z) => Math.min(5, z + 0.25))}>+</Button>
+                <span>{Math.round(zoom * 100)}%</span>
+                <Button size="sm" variant="ghost" onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}>-</Button>
+                <Button size="sm" variant="ghost" onClick={() => { setZoom(1); setPanX(0); setPanY(0); }}>↺</Button>
+                <Button size="sm" variant="ghost" onClick={() => setViewerOpen(false)} className="ml-4">✕</Button>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg bg-black/10" style={{ height: '60vh', cursor: 'grab' }}>
+              {current.previews[viewerSlice] && (
+                <img
+                  src={`data:image/png;base64,${current.previews[viewerSlice].thumbnail}`}
+                  alt={`Slice ${viewerSlice}`}
+                  className="w-full h-full object-contain transition-transform duration-100 select-none"
+                  style={{ transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)` }}
+                  draggable={false}
+                />
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              ← → navigieren, +/- zoomen, ziehen zum verschieben, R = zurücksetzen
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* HISTORY + COMPARISON */}
       {list.length > 0 && (

@@ -19,20 +19,20 @@ The backend only attempts to include the DICOM router when:
 ENABLE_ADVANCED_FEATURES=true
 ```
 
-Do not enable DICOM in production until the dependency and safety checklist below is complete.
+Keep DICOM behind the advanced-feature gate until a staging smoke test has passed with anonymized sample files.
 
 ## Blocking Items Before Shipping
 
-- Add required runtime dependencies to `backend/requirements.txt` or a dedicated production extras file:
+- Required runtime dependencies are included in `backend/requirements.txt`:
   - `numpy`
   - `pydicom`
   - `opencv-python-headless`
-  - optional: `SimpleITK`
+  - optional: `SimpleITK` remains intentionally excluded unless tested.
 - Verify Render memory and cold-start impact after installing image-processing packages.
-- Keep `DICOM_ENCRYPTION_KEY` unset unless encrypted raw-byte storage is deliberately enabled and tested.
-- Avoid storing large raw DICOM payloads in MongoDB; use external object storage or GridFS before accepting large uploads.
+- Raw DICOM storage is disabled by default. It requires both `DICOM_ENCRYPTION_KEY` and `DICOM_STORE_RAW_ENCRYPTED=true`.
+- Avoid storing large raw DICOM payloads in MongoDB; use external object storage or GridFS before enabling raw-byte storage.
 - Verify PHI stripping and audit logging with real anonymized sample files.
-- Verify static one-segment routes such as `/api/dicom/review` and `/api/dicom/kb-info` are not shadowed by the analysis lookup route.
+- Static one-segment routes such as `/api/dicom/review` and `/api/dicom/kb-info` have route-smoke coverage against the UUID analysis route.
 - Run DICOM upload/analyze/list/report smoke tests against a staging backend before production exposure.
 
 ## API Surface Under Review

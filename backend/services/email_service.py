@@ -11,6 +11,7 @@ import asyncio
 import logging
 import traceback
 from datetime import datetime
+from html import escape
 
 import httpx
 
@@ -485,6 +486,40 @@ async def send_trial_made_permanent_email(user: dict) -> None:
       {_btn('Zur App', _frontend_url())}
     """
     await _send(user["email"], user.get("name",""), "👑 Permanenter Zugang freigeschaltet – PrepAcademy", _wrap(body))
+
+
+async def send_dicom_high_urgency_email(user: dict, analysis_id: str, findings: str, body_part: str, confidence: float) -> None:
+    """Send immediate notification for HIGH urgency DICOM analysis result."""
+    link = f"{_frontend_url()}/dicom/{analysis_id}"
+    user_name = escape(user.get("name", "") or "")
+    safe_body_part = escape(body_part or "")
+    findings_short_raw = (findings or "Keine Detailausgabe")[:300]
+    findings_short = escape(findings_short_raw)
+    body = f"""
+      <h2 style="color:#ef4444;font-size:20px;margin:0 0 16px 0">🚨 Dringender Befund – HIGH Urgency</h2>
+      <p style="margin:0 0 8px 0">Hallo <strong>{user_name}</strong>,</p>
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 20px 0">
+        Die KI-gestützte Analyse Ihrer Bildgebung hat einen <strong style="color:#ef4444">potenziell lebensbedrohlichen</strong>
+        Befund mit hoher Dringlichkeit identifiziert.
+      </p>
+      <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:16px;margin-bottom:20px">
+        <p style="margin:0 0 4px 0;font-size:12px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em">Befunddetails</p>
+        <p style="margin:0 0 12px 0;color:#e2e8f0;font-size:14px"><strong>Region:</strong> {safe_body_part}</p>
+        <p style="margin:0 0 12px 0;color:#e2e8f0;font-size:14px"><strong>Konfidenz:</strong> {confidence:.0%}</p>
+        <p style="margin:0;color:#e2e8f0;font-size:14px;line-height:1.5">"{findings_short}"</p>
+      </div>
+      <p style="color:rgba(255,255,255,0.6);font-size:13px;margin:0 0 20px 0">
+        Bitte konsultieren Sie umgehend eine ärztliche Fachperson.
+        Diese Analyse ersetzt keine ärztliche Beurteilung.
+      </p>
+      {_btn('Befund ansehen', link)}
+    """
+    await _send(
+        user["email"], user.get("name", ""),
+        "🚨 HIGH Urgency Befund – PrepAcademy DICOM Analyse",
+        _wrap(body),
+        f"HIGH Urgency DICOM Befund: {findings_short_raw}",
+    )
 
 
 async def send_admin_new_user_email(admin_email: str, user: dict) -> None:
