@@ -1,14 +1,15 @@
 """
 Medical RAG (Retrieval-Augmented Generation) System
 ====================================================
-- Vector Store: ChromaDB (persistent, local, free)
-- Embeddings: BGE-M3 (multilingual, local, free) via sentence-transformers
-  with graceful fallback to a lighter multilingual model
-- CrossEncoder reranking for improved answer quality
+- Active Retrieval: Unified RAG layer via services.retrieval_orchestrator
+- Vector Store: Qdrant only for active production retrieval
+- Embeddings: shared provider from embeddings.py for all active sources
+- Hybrid Search: vector candidates plus lexical scoring in one layer
+- Reranking: unified CrossEncoder reranking when available
 - LLM: DeepSeek-V3 via OpenRouter (cheap, high-quality)
-- Knowledge Base: ICD-10 (DE), WHO Guidelines, RKI Protocols (seed)
+- Knowledge Base: medical PDFs, tutor docs, and Obsidian notes
 - Hallucination guard, prompt injection protection, query expansion
-- Embedding cache (Redis), source versioning, confidence scores
+- Legacy Chroma: deprecated, read-only compatibility only when explicitly enabled
 
 The models are lazy-loaded on first request to keep the server's startup fast
 and the health-check responsive.
