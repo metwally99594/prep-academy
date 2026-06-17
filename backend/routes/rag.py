@@ -72,6 +72,7 @@ DEFAULT_LLM_MODEL = "openai/gpt-oss-120b:free"
 RAG_CHUNK_SIZE = int(os.environ.get("RAG_CHUNK_SIZE", "512"))
 RAG_CHUNK_OVERLAP = int(os.environ.get("RAG_CHUNK_OVERLAP", "50"))
 QUERY_MAX_LENGTH = 2000
+RAG_SOURCE_RELEVANCE_THRESHOLD = float(os.environ.get("RAG_SOURCE_RELEVANCE_THRESHOLD", "0.75"))
 
 _RATE_LIMIT = "20/minute"
 
@@ -579,6 +580,46 @@ def _compute_confidence(sources: List[Dict], citation_coverage: float) -> Tuple[
     return round(confidence, 4), low_conf
 
 
+def _source_relevance_score(source: Dict) -> float:
+    """Return a normalized 0..1 relevance score for source filtering."""
+    for key in ("retrieval_score", "score", "vector_score"):
+        value = source.get(key)
+        if isinstance(value, (int, float)):
+            # CrossEncoder rerank scores can be outside 0..1. Only use normalized values.
+            if 0.0 <= float(value) <= 1.0:
+                return float(value)
+    return 0.0
+
+
+def _filter_relevant_sources(
+    source_records: List[Dict],
+    threshold: float = RAG_SOURCE_RELEVANCE_THRESHOLD,
+    min_keep: int = 1,
+) -> Tuple[List[Dict], int]:
+    """Drop weak retrieval hits before prompting and returning citations.
+
+    The unified orchestrator exposes `retrieval_score` as normalized hybrid
+    relevance. We filter on that score so low-relevance top-K tail results do
+    not become misleading citations. If every source is below the threshold,
+    keep the strongest source to preserve a grounded fallback answer.
+    """
+    if not source_records:
+        return [], 0
+
+    threshold = max(0.0, min(1.0, threshold))
+    kept = [s for s in source_records if _source_relevance_score(s) >= threshold]
+    if not kept and min_keep > 0:
+        kept = sorted(source_records, key=_source_relevance_score, reverse=True)[:min_keep]
+
+    reindexed = []
+    for idx, source in enumerate(kept, start=1):
+        item = dict(source)
+        item["index"] = idx
+        reindexed.append(item)
+
+    return reindexed, len(source_records) - len(reindexed)
+
+
 # ═════════════════════════ ENDPOINTS ═════════════════════════
 
 class QueryRequest(BaseModel):
@@ -734,7 +775,7 @@ async def rag_query(request: Request, req: QueryRequest, user: dict = Depends(ge
         use_hybrid=True,
         use_reranker=True,
     ))
-    source_records = retrieval["sources"]
+    source_records, filtered_out_count = _filter_relevant_sources(retrieval["sources"])
     if not source_records:
         return {"answer": "Keine relevanten Quellen gefunden.", "sources": [], "model": req.model,
                 "session_id": req.session_id}
@@ -777,7 +818,14 @@ async def rag_query(request: Request, req: QueryRequest, user: dict = Depends(ge
         "sources": source_records,
         "answer_reply": answer_reply,
         "llm_generated": llm_ok,
-        "retrieval": retrieval.get("orchestrator", {}),
+        "retrieval": {
+            **retrieval.get("orchestrator", {}),
+            "source_filter": {
+                "threshold": RAG_SOURCE_RELEVANCE_THRESHOLD,
+                "filtered_out": filtered_out_count,
+                "returned_sources": len(source_records),
+            },
+        },
         "retrieval_latency_ms": retrieval.get("latency_ms"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
@@ -815,7 +863,14 @@ async def rag_query(request: Request, req: QueryRequest, user: dict = Depends(ge
         "confidence_score": confidence,
         "low_confidence_warning": low_conf_warning,
         "citation_coverage": round(citation_coverage, 4),
-        "retrieval": retrieval.get("orchestrator", {}),
+        "retrieval": {
+            **retrieval.get("orchestrator", {}),
+            "source_filter": {
+                "threshold": RAG_SOURCE_RELEVANCE_THRESHOLD,
+                "filtered_out": filtered_out_count,
+                "returned_sources": len(source_records),
+            },
+        },
         "retrieval_latency_ms": retrieval.get("latency_ms"),
     }
     return response

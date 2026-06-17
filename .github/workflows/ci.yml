@@ -39,6 +39,7 @@ jobs:
             tests/test_admin_endpoint_access_control.py \
             tests/test_dicom_access_control.py \
             tests/test_public_seo_assets.py \
+            tests/test_rag_citation_filtering.py \
             tests/test_unified_rag_boundaries.py \
             tests/test_extraction_benchmark.py \
             tests/test_obsidian_rag_benchmark.py \
