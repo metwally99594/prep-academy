@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import patch, AsyncMock
 from httpx import Response
 
+PRIMARY_DOMAIN = "https://prepacademy-med.com"
+
 
 # ── Unit tests for _send() ────────────────────────────────────────────────
 
@@ -97,6 +99,35 @@ async def test_send_verification_email_success():
     assert result is None  # function returns None on success (void)
 
 
+def test_frontend_url_defaults_to_primary_domain():
+    from services.email_service import _frontend_url
+    os.environ.pop("FRONTEND_URL", None)
+    assert _frontend_url() == PRIMARY_DOMAIN
+
+
+@pytest.mark.asyncio
+async def test_send_verification_email_uses_primary_domain_link():
+    from services.email_service import send_verification_email
+
+    os.environ["BREVO_API_KEY"] = "test-key"
+    os.environ["FRONTEND_URL"] = PRIMARY_DOMAIN
+    captured = {}
+
+    async def mock_post(*args, **kwargs):
+        captured["payload"] = kwargs["json"]
+        return Response(201, json={"messageId": "msg-domain"})
+
+    with patch("httpx.AsyncClient.post", new=mock_post):
+        await send_verification_email({"email": "user@test.com", "name": "User"}, "token123")
+
+    payload_text = "\n".join([
+        captured["payload"]["htmlContent"],
+        captured["payload"]["textContent"],
+    ])
+    assert f"{PRIMARY_DOMAIN}/verify-email?token=token123" in payload_text
+    assert "vercel.app" not in payload_text
+
+
 # ── Unit tests for send_password_reset_email() ────────────────────────────
 
 @pytest.mark.asyncio
@@ -114,13 +145,36 @@ async def test_send_password_reset_email_raises_on_failure():
             await send_password_reset_email({"email": "user@test.com", "name": "User"}, "resettoken")
 
 
+@pytest.mark.asyncio
+async def test_send_password_reset_email_uses_primary_domain_link():
+    from services.email_service import send_password_reset_email
+
+    os.environ["BREVO_API_KEY"] = "test-key"
+    os.environ["FRONTEND_URL"] = PRIMARY_DOMAIN
+    captured = {}
+
+    async def mock_post(*args, **kwargs):
+        captured["payload"] = kwargs["json"]
+        return Response(201, json={"messageId": "msg-reset-domain"})
+
+    with patch("httpx.AsyncClient.post", new=mock_post):
+        await send_password_reset_email({"email": "user@test.com", "name": "User"}, "resettoken")
+
+    payload_text = "\n".join([
+        captured["payload"]["htmlContent"],
+        captured["payload"]["textContent"],
+    ])
+    assert f"{PRIMARY_DOMAIN}/reset-password?token=resettoken" in payload_text
+    assert "vercel.app" not in payload_text
+
+
 # ── Integration test note ──────────────────────────────────────────────────
 
 def test_brevo_config_check():
     """Check if Brevo is configured. This is informational, not a pass/fail test."""
-    from services.email_service import _api_key, _from_email
+    from services.email_service import _api_key, sender_email
     key = _api_key()
     if not key:
         pytest.skip("BREVO_API_KEY not set — skipping live integration checks")
     assert key, "BREVO_API_KEY should be non-empty"
-    assert _from_email(), "EMAIL_FROM should be non-empty"
+    assert sender_email() == "noreply@prepacademy-med.com"

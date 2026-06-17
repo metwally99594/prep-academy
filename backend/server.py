@@ -8665,8 +8665,6 @@ else:
     _ALLOWED_ORIGINS = [
         "https://prepacademy-med.com",
         "https://www.prepacademy-med.com",
-        "https://prep-academy-rho.vercel.app",
-        "https://prep-academy.vercel.app",
         "http://localhost:3000",
     ]
 app.add_middleware(
