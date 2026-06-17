@@ -60,6 +60,7 @@ const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"));
 const KpReportsPage = lazy(() => import("@/pages/KpReportsPage"));
 const KpReportDetailPage = lazy(() => import("@/pages/KpReportDetailPage"));
 const GermanyHomePage = lazy(() => import("@/pages/Germany/GermanyHomePage"));
+const SwitzerlandHomePage = lazy(() => import("@/pages/Switzerland/SwitzerlandHomePage"));
 const FSPSimulationPage = lazy(() => import("@/pages/Germany/FSPSimulationPage"));
 const ArztbriefPage = lazy(() => import("@/pages/Germany/ArztbriefPage"));
 const MasterclassPage = lazy(() => import("@/pages/Germany/MasterclassPage"));
@@ -355,6 +356,7 @@ function AppRouter() {
             <ProtectedRoute><CommunityPostPage /></ProtectedRoute>
           } />
           <Route path="/de" element={<GermanyHomePage />} />
+          <Route path="/ch" element={<SwitzerlandHomePage />} />
           <Route path="/de/fsp" element={
             <ProtectedRoute><FSPSimulationPage /></ProtectedRoute>
           } />

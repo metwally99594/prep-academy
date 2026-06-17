@@ -342,6 +342,8 @@ export const Layout = () => {
 
   const austriaPath = "/";
   const isAustriaActive = location.pathname === "/";
+  const isGermanyActive = location.pathname.startsWith("/de");
+  const isSwitzerlandActive = location.pathname.startsWith("/ch");
 
   return (
     <div className="app-container min-h-screen">
@@ -559,8 +561,13 @@ export const Layout = () => {
                 </Button>
               </Link>
               <Link to="/de">
-                <Button variant="ghost" size="sm" className={`gap-1 px-2 text-xs ${location.pathname.startsWith("/de") ? "bg-primary/15 text-primary" : ""}`} data-testid="country-de-btn">
+                <Button variant="ghost" size="sm" className={`gap-1 px-2 text-xs ${isGermanyActive ? "bg-primary/15 text-primary" : ""}`} data-testid="country-de-btn">
                   🇩🇪 DE
+                </Button>
+              </Link>
+              <Link to="/ch">
+                <Button variant="ghost" size="sm" className={`gap-1 px-2 text-xs ${isSwitzerlandActive ? "bg-primary/15 text-primary" : ""}`} data-testid="country-ch-btn">
+                  🇨🇭 CH
                 </Button>
               </Link>
             </div>
@@ -632,6 +639,23 @@ export const Layout = () => {
         {/* Mobile Menu */}
         {mobileMenuOpen && !user && (
           <div className="md:hidden border-t border-border/50 py-4 px-4 space-y-2">
+            <div className="flex gap-2 pb-2 border-b border-border/40 mb-2">
+              <Link to={austriaPath} className="flex-1" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${isAustriaActive ? "bg-primary/15 text-primary" : ""}`}>
+                  🇦🇹 AT
+                </Button>
+              </Link>
+              <Link to="/de" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${isGermanyActive ? "bg-primary/15 text-primary" : ""}`}>
+                  🇩🇪 DE
+                </Button>
+              </Link>
+              <Link to="/ch" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${isSwitzerlandActive ? "bg-primary/15 text-primary" : ""}`}>
+                  🇨🇭 CH
+                </Button>
+              </Link>
+            </div>
             <Button
               variant="ghost"
               className="w-full justify-start gap-2"
@@ -664,8 +688,13 @@ export const Layout = () => {
                 </Button>
               </Link>
               <Link to="/de" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${location.pathname.startsWith("/de") ? "bg-primary/15 text-primary" : ""}`}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${isGermanyActive ? "bg-primary/15 text-primary" : ""}`}>
                   🇩🇪 DE
+                </Button>
+              </Link>
+              <Link to="/ch" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${isSwitzerlandActive ? "bg-primary/15 text-primary" : ""}`}>
+                  🇨🇭 CH
                 </Button>
               </Link>
             </div>
