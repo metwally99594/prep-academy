@@ -340,8 +340,8 @@ export const Layout = () => {
     }
   };
 
-  const austriaPath = user ? "/dashboard" : "/";
-  const isAustriaActive = user ? location.pathname === "/dashboard" : location.pathname === "/";
+  const austriaPath = "/";
+  const isAustriaActive = location.pathname === "/";
 
   return (
     <div className="app-container min-h-screen">
@@ -658,8 +658,8 @@ export const Layout = () => {
         {mobileMenuOpen && user && (
           <div className="md:hidden border-t border-border/50 py-4 px-4 space-y-2">
             <div className="flex gap-2 pb-2 border-b border-border/40 mb-2">
-              <Link to="/dashboard" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${location.pathname === "/dashboard" ? "bg-primary/15 text-primary" : ""}`}>
+              <Link to={austriaPath} className="flex-1" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" size="sm" className={`w-full gap-1 text-xs ${isAustriaActive ? "bg-primary/15 text-primary" : ""}`}>
                   🇦🇹 AT
                 </Button>
               </Link>
