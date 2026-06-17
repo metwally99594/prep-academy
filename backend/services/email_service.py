@@ -34,7 +34,7 @@ def _api_key() -> str:
 
 
 def _frontend_url() -> str:
-    return os.getenv("FRONTEND_URL", "https://prep-academy-rho.vercel.app").strip()
+    return os.getenv("FRONTEND_URL", "https://prepacademy-med.com").strip()
 
 
 def sender_email() -> str:
