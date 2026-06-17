@@ -354,9 +354,7 @@ function AppRouter() {
           <Route path="/community/:postId" element={
             <ProtectedRoute><CommunityPostPage /></ProtectedRoute>
           } />
-          <Route path="/de" element={
-            <ProtectedRoute><GermanyHomePage /></ProtectedRoute>
-          } />
+          <Route path="/de" element={<GermanyHomePage />} />
           <Route path="/de/fsp" element={
             <ProtectedRoute><FSPSimulationPage /></ProtectedRoute>
           } />

@@ -340,6 +340,9 @@ export const Layout = () => {
     }
   };
 
+  const austriaPath = user ? "/dashboard" : "/";
+  const isAustriaActive = user ? location.pathname === "/dashboard" : location.pathname === "/";
+
   return (
     <div className="app-container min-h-screen">
       {/* Header */}
@@ -550,8 +553,8 @@ export const Layout = () => {
 
             {/* Country Switcher */}
             <div className="hidden md:flex items-center mr-2 border-r border-border/40 pr-3">
-              <Link to="/dashboard">
-                <Button variant="ghost" size="sm" className={`gap-1 px-2 text-xs ${location.pathname === "/dashboard" ? "bg-primary/15 text-primary" : ""}`} data-testid="country-at-btn">
+              <Link to={austriaPath}>
+                <Button variant="ghost" size="sm" className={`gap-1 px-2 text-xs ${isAustriaActive ? "bg-primary/15 text-primary" : ""}`} data-testid="country-at-btn">
                   🇦🇹 AT
                 </Button>
               </Link>
