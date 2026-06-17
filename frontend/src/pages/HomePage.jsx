@@ -301,9 +301,15 @@ export default function HomePage() {
               const isActive = selectedExam === exam.id;
               const isKi = exam.id === "ki_generiert";
               const hasProtocols = exam.question_count === 0 && (exam.kp_report_count || 0) > 0;
-              const Wrapper = isKi || hasProtocols ? Link : 'button';
+              const countryLandingPath =
+                exam.country === "germany" ? "/de" :
+                exam.country === "switzerland" ? "/ch" :
+                null;
+              const Wrapper = isKi || countryLandingPath || hasProtocols ? Link : 'button';
               const wrapperProps = isKi
                 ? { to: `/quiz/surgery?exam_location=ai_generated`, className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'}`, style: { background: 'rgba(255,255,255,0.03)' } }
+                : countryLandingPath
+                ? { to: countryLandingPath, className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${exam.country === "germany" ? "hover:border-amber-500/30" : "hover:border-blue-500/30"} hover:-translate-y-0.5`, style: { background: exam.country === "germany" ? 'rgba(245,158,11,0.04)' : 'rgba(59,130,246,0.04)', borderColor: exam.country === "germany" ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.12)' } }
                 : hasProtocols
                 ? { to: `/kp-reports`, className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group hover:border-amber-500/30 hover:-translate-y-0.5`, style: { background: 'rgba(245,158,11,0.04)', borderColor: 'rgba(245,158,11,0.12)' } }
                 : { onClick: () => setSelectedExam(exam.id), className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'}`, style: { background: isActive ? 'hsl(var(--primary) / 0.08)' : 'rgba(255,255,255,0.03)', boxShadow: isActive ? '0 8px 32px hsl(var(--primary) / 0.15)' : 'none' } };
@@ -326,7 +332,7 @@ export default function HomePage() {
                   <div className="flex items-center gap-2 mb-1">
                     {exam.country && (
                       <span
-                        onClick={(e) => { e.stopPropagation(); setSelectedCountryFilter(prev => prev === exam.country ? "" : exam.country); }}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedCountryFilter(prev => prev === exam.country ? "" : exam.country); }}
                         className={`text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-all hover:ring-1 hover:ring-current ${
                           exam.country === 'austria' ? 'bg-red-500/15 text-red-400' :
                           exam.country === 'germany' ? 'bg-yellow-500/15 text-yellow-400' :
