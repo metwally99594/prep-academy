@@ -2,3 +2,12 @@ frontend/build
 frontend/node_modules
 frontend/*.log
 frontend/_dev.log
+MiMo-Code
+backend
+node_modules
+knowledge
+assets
+design-references
+__pycache__
+.pytest_cache
+*.docx
