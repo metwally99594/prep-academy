@@ -105,6 +105,16 @@ def test_frontend_url_defaults_to_primary_domain():
     assert _frontend_url() == PRIMARY_DOMAIN
 
 
+def test_frontend_url_blocks_vercel_domain_in_production():
+    from services.email_service import _frontend_url
+
+    with patch.dict(os.environ, {
+        "ENVIRONMENT": "production",
+        "FRONTEND_URL": "https://prep-academy-rho.vercel.app",
+    }):
+        assert _frontend_url() == PRIMARY_DOMAIN
+
+
 @pytest.mark.asyncio
 async def test_send_verification_email_uses_primary_domain_link():
     from services.email_service import send_verification_email
@@ -129,6 +139,32 @@ async def test_send_verification_email_uses_primary_domain_link():
 
 
 # ── Unit tests for send_password_reset_email() ────────────────────────────
+
+@pytest.mark.asyncio
+async def test_send_verification_email_rewrites_old_vercel_domain():
+    from services.email_service import send_verification_email
+
+    captured = {}
+
+    async def mock_post(*args, **kwargs):
+        captured["payload"] = kwargs["json"]
+        return Response(201, json={"messageId": "msg-rewrite-domain"})
+
+    with patch.dict(os.environ, {
+        "BREVO_API_KEY": "test-key",
+        "ENVIRONMENT": "production",
+        "FRONTEND_URL": "https://prep-academy-rho.vercel.app",
+    }):
+        with patch("httpx.AsyncClient.post", new=mock_post):
+            await send_verification_email({"email": "user@test.com", "name": "User"}, "token123")
+
+    payload_text = "\n".join([
+        captured["payload"]["htmlContent"],
+        captured["payload"]["textContent"],
+    ])
+    assert f"{PRIMARY_DOMAIN}/verify-email?token=token123" in payload_text
+    assert "vercel.app" not in payload_text
+
 
 @pytest.mark.asyncio
 async def test_send_password_reset_email_raises_on_failure():

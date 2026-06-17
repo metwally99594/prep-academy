@@ -22,6 +22,7 @@ _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 _SENDER_EMAIL = "noreply@prepacademy-med.com"
 _SENDER_NAME = "PrepAcademy"
 _ADMIN_CONTACT = "hilfe@prepacademy-med.com"
+_CANONICAL_FRONTEND_URL = "https://prepacademy-med.com"
 
 _RETRY_DELAYS = [1, 3, 5]
 _RATE_LIMIT_MAX = 25
@@ -34,7 +35,26 @@ def _api_key() -> str:
 
 
 def _frontend_url() -> str:
-    return os.getenv("FRONTEND_URL", "https://prepacademy-med.com").strip()
+    configured = os.getenv("FRONTEND_URL", _CANONICAL_FRONTEND_URL).strip().rstrip("/")
+    if not configured:
+        return _CANONICAL_FRONTEND_URL
+
+    lowered = configured.lower()
+    is_production = os.getenv("ENVIRONMENT", "production").lower() == "production"
+    unsafe_host = (
+        "vercel.app" in lowered
+        or "localhost" in lowered
+        or "127.0.0.1" in lowered
+    )
+    if is_production and unsafe_host:
+        logger.warning(
+            "FRONTEND_URL env var (%s) is ignored in production email links; using %s",
+            configured,
+            _CANONICAL_FRONTEND_URL,
+        )
+        return _CANONICAL_FRONTEND_URL
+
+    return configured
 
 
 def sender_email() -> str:

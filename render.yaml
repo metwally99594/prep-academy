@@ -22,7 +22,7 @@ services:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: FRONTEND_URL
-        sync: false          # ← Vercel deployment URL (used in email verification links)
+        sync: false          # canonical frontend URL: https://prepacademy-med.com
       - key: BREVO_API_KEY
         sync: false          # ← ضع Brevo Transactional API key هنا — مطلوب للإيميلات
       - key: EMAIL_FROM
