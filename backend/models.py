@@ -416,7 +416,9 @@ class QuestionImportItem(BaseModel):
     city: Optional[str] = None
     question_text_de: str
     question_type: str = "mcq"
+    choices: Optional[List] = None
     choices_de: Optional[List] = None
+    correct_answers: Optional[List[str]] = None
     explanation_de: Optional[str] = None
     year: Optional[int] = None
     exam_location: Optional[str] = None

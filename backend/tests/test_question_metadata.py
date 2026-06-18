@@ -42,3 +42,23 @@ def test_legacy_flat_metadata_still_works():
     assert metadata["subject_id"] == "surgery"
     assert metadata["exam_location"] == "vienna"
     assert metadata["country"] == "austria"
+
+
+def test_switzerland_bern_cardiology_example_metadata():
+    metadata = normalize_question_metadata(
+        {
+            "country": "switzerland",
+            "city": "bern",
+            "subject": {
+                "id": "internal",
+                "name_de": "Innere Medizin",
+                "specialty": {"id": "cardiology", "name_de": "Kardiologie"},
+            },
+        }
+    )
+
+    assert metadata["country"] == "switzerland"
+    assert metadata["city"] == "bern"
+    assert metadata["exam_location"] == "bern"
+    assert metadata["specialty_id"] == "internal"
+    assert metadata["subspecialty_id"] == "cardiology"

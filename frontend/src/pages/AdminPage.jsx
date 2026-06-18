@@ -109,8 +109,10 @@ const CITIES = [
   { id: "hamburg", name: "Hamburg" },
   { id: "berlin", name: "Berlin" },
   { id: "munich", name: "Muenchen" },
+  { id: "bern", name: "Bern" },
   { id: "zurich", name: "Zuerich" },
   { id: "basel", name: "Basel" },
+  { id: "geneva", name: "Genf" },
   { id: "andere", name: "Andere Stadt" },
 ];
 
@@ -216,6 +218,8 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         question_text_de: q.question_text_de || q.question_text || q.question || q.frage || q.text || "",
         question_type: q.question_type || "mcq",
         choices_de: choices,
+        choices,
+        correct_answers: q.correct_answers || q.correct || q.richtig || [],
         explanation_de: q.explanation_de || q.explanation || null,
         year: q.year || null,
         drag_drop_items: q.drag_drop_items || q.interactive_data?.items || [],
@@ -677,7 +681,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
               <p>Fragetypen: <code className="text-primary">mcq</code> <code className="text-primary">multi_select</code> <code className="text-primary">drag_drop</code> <code className="text-primary">categorize</code> <code className="text-primary">fill_blank</code></p>
               <p className="mt-1">Specialty IDs: <code className="text-primary">surgery</code> <code className="text-primary">internal</code> <code className="text-primary">ophthalmology</code> <code className="text-primary">dermatology</code> <code className="text-primary">ent</code> <code className="text-primary">obgyn</code> <code className="text-primary">neurology</code> <code className="text-primary">emergency</code> <code className="text-primary">pediatrics</code> <code className="text-primary">psychiatry</code></p>
               <p className="mt-1">Teilgebiete: <code className="text-primary">cardiology</code> <code className="text-primary">gastroenterology</code> <code className="text-primary">pneumology</code> <code className="text-primary">nephrology</code> <code className="text-primary">endocrinology</code></p>
-              <p className="mt-1">Orte: <code className="text-primary">vienna</code> <code className="text-primary">innsbruck</code> <code className="text-primary">hamburg</code> <code className="text-primary">berlin</code> <code className="text-primary">munich</code> <code className="text-primary">zurich</code> <code className="text-primary">basel</code> <code className="text-primary">andere</code></p>
+              <p className="mt-1">Orte: <code className="text-primary">vienna</code> <code className="text-primary">innsbruck</code> <code className="text-primary">hamburg</code> <code className="text-primary">berlin</code> <code className="text-primary">munich</code> <code className="text-primary">bern</code> <code className="text-primary">zurich</code> <code className="text-primary">basel</code> <code className="text-primary">geneva</code> <code className="text-primary">andere</code></p>
               <p className="mt-1">Länder: <code className="text-primary">austria</code> <code className="text-primary">germany</code> <code className="text-primary">switzerland</code></p>
             </div>
           </div>

@@ -4035,19 +4035,21 @@ def _validate_question(item: QuestionImportItem, index: int) -> list:
         errors.append({"index": index, "field": "question_text_de", "message": "Question text too short (min 5 chars)"})
     qtype = _normalize_question_type(item.question_type)
     if qtype in ("mcq", "multi_select", "single_choice"):
-        if not item.choices_de or len(item.choices_de) < 2:
+        choices = item.choices_de or item.choices or []
+        if not choices or len(choices) < 2:
             errors.append({"index": index, "field": "choices_de", "message": "At least 2 choices are required"})
         else:
             choice_ids = []
             has_correct = False
-            for ci, c in enumerate(item.choices_de):
+            correct_answers = set(item.correct_answers or [])
+            for ci, c in enumerate(choices):
                 if isinstance(c, str):
                     continue
                 cid = c.get("id", "")
                 if cid in choice_ids:
                     errors.append({"index": index, "field": f"choices_de[{ci}].id", "message": f"Duplicate choice ID: {cid}"})
                 choice_ids.append(cid)
-                if c.get("is_correct"):
+                if c.get("is_correct") or cid in correct_answers:
                     has_correct = True
                 text = c.get("text", "") or c.get("text_de", "")
                 if len(text) > 1000:
@@ -4135,7 +4137,12 @@ async def admin_import_questions(
             "id": str(uuid.uuid4()),
             "question_text_de": q.question_text_de.strip(),
             "question_type": _normalize_question_type(q.question_type),
-            "choices_de": q.choices_de,
+            "choices": q.choices_de or q.choices,
+            "choices_de": q.choices_de or q.choices,
+            "correct_answers": q.correct_answers or [
+                c.get("id") for c in (q.choices_de or q.choices or [])
+                if isinstance(c, dict) and c.get("is_correct")
+            ],
             "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
             "year": q.year,
             "_question_hash": h,
