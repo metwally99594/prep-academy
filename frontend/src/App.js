@@ -384,7 +384,16 @@ function AppRouter() {
 
 function LegacyQuizRedirect() {
   const location = useLocation();
-  return <Navigate to={`/quiz/custom${location.search || ""}`} replace />;
+  const params = new URLSearchParams(location.search);
+
+  if (params.get("country") === "switzerland") {
+    if (!params.get("loc") && !params.get("exam_location")) params.set("loc", "bern");
+    if (!params.get("yf") && !params.get("year_from")) params.set("yf", "2024");
+    if (!params.get("limit")) params.set("limit", "50");
+  }
+
+  const search = params.toString();
+  return <Navigate to={`/quiz/custom${search ? `?${search}` : ""}`} replace />;
 }
 
 function App() {
