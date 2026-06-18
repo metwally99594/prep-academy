@@ -62,3 +62,21 @@ def test_switzerland_bern_cardiology_example_metadata():
     assert metadata["exam_location"] == "bern"
     assert metadata["specialty_id"] == "internal"
     assert metadata["subspecialty_id"] == "cardiology"
+
+
+def test_city_aliases_cover_at_de_ch():
+    cases = {
+        ("austria", "Wien"): "vienna",
+        ("austria", "Graz"): "graz",
+        ("germany", "München"): "munich",
+        ("germany", "Köln"): "cologne",
+        ("switzerland", "Zürich"): "zurich",
+        ("switzerland", "Genf"): "geneva",
+    }
+
+    for (country, city), expected_city in cases.items():
+        metadata = normalize_question_metadata(
+            {"country": country, "city": city, "subject": {"id": "internal"}}
+        )
+        assert metadata["city"] == expected_city
+        assert metadata["exam_location"] == expected_city

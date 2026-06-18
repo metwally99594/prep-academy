@@ -980,6 +980,15 @@ async def _search_questions_internal(q: str, limit: int = 50):
     city_map = {
         "wien": "vienna", "vienna": "vienna", "فيينا": "vienna",
         "innsbruck": "innsbruck", "إنسبروك": "innsbruck",
+        "graz": "graz", "linz": "linz", "salzburg": "salzburg",
+        "hamburg": "hamburg", "berlin": "berlin",
+        "muenchen": "munich", "münchen": "munich", "munich": "munich",
+        "frankfurt": "frankfurt", "frankfurt am main": "frankfurt",
+        "koeln": "cologne", "köln": "cologne", "cologne": "cologne",
+        "duesseldorf": "duesseldorf", "düsseldorf": "duesseldorf", "dusseldorf": "duesseldorf",
+        "bern": "bern", "berne": "bern",
+        "zuerich": "zurich", "zürich": "zurich", "zurich": "zurich",
+        "basel": "basel", "genf": "geneva", "geneva": "geneva", "lausanne": "lausanne",
         "andere": "andere",
     }
     if q.strip().lower() in city_map:

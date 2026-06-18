@@ -106,13 +106,20 @@ const SPECIALTIES = [
 const CITIES = [
   { id: "vienna", name: "Wien" },
   { id: "innsbruck", name: "Innsbruck" },
+  { id: "graz", name: "Graz" },
+  { id: "linz", name: "Linz" },
+  { id: "salzburg", name: "Salzburg" },
   { id: "hamburg", name: "Hamburg" },
   { id: "berlin", name: "Berlin" },
   { id: "munich", name: "Muenchen" },
+  { id: "frankfurt", name: "Frankfurt" },
+  { id: "cologne", name: "Koeln" },
+  { id: "duesseldorf", name: "Duesseldorf" },
   { id: "bern", name: "Bern" },
   { id: "zurich", name: "Zuerich" },
   { id: "basel", name: "Basel" },
   { id: "geneva", name: "Genf" },
+  { id: "lausanne", name: "Lausanne" },
   { id: "andere", name: "Andere Stadt" },
 ];
 
@@ -131,6 +138,19 @@ const getCountryBadge = (country) => {
 };
 
 const getCityLabel = (city) => CITIES.find(c => c.id === city)?.name || city || "—";
+
+const getCityBadgeClass = (city) => {
+  if (["vienna", "innsbruck", "graz", "linz", "salzburg"].includes(city)) {
+    return "bg-emerald-500/15 text-emerald-600";
+  }
+  if (["hamburg", "berlin", "munich", "frankfurt", "cologne", "duesseldorf"].includes(city)) {
+    return "bg-yellow-500/15 text-yellow-600";
+  }
+  if (["bern", "zurich", "basel", "geneva", "lausanne"].includes(city)) {
+    return "bg-blue-500/15 text-blue-500";
+  }
+  return "bg-gray-500/20 text-gray-400";
+};
 
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: currentYear - 2009 + 6 }, (_, i) => 2009 + i);
@@ -681,7 +701,9 @@ function ImportQuestionsTab({ token, onImportComplete }) {
               <p>Fragetypen: <code className="text-primary">mcq</code> <code className="text-primary">multi_select</code> <code className="text-primary">drag_drop</code> <code className="text-primary">categorize</code> <code className="text-primary">fill_blank</code></p>
               <p className="mt-1">Specialty IDs: <code className="text-primary">surgery</code> <code className="text-primary">internal</code> <code className="text-primary">ophthalmology</code> <code className="text-primary">dermatology</code> <code className="text-primary">ent</code> <code className="text-primary">obgyn</code> <code className="text-primary">neurology</code> <code className="text-primary">emergency</code> <code className="text-primary">pediatrics</code> <code className="text-primary">psychiatry</code></p>
               <p className="mt-1">Teilgebiete: <code className="text-primary">cardiology</code> <code className="text-primary">gastroenterology</code> <code className="text-primary">pneumology</code> <code className="text-primary">nephrology</code> <code className="text-primary">endocrinology</code></p>
-              <p className="mt-1">Orte: <code className="text-primary">vienna</code> <code className="text-primary">innsbruck</code> <code className="text-primary">hamburg</code> <code className="text-primary">berlin</code> <code className="text-primary">munich</code> <code className="text-primary">bern</code> <code className="text-primary">zurich</code> <code className="text-primary">basel</code> <code className="text-primary">geneva</code> <code className="text-primary">andere</code></p>
+              <p className="mt-1">Orte AT: <code className="text-primary">vienna</code> <code className="text-primary">innsbruck</code> <code className="text-primary">graz</code> <code className="text-primary">linz</code> <code className="text-primary">salzburg</code></p>
+              <p className="mt-1">Orte DE: <code className="text-primary">hamburg</code> <code className="text-primary">berlin</code> <code className="text-primary">munich</code> <code className="text-primary">frankfurt</code> <code className="text-primary">cologne</code> <code className="text-primary">duesseldorf</code></p>
+              <p className="mt-1">Orte CH: <code className="text-primary">bern</code> <code className="text-primary">zurich</code> <code className="text-primary">basel</code> <code className="text-primary">geneva</code> <code className="text-primary">lausanne</code> <code className="text-primary">andere</code></p>
               <p className="mt-1">Länder: <code className="text-primary">austria</code> <code className="text-primary">germany</code> <code className="text-primary">switzerland</code></p>
             </div>
           </div>
@@ -2014,7 +2036,7 @@ export default function AdminPage() {
                           {SPECIALTIES.find(s => s.id === question.specialty_id)?.name || question.specialty_id}
                         </TableCell>
                         <TableCell>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${question.exam_location === 'vienna' ? 'bg-blue-500/20 text-blue-400' : question.exam_location === 'innsbruck' ? 'bg-emerald-500/20 text-emerald-400' : question.exam_location === 'hamburg' ? 'bg-yellow-500/15 text-yellow-600' : 'bg-gray-500/20 text-gray-400'}`}>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${getCityBadgeClass(question.exam_location)}`}>
                             {getCityLabel(question.exam_location)}
                           </span>
                         </TableCell>

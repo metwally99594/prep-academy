@@ -61,6 +61,39 @@ SUBSPECIALTY_ALIASES = {
     "haematologie": "hematology",
 }
 
+CITY_ALIASES = {
+    "wien": "vienna",
+    "vienna": "vienna",
+    "innsbruck": "innsbruck",
+    "graz": "graz",
+    "linz": "linz",
+    "salzburg": "salzburg",
+    "hamburg": "hamburg",
+    "berlin": "berlin",
+    "muenchen": "munich",
+    "munich": "munich",
+    "münchen": "munich",
+    "frankfurt": "frankfurt",
+    "frankfurt_am_main": "frankfurt",
+    "koeln": "cologne",
+    "köln": "cologne",
+    "cologne": "cologne",
+    "duesseldorf": "duesseldorf",
+    "düsseldorf": "duesseldorf",
+    "dusseldorf": "duesseldorf",
+    "bern": "bern",
+    "berne": "bern",
+    "zuerich": "zurich",
+    "zürich": "zurich",
+    "zurich": "zurich",
+    "basel": "basel",
+    "genf": "geneva",
+    "geneva": "geneva",
+    "lausanne": "lausanne",
+    "andere": "andere",
+    "other": "andere",
+}
+
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
@@ -157,7 +190,7 @@ def normalize_question_metadata(question: Dict[str, Any]) -> Dict[str, Any]:
         q.get("ort"),
         q.get("location"),
     )
-    city_slug = _slug(city) if city else None
+    city_slug = CITY_ALIASES.get(city.lower(), _slug(city)) if city else None
     country = _first_non_empty(q.get("country"), q.get("land"))
     country_slug = COUNTRY_ALIASES.get(country.lower(), _slug(country)) if country else None
 
