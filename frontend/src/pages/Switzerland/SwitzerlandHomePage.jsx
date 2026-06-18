@@ -13,6 +13,7 @@ import {
   Languages,
   Loader2,
   MapPin,
+  RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 import { API } from "@/App";
@@ -111,6 +112,9 @@ export default function SwitzerlandHomePage() {
   const [questions, setQuestions] = useState([]);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [questionError, setQuestionError] = useState("");
+  const [selectedCity, setSelectedCity] = useState("all");
+  const [selectedSubject, setSelectedSubject] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("all");
 
   useEffect(() => {
     let mounted = true;
@@ -124,7 +128,7 @@ export default function SwitzerlandHomePage() {
         const [countRes, questionsRes] = await Promise.all([
           axios.get(`${API}/questions/count?country=switzerland`),
           token
-            ? axios.get(`${API}/questions?country=switzerland&limit=30`, { headers })
+            ? axios.get(`${API}/questions?country=switzerland&limit=250`, { headers })
             : Promise.resolve({ data: [] }),
         ]);
         if (!mounted) return;
@@ -132,7 +136,11 @@ export default function SwitzerlandHomePage() {
         setQuestions(
           (Array.isArray(questionsRes.data) ? questionsRes.data : [])
             .filter(isDisplayableMcQuestion)
-            .slice(0, 8)
+            .sort((a, b) => {
+              const dateDiff = String(b.created_at || "").localeCompare(String(a.created_at || ""));
+              if (dateDiff !== 0) return dateDiff;
+              return (Number(b.year) || 0) - (Number(a.year) || 0);
+            })
         );
       } catch (error) {
         if (!mounted) return;
@@ -155,6 +163,51 @@ export default function SwitzerlandHomePage() {
       return acc;
     }, {});
   }, [questions]);
+
+  const cityOptions = useMemo(() => {
+    return Object.keys(cityCounts).sort((a, b) => (CITY_LABELS[a] || a).localeCompare(CITY_LABELS[b] || b));
+  }, [cityCounts]);
+
+  const subjectOptions = useMemo(() => {
+    return [...new Set(questions.map((question) => question.specialty_id).filter(Boolean))]
+      .sort((a, b) => (SUBJECT_LABELS[a] || a).localeCompare(SUBJECT_LABELS[b] || b));
+  }, [questions]);
+
+  const yearOptions = useMemo(() => {
+    return [...new Set(questions.map((question) => question.year).filter(Boolean))]
+      .sort((a, b) => Number(b) - Number(a));
+  }, [questions]);
+
+  const filteredQuestions = useMemo(() => {
+    return questions.filter((question) => {
+      const city = question.exam_location || question.city || "andere";
+      if (selectedCity !== "all" && city !== selectedCity) return false;
+      if (selectedSubject !== "all" && question.specialty_id !== selectedSubject) return false;
+      if (selectedYear !== "all" && String(question.year) !== selectedYear) return false;
+      return true;
+    });
+  }, [questions, selectedCity, selectedSubject, selectedYear]);
+
+  const swissQuizPath = useMemo(() => {
+    const params = new URLSearchParams({
+      country: "switzerland",
+      mode: "study",
+      limit: "50",
+    });
+    if (selectedCity !== "all") params.set("loc", selectedCity);
+    if (selectedSubject !== "all") params.set("specs", selectedSubject);
+    if (selectedYear !== "all") {
+      params.set("yf", selectedYear);
+      params.set("yt", selectedYear);
+    }
+    return `/quiz/custom?${params.toString()}`;
+  }, [selectedCity, selectedSubject, selectedYear]);
+
+  const resetSwissFilters = () => {
+    setSelectedCity("all");
+    setSelectedSubject("all");
+    setSelectedYear("all");
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6 lg:py-10">
@@ -268,16 +321,78 @@ export default function SwitzerlandHomePage() {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {["bern", "zurich", "basel", "geneva", "lausanne"].map((city) => (
-              <Link
+            {cityOptions.map((city) => (
+              <button
                 key={city}
-                to={`/quiz/custom?country=switzerland&loc=${city}&mode=study&limit=50`}
-                className="inline-flex items-center gap-1 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-600 hover:border-blue-400"
+                type="button"
+                onClick={() => setSelectedCity((current) => current === city ? "all" : city)}
+                className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium hover:border-blue-400 ${
+                  selectedCity === city
+                    ? "border-blue-500 bg-blue-500 text-white"
+                    : "border-blue-500/20 bg-blue-500/10 text-blue-600"
+                }`}
               >
                 <MapPin className="h-3 w-3" />
-                {CITY_LABELS[city]}
-              </Link>
+                {CITY_LABELS[city] || city}
+              </button>
             ))}
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              Stadt
+              <select
+                value={selectedCity}
+                onChange={(event) => setSelectedCity(event.target.value)}
+                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                data-testid="swiss-city-filter"
+              >
+                <option value="all">Alle Staedte</option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city}>{CITY_LABELS[city] || city}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              Fach
+              <select
+                value={selectedSubject}
+                onChange={(event) => setSelectedSubject(event.target.value)}
+                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                data-testid="swiss-subject-filter"
+              >
+                <option value="all">Alle Faecher</option>
+                {subjectOptions.map((subject) => (
+                  <option key={subject} value={subject}>{SUBJECT_LABELS[subject] || subject}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              Jahr
+              <select
+                value={selectedYear}
+                onChange={(event) => setSelectedYear(event.target.value)}
+                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                data-testid="swiss-year-filter"
+              >
+                <option value="all">Alle Jahre</option>
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>{filteredQuestions.length} passende Fragen in der Vorschau</span>
+            <button
+              type="button"
+              onClick={resetSwissFilters}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 hover:border-blue-400 hover:text-blue-600"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Zuruecksetzen
+            </button>
           </div>
 
           <div className="mt-5 min-h-[260px] rounded-md border border-border/70">
@@ -290,21 +405,21 @@ export default function SwitzerlandHomePage() {
               <div className="flex h-56 items-center justify-center px-6 text-center text-sm text-muted-foreground">
                 {questionError}
               </div>
-            ) : questions.length === 0 ? (
+            ) : filteredQuestions.length === 0 ? (
               <div className="flex h-56 flex-col items-center justify-center gap-3 px-6 text-center">
                 <p className="text-sm text-muted-foreground">
-                  Melde dich an, um die neuesten Schweizer MC-Fragen hier direkt zu sehen.
+                  Keine Schweizer MC-Fragen fuer diese Filter gefunden.
                 </p>
                 <Button asChild size="sm">
-                  <Link to="/login">Einloggen</Link>
+                  <button type="button" onClick={resetSwissFilters}>Filter zuruecksetzen</button>
                 </Button>
               </div>
             ) : (
               <div className="divide-y divide-border/70">
-                {questions.map((question) => (
+                {filteredQuestions.slice(0, 12).map((question) => (
                   <Link
                     key={question.id}
-                    to="/quiz/custom?country=switzerland&mode=study&limit=50"
+                    to={swissQuizPath}
                     className="block px-4 py-3 hover:bg-muted/40"
                   >
                     <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -328,7 +443,7 @@ export default function SwitzerlandHomePage() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Button asChild>
-              <Link to={SWISS_DEFAULT_QUIZ_PATH}>
+              <Link to={swissQuizPath || SWISS_DEFAULT_QUIZ_PATH}>
                 MC starten <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
