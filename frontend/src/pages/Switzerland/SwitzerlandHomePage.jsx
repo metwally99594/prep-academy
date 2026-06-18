@@ -94,6 +94,16 @@ const trimQuestion = (text) => {
   return text.length > 124 ? `${text.slice(0, 124).trim()}...` : text;
 };
 
+const isDisplayableMcQuestion = (question) => {
+  const text = question?.question_text_de || question?.question_text || "";
+  const type = question?.question_type || "single_choice";
+  return (
+    text.trim().length >= 40 &&
+    ["single_choice", "mcq", "multi_select"].includes(type) &&
+    (question.status === "published" || !question.status)
+  );
+};
+
 export default function SwitzerlandHomePage() {
   const [questionCount, setQuestionCount] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -112,12 +122,16 @@ export default function SwitzerlandHomePage() {
         const [countRes, questionsRes] = await Promise.all([
           axios.get(`${API}/questions/count?country=switzerland`),
           token
-            ? axios.get(`${API}/questions?country=switzerland&limit=8`, { headers })
+            ? axios.get(`${API}/questions?country=switzerland&limit=30`, { headers })
             : Promise.resolve({ data: [] }),
         ]);
         if (!mounted) return;
         setQuestionCount(countRes.data?.count ?? 0);
-        setQuestions(Array.isArray(questionsRes.data) ? questionsRes.data : []);
+        setQuestions(
+          (Array.isArray(questionsRes.data) ? questionsRes.data : [])
+            .filter(isDisplayableMcQuestion)
+            .slice(0, 8)
+        );
       } catch (error) {
         if (!mounted) return;
         setQuestionError("Schweizer MC-Fragen konnten gerade nicht geladen werden.");
@@ -242,7 +256,7 @@ export default function SwitzerlandHomePage() {
               <div className="text-xs text-muted-foreground">CH Fragen</div>
             </div>
             <div className="rounded-md border border-border/70 bg-muted/30 p-3">
-              <div className="text-2xl font-bold">{Object.keys(cityCounts).length || 5}</div>
+              <div className="text-2xl font-bold">{Math.max(Object.keys(cityCounts).length, 5)}</div>
               <div className="text-xs text-muted-foreground">Staedte</div>
             </div>
             <div className="rounded-md border border-border/70 bg-muted/30 p-3">
