@@ -49,6 +49,28 @@ import {
 } from "@/components/ui/dialog";
 import { ADVANCED_FEATURES_ENABLED } from "@/lib/features";
 
+const isValidSwissQuestion = (question) => {
+  if (question?.country !== "switzerland") return true;
+
+  const text = (question.question_text || question.question_text_de || "").trim();
+  const type = question.question_type || "single_choice";
+
+  if (text.length < 40 || !text.includes(" ")) return false;
+  if (type === "drag_drop" || type === "kategorisierung") {
+    return (question.drag_drop_items?.length ?? 0) > 0;
+  }
+  if (type === "luckentext") {
+    return Boolean(question.blank_text);
+  }
+
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  const meaningfulChoices = choices.filter((choice) => String(choice?.text || "").trim().length >= 3);
+  const hasCorrectChoice = choices.some((choice) => choice?.is_correct === true);
+  const hasCorrectAnswers = Array.isArray(question.correct_answers) && question.correct_answers.length > 0;
+
+  return meaningfulChoices.length >= 3 && (hasCorrectChoice || hasCorrectAnswers);
+};
+
 export default function QuizPage() {
   const { specialtyId } = useParams();
   const [searchParams] = useSearchParams();
@@ -285,7 +307,7 @@ export default function QuizPage() {
             if (t === 'drag_drop' || t === 'kategorisierung') return (q.drag_drop_items?.length ?? 0) > 0;
             if (t === 'luckentext') return !!q.blank_text;
             return (q.choices?.length ?? 0) > 0;
-          });
+          }).filter(isValidSwissQuestion);
           setQuestions(normalized);
           setLoading(false);
           return;

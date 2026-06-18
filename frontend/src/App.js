@@ -387,8 +387,6 @@ function LegacyQuizRedirect() {
   const params = new URLSearchParams(location.search);
 
   if (params.get("country") === "switzerland") {
-    if (!params.get("loc") && !params.get("exam_location")) params.set("loc", "bern");
-    if (!params.get("yf") && !params.get("year_from")) params.set("yf", "2024");
     if (!params.get("limit")) params.set("limit", "50");
   }
 
