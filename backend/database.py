@@ -70,7 +70,7 @@ SPECIALTIES = [
     {"id": "special", "name": "Special", "name_de": "Special", "icon": "Star"},
 ]
 
-EXAM_LOCATIONS = ["vienna", "innsbruck", "andere"]
+EXAM_LOCATIONS = ["vienna", "innsbruck", "hamburg", "berlin", "munich", "zurich", "basel", "andere"]
 
 # Exam types for the selector
 EXAM_TYPES = [

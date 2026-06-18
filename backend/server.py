@@ -70,6 +70,7 @@ from services.analyzer_prompts import (
 from services.image_segmentation import detect_anatomical_regions
 from services.findings_vocabulary import CATEGORY_KEYWORDS as _CATEGORY_KEYWORDS
 from services.knowledge_lab_service import search as _search_wiki_kb
+from services.question_metadata import normalize_question_metadata
 
 # Disable Swagger/OpenAPI in production for security
 _IS_PRODUCTION = os.environ.get("ENVIRONMENT", "production").lower() == "production"
@@ -4020,9 +4021,11 @@ def _question_hash(text: str) -> str:
 
 def _validate_question(item: QuestionImportItem, index: int) -> list:
     errors = []
-    if not item.specialty_id or not item.specialty_id.strip():
+    metadata = normalize_question_metadata(item.model_dump())
+    specialty_id = metadata.get("specialty_id") or ""
+    if not specialty_id.strip():
         errors.append({"index": index, "field": "specialty_id", "message": "specialty_id is required"})
-    elif len(item.specialty_id.strip()) > 100:
+    elif len(specialty_id.strip()) > 100:
         errors.append({"index": index, "field": "specialty_id", "message": "specialty_id too long (max 100 chars)"})
     if not item.question_text_de or not item.question_text_de.strip():
         errors.append({"index": index, "field": "question_text_de", "message": "question_text_de is required"})
@@ -4130,19 +4133,20 @@ async def admin_import_questions(
             continue
         doc = {
             "id": str(uuid.uuid4()),
-            "specialty_id": q.specialty_id.strip(),
             "question_text_de": q.question_text_de.strip(),
             "question_type": _normalize_question_type(q.question_type),
             "choices_de": q.choices_de,
             "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
             "year": q.year,
-            "exam_location": q.exam_location,
-            "country": q.country,
-            "tags": q.tags or [],
             "_question_hash": h,
             "import_session_id": session_id,
             "created_at": time.time(),
         }
+        doc.update(normalize_question_metadata(q.model_dump()))
+        doc.setdefault("specialty_id", "unknown")
+        doc.setdefault("subject_id", doc["specialty_id"])
+        doc.setdefault("exam_location", "vienna")
+        doc.setdefault("city", doc["exam_location"])
         imported.append(doc)
 
     insert_result = None

@@ -106,8 +106,29 @@ const SPECIALTIES = [
 const CITIES = [
   { id: "vienna", name: "Wien" },
   { id: "innsbruck", name: "Innsbruck" },
+  { id: "hamburg", name: "Hamburg" },
+  { id: "berlin", name: "Berlin" },
+  { id: "munich", name: "Muenchen" },
+  { id: "zurich", name: "Zuerich" },
+  { id: "basel", name: "Basel" },
   { id: "andere", name: "Andere Stadt" },
 ];
+
+const COUNTRY_BADGES = {
+  austria: { label: "AT", className: "bg-red-500/10 text-red-500 border-red-500/20" },
+  at: { label: "AT", className: "bg-red-500/10 text-red-500 border-red-500/20" },
+  germany: { label: "DE", className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" },
+  de: { label: "DE", className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" },
+  switzerland: { label: "CH", className: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  ch: { label: "CH", className: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+};
+
+const getCountryBadge = (country) => {
+  const key = String(country || "").trim().toLowerCase();
+  return COUNTRY_BADGES[key] || (key ? { label: key.toUpperCase(), className: "bg-gray-500/10 text-gray-500 border-gray-500/20" } : null);
+};
+
+const getCityLabel = (city) => CITIES.find(c => c.id === city)?.name || city || "—";
 
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: currentYear - 2009 + 6 }, (_, i) => 2009 + i);
@@ -153,6 +174,28 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   const [xlsxResult, setXlsxResult] = useState(null);
   const [xlsxImporting, setXlsxImporting] = useState(false);
 
+  const normalizeImportMetadata = (q) => {
+    const subject = q.subject || {};
+    const nestedSpecialty = subject.specialty || subject.subspecialty || subject.branch || subject.topic || {};
+    const plainSpecialty = typeof q.specialty === "string" ? q.specialty : "";
+    const subjectId = q.subject_id || subject.id || q.fach || plainSpecialty || q.specialty_id || "";
+    const subspecialtyId = q.subspecialty_id || q.branch_id || q.topic_id || nestedSpecialty.id || "";
+    const city = q.city || q.exam_location || q.stadt || q.ort || q.location || null;
+
+    return {
+      specialty_id: q.specialty_id || subjectId,
+      subject: q.subject || null,
+      subject_id: subjectId,
+      subject_name_de: q.subject_name_de || subject.name_de || subject.name || null,
+      subspecialty_id: subspecialtyId || null,
+      subspecialty_name_de: q.subspecialty_name_de || q.branch_name_de || nestedSpecialty.name_de || nestedSpecialty.name || null,
+      city,
+      exam_location: city,
+      country: q.country || q.land || null,
+      tags: q.tags || [],
+    };
+  };
+
   const parseQuestions = (data) => {
     if (!Array.isArray(data)) {
       toast.error("JSON muss ein Array von Fragen sein");
@@ -167,15 +210,17 @@ function ImportQuestionsTab({ token, onImportComplete }) {
           is_correct: ci === 0,
         }));
       }
+      const metadata = normalizeImportMetadata(q);
       return {
-        specialty_id: q.specialty_id || q.fach || q.specialty || "",
+        ...metadata,
         question_text_de: q.question_text_de || q.question_text || q.question || q.frage || q.text || "",
         question_type: q.question_type || "mcq",
         choices_de: choices,
         explanation_de: q.explanation_de || q.explanation || null,
         year: q.year || null,
-        exam_location: q.exam_location || null,
-        tags: q.tags || [],
+        drag_drop_items: q.drag_drop_items || q.interactive_data?.items || [],
+        drag_drop_categories: q.drag_drop_categories || q.interactive_data?.categories || [],
+        blanks: q.blanks || q.interactive_data?.blanks || [],
       };
     });
     const specs = {};
@@ -428,7 +473,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       {!xlsxMode && mode === "paste" && !parsedQuestions && (
         <div className="space-y-3">
           <Textarea
-            placeholder='[{&quot;specialty_id&quot;: &quot;surgery&quot;, &quot;question_text_de&quot;: &quot;...&quot;, ...}]'
+            placeholder='[{&quot;country&quot;:&quot;germany&quot;,&quot;city&quot;:&quot;hamburg&quot;,&quot;year&quot;:2020,&quot;subject&quot;:{&quot;id&quot;:&quot;internal&quot;,&quot;specialty&quot;:{&quot;id&quot;:&quot;cardiology&quot;}},&quot;question_text_de&quot;:&quot;...&quot;}]'
             className="min-h-[200px] font-mono text-sm"
             value={pasteJson}
             onChange={(e) => setPasteJson(e.target.value)}
@@ -535,6 +580,35 @@ function ImportQuestionsTab({ token, onImportComplete }) {
           </summary>
           <div className="mt-3 space-y-4 text-xs">
             <div>
+              <p className="font-medium text-primary mb-1">Empfohlen: Land / Stadt / Fach / Teilgebiet</p>
+              <pre className="bg-muted p-3 rounded-lg overflow-x-auto whitespace-pre-wrap font-mono">{`[
+  {
+    "country": "germany",
+    "city": "hamburg",
+    "year": 2020,
+    "subject": {
+      "id": "internal",
+      "name_de": "Innere Medizin",
+      "specialty": {
+        "id": "cardiology",
+        "name_de": "Kardiologie"
+      }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Welche Aussage zur Herzinsuffizienz trifft zu?",
+    "choices_de": [
+      {"id": "a", "text": "Antwort A", "is_correct": false},
+      {"id": "b", "text": "Antwort B", "is_correct": true}
+    ],
+    "correct_answers": ["b"],
+    "explanation_de": "Begruendung..."
+  }
+]`}</pre>
+              <p className="mt-2 text-muted-foreground">
+                Legacy bleibt erlaubt: <code>specialty_id</code>, <code>exam_location</code> und <code>country</code> funktionieren weiterhin.
+              </p>
+            </div>
+            <div>
               <p className="font-medium text-primary mb-1">MCQ / Multi-Select</p>
               <pre className="bg-muted p-3 rounded-lg overflow-x-auto whitespace-pre-wrap font-mono">{`[
   {
@@ -602,7 +676,8 @@ function ImportQuestionsTab({ token, onImportComplete }) {
               <p className="font-medium mb-1">Erlaubte Werte</p>
               <p>Fragetypen: <code className="text-primary">mcq</code> <code className="text-primary">multi_select</code> <code className="text-primary">drag_drop</code> <code className="text-primary">categorize</code> <code className="text-primary">fill_blank</code></p>
               <p className="mt-1">Specialty IDs: <code className="text-primary">surgery</code> <code className="text-primary">internal</code> <code className="text-primary">ophthalmology</code> <code className="text-primary">dermatology</code> <code className="text-primary">ent</code> <code className="text-primary">obgyn</code> <code className="text-primary">neurology</code> <code className="text-primary">emergency</code> <code className="text-primary">pediatrics</code> <code className="text-primary">psychiatry</code></p>
-              <p className="mt-1">Orte: <code className="text-primary">vienna</code> <code className="text-primary">innsbruck</code> <code className="text-primary">andere</code></p>
+              <p className="mt-1">Teilgebiete: <code className="text-primary">cardiology</code> <code className="text-primary">gastroenterology</code> <code className="text-primary">pneumology</code> <code className="text-primary">nephrology</code> <code className="text-primary">endocrinology</code></p>
+              <p className="mt-1">Orte: <code className="text-primary">vienna</code> <code className="text-primary">innsbruck</code> <code className="text-primary">hamburg</code> <code className="text-primary">berlin</code> <code className="text-primary">munich</code> <code className="text-primary">zurich</code> <code className="text-primary">basel</code> <code className="text-primary">andere</code></p>
               <p className="mt-1">Länder: <code className="text-primary">austria</code> <code className="text-primary">germany</code> <code className="text-primary">switzerland</code></p>
             </div>
           </div>
@@ -1520,9 +1595,9 @@ export default function AdminPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Alle Orte</SelectItem>
-                    <SelectItem value="vienna">Wien</SelectItem>
-                    <SelectItem value="innsbruck">Innsbruck</SelectItem>
-                    <SelectItem value="andere">Andere</SelectItem>
+                    {CITIES.map(city => (
+                      <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
@@ -1825,7 +1900,7 @@ export default function AdminPage() {
                     try {
                       const headers = { Authorization: `Bearer ${token}` };
                       await axios.post(`${API}/admin/questions/bulk-update-city`, { question_ids: selectedQuestions, exam_location: city }, { headers });
-                      toast.success(`${selectedQuestions.length} Fragen → ${city === 'vienna' ? 'Wien' : city === 'innsbruck' ? 'Innsbruck' : 'Andere'}`);
+                      toast.success(`${selectedQuestions.length} Fragen -> ${getCityLabel(city)}`);
                       setSelectedQuestions([]);
                       fetchQuestions();
                     } catch { toast.error("Fehler beim Aktualisieren"); }
@@ -1834,9 +1909,9 @@ export default function AdminPage() {
                       <SelectValue placeholder="Stadt ändern" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="vienna">Wien</SelectItem>
-                      <SelectItem value="innsbruck">Innsbruck</SelectItem>
-                      <SelectItem value="andere">Andere</SelectItem>
+                      {CITIES.map(city => (
+                        <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
 
@@ -1917,7 +1992,9 @@ export default function AdminPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    questions.map((question, index) => (
+                    questions.map((question, index) => {
+                      const countryBadge = getCountryBadge(question.country);
+                      return (
                       <TableRow key={question.id} data-testid={`question-row-${index}`} className={selectedQuestions.includes(question.id) ? "bg-red-500/5" : ""}>
                         <TableCell>
                           <Checkbox
@@ -1933,23 +2010,16 @@ export default function AdminPage() {
                           {SPECIALTIES.find(s => s.id === question.specialty_id)?.name || question.specialty_id}
                         </TableCell>
                         <TableCell>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${question.exam_location === 'vienna' ? 'bg-blue-500/20 text-blue-400' : question.exam_location === 'innsbruck' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                            {question.exam_location === 'vienna' ? 'Wien' : question.exam_location === 'innsbruck' ? 'Innsbruck' : question.exam_location || '—'}
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${question.exam_location === 'vienna' ? 'bg-blue-500/20 text-blue-400' : question.exam_location === 'innsbruck' ? 'bg-emerald-500/20 text-emerald-400' : question.exam_location === 'hamburg' ? 'bg-yellow-500/15 text-yellow-600' : 'bg-gray-500/20 text-gray-400'}`}>
+                            {getCityLabel(question.exam_location)}
                           </span>
                         </TableCell>
                         <TableCell>
-                          {question.country && (
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              question.country === 'austria' ? 'bg-red-500/10 text-red-400' :
-                              question.country === 'germany' ? 'bg-yellow-500/10 text-yellow-500' :
-                              question.country === 'switzerland' ? 'bg-blue-500/10 text-blue-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {question.country === 'austria' ? 'AT' :
-                               question.country === 'germany' ? 'DE' :
-                               question.country === 'switzerland' ? 'CH' : question.country}
+                          {countryBadge ? (
+                            <span className={`inline-flex min-w-8 justify-center px-2 py-0.5 rounded text-xs font-semibold border ${countryBadge.className}`}>
+                              {countryBadge.label}
                             </span>
-                          )}
+                          ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>{question.year}</TableCell>
                         <TableCell>
@@ -2012,7 +2082,8 @@ export default function AdminPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
+                    );
+                    })
                   )}
                 </TableBody>
               </Table>

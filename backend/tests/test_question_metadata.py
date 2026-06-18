@@ -1,0 +1,44 @@
+from services.question_metadata import normalize_question_metadata
+
+
+def test_nested_country_city_subject_metadata_is_normalized():
+    metadata = normalize_question_metadata(
+        {
+            "country": "Deutschland",
+            "city": "Hamburg",
+            "year": 2020,
+            "subject": {
+                "id": "internal",
+                "name_de": "Innere Medizin",
+                "specialty": {
+                    "id": "Kardiologie",
+                    "name_de": "Kardiologie",
+                },
+            },
+            "tags": ["exam"],
+        }
+    )
+
+    assert metadata["country"] == "germany"
+    assert metadata["city"] == "hamburg"
+    assert metadata["exam_location"] == "hamburg"
+    assert metadata["specialty_id"] == "internal"
+    assert metadata["subject_id"] == "internal"
+    assert metadata["subspecialty_id"] == "cardiology"
+    assert metadata["subspecialty_name_de"] == "Kardiologie"
+    assert "cardiology" in metadata["tags"]
+
+
+def test_legacy_flat_metadata_still_works():
+    metadata = normalize_question_metadata(
+        {
+            "specialty_id": "surgery",
+            "exam_location": "vienna",
+            "country": "AT",
+        }
+    )
+
+    assert metadata["specialty_id"] == "surgery"
+    assert metadata["subject_id"] == "surgery"
+    assert metadata["exam_location"] == "vienna"
+    assert metadata["country"] == "austria"

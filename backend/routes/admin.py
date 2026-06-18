@@ -4,9 +4,10 @@ from typing import Optional
 import uuid, json, re as _re, io, base64 as _b64, os as _os, asyncio, httpx
 from datetime import datetime, timezone
 
-from database import db, logger
+from database import EXAM_LOCATIONS, db, logger
 from models import BulkCityUpdate, BulkDeleteRequest
 from auth import get_current_user, get_admin_user
+from services.question_metadata import normalize_question_metadata
 
 router = APIRouter(prefix="/api", tags=["admin"])
 
@@ -55,21 +56,23 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
                 text = c.get("text_de") or c.get("text", "")
                 is_correct = c.get("is_correct", cid in correct_answers)
                 unified_choices.append({"id": cid, "text": text, "text_de": text, "is_correct": is_correct})
+            metadata = normalize_question_metadata(q)
             normalized = {
                 "id": q.get("id", str(uuid.uuid4())),
-                "specialty_id": q.get("specialty_id", q.get("fach", q.get("specialty", ""))).lower().strip(),
                 "question_text": question_text_de, "question_text_de": question_text_de,
                 "question_type": q.get("question_type", "mcq"),
                 "choices": unified_choices, "explanation": explanation_de, "explanation_de": explanation_de,
                 "year": q.get("year", q.get("jahr", 2024)),
-                "exam_location": q.get("exam_location", q.get("ort", "vienna")),
-                "country": q.get("country", None),
                 "image_base64": q.get("image_base64", q.get("image", None)),
                 "interactive_data": q.get("interactive_data", None),
-                "tags": q.get("tags", []),
                 "status": q.get("status", "published"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
+            normalized.update(metadata)
+            normalized.setdefault("specialty_id", "unknown")
+            normalized.setdefault("subject_id", normalized["specialty_id"])
+            normalized.setdefault("exam_location", "vienna")
+            normalized.setdefault("city", normalized["exam_location"])
             if not normalized["question_text_de"]:
                 errors.append(f"Frage {i+1}: Kein Fragetext")
                 skipped += 1
@@ -92,7 +95,7 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
             imported += len(batch)
         spec_counts = {}
         for q in questions:
-            sid = q.get("specialty_id", q.get("fach", q.get("specialty", "unknown"))).lower().strip()
+            sid = normalize_question_metadata(q).get("specialty_id", "unknown")
             spec_counts[sid] = spec_counts.get(sid, 0) + 1
         total = await db.questions.count_documents({})
         return {"imported": imported, "skipped": skipped, "errors": errors[:10], "total_in_db": total, "by_specialty": spec_counts}
@@ -129,6 +132,11 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
 
         idx_text = col("Fragetext", "Question Text") or col("Frage", "Question") or col("Text", "text")
         idx_spec = col("Fachgebiet", "Specialty") or col("Fach", "subject") or col("specialty_id", "specialty_id")
+        idx_subspecialty = (
+            col("Teilgebiet", "Subspecialty")
+            or col("Unterfach", "Branch")
+            or col("subspecialty_id", "subspecialty_id")
+        )
         idx_a = col("Antwort A", "Answer A") or col("A", "a")
         idx_b = col("Antwort B", "Answer B") or col("B", "b")
         idx_c = col("Antwort C", "Answer C") or col("C", "c")
@@ -175,7 +183,8 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
                     choices[0]["is_correct"] = True
 
                 qid = str(uuid.uuid4())
-                specialty_id = str(row[idx_spec]).strip().lower() if idx_spec is not None and row[idx_spec] else "unknown"
+                subject_value = str(row[idx_spec]).strip() if idx_spec is not None and row[idx_spec] else "unknown"
+                subspecialty_value = str(row[idx_subspecialty]).strip() if idx_subspecialty is not None and row[idx_subspecialty] else None
                 explanation = str(row[idx_explanation]).strip() if idx_explanation is not None and row[idx_explanation] else ""
                 year_val = row[idx_year] if idx_year is not None and row[idx_year] else 2024
                 if year_val and str(year_val).strip().isdigit():
@@ -188,9 +197,17 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
                 if country_val and country_val not in ("austria", "germany", "switzerland"):
                     country_val = None
 
+                metadata = normalize_question_metadata({
+                    "subject": {
+                        "id": subject_value,
+                        "name_de": subject_value,
+                        "specialty": {"id": subspecialty_value, "name_de": subspecialty_value} if subspecialty_value else None,
+                    },
+                    "city": location_val,
+                    "country": country_val,
+                })
                 normalized = {
                     "id": qid,
-                    "specialty_id": specialty_id,
                     "question_text": question_text,
                     "question_text_de": question_text,
                     "question_type": "single_choice",
@@ -198,11 +215,9 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
                     "explanation": explanation,
                     "explanation_de": explanation,
                     "year": year_val,
-                    "exam_location": location_val,
-                    "country": country_val,
-                    "tags": [],
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
+                normalized.update(metadata)
                 if qid in existing_ids:
                     skipped += 1
                     continue
@@ -232,7 +247,7 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
 
 @router.post("/admin/questions/bulk-update-city")
 async def bulk_update_city(request: BulkCityUpdate, admin: dict = Depends(get_admin_user)):
-    if request.exam_location not in ["vienna", "innsbruck", "andere"]:
+    if request.exam_location not in EXAM_LOCATIONS:
         raise HTTPException(status_code=400, detail="Ungültiger Prüfungsort")
     result = await db.questions.update_many({"id": {"$in": request.question_ids}}, {"$set": {"exam_location": request.exam_location}})
     return {"updated": result.modified_count}
@@ -240,7 +255,7 @@ async def bulk_update_city(request: BulkCityUpdate, admin: dict = Depends(get_ad
 
 @router.post("/admin/questions/bulk-update-city-by-specialty")
 async def bulk_update_city_by_specialty(specialty_id: str = "", exam_location: str = "", admin: dict = Depends(get_admin_user)):
-    if exam_location not in ["vienna", "innsbruck", "andere"]:
+    if exam_location not in EXAM_LOCATIONS:
         raise HTTPException(status_code=400, detail="Ungültiger Prüfungsort")
     query = {}
     if specialty_id:

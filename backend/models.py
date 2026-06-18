@@ -406,7 +406,14 @@ class ContactRequestCreate(BaseModel):
 # ── Question Management System (QMS) Models ──
 
 class QuestionImportItem(BaseModel):
-    specialty_id: str
+    specialty_id: Optional[str] = None
+    subject: Optional[Dict[str, Any]] = None
+    subject_id: Optional[str] = None
+    subject_name_de: Optional[str] = None
+    subspecialty_id: Optional[str] = None
+    subspecialty_name_de: Optional[str] = None
+    branch: Optional[Any] = None
+    city: Optional[str] = None
     question_text_de: str
     question_type: str = "mcq"
     choices_de: Optional[List] = None
