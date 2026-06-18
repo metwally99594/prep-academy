@@ -64,6 +64,9 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
                 "choices": unified_choices, "explanation": explanation_de, "explanation_de": explanation_de,
                 "year": q.get("year", q.get("jahr", 2024)),
                 "image_base64": q.get("image_base64", q.get("image", None)),
+                "question_image_url": q.get("question_image_url"),
+                "explanation_image_url": q.get("explanation_image_url"),
+                "choice_images": q.get("choice_images"),
                 "interactive_data": q.get("interactive_data", None),
                 "status": q.get("status", "published"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -85,6 +88,12 @@ async def import_questions(file: UploadFile, user: dict = Depends(get_current_us
                 del normalized["image_base64"]
             if not normalized["interactive_data"]:
                 del normalized["interactive_data"]
+            if normalized.get("question_image_url") is None:
+                del normalized["question_image_url"]
+            if normalized.get("explanation_image_url") is None:
+                del normalized["explanation_image_url"]
+            if not normalized.get("choice_images"):
+                normalized.pop("choice_images", None)
             batch.append(normalized)
             if len(batch) >= 100:
                 await db.questions.insert_many(batch)
@@ -147,6 +156,14 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
         idx_year = col("Jahr", "Year") or col("year", "year")
         idx_location = col("Ort", "Location") or col("Stadt", "City") or col("exam_location", "exam_location")
         idx_country = col("Land", "Country") or col("country", "country")
+        # Additive: optional image-URL columns (legacy sheets without them still work)
+        idx_q_img = col("question_image_url", "question_image_url")
+        idx_exp_img = col("explanation_image_url", "explanation_image_url")
+        idx_choice_img_a = col("choice_image_a", "choice_image_a")
+        idx_choice_img_b = col("choice_image_b", "choice_image_b")
+        idx_choice_img_c = col("choice_image_c", "choice_image_c")
+        idx_choice_img_d = col("choice_image_d", "choice_image_d")
+        idx_choice_img_e = col("choice_image_e", "choice_image_e")
 
         if idx_text is None:
             raise HTTPException(status_code=400, detail="Keine Spalte 'Fragetext' oder 'Frage' gefunden. Kopfzeile: " + ", ".join(headers[:10]))
@@ -169,12 +186,21 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
                     continue
                 choices = []
                 letters = [("A", idx_a), ("B", idx_b), ("C", idx_c), ("D", idx_d), ("E", idx_e)]
+                choice_img_cols = {
+                    "A": idx_choice_img_a, "B": idx_choice_img_b, "C": idx_choice_img_c,
+                    "D": idx_choice_img_d, "E": idx_choice_img_e,
+                }
+                choice_images_map = {}
                 correct_val = str(row[idx_correct]).strip().upper() if idx_correct is not None and row[idx_correct] else ""
                 for letter, idx in letters:
                     if idx is not None and row[idx] and str(row[idx]).strip():
                         text = str(row[idx]).strip()
                         is_correct = letter == correct_val or correct_val == letter
-                        choices.append({"id": str(uuid.uuid4())[:8], "text": text, "text_de": text, "is_correct": is_correct})
+                        choice_id = str(uuid.uuid4())[:8]
+                        choices.append({"id": choice_id, "text": text, "text_de": text, "is_correct": is_correct})
+                        img_idx = choice_img_cols.get(letter)
+                        if img_idx is not None and row[img_idx] and str(row[img_idx]).strip():
+                            choice_images_map[choice_id] = str(row[img_idx]).strip()
                 if not choices:
                     skipped += 1
                     continue
@@ -218,6 +244,14 @@ async def import_questions_xlsx(file: UploadFile, user: dict = Depends(get_curre
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
                 normalized.update(metadata)
+                q_img_val = str(row[idx_q_img]).strip() if idx_q_img is not None and row[idx_q_img] and str(row[idx_q_img]).strip() else None
+                exp_img_val = str(row[idx_exp_img]).strip() if idx_exp_img is not None and row[idx_exp_img] and str(row[idx_exp_img]).strip() else None
+                if q_img_val:
+                    normalized["question_image_url"] = q_img_val
+                if exp_img_val:
+                    normalized["explanation_image_url"] = exp_img_val
+                if choice_images_map:
+                    normalized["choice_images"] = choice_images_map
                 if qid in existing_ids:
                     skipped += 1
                     continue

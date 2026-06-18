@@ -993,6 +993,9 @@ export default function QuizPage() {
           {currentQuestion?.image_base64 && (
             <div className="mb-6"><img src={currentQuestion.image_base64} alt="Question" className="question-image mx-auto" /></div>
           )}
+          {currentQuestion?.question_image_url && (
+            <div className="mb-6"><img src={currentQuestion.question_image_url} alt="Frage" className="question-image mx-auto rounded-lg max-h-80 object-contain" /></div>
+          )}
 
           {/* Answer area – rendered by question type */}
           {(currentQuestion?.question_type === 'drag_drop' || currentQuestion?.question_type === 'kategorisierung') ? (
@@ -1021,19 +1024,23 @@ export default function QuizPage() {
             />
           ) : (
             <div className="answers-container">
-              {(currentQuestion?.choices || []).map((choice, index) => (
-                <button key={choice.id} onClick={() => toggleChoice(choice.id)} disabled={showResult}
-                  className={`answer-option ${getChoiceClass(choice)}`}
-                  data-testid={`choice-${index}`}>
-                  <div className="answer-circle">
-                    {getChoiceClass(choice) === "correct" ? <Check className="w-4 h-4" />
-                    : getChoiceClass(choice) === "incorrect" ? <X className="w-4 h-4" />
-                    : String.fromCharCode(65 + index)}
-                  </div>
-                  <p className="answer-text select-text" onMouseUp={handleTextSelect}
-                    dangerouslySetInnerHTML={{ __html: renderHighlightedText(choice.text_de || choice.text || "") }} />
-                </button>
-              ))}
+              {(currentQuestion?.choices || []).map((choice, index) => {
+                const choiceImg = currentQuestion?.choice_images?.[choice.id];
+                return (
+                  <button key={choice.id} onClick={() => toggleChoice(choice.id)} disabled={showResult}
+                    className={`answer-option ${getChoiceClass(choice)}`}
+                    data-testid={`choice-${index}`}>
+                    <div className="answer-circle">
+                      {getChoiceClass(choice) === "correct" ? <Check className="w-4 h-4" />
+                      : getChoiceClass(choice) === "incorrect" ? <X className="w-4 h-4" />
+                      : String.fromCharCode(65 + index)}
+                    </div>
+                    <p className="answer-text select-text" onMouseUp={handleTextSelect}
+                      dangerouslySetInnerHTML={{ __html: renderHighlightedText(choice.text_de || choice.text || "") }} />
+                    {choiceImg && <img src={choiceImg} alt="" className="ml-auto h-16 rounded object-contain" />}
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -1131,6 +1138,9 @@ export default function QuizPage() {
               <div className="glass-card rounded-xl p-5">
                 <h3 className="font-semibold mb-2 flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Erklärung</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">{result.explanation}</p>
+                {currentQuestion?.explanation_image_url && (
+                  <img src={currentQuestion.explanation_image_url} alt="Erklärung" className="mt-3 rounded-lg max-h-72 object-contain" />
+                )}
               </div>
             )}
             {aiExplanation && (

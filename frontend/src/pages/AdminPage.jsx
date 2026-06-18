@@ -700,6 +700,39 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   "country": "austria"
 }`}</pre>
             </div>
+            <div>
+              <p className="font-medium text-primary mb-1">Mit Bildern (optional, additiv)</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                Drei neue optionale Felder. Werden nur dargestellt, wenn vorhanden — legacy JSON funktioniert unverändert.
+              </p>
+              <pre className="bg-muted p-3 rounded-lg overflow-x-auto whitespace-pre-wrap font-mono">{`{
+  "specialty_id": "internal",
+  "question_type": "mcq",
+  "question_text_de": "Welche Veränderung zeigt das EKG?",
+  "question_image_url": "/uploads/question_images/ekg_2024_04.png",
+  "choices_de": [
+    {"id": "a", "text": "Vorhofflimmern", "is_correct": false},
+    {"id": "b", "text": "STEMI inferior",  "is_correct": true},
+    {"id": "c", "text": "Linksschenkelblock", "is_correct": false}
+  ],
+  "correct_answers": ["b"],
+  "choice_images": {
+    "a": "/uploads/question_images/c_a.png",
+    "b": "/uploads/question_images/c_b.png",
+    "c": null
+  },
+  "explanation_de": "Klassische ST-Hebungen in II/III/aVF …",
+  "explanation_image_url": "/uploads/question_images/exp_stemi.png",
+  "year": 2024,
+  "exam_location": "vienna",
+  "country": "austria"
+}`}</pre>
+              <p className="text-xs text-muted-foreground mt-1">
+                Bilder zuerst per <code className="text-primary">POST /api/admin/upload-image</code> hochladen,
+                dann die zurückgegebene URL hier einsetzen — oder ZIP + JSON gemeinsam an{" "}
+                <code className="text-primary">POST /api/admin/bulk-import-with-images</code> senden.
+              </p>
+            </div>
             <div className="p-3 rounded-lg bg-muted/50">
               <p className="font-medium mb-1">Erlaubte Werte</p>
               <p>Fragetypen: <code className="text-primary">mcq</code> <code className="text-primary">multi_select</code> <code className="text-primary">drag_drop</code> <code className="text-primary">categorize</code> <code className="text-primary">fill_blank</code></p>

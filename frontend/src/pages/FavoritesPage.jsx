@@ -268,28 +268,41 @@ export default function FavoritesPage() {
               />
             </div>
           )}
+          {currentQuestion?.question_image_url && (
+            <div className="mb-6">
+              <img
+                src={currentQuestion.question_image_url}
+                alt="Frage"
+                className="question-image mx-auto rounded-lg max-h-80 object-contain"
+              />
+            </div>
+          )}
 
           <div className="answers-container">
-            {(currentQuestion?.choices || []).map((choice, index) => (
-              <button
-                key={choice.id}
-                onClick={() => toggleChoice(choice.id)}
-                disabled={showResult}
-                className={`answer-option ${getChoiceClass(choice)}`}
-                data-testid={`favorites-choice-${index}`}
-              >
-                <div className="answer-circle">
-                  {getChoiceClass(choice) === "correct" ? (
-                    <Check className="w-4 h-4" />
-                  ) : getChoiceClass(choice) === "incorrect" ? (
-                    <X className="w-4 h-4" />
-                  ) : (
-                    String.fromCharCode(65 + index)
-                  )}
-                </div>
-                <p className="answer-text">{choice.text_de || choice.text}</p>
-              </button>
-            ))}
+            {(currentQuestion?.choices || []).map((choice, index) => {
+              const choiceImg = currentQuestion?.choice_images?.[choice.id];
+              return (
+                <button
+                  key={choice.id}
+                  onClick={() => toggleChoice(choice.id)}
+                  disabled={showResult}
+                  className={`answer-option ${getChoiceClass(choice)}`}
+                  data-testid={`favorites-choice-${index}`}
+                >
+                  <div className="answer-circle">
+                    {getChoiceClass(choice) === "correct" ? (
+                      <Check className="w-4 h-4" />
+                    ) : getChoiceClass(choice) === "incorrect" ? (
+                      <X className="w-4 h-4" />
+                    ) : (
+                      String.fromCharCode(65 + index)
+                    )}
+                  </div>
+                  <p className="answer-text">{choice.text_de || choice.text}</p>
+                  {choiceImg && <img src={choiceImg} alt="" className="ml-auto h-16 rounded object-contain" />}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -336,6 +349,9 @@ export default function FavoritesPage() {
               Erklärung
             </h3>
             <p className="text-muted-foreground leading-relaxed">{result.explanation}</p>
+            {currentQuestion?.explanation_image_url && (
+              <img src={currentQuestion.explanation_image_url} alt="Erklärung" className="mt-3 rounded-lg max-h-72 object-contain" />
+            )}
           </div>
         )}
 

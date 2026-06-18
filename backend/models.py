@@ -52,6 +52,9 @@ class QuestionCreate(BaseModel):
     explanation: Optional[str] = None
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
+    question_image_url: Optional[str] = None
+    explanation_image_url: Optional[str] = None
+    choice_images: Optional[Dict[str, Optional[str]]] = None
     exam_location: Optional[str] = "vienna"
     country: Optional[str] = None
     status: Optional[str] = "published"
@@ -72,6 +75,9 @@ class QuestionUpdate(BaseModel):
     explanation: Optional[str] = None
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
+    question_image_url: Optional[str] = None
+    explanation_image_url: Optional[str] = None
+    choice_images: Optional[Dict[str, Optional[str]]] = None
     exam_location: Optional[str] = None
     country: Optional[str] = None
     status: Optional[str] = None
@@ -96,6 +102,9 @@ class QuestionResponse(BaseModel):
     explanation: Optional[str] = None
     explanation_de: Optional[str] = None
     image_base64: Optional[str] = None
+    question_image_url: Optional[str] = None
+    explanation_image_url: Optional[str] = None
+    choice_images: Optional[Dict[str, Optional[str]]] = None
     exam_location: Optional[str] = "vienna"
     country: Optional[str] = None
     status: Optional[str] = "published"
@@ -429,6 +438,9 @@ class QuestionImportItem(BaseModel):
     drag_drop_items: Optional[List[dict]] = None
     drag_drop_categories: Optional[List] = None
     blanks: Optional[List[dict]] = None
+    question_image_url: Optional[str] = None
+    explanation_image_url: Optional[str] = None
+    choice_images: Optional[Dict[str, Optional[str]]] = None
 
 class QuestionImportRequest(BaseModel):
     questions: List[QuestionImportItem]

@@ -613,11 +613,15 @@ export default function ExamSimulationPage() {
             {currentQuestion.image_base64 && (
               <div className="mb-6"><img src={currentQuestion.image_base64} alt="Question" className="question-image mx-auto" /></div>
             )}
+            {currentQuestion.question_image_url && (
+              <div className="mb-6"><img src={currentQuestion.question_image_url} alt="Frage" className="question-image mx-auto rounded-lg max-h-80 object-contain" /></div>
+            )}
 
             {/* Choices */}
             <div className="answers-container">
               {(currentQuestion?.choices || []).map((choice, idx) => {
                 const isSelected = (answers[currentQuestion.id] || []).includes(choice.id);
+                const choiceImg = currentQuestion?.choice_images?.[choice.id];
                 return (
                   <button key={choice.id} onClick={() => selectAnswer(choice.id)}
                     className={`answer-option ${isSelected ? 'selected' : ''}`}
@@ -626,6 +630,9 @@ export default function ExamSimulationPage() {
                       {String.fromCharCode(65 + idx)}
                     </div>
                     <p className="answer-text">{choice.text_de || choice.text}</p>
+                    {choiceImg && (
+                      <img src={choiceImg} alt="" className="ml-auto h-16 rounded object-contain" />
+                    )}
                   </button>
                 );
               })}
@@ -713,6 +720,9 @@ export default function ExamSimulationPage() {
                   {q.year && <span className="text-xs text-muted-foreground">{q.year}</span>}
                 </div>
                 <p className="font-medium mb-3 text-sm">{q.question_text_de || q.question_text}</p>
+                {q.question_image_url && (
+                  <img src={q.question_image_url} alt="Frage" className="mb-3 rounded-lg max-h-60 object-contain" />
+                )}
                 <div className="space-y-2">
                   {q.choices.map((c, ci) => {
                     const isCorrect = correctIds.includes(c.id);
@@ -720,6 +730,7 @@ export default function ExamSimulationPage() {
                     let cls = 'bg-muted/30 border-transparent';
                     if (isCorrect) cls = 'bg-emerald-500/10 border-emerald-500/30';
                     if (wasSelected && !isCorrect) cls = 'bg-red-500/10 border-red-500/30';
+                    const choiceImg = q?.choice_images?.[c.id];
                     return (
                       <div key={c.id} className={`flex items-center gap-3 p-2.5 rounded-lg border text-sm ${cls}`}>
                         <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
@@ -728,10 +739,14 @@ export default function ExamSimulationPage() {
                           {isCorrect ? <CheckCircle className="w-3 h-3" /> : wasSelected ? <XCircle className="w-3 h-3" /> : String.fromCharCode(65 + ci)}
                         </span>
                         <span className={isCorrect ? 'font-medium' : ''}>{c.text_de || c.text}</span>
+                        {choiceImg && <img src={choiceImg} alt="" className="ml-auto h-12 rounded object-contain" />}
                       </div>
                     );
                   })}
                 </div>
+                {q.explanation_image_url && (
+                  <img src={q.explanation_image_url} alt="Erklärung" className="mt-3 rounded-lg max-h-60 object-contain" />
+                )}
               </div>
             ))}
           </div>

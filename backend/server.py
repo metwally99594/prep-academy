@@ -8643,6 +8643,12 @@ app.include_router(memory_router)
 from routes.question_import import router as question_import_router
 app.include_router(question_import_router)
 
+# Include Question Images router (additive: upload-image + bulk-import-with-images)
+from routes.question_images import router as question_images_router, UPLOAD_ROOT as _Q_IMG_UPLOAD_ROOT
+from fastapi.staticfiles import StaticFiles
+app.include_router(question_images_router)
+app.mount("/uploads/question_images", StaticFiles(directory=str(_Q_IMG_UPLOAD_ROOT)), name="question_images")
+
 # Include Medical RAG + DICOM routers (only if heavy ML packages are installed)
 # These are disabled in Emergent free deployment (which has 250m CPU + 1Gi memory limit)
 # To re-enable: install chromadb + sentence-transformers + pydicom + opencv-python-headless
