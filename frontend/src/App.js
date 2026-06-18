@@ -62,6 +62,7 @@ const KpReportDetailPage = lazy(() => import("@/pages/KpReportDetailPage"));
 const GermanyHomePage = lazy(() => import("@/pages/Germany/GermanyHomePage"));
 const SwitzerlandHomePage = lazy(() => import("@/pages/Switzerland/SwitzerlandHomePage"));
 const FSPSimulationPage = lazy(() => import("@/pages/Germany/FSPSimulationPage"));
+const KPSimulationPage = lazy(() => import("@/pages/Germany/KPSimulationPage"));
 const ArztbriefPage = lazy(() => import("@/pages/Germany/ArztbriefPage"));
 const MasterclassPage = lazy(() => import("@/pages/Germany/MasterclassPage"));
 const WeaknessPage = lazy(() => import("@/pages/WeaknessPage"));
@@ -362,6 +363,9 @@ function AppRouter() {
           <Route path="/ch" element={<SwitzerlandHomePage />} />
           <Route path="/de/fsp" element={
             <ProtectedRoute><FSPSimulationPage /></ProtectedRoute>
+          } />
+          <Route path="/de/kp-simulation" element={
+            <ProtectedRoute><KPSimulationPage /></ProtectedRoute>
           } />
           <Route path="/de/arztbrief" element={
             <ProtectedRoute><ArztbriefPage /></ProtectedRoute>

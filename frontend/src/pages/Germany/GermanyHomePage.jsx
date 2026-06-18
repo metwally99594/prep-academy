@@ -4,10 +4,15 @@ import {
   BookOpenCheck,
   CheckCircle2,
   ClipboardList,
+  ClipboardCheck,
   ExternalLink,
+  FilePenLine,
   FileText,
+  GraduationCap,
   Languages,
   Landmark,
+  Mic,
+  BookOpen,
   Stethoscope,
 } from "lucide-react";
 
@@ -16,31 +21,37 @@ const CARDS = [
     title: "FSP Simulation",
     desc: "Muendliche Pruefungssimulation fuer die Fachsprachpruefung",
     path: "/de/fsp",
-    emoji: "🎤",
+    icon: Mic,
+  },
+  {
+    title: "KP Simulation",
+    desc: "Muendlich-praktische Kenntnispruefung mit Fall, Vorstellung und Prueferfragen",
+    path: "/de/kp-simulation",
+    icon: ClipboardCheck,
   },
   {
     title: "Arztbrief Korrektur",
     desc: "Automatische Korrektur und Feedback fuer Arztbriefe",
     path: "/de/arztbrief",
-    emoji: "📝",
+    icon: FilePenLine,
   },
   {
     title: "Masterclass",
     desc: "Intensive Vorbereitungskurse fuer die Kenntnispruefung",
     path: "/de/masterclass",
-    emoji: "🎓",
+    icon: GraduationCap,
   },
   {
     title: "KP Protokolle",
     desc: "Echte Kenntnispruefungs-Protokolle aus Deutschland",
     path: "/kp-reports",
-    emoji: "🩺",
+    icon: Stethoscope,
   },
   {
     title: "Fachsprache",
     desc: "1500+ medizinische Fachbegriffe Deutsch - Latein",
     path: "/quiz/fachsprache?country=DE&mode=study",
-    emoji: "📖",
+    icon: BookOpen,
   },
 ];
 
@@ -223,10 +234,14 @@ export default function GermanyHomePage() {
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {CARDS.map((card) => (
+          {CARDS.map((card) => {
+            const Icon = card.icon;
+            return (
             <Link key={card.path} to={card.path}>
-              <div className="rounded-lg border border-border/60 bg-background p-5 transition-all hover:border-yellow-500/50 hover:shadow-md">
-                <div className="mb-3 text-3xl">{card.emoji}</div>
+              <div className="h-full rounded-lg border border-border/60 bg-background p-5 transition-all hover:border-yellow-500/50 hover:shadow-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-yellow-500/10 text-yellow-600">
+                  <Icon className="h-5 w-5" />
+                </div>
                 <h3 className="mb-1 text-lg font-semibold">{card.title}</h3>
                 <p className="text-sm leading-6 text-muted-foreground">{card.desc}</p>
                 <div className="mt-4 inline-flex items-center text-xs font-medium text-yellow-600">
@@ -234,7 +249,8 @@ export default function GermanyHomePage() {
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>
