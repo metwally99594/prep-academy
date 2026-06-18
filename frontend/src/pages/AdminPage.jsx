@@ -214,6 +214,8 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       city,
       exam_location: city,
       country: q.country || q.land || null,
+      exam_system: q.exam_system || q.exam || null,
+      exam_part: q.exam_part || q.exam_section || null,
       tags: q.tags || [],
     };
   };
@@ -610,6 +612,8 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     "country": "germany",
     "city": "hamburg",
     "year": 2020,
+    "exam_system": "kenntnispruefung",
+    "exam_part": "mc",
     "subject": {
       "id": "internal",
       "name_de": "Innere Medizin",
@@ -705,6 +709,8 @@ function ImportQuestionsTab({ token, onImportComplete }) {
               <p className="mt-1">Orte DE: <code className="text-primary">hamburg</code> <code className="text-primary">berlin</code> <code className="text-primary">munich</code> <code className="text-primary">frankfurt</code> <code className="text-primary">cologne</code> <code className="text-primary">duesseldorf</code></p>
               <p className="mt-1">Orte CH: <code className="text-primary">bern</code> <code className="text-primary">zurich</code> <code className="text-primary">basel</code> <code className="text-primary">geneva</code> <code className="text-primary">lausanne</code> <code className="text-primary">andere</code></p>
               <p className="mt-1">Länder: <code className="text-primary">austria</code> <code className="text-primary">germany</code> <code className="text-primary">switzerland</code></p>
+              <p className="mt-1">CH Prüfungssystem: <code className="text-primary">eidgenoessische_pruefung</code> <code className="text-primary">mebeko</code></p>
+              <p className="mt-1">CH Prüfungsteil: <code className="text-primary">mc</code> <code className="text-primary">clinical_skills</code></p>
             </div>
           </div>
         </details>

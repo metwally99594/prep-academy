@@ -94,6 +94,30 @@ CITY_ALIASES = {
     "other": "andere",
 }
 
+EXAM_SYSTEM_ALIASES = {
+    "eidgenoessische_pruefung": "eidgenoessische_pruefung",
+    "eidgenossische_prufung": "eidgenoessische_pruefung",
+    "eidgenössische prüfung": "eidgenoessische_pruefung",
+    "eidgenoessische pruefung": "eidgenoessische_pruefung",
+    "federal_medical_exam": "eidgenoessische_pruefung",
+    "federal licensing examination": "eidgenoessische_pruefung",
+    "mebeko": "mebeko",
+}
+
+EXAM_PART_ALIASES = {
+    "mc": "mc",
+    "mc_pruefung": "mc",
+    "mc-pruefung": "mc",
+    "mc-prufung": "mc",
+    "mc prüfung": "mc",
+    "mc pruefung": "mc",
+    "multiple_choice": "mc",
+    "clinical_skills": "clinical_skills",
+    "clinical skills": "clinical_skills",
+    "osce": "clinical_skills",
+    "praktisch": "clinical_skills",
+}
+
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
@@ -193,9 +217,13 @@ def normalize_question_metadata(question: Dict[str, Any]) -> Dict[str, Any]:
     city_slug = CITY_ALIASES.get(city.lower(), _slug(city)) if city else None
     country = _first_non_empty(q.get("country"), q.get("land"))
     country_slug = COUNTRY_ALIASES.get(country.lower(), _slug(country)) if country else None
+    exam_system = _first_non_empty(q.get("exam_system"), q.get("exam"), q.get("prüfungssystem"), q.get("pruefungssystem"))
+    exam_system_slug = EXAM_SYSTEM_ALIASES.get(exam_system.lower(), _slug(exam_system)) if exam_system else None
+    exam_part = _first_non_empty(q.get("exam_part"), q.get("exam_section"), q.get("prüfungsteil"), q.get("pruefungsteil"))
+    exam_part_slug = EXAM_PART_ALIASES.get(exam_part.lower(), _slug(exam_part)) if exam_part else None
 
     tags = list(q.get("tags") or [])
-    for tag in (subject_id, subject_name, subspecialty_id, subspecialty_name, country_slug, city_slug):
+    for tag in (subject_id, subject_name, subspecialty_id, subspecialty_name, country_slug, city_slug, exam_system_slug, exam_part_slug):
         if tag and tag not in tags:
             tags.append(tag)
 
@@ -208,6 +236,8 @@ def normalize_question_metadata(question: Dict[str, Any]) -> Dict[str, Any]:
         "city": city_slug,
         "exam_location": city_slug,
         "country": country_slug,
+        "exam_system": exam_system_slug,
+        "exam_part": exam_part_slug,
         "tags": tags,
     }
     return {k: v for k, v in normalized.items() if v not in (None, "")}

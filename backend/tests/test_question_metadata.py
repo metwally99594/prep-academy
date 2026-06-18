@@ -49,6 +49,8 @@ def test_switzerland_bern_cardiology_example_metadata():
         {
             "country": "switzerland",
             "city": "bern",
+            "exam_system": "eidgenoessische_pruefung",
+            "exam_part": "MC-Pruefung",
             "subject": {
                 "id": "internal",
                 "name_de": "Innere Medizin",
@@ -62,6 +64,10 @@ def test_switzerland_bern_cardiology_example_metadata():
     assert metadata["exam_location"] == "bern"
     assert metadata["specialty_id"] == "internal"
     assert metadata["subspecialty_id"] == "cardiology"
+    assert metadata["exam_system"] == "eidgenoessische_pruefung"
+    assert metadata["exam_part"] == "mc"
+    assert "eidgenoessische_pruefung" in metadata["tags"]
+    assert "mc" in metadata["tags"]
 
 
 def test_city_aliases_cover_at_de_ch():

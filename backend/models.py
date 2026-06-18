@@ -414,6 +414,8 @@ class QuestionImportItem(BaseModel):
     subspecialty_name_de: Optional[str] = None
     branch: Optional[Any] = None
     city: Optional[str] = None
+    exam_system: Optional[str] = None
+    exam_part: Optional[str] = None
     question_text_de: str
     question_type: str = "mcq"
     choices: Optional[List] = None

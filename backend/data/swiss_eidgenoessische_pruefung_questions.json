@@ -1,0 +1,232 @@
+[
+  {
+    "country": "switzerland",
+    "city": "bern",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "internal",
+      "name_de": "Innere Medizin",
+      "specialty": { "id": "cardiology", "name_de": "Kardiologie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Eine 72-jaehrige Patientin stellt sich mit seit 6 Stunden bestehenden Palpitationen und Belastungsdyspnoe vor. Sie ist haemodynamisch stabil. Bekannte Diagnosen sind arterielle Hypertonie und Diabetes mellitus Typ 2. Das EKG zeigt neu aufgetretenes tachykardes Vorhofflimmern mit 128/min. Welches Vorgehen ist primaer indiziert?",
+    "choices_de": [
+      { "id": "a", "text": "Sofortige elektrische Kardioversion ohne weitere Abklaerung", "is_correct": false },
+      { "id": "b", "text": "Frequenzkontrolle mit Betablocker und Beginn einer oralen Antikoagulation mit einem DOAK", "is_correct": true },
+      { "id": "c", "text": "Acetylsalicylsaeure 100 mg taeglich zur Schlaganfallprophylaxe", "is_correct": false },
+      { "id": "d", "text": "Keine Antikoagulation, da das Vorhofflimmern erst seit 6 Stunden besteht", "is_correct": false },
+      { "id": "e", "text": "Sofortige intravenoese Amiodaron-Kardioversion ohne Thrombusausschluss", "is_correct": false }
+    ],
+    "correct_answers": ["b"],
+    "explanation_de": "Bei stabilem tachykardem Vorhofflimmern steht initial die Frequenzkontrolle im Vordergrund. Aufgrund des erhoehten CHA2DS2-VASc-Risikos ist eine orale Antikoagulation indiziert. ASS ist fuer diese Indikation nicht ausreichend."
+  },
+  {
+    "country": "switzerland",
+    "city": "zurich",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "emergency",
+      "name_de": "Notfallmedizin",
+      "specialty": { "id": "cardiology", "name_de": "Kardiologie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Ein 58-jaehriger Mann hat retrosternale Schmerzen seit 45 Minuten. Im EKG zeigen sich ST-Hebungen in II, III und aVF. Der Patient ist kaltschweissig, Blutdruck 95/60 mmHg. Welche Massnahme hat die hoechste Prioritaet?",
+    "choices_de": [
+      { "id": "a", "text": "Belastungs-EKG zur Risikostratifizierung", "is_correct": false },
+      { "id": "b", "text": "Schnellstmoegliche Reperfusion mittels Koronarangiographie/PCI", "is_correct": true },
+      { "id": "c", "text": "Abwarten der zweiten Troponin-Kontrolle vor Therapieentscheidung", "is_correct": false },
+      { "id": "d", "text": "Primaere orale Antibiotikatherapie wegen moeglicher Myokarditis", "is_correct": false },
+      { "id": "e", "text": "Ambulante Kontrolle beim Hausarzt am Folgetag", "is_correct": false }
+    ],
+    "correct_answers": ["b"],
+    "explanation_de": "ST-Hebungsinfarkt mit typischer Symptomatik ist ein zeitkritischer Notfall. Die Reperfusion, bevorzugt PCI bei Verfuegbarkeit, hat Prioritaet; Troponin darf die Reperfusion bei eindeutigem STEMI nicht verzoegern."
+  },
+  {
+    "country": "switzerland",
+    "city": "basel",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "internal",
+      "name_de": "Innere Medizin",
+      "specialty": { "id": "pneumology", "name_de": "Pneumologie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Eine 67-jaehrige Patientin mit COPD berichtet ueber zunehmende Dyspnoe, purulenten Auswurf und vermehrten Husten. SpO2 betraegt 88 Prozent unter Raumluft, sie ist wach und orientiert. Welche Sauerstoffzielsaettigung ist initial am sinnvollsten?",
+    "choices_de": [
+      { "id": "a", "text": "100 Prozent, um Hypoxie sicher auszuschliessen", "is_correct": false },
+      { "id": "b", "text": "94 bis 98 Prozent wie bei allen Notfallpatienten", "is_correct": false },
+      { "id": "c", "text": "88 bis 92 Prozent unter kontrollierter Sauerstoffgabe", "is_correct": true },
+      { "id": "d", "text": "Unter 85 Prozent, um CO2-Retention zu vermeiden", "is_correct": false },
+      { "id": "e", "text": "Keine Sauerstoffgabe, solange keine Zyanose besteht", "is_correct": false }
+    ],
+    "correct_answers": ["c"],
+    "explanation_de": "Bei COPD mit Risiko fuer hyperkapnische respiratorische Insuffizienz wird kontrollierte Sauerstoffgabe mit Zielbereich 88 bis 92 Prozent angestrebt. Parallel sind klinische Ueberwachung und Blutgasanalyse wichtig."
+  },
+  {
+    "country": "switzerland",
+    "city": "geneva",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "internal",
+      "name_de": "Innere Medizin",
+      "specialty": { "id": "endocrinology", "name_de": "Endokrinologie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Ein 24-jaehriger Patient mit Typ-1-Diabetes kommt mit Erbrechen, Bauchschmerzen und Kussmaul-Atmung. Glukose 28 mmol/l, pH 7,12, Ketone positiv. Welche initiale Therapie ist zentral?",
+    "choices_de": [
+      { "id": "a", "text": "Subkutanes kurzwirksames Insulin ohne Fluessigkeitstherapie", "is_correct": false },
+      { "id": "b", "text": "Intravenoese Volumengabe, Elektrolytmanagement und Insulintherapie", "is_correct": true },
+      { "id": "c", "text": "Alleinige Natriumbikarbonatgabe bei jedem pH unter 7,20", "is_correct": false },
+      { "id": "d", "text": "Sofortige Langzeitinsulin-Erhoehung und Entlassung", "is_correct": false },
+      { "id": "e", "text": "Orale Rehydratation und Verlaufskontrolle in 24 Stunden", "is_correct": false }
+    ],
+    "correct_answers": ["b"],
+    "explanation_de": "Die diabetische Ketoazidose erfordert strukturierte Akuttherapie mit Volumen, Kalium-/Elektrolytmanagement und intravenoesem Insulin. Bikarbonat ist nur in ausgewaehlten schweren Situationen indiziert."
+  },
+  {
+    "country": "switzerland",
+    "city": "lausanne",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "surgery",
+      "name_de": "Chirurgie",
+      "specialty": { "id": "abdominal_surgery", "name_de": "Viszeralchirurgie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Ein 36-jaehriger Patient hat rechtsseitige Unterbauchschmerzen, Fieber und Druckschmerz am McBurney-Punkt. Labor zeigt Leukozytose und erhoehtes CRP. Welche Diagnose ist am wahrscheinlichsten?",
+    "choices_de": [
+      { "id": "a", "text": "Akute Appendizitis", "is_correct": true },
+      { "id": "b", "text": "Ulcus ventriculi ohne Perforation", "is_correct": false },
+      { "id": "c", "text": "Unkomplizierte Refluxkrankheit", "is_correct": false },
+      { "id": "d", "text": "Akute Pankreatitis als Leitsymptom", "is_correct": false },
+      { "id": "e", "text": "Chronische Obstipation ohne Entzuendung", "is_correct": false }
+    ],
+    "correct_answers": ["a"],
+    "explanation_de": "Klinik mit rechtsseitigem Unterbauchschmerz, Fieber und Entzuendungsparametern passt am besten zu akuter Appendizitis. Bildgebung kann je nach Setting zur Bestaetigung und Differenzialdiagnose eingesetzt werden."
+  },
+  {
+    "country": "switzerland",
+    "city": "bern",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "pediatrics",
+      "name_de": "Paediatrie",
+      "specialty": { "id": "infectiology", "name_de": "Infektiologie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Ein 3-jaehriges Kind hat seit 2 Tagen Fieber, bellenden Husten und inspiratorischen Stridor, ist aber wach, trinkt noch und hat keine Zyanose. Welche Massnahme ist initial passend?",
+    "choices_de": [
+      { "id": "a", "text": "Sedierung zur Beruhigung und tiefe Racheninspektion", "is_correct": false },
+      { "id": "b", "text": "Kortikosteroidgabe und Beobachtung, bei Bedarf inhalatives Adrenalin", "is_correct": true },
+      { "id": "c", "text": "Primaere Intubation bei jedem bellenden Husten", "is_correct": false },
+      { "id": "d", "text": "Antikoagulation wegen Stridorrisiko", "is_correct": false },
+      { "id": "e", "text": "Keine Therapie, da virale Erkrankungen nie behandelt werden", "is_correct": false }
+    ],
+    "correct_answers": ["b"],
+    "explanation_de": "Das Bild passt zu Pseudokrupp. Kortikosteroide sind Basistherapie; inhalatives Adrenalin wird bei relevanter Atemnot/Stridor eingesetzt. Unnoetige Manipulation und Stress sollten vermieden werden."
+  },
+  {
+    "country": "switzerland",
+    "city": "zurich",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "neurology",
+      "name_de": "Neurologie",
+      "specialty": { "id": "stroke", "name_de": "Schlaganfall" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Eine 69-jaehrige Frau entwickelt ploetzlich Aphasie und rechtsseitige Hemiparese. Symptombeginn war vor 70 Minuten. Blutzucker ist normal. Welche Abklaerung ist vor spezifischer Akuttherapie am wichtigsten?",
+    "choices_de": [
+      { "id": "a", "text": "Sofortiges CT/MRI des Schaedels zum Ausschluss einer Blutung", "is_correct": true },
+      { "id": "b", "text": "Langzeit-EKG ueber 7 Tage vor jeder Akutmassnahme", "is_correct": false },
+      { "id": "c", "text": "Ambulante neurologische Kontrolle innerhalb einer Woche", "is_correct": false },
+      { "id": "d", "text": "Liquorpunktion als erste Diagnostik bei jedem Schlaganfallverdacht", "is_correct": false },
+      { "id": "e", "text": "Erst Troponinverlauf abwarten, da Aphasie oft kardial bedingt ist", "is_correct": false }
+    ],
+    "correct_answers": ["a"],
+    "explanation_de": "Bei akutem fokalem neurologischem Defizit muss rasch eine zerebrale Bildgebung erfolgen, um Blutung auszuschliessen und Reperfusionsoptionen zu pruefen. Zeit ist prognostisch entscheidend."
+  },
+  {
+    "country": "switzerland",
+    "city": "basel",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "internal",
+      "name_de": "Innere Medizin",
+      "specialty": { "id": "nephrology", "name_de": "Nephrologie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Ein Patient mit chronischer Niereninsuffizienz hat Kalium 6,7 mmol/l und breite QRS-Komplexe im EKG. Welche Massnahme ist sofort angezeigt?",
+    "choices_de": [
+      { "id": "a", "text": "Intravenoese Calciumgabe zur Myokardstabilisierung", "is_correct": true },
+      { "id": "b", "text": "Nur kaliumarme Diaet und Kontrolle in einer Woche", "is_correct": false },
+      { "id": "c", "text": "Orale Eisensubstitution", "is_correct": false },
+      { "id": "d", "text": "Thrombozytenaggregationshemmung", "is_correct": false },
+      { "id": "e", "text": "Betablocker-Eskalation zur QRS-Normalisierung", "is_correct": false }
+    ],
+    "correct_answers": ["a"],
+    "explanation_de": "Hyperkaliaemie mit EKG-Veraenderungen ist lebensbedrohlich. Intravenoeses Calcium stabilisiert das Myokard sofort; anschliessend folgen Kaliumverschiebung und Elimination je nach Ursache."
+  },
+  {
+    "country": "switzerland",
+    "city": "geneva",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "mc",
+    "subject": {
+      "id": "obgyn",
+      "name_de": "Gynaekologie und Geburtshilfe",
+      "specialty": { "id": "obstetrics", "name_de": "Geburtshilfe" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Eine 31-jaehrige Schwangere in der 34. SSW stellt sich mit Kopfschmerzen, Oberbauchschmerzen, Blutdruck 170/110 mmHg und Proteinurie vor. Welche Diagnose ist am wahrscheinlichsten?",
+    "choices_de": [
+      { "id": "a", "text": "Schwere Praeeklampsie", "is_correct": true },
+      { "id": "b", "text": "Unkomplizierte Schwangerschaftsuebelkeit", "is_correct": false },
+      { "id": "c", "text": "Isolierte harmlose Proteinurie ohne Handlungsbedarf", "is_correct": false },
+      { "id": "d", "text": "Physiologische Blutdrucksteigerung im dritten Trimenon", "is_correct": false },
+      { "id": "e", "text": "Appendizitis als einzige plausible Diagnose", "is_correct": false }
+    ],
+    "correct_answers": ["a"],
+    "explanation_de": "Hypertonie, Proteinurie und Warnsymptome wie Kopfschmerz/Oberbauchschmerz sprechen fuer schwere Praeeklampsie. Dies erfordert sofortige geburtshilfliche Beurteilung und engmaschiges Management."
+  },
+  {
+    "country": "switzerland",
+    "city": "lausanne",
+    "year": 2024,
+    "exam_system": "eidgenoessische_pruefung",
+    "exam_part": "clinical_skills",
+    "subject": {
+      "id": "psychiatry",
+      "name_de": "Psychiatrie",
+      "specialty": { "id": "emergency_psychiatry", "name_de": "Notfallpsychiatrie" }
+    },
+    "question_type": "single_choice",
+    "question_text_de": "Ein 42-jaehriger Patient berichtet in der Notfallaufnahme von konkreten Suizidplaenen und verfuegbarem Mittel. Er wirkt verzweifelt, ist aber gespraechsbereit. Was ist der wichtigste naechste Schritt?",
+    "choices_de": [
+      { "id": "a", "text": "Allein nach Hause entlassen mit der Empfehlung, sich auszuruhen", "is_correct": false },
+      { "id": "b", "text": "Sicherheitsmassnahmen, strukturierte Suizidalitaetsabklaerung und psychiatrische Krisenbeurteilung", "is_correct": true },
+      { "id": "c", "text": "Diskussion ueber Versicherungsfragen vor jeder klinischen Massnahme", "is_correct": false },
+      { "id": "d", "text": "Nur ein beruhigendes Gespraech ohne Dokumentation", "is_correct": false },
+      { "id": "e", "text": "Warten, bis der Patient von selbst eine Therapie verlangt", "is_correct": false }
+    ],
+    "correct_answers": ["b"],
+    "explanation_de": "Konkrete Suizidplaene mit verfuegbarem Mittel bedeuten hohes Risiko. Vorrang haben Sicherheit, strukturierte Risikoeinschaetzung, Dokumentation und rasche psychiatrische Mitbeurteilung."
+  }
+]
