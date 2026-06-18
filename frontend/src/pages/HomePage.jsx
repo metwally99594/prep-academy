@@ -7,7 +7,7 @@ import {
   Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity,
   ArrowRight, BookOpen, Clock, CheckCircle,
   Target, Shield, FileText, Bot, Layers, Pill,
-  Dna, Plus, Microscope, Stethoscope,
+  Dna, Plus, Microscope, Stethoscope, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import RequestAccessModal from "@/components/RequestAccessModal";
@@ -44,6 +44,48 @@ const SectionLabel = ({ number, text }) => (
     <span className="text-xs tracking-[0.2em] uppercase text-white/40">{text}</span>
   </div>
 );
+
+const AUSTRIA_RECOGNITION_STEPS = [
+  {
+    title: "1. Zustaendigkeit pruefen",
+    text: "Fuer Humanmedizin laeuft die akademische Gleichstellung in Wien ueber die MedUni Wien. Fuer die Berufsausuebung ist zusaetzlich die Aerztekammer relevant.",
+  },
+  {
+    title: "2. Nostrifizierung beantragen",
+    text: "Aerzte aus Drittstaaten brauchen in der Regel eine Nostrifizierung, wenn der Abschluss nicht automatisch anerkannt wird und die aerztliche Taetigkeit in Oesterreich geplant ist.",
+  },
+  {
+    title: "3. Unterlagen und Bestaetigung",
+    text: "Typisch sind Diplom, Curriculum, Stunden/Faecher, Nachweise, Uebersetzungen und eine Bestaetigung der Oesterreichischen Aerztekammer, dass die Nostrifizierung fuer die Berufsausuebung erforderlich ist.",
+  },
+  {
+    title: "4. Ermittlungsverfahren",
+    text: "Die Universitaet vergleicht Ausbildung, Umfang und Inhalte mit dem oesterreichischen Studium. Daraus koennen Auflagen und Pruefungen entstehen.",
+  },
+  {
+    title: "5. Ergaenzungspruefungen",
+    text: "Je nach Bescheid muessen einzelne Faecher, klinische Inhalte oder Pruefungsteile nachgeholt werden. Danach kann der Weg Richtung Eintragung/Berufsausuebung weitergehen.",
+  },
+];
+
+const AUSTRIA_EXAM_POINTS = [
+  "Kein einheitlicher MC-only Test fuer alle Drittstaaten: der konkrete Pruefungsumfang ergibt sich aus dem Nostrifizierungsbescheid.",
+  "Wien: Fokus auf Vergleich mit dem MedUni-Wien-Curriculum und darauf aufbauende Ergaenzungspruefungen.",
+  "Innsbruck/KMP: eigene universitaere Modulpruefungslogik, deshalb getrennt von Wien vorbereiten.",
+  "Praktisch wichtig: Innere Medizin, Chirurgie, Notfallmedizin, Pharmakologie, Hygiene, Recht und klinisches Denken.",
+  "Prep Academy trennt Wien, Innsbruck und andere Orte, damit neue Fragen spaeter direkt dem richtigen Lernpfad zugeordnet werden.",
+];
+
+const AUSTRIA_SOURCES = [
+  {
+    label: "MedUni Wien: Nostrifizierung",
+    href: "https://www.meduniwien.ac.at/web/studium-weiterbildung/nostrifizierung/",
+  },
+  {
+    label: "MedUni Wien: Ermittlungsverfahren",
+    href: "https://www.meduniwien.ac.at/web/studium-weiterbildung/nostrifizierung/ermittlungsverfahren/",
+  },
+];
 
 export default function HomePage() {
   const [specialties, setSpecialties] = useState([]);
@@ -344,6 +386,76 @@ export default function HomePage() {
                 </Wrapper>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* Austria recognition path */}
+      <section className="relative z-20 pb-12">
+        <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16">
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 sm:p-8">
+            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs tracking-[0.2em] uppercase text-red-400/80">Oesterreich / Drittstaaten</p>
+                <h2 className="mt-2 text-2xl sm:text-3xl font-bold text-white">Weg zur aerztlichen Anerkennung</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/45">
+                  Fuer Aerzte mit Abschluss ausserhalb EU/EWR fuehrt der Weg in Oesterreich meist ueber Nostrifizierung,
+                  universitaere Auflagen und danach die berufsrechtliche Eintragung.
+                </p>
+              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10 text-sm font-bold text-red-400">
+                AT
+              </span>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-3">
+                {AUSTRIA_RECOGNITION_STEPS.map((step) => (
+                  <div key={step.title} className="rounded-xl border border-white/[0.06] bg-black/15 p-4">
+                    <h3 className="text-sm font-semibold text-white">{step.title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-white/45">{step.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-xl border border-white/[0.06] bg-black/15 p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                    <BookOpen className="h-4 w-4 text-red-400" />
+                    Pruefungslogik
+                  </h3>
+                  <ul className="space-y-2 text-sm leading-6 text-white/45">
+                    {AUSTRIA_EXAM_POINTS.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-white/[0.06] bg-black/15 p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                    <ExternalLink className="h-4 w-4 text-red-400" />
+                    Offizielle Quellen
+                  </h3>
+                  <div className="grid gap-2">
+                    {AUSTRIA_SOURCES.map((source) => (
+                      <a
+                        key={source.href}
+                        href={source.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-sm text-white/60 hover:border-red-400/50 hover:text-red-300"
+                      >
+                        <span>{source.label}</span>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
