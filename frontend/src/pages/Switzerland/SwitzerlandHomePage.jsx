@@ -269,7 +269,7 @@ export default function SwitzerlandHomePage() {
             {["bern", "zurich", "basel", "geneva", "lausanne"].map((city) => (
               <Link
                 key={city}
-                to={`/quiz?country=switzerland&exam_location=${city}&mode=study`}
+                to={`/quiz/custom?country=switzerland&loc=${city}&mode=study&limit=50`}
                 className="inline-flex items-center gap-1 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-600 hover:border-blue-400"
               >
                 <MapPin className="h-3 w-3" />
@@ -302,7 +302,7 @@ export default function SwitzerlandHomePage() {
                 {questions.map((question) => (
                   <Link
                     key={question.id}
-                    to={`/quiz?country=switzerland&mode=study`}
+                    to="/quiz/custom?country=switzerland&mode=study&limit=50"
                     className="block px-4 py-3 hover:bg-muted/40"
                   >
                     <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -326,7 +326,7 @@ export default function SwitzerlandHomePage() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Button asChild>
-              <Link to="/quiz?country=switzerland&mode=study">
+              <Link to="/quiz/custom?country=switzerland&mode=study&limit=50">
                 MC starten <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

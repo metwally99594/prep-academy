@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -279,6 +279,9 @@ function AppRouter() {
           <Route path="/quiz/:specialtyId" element={
             <ProtectedRoute><QuizPage /></ProtectedRoute>
           } />
+          <Route path="/quiz" element={
+            <ProtectedRoute><LegacyQuizRedirect /></ProtectedRoute>
+          } />
           <Route path="/favorites" element={
             <ProtectedRoute><FavoritesPage /></ProtectedRoute>
           } />
@@ -377,6 +380,11 @@ function AppRouter() {
       </Routes>
     </Suspense>
   );
+}
+
+function LegacyQuizRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/quiz/custom${location.search || ""}`} replace />;
 }
 
 function App() {
