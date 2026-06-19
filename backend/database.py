@@ -80,8 +80,8 @@ EXAM_LOCATIONS = [
 # Exam types for the selector
 EXAM_TYPES = [
     {"id": "kp_wien", "name": "Kenntnisprüfung", "subtitle": "Österreichische Kenntnisprüfung (Wien)", "location": "vienna", "country": "austria", "icon": "flag_at"},
-    {"id": "sip4", "name": "SIP 4", "subtitle": "MedUni Wien SIP 4 Fragen", "location": "sip4", "country": "austria", "icon": "book", "parent": "kp_wien"},
-    {"id": "sip5", "name": "SIP 5", "subtitle": "MedUni Wien SIP 5 Fragen", "location": "sip5", "country": "austria", "icon": "book", "parent": "kp_wien"},
+    {"id": "sip4", "name": "SIP 4", "subtitle": "MedUni Wien SIP 4 Fragen", "location": "sip4", "country": "austria", "icon": "book"},
+    {"id": "sip5", "name": "SIP 5", "subtitle": "MedUni Wien SIP 5 Fragen", "location": "sip5", "country": "austria", "icon": "book"},
     {"id": "kmp_innsbruck", "name": "KMP Innsbruck", "subtitle": "Kumulative Modulprüfung (Innsbruck)", "location": "innsbruck", "country": "austria", "icon": "mountain"},
     {"id": "andere", "name": "Andere Stadt", "subtitle": "Prüfungsvorbereitung (Andere)", "location": "andere", "country": None, "icon": "building"},
     {"id": "pharma", "name": "Pharma", "subtitle": "Pharmakologie Rezeptierkunde", "location": None, "specialty": "pharma", "country": None, "icon": "pill"},
