@@ -242,11 +242,18 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   };
 
   const parseQuestions = (data) => {
-    if (!Array.isArray(data)) {
-      toast.error("JSON muss ein Array von Fragen sein");
+    const wrapperMode = !Array.isArray(data) && data?.mode ? String(data.mode).toLowerCase() : null;
+    const questionsPayload = Array.isArray(data) ? data : data?.questions;
+
+    if (wrapperMode === "insert" || wrapperMode === "upsert") {
+      setImportMode(wrapperMode);
+    }
+
+    if (!Array.isArray(questionsPayload)) {
+      toast.error("JSON muss ein Array oder { mode, questions } sein");
       return null;
     }
-    const items = data.map(q => {
+    const items = questionsPayload.map(q => {
       let choices = q.choices_de || q.choices || [];
       if (choices.length > 0 && typeof choices[0] === 'string') {
         choices = choices.map((text, ci) => ({
@@ -561,12 +568,12 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         </div>
       )}
 
-      {preview && !result && (
+      {!xlsxMode && !xlsxResult && (
         <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border">
           <div>
             <p className="text-sm font-medium">Upsert-Modus</p>
             <p className="text-xs text-muted-foreground">
-              Aktualisiert vorhandene Fragen mit neuen Bild-/Erklaerungsfeldern statt sie als Duplikat abzulehnen.
+              Aktivieren, wenn vorhandene Fragen mit neuen Bild-/Erklaerungsfeldern aktualisiert werden sollen.
             </p>
           </div>
           <Switch
