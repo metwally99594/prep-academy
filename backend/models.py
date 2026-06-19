@@ -445,6 +445,7 @@ class QuestionImportItem(BaseModel):
 class QuestionImportRequest(BaseModel):
     questions: List[QuestionImportItem]
     filename: Optional[str] = "paste"
+    mode: Optional[str] = "insert"
 
 class ValidationError(BaseModel):
     index: int

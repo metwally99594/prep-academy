@@ -190,6 +190,7 @@ const emptyQuestion = {
 
 function ImportQuestionsTab({ token, onImportComplete }) {
   const [mode, setMode] = useState("file");
+  const [importMode, setImportMode] = useState("insert");
   const [file, setFile] = useState(null);
   const [pasteJson, setPasteJson] = useState("");
   const [parsedQuestions, setParsedQuestions] = useState(null);
@@ -201,6 +202,20 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   const [xlsxMode, setXlsxMode] = useState(false);
   const [xlsxResult, setXlsxResult] = useState(null);
   const [xlsxImporting, setXlsxImporting] = useState(false);
+
+  const _safeErr = (err, fallback = "Fehler") => {
+    console.error(err);
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (detail) {
+      try {
+        return JSON.stringify(detail);
+      } catch {
+        return fallback;
+      }
+    }
+    return err?.message || String(err || fallback);
+  };
 
   const normalizeImportMetadata = (q) => {
     const subject = q.subject || {};
@@ -353,7 +368,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     try {
       const res = await axios.post(
         `${API}/admin/questions/validate`,
-        { questions: parsedQuestions, filename: file?.name || "paste" },
+        { questions: parsedQuestions, filename: file?.name || "paste", mode: importMode },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 30000 }
       );
       setValidationResult(res.data);
@@ -375,11 +390,12 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     try {
       const res = await axios.post(
         `${API}/admin/questions/import`,
-        { questions: parsedQuestions, filename: file?.name || "paste" },
+        { questions: parsedQuestions, filename: file?.name || "paste", mode: importMode },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 120000 }
       );
       setResult(res.data);
-      toast.success(`${res.data.imported} Fragen importiert!`);
+      const updated = res.data.updated || 0;
+      toast.success(`${res.data.imported} Fragen importiert, ${updated} aktualisiert!`);
       if (onImportComplete) onImportComplete();
     } catch (err) {
       toast.error(_safeErr(err, "Import fehlgeschlagen"));
@@ -396,6 +412,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
     setResult(null);
     setValidationResult(null);
     setXlsxResult(null);
+    setImportMode("insert");
   };
 
   return (
@@ -544,6 +561,22 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         </div>
       )}
 
+      {preview && !result && (
+        <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border">
+          <div>
+            <p className="text-sm font-medium">Upsert-Modus</p>
+            <p className="text-xs text-muted-foreground">
+              Aktualisiert vorhandene Fragen mit neuen Bild-/Erklaerungsfeldern statt sie als Duplikat abzulehnen.
+            </p>
+          </div>
+          <Switch
+            checked={importMode === "upsert"}
+            onCheckedChange={(checked) => setImportMode(checked ? "upsert" : "insert")}
+            aria-label="Upsert-Modus"
+          />
+        </div>
+      )}
+
       {/* Validation errors */}
       {validationResult && !validationResult.valid && !result && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
@@ -570,10 +603,14 @@ function ImportQuestionsTab({ token, onImportComplete }) {
       {result && (
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
           <h3 className="font-medium text-emerald-600 mb-2">Import abgeschlossen!</h3>
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <div className="text-center p-2 rounded-lg bg-background">
               <div className="text-xl font-bold text-emerald-600">{result.imported}</div>
               <div className="text-xs text-muted-foreground">Importiert</div>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-background">
+              <div className="text-xl font-bold text-blue-500">{result.updated || 0}</div>
+              <div className="text-xs text-muted-foreground">Aktualisiert</div>
             </div>
             <div className="text-center p-2 rounded-lg bg-background">
               <div className="text-xl font-bold text-amber-500">{result.skipped_duplicates}</div>

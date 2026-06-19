@@ -983,6 +983,14 @@ export default function QuizPage() {
             </button>
           </div>
 
+          {currentQuestion?.question_image_url && (
+            <img
+              src={currentQuestion.question_image_url}
+              alt="Frage"
+              className="max-w-full max-h-96 rounded-lg shadow object-contain mx-auto my-4"
+            />
+          )}
+
           {currentQuestion?.question_type !== 'luckentext' && (
             <h2 className="question-text select-text" data-testid="question-text"
               onMouseUp={handleTextSelect}
@@ -992,9 +1000,6 @@ export default function QuizPage() {
 
           {currentQuestion?.image_base64 && (
             <div className="mb-6"><img src={currentQuestion.image_base64} alt="Question" className="question-image mx-auto" /></div>
-          )}
-          {currentQuestion?.question_image_url && (
-            <div className="mb-6"><img src={currentQuestion.question_image_url} alt="Frage" className="question-image mx-auto rounded-lg max-h-80 object-contain" /></div>
           )}
 
           {/* Answer area – rendered by question type */}
@@ -1139,7 +1144,7 @@ export default function QuizPage() {
                 <h3 className="font-semibold mb-2 flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Erklärung</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">{result.explanation}</p>
                 {currentQuestion?.explanation_image_url && (
-                  <img src={currentQuestion.explanation_image_url} alt="Erklärung" className="mt-3 rounded-lg max-h-72 object-contain" />
+                  <img src={currentQuestion.explanation_image_url} alt="Erklärung" className="max-w-full max-h-96 rounded-lg shadow object-contain mx-auto my-4" />
                 )}
               </div>
             )}

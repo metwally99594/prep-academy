@@ -21,6 +21,7 @@ import re
 from typing import List, Optional
 import uuid
 import secrets
+import time
 from datetime import datetime, timezone, timedelta
 import random as _random
 import asyncio
@@ -111,6 +112,33 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(CorrelationIDMiddleware)
+
+ADMIN_QUESTION_IMPORT_MAX_BYTES = 50 * 1024 * 1024
+ADMIN_QUESTION_IMPORT_PATHS = {
+    "/api/admin/questions/import",
+    "/api/admin/questions/validate",
+}
+
+
+class AdminQuestionImportBodyLimitMiddleware(BaseHTTPMiddleware):
+    """Keep large image JSON imports allowed without changing limits globally."""
+
+    async def dispatch(self, request, call_next):
+        if request.method == "POST" and request.url.path in ADMIN_QUESTION_IMPORT_PATHS:
+            content_length = request.headers.get("content-length")
+            try:
+                request_size = int(content_length) if content_length else 0
+            except ValueError:
+                request_size = 0
+            if request_size > ADMIN_QUESTION_IMPORT_MAX_BYTES:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body too large (max 50 MB)"},
+                )
+        return await call_next(request)
+
+
+app.add_middleware(AdminQuestionImportBodyLimitMiddleware)
 
 # ============ GAMIFICATION CONFIG (imported from database.py) ============
 
@@ -1224,6 +1252,7 @@ async def get_quiz_questions(
         "question_text": 1, "question_text_de": 1,
         "choices": 1, "choices_de": 1, "correct_answers": 1,
         "explanation_de": 1, "exam_location": 1, "country": 1, "image_base64": 1,
+        "question_image_url": 1, "explanation_image_url": 1, "choice_images": 1,
         "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
         "blank_text": 1, "blank_answers": 1, "blanks": 1, "tags": 1,
     }
@@ -1363,6 +1392,7 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
         "question_text": 1, "question_text_de": 1,
         "choices": 1, "choices_de": 1, "correct_answers": 1,
         "explanation_de": 1, "exam_location": 1, "country": 1, "image_base64": 1, "tags": 1,
+        "question_image_url": 1, "explanation_image_url": 1, "choice_images": 1,
         "question_type": 1, "drag_drop_items": 1, "drag_drop_categories": 1,
         "blank_text": 1, "blank_answers": 1,
     }
@@ -4028,6 +4058,63 @@ def _normalize_question_text(text: str) -> str:
 def _question_hash(text: str) -> str:
     return _qms_h.sha256(_normalize_question_text(text).encode()).hexdigest()
 
+def _import_mode(mode: str | None) -> str:
+    mode = (mode or "insert").strip().lower()
+    if mode not in ("insert", "upsert"):
+        raise HTTPException(status_code=400, detail="mode must be 'insert' or 'upsert'")
+    return mode
+
+def _question_import_doc(q: QuestionImportItem, session_id: str, question_hash: str) -> dict:
+    doc = {
+        "id": str(uuid.uuid4()),
+        "question_text_de": q.question_text_de.strip(),
+        "question_type": _normalize_question_type(q.question_type),
+        "choices": q.choices_de or q.choices,
+        "choices_de": q.choices_de or q.choices,
+        "correct_answers": q.correct_answers or [
+            c.get("id") for c in (q.choices_de or q.choices or [])
+            if isinstance(c, dict) and c.get("is_correct")
+        ],
+        "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
+        "year": q.year,
+        "question_image_url": q.question_image_url,
+        "explanation_image_url": q.explanation_image_url,
+        "choice_images": q.choice_images,
+        "_question_hash": question_hash,
+        "import_session_id": session_id,
+        "created_at": time.time(),
+    }
+    if not doc.get("question_image_url"):
+        doc.pop("question_image_url", None)
+    if not doc.get("explanation_image_url"):
+        doc.pop("explanation_image_url", None)
+    if not doc.get("choice_images"):
+        doc.pop("choice_images", None)
+    doc.update(normalize_question_metadata(q.model_dump()))
+    doc.setdefault("specialty_id", "unknown")
+    doc.setdefault("subject_id", doc["specialty_id"])
+    doc.setdefault("exam_location", "vienna")
+    doc.setdefault("city", doc["exam_location"])
+    return doc
+
+def _upsert_match(doc: dict) -> dict:
+    text = doc.get("question_text_de", "")
+    return {
+        "$or": [{"_question_hash": doc["_question_hash"]}, {"question_text_de": text}],
+        "specialty_id": doc.get("specialty_id"),
+        "year": doc.get("year"),
+        "country": doc.get("country"),
+    }
+
+def _upsert_update_fields(doc: dict) -> dict:
+    allowed = [
+        "question_image_url",
+        "explanation_image_url",
+        "choice_images",
+        "explanation_de",
+    ]
+    return {k: doc[k] for k in allowed if k in doc}
+
 def _validate_question(item: QuestionImportItem, index: int) -> list:
     errors = []
     metadata = normalize_question_metadata(item.model_dump())
@@ -4085,6 +4172,7 @@ async def admin_validate_questions(
     admin: dict = Depends(get_admin_user),
 ):
     """Validate an array of questions without importing. Returns per-item errors."""
+    mode = _import_mode(body.mode)
     MAX_QUESTIONS = 500
     if len(body.questions) > MAX_QUESTIONS:
         raise HTTPException(status_code=413, detail=f"Too many questions (max {MAX_QUESTIONS} per request, got {len(body.questions)})")
@@ -4097,9 +4185,14 @@ async def admin_validate_questions(
             if h in seen_hashes:
                 errors.append({"index": i, "field": "question_text_de", "message": "Duplicate within this batch"})
             seen_hashes.add(h)
-            existing = await db.questions.find_one({"_question_hash": h}, {"id": 1})
+            if mode == "upsert":
+                doc = _question_import_doc(q, "validate", h)
+                existing = await db.questions.find_one(_upsert_match(doc), {"id": 1})
+            else:
+                existing = await db.questions.find_one({"_question_hash": h}, {"id": 1})
             if existing:
-                errors.append({"index": i, "field": "question_text_de", "message": f"Duplicate of existing question (id: {existing['id']})"})
+                if mode == "insert":
+                    errors.append({"index": i, "field": "question_text_de", "message": f"Duplicate of existing question (id: {existing['id']})"})
         all_errors.extend(errors)
     return {
         "valid": len(all_errors) == 0,
@@ -4115,7 +4208,8 @@ async def admin_import_questions(
     admin: dict = Depends(get_admin_user),
 ):
     """Bulk import questions with validation + duplicate detection + atomic session."""
-    import time, uuid
+    import uuid
+    mode = _import_mode(body.mode)
     MAX_QUESTIONS = 500
     if len(body.questions) > MAX_QUESTIONS:
         raise HTTPException(status_code=413, detail=f"Too many questions (max {MAX_QUESTIONS} per request, got {len(body.questions)})")
@@ -4123,56 +4217,41 @@ async def admin_import_questions(
     session_id = str(uuid.uuid4())
     all_errors = []
     imported = []
+    item_statuses = []
     skipped = 0
+    updated = 0
     seen_hashes = set()
 
     for i, q in enumerate(body.questions):
         errors = _validate_question(q, i)
         if errors:
             all_errors.extend(errors)
+            item_statuses.append({"action": "skipped", "reason": "validation_error"})
             continue
         h = _question_hash(q.question_text_de)
         if h in seen_hashes:
             all_errors.append({"index": i, "field": "question_text_de", "message": "Duplicate within this batch"})
             skipped += 1
+            item_statuses.append({"action": "skipped", "reason": "duplicate_within_batch"})
             continue
         seen_hashes.add(h)
-        existing = await db.questions.find_one({"_question_hash": h}, {"id": 1})
+        doc = _question_import_doc(q, session_id, h)
+        existing = await db.questions.find_one(_upsert_match(doc) if mode == "upsert" else {"_question_hash": h}, {"id": 1})
         if existing:
+            if mode == "upsert":
+                update_fields = _upsert_update_fields(doc)
+                update_fields["updated_at"] = time.time()
+                update_fields["last_import_session_id"] = session_id
+                await db.questions.update_one({"id": existing["id"]}, {"$set": update_fields})
+                updated += 1
+                item_statuses.append({"id": existing["id"], "action": "updated"})
+                continue
             all_errors.append({"index": i, "field": "question_text_de", "message": f"Duplicate of existing question (id: {existing['id']})"})
             skipped += 1
+            item_statuses.append({"id": existing["id"], "action": "skipped", "reason": "duplicate_existing"})
             continue
-        doc = {
-            "id": str(uuid.uuid4()),
-            "question_text_de": q.question_text_de.strip(),
-            "question_type": _normalize_question_type(q.question_type),
-            "choices": q.choices_de or q.choices,
-            "choices_de": q.choices_de or q.choices,
-            "correct_answers": q.correct_answers or [
-                c.get("id") for c in (q.choices_de or q.choices or [])
-                if isinstance(c, dict) and c.get("is_correct")
-            ],
-            "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
-            "year": q.year,
-            "question_image_url": q.question_image_url,
-            "explanation_image_url": q.explanation_image_url,
-            "choice_images": q.choice_images,
-            "_question_hash": h,
-            "import_session_id": session_id,
-            "created_at": time.time(),
-        }
-        if not doc.get("question_image_url"):
-            doc.pop("question_image_url", None)
-        if not doc.get("explanation_image_url"):
-            doc.pop("explanation_image_url", None)
-        if not doc.get("choice_images"):
-            doc.pop("choice_images", None)
-        doc.update(normalize_question_metadata(q.model_dump()))
-        doc.setdefault("specialty_id", "unknown")
-        doc.setdefault("subject_id", doc["specialty_id"])
-        doc.setdefault("exam_location", "vienna")
-        doc.setdefault("city", doc["exam_location"])
         imported.append(doc)
+        item_statuses.append({"id": doc["id"], "action": "inserted"})
 
     insert_result = None
     insert_errors = 0
@@ -4191,6 +4270,7 @@ async def admin_import_questions(
         "admin_email": admin.get("email"),
         "filename": body.filename or "paste",
         "imported_count": len(imported),
+        "updated_count": updated,
         "skipped_duplicates": skipped,
         "validation_errors": len({e["index"] for e in all_errors}),
         "errors": all_errors[:50],
@@ -4203,15 +4283,17 @@ async def admin_import_questions(
         "actor_id": admin.get("id"),
         "actor_email": admin.get("email"),
         "target_type": "system",
-        "details": {"session_id": session_id, "imported": len(imported), "skipped": skipped, "errors": len(all_errors)},
+        "details": {"session_id": session_id, "mode": mode, "imported": len(imported), "updated": updated, "skipped": skipped, "errors": len(all_errors)},
         "created_at": start,
     })
 
     return {
         "imported": len(imported),
+        "updated": updated,
         "skipped_duplicates": skipped,
         "validation_errors": len({e["index"] for e in all_errors}),
         "errors": all_errors[:50],
+        "items": item_statuses,
         "insert_errors": insert_errors,
         "duration_ms": duration_ms,
         "session_id": session_id,
