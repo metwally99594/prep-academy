@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import RequestAccessModal from "@/components/RequestAccessModal";
 
 const iconMap = {
-  Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity, Pill,
+  Scissors, Heart, Baby, Ambulance, Eye, Fingerprint, Ear, HeartPulse, Brain, Star, Activity, Pill, BookOpen,
 };
 
 /* Splash */
@@ -111,9 +111,6 @@ export default function HomePage() {
     axios.get(`${API}/exam-types`)
       .then(res => {
         setExamTypes(res.data);
-        const exams = Array.isArray(res.data) ? res.data : [];
-        const defaultExam = exams.find(e => e.question_count > 0) || exams[0];
-        setSelectedExam(prev => prev || defaultExam?.id || null);
       })
       .catch(() => {});
   }, []);

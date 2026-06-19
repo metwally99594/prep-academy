@@ -47,6 +47,8 @@ const FALLBACK_SPECIALTIES = [
   { id: "psychiatry", name_de: "Psychiatrie" },
   { id: "orthopedics", name_de: "Orthopädie" },
   { id: "pharma", name_de: "Pharmakologie" },
+  { id: "sip4", name_de: "SIP 4" },
+  { id: "sip5", name_de: "SIP 5" },
 ];
 
 const BADGE_ICONS = {

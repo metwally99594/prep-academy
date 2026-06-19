@@ -67,6 +67,8 @@ SPECIALTIES = [
     {"id": "urologie", "name": "Urologie", "name_de": "Urologie", "icon": "Kidney"},
     {"id": "kenntnispruefung", "name": "Kenntnisprüfung", "name_de": "Kenntnisprüfung (alle Fächer)", "icon": "BookOpen"},
     {"id": "pharma", "name": "Pharma", "name_de": "Pharmakologie & Rezeptierkunde", "icon": "Pill"},
+    {"id": "sip4", "name": "SIP 4", "name_de": "SIP 4", "icon": "BookOpen"},
+    {"id": "sip5", "name": "SIP 5", "name_de": "SIP 5", "icon": "BookOpen"},
     {"id": "special", "name": "Special", "name_de": "Special", "icon": "Star"},
 ]
 

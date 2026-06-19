@@ -34,6 +34,8 @@ const SPECIALTIES = [
   { id: "ent", name: "Hals-Nasen-Ohrenheilkunde" },
   { id: "psychiatry", name: "Psychiatrie" },
   { id: "ophthalmology", name: "Augenheilkunde" },
+  { id: "sip4", name: "SIP 4" },
+  { id: "sip5", name: "SIP 5" },
 ];
 
 const currentYear = new Date().getFullYear();

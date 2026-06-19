@@ -39,6 +39,7 @@ const iconMap = {
   Star,
   Activity,
   Pill,
+  BookOpen,
 };
 
 export default function GuestQuizPage() {

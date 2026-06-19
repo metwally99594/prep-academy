@@ -44,6 +44,7 @@ const iconMap = {
   Brain: Brain,
   Star: Star,
   Activity: Activity,
+  BookOpen: BookOpen,
 };
 
 export default function SpecialtyPage() {

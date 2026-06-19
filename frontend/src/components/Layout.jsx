@@ -81,6 +81,8 @@ const SPECIALTIES = [
   { id: "obgyn", name: "Gynäkologie" },
   { id: "neurology", name: "Neurologie" },
   { id: "psychiatry", name: "Psychiatrie" },
+  { id: "sip4", name: "SIP 4" },
+  { id: "sip5", name: "SIP 5" },
   { id: "special", name: "Special" },
 ];
 
