@@ -10,6 +10,7 @@ import {
 
 const UNI_LABELS = {
   vienna: "Wien", wien: "Wien", innsbruck: "Innsbruck",
+  sip4: "SIP 4", sip5: "SIP 5",
   graz: "Graz", andere: "Andere", linz: "Linz",
 };
 

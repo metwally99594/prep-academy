@@ -478,7 +478,12 @@ export default function SearchResultsPage() {
                     </span>
                     {question.exam_location && (
                       <span className="px-2 py-1 bg-emerald-500/10 text-emerald-500 text-xs rounded-lg">
-                        {question.exam_location === "vienna" ? "Wien" : "Innsbruck"}
+                        {{
+                          vienna: "Wien",
+                          sip4: "SIP 4",
+                          sip5: "SIP 5",
+                          innsbruck: "Innsbruck",
+                        }[question.exam_location] || question.exam_location}
                       </span>
                     )}
                     {question.country && (

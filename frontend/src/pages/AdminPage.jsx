@@ -100,13 +100,13 @@ const SPECIALTIES = [
   { id: "neurology", name: "Neurologie" },
   { id: "psychiatry", name: "Psychiatrie" },
   { id: "pharma", name: "Pharmakologie" },
-  { id: "sip4", name: "SIP 4" },
-  { id: "sip5", name: "SIP 5" },
   { id: "special", name: "Special" },
 ];
 
 const CITIES = [
   { id: "vienna", name: "Wien" },
+  { id: "sip4", name: "SIP 4" },
+  { id: "sip5", name: "SIP 5" },
   { id: "innsbruck", name: "Innsbruck" },
   { id: "graz", name: "Graz" },
   { id: "linz", name: "Linz" },
@@ -142,7 +142,7 @@ const getCountryBadge = (country) => {
 const getCityLabel = (city) => CITIES.find(c => c.id === city)?.name || city || "—";
 
 const getCityBadgeClass = (city) => {
-  if (["vienna", "innsbruck", "graz", "linz", "salzburg"].includes(city)) {
+  if (["vienna", "sip4", "sip5", "innsbruck", "graz", "linz", "salzburg"].includes(city)) {
     return "bg-emerald-500/15 text-emerald-600";
   }
   if (["hamburg", "berlin", "munich", "frankfurt", "cologne", "duesseldorf"].includes(city)) {
@@ -2703,7 +2703,7 @@ export default function AdminPage() {
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Stadt</label>
                 <select value={batchCity} onChange={e => setBatchCity(e.target.value)} className="w-full px-4 py-2.5 bg-white border rounded-lg text-sm">
-                  {[{v:"wien",l:"Wien"},{v:"graz",l:"Graz"},{v:"innsbruck",l:"Innsbruck"},{v:"linz",l:"Linz"},{v:"salzburg",l:"Salzburg"},{v:"ai_generated",l:"🤖 KI Fragen"}].map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
+                  {[{v:"wien",l:"Wien"},{v:"sip4",l:"SIP 4"},{v:"sip5",l:"SIP 5"},{v:"graz",l:"Graz"},{v:"innsbruck",l:"Innsbruck"},{v:"linz",l:"Linz"},{v:"salzburg",l:"Salzburg"},{v:"ai_generated",l:"🤖 KI Fragen"}].map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
                 </select>
               </div>
             </div>

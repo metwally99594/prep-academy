@@ -34,8 +34,6 @@ const SPECIALTIES = [
   { id: "ent", name: "Hals-Nasen-Ohrenheilkunde" },
   { id: "psychiatry", name: "Psychiatrie" },
   { id: "ophthalmology", name: "Augenheilkunde" },
-  { id: "sip4", name: "SIP 4" },
-  { id: "sip5", name: "SIP 5" },
 ];
 
 const currentYear = new Date().getFullYear();
@@ -223,6 +221,8 @@ export default function CustomQuizPage() {
             {[
               { value: "", label: "Alle Orte" },
               { value: "vienna", label: "Wien" },
+              { value: "sip4", label: "SIP 4" },
+              { value: "sip5", label: "SIP 5" },
               { value: "innsbruck", label: "Innsbruck" },
               { value: "andere", label: "Andere Stadt" },
             ].map((city) => (

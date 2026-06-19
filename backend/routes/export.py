@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 _LOC_NAMES = {
-    "vienna": "Wien", "innsbruck": "Innsbruck",
+    "vienna": "Wien", "sip4": "SIP 4", "sip5": "SIP 5", "innsbruck": "Innsbruck",
     "wien": "Wien", "graz": "Graz", "andere": "Andere",
 }
 

@@ -247,6 +247,8 @@ export default function SpecialtyPage() {
             <SelectContent>
               <SelectItem value="all">Alle Städte</SelectItem>
               <SelectItem value="vienna">Wien</SelectItem>
+              <SelectItem value="sip4">SIP 4</SelectItem>
+              <SelectItem value="sip5">SIP 5</SelectItem>
               <SelectItem value="innsbruck">Innsbruck</SelectItem>
             </SelectContent>
           </Select>

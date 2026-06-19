@@ -334,15 +334,19 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            {examTypes.filter(exam => exam.country !== "germany" && exam.country !== "switzerland").filter(exam => !selectedCountryFilter || exam.country === selectedCountryFilter).map((exam) => {
-              const isActive = selectedExam === exam.id;
+            {examTypes.filter(exam => !exam.parent && exam.country !== "germany" && exam.country !== "switzerland").filter(exam => !selectedCountryFilter || exam.country === selectedCountryFilter).map((exam) => {
+              const childExams = examTypes.filter(child => child.parent === exam.id);
+              const selectedChild = childExams.some(child => selectedExam === child.id);
+              const isActive = selectedExam === exam.id || selectedChild;
               const isKi = exam.id === "ki_generiert";
               const hasProtocols = exam.question_count === 0 && (exam.kp_report_count || 0) > 0;
-              const Wrapper = isKi || hasProtocols ? Link : 'button';
+              const Wrapper = isKi || hasProtocols ? Link : childExams.length ? 'div' : 'button';
               const wrapperProps = isKi
                 ? { to: `/quiz/surgery?exam_location=ai_generated`, className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'}`, style: { background: 'rgba(255,255,255,0.03)' } }
                 : hasProtocols
                 ? { to: `/kp-reports`, className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group hover:border-amber-500/30 hover:-translate-y-0.5`, style: { background: 'rgba(245,158,11,0.04)', borderColor: 'rgba(245,158,11,0.12)' } }
+                : childExams.length
+                ? { onClick: () => setSelectedExam(exam.id), role: "button", tabIndex: 0, onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") setSelectedExam(exam.id); }, className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group cursor-pointer ${isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'}`, style: { background: isActive ? 'hsl(var(--primary) / 0.08)' : 'rgba(255,255,255,0.03)', boxShadow: isActive ? '0 8px 32px hsl(var(--primary) / 0.15)' : 'none' } }
                 : { onClick: () => setSelectedExam(exam.id), className: `relative p-4 sm:p-5 rounded-xl border text-left transition-all duration-300 group ${isActive ? 'border-primary/40 -translate-y-1' : 'border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5'}`, style: { background: isActive ? 'hsl(var(--primary) / 0.08)' : 'rgba(255,255,255,0.03)', boxShadow: isActive ? '0 8px 32px hsl(var(--primary) / 0.15)' : 'none' } };
               return (
                 <Wrapper key={exam.id} data-testid={`exam-type-${exam.id}`} {...wrapperProps}>
@@ -354,6 +358,7 @@ export default function HomePage() {
                   {exam.icon === 'building' && '🏛️'}
                   {exam.icon === 'pill' && '💊'}
                   {exam.icon === 'robot' && '🤖'}
+                  {exam.icon === 'book' && '📘'}
                   </div>
                   <h3 className={`font-semibold text-sm sm:text-base mb-1 ${isActive || hasProtocols ? 'text-amber-400' : 'text-white/80'}`}>
                     {exam.name}
@@ -380,6 +385,32 @@ export default function HomePage() {
                   <p className="text-xs font-mono" style={{ color: hasProtocols ? '#f59e0b' : (isActive ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.25)') }}>
                     {hasProtocols ? `${exam.kp_report_count} Protokolle` : `${exam.question_count.toLocaleString('de-DE')} Fragen`}
                   </p>
+                  {childExams.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedExam(exam.id); }}
+                        className={`px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors ${
+                          selectedExam === exam.id ? 'border-primary/50 bg-primary/10 text-primary' : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                        }`}
+                      >
+                        Wien
+                      </button>
+                      {childExams.map(child => (
+                        <button
+                          key={child.id}
+                          type="button"
+                          data-testid={`exam-type-${child.id}`}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedExam(child.id); }}
+                          className={`px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors ${
+                            selectedExam === child.id ? 'border-primary/50 bg-primary/10 text-primary' : 'border-white/10 bg-white/5 text-white/45 hover:text-white/75'
+                          }`}
+                        >
+                          {child.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </Wrapper>
               );
             })}

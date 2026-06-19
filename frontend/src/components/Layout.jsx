@@ -81,8 +81,6 @@ const SPECIALTIES = [
   { id: "obgyn", name: "Gynäkologie" },
   { id: "neurology", name: "Neurologie" },
   { id: "psychiatry", name: "Psychiatrie" },
-  { id: "sip4", name: "SIP 4" },
-  { id: "sip5", name: "SIP 5" },
   { id: "special", name: "Special" },
 ];
 
@@ -952,7 +950,12 @@ export const Layout = () => {
                         </span>
                         {question.exam_location && (
                           <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-xs rounded">
-                            {question.exam_location === "vienna" ? "Wien" : "Innsbruck"}
+                            {{
+                              vienna: "Wien",
+                              sip4: "SIP 4",
+                              sip5: "SIP 5",
+                              innsbruck: "Innsbruck",
+                            }[question.exam_location] || question.exam_location}
                           </span>
                         )}
                       </div>
@@ -1040,6 +1043,8 @@ export const Layout = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="vienna">Wien</SelectItem>
+                      <SelectItem value="sip4">SIP 4</SelectItem>
+                      <SelectItem value="sip5">SIP 5</SelectItem>
                       <SelectItem value="innsbruck">Innsbruck</SelectItem>
                     </SelectContent>
                   </Select>

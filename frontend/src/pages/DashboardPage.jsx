@@ -47,8 +47,6 @@ const FALLBACK_SPECIALTIES = [
   { id: "psychiatry", name_de: "Psychiatrie" },
   { id: "orthopedics", name_de: "Orthopädie" },
   { id: "pharma", name_de: "Pharmakologie" },
-  { id: "sip4", name_de: "SIP 4" },
-  { id: "sip5", name_de: "SIP 5" },
 ];
 
 const BADGE_ICONS = {
@@ -502,6 +500,8 @@ export default function DashboardPage() {
                 className="w-full h-9 rounded-lg bg-muted/40 border border-border/40 px-2 text-sm" data-testid="challenge-city-select">
                 <option value="">Alle Städte</option>
                 <option value="vienna">Wien</option>
+                <option value="sip4">SIP 4</option>
+                <option value="sip5">SIP 5</option>
                 <option value="innsbruck">Innsbruck</option>
                 <option value="andere">Andere</option>
               </select>

@@ -47,6 +47,8 @@ const PASS_PERCENTAGE = 60;
 
 const CITIES = [
   { id: "vienna", name: "Wien", icon: "🏛️" },
+  { id: "sip4", name: "SIP 4", icon: "S4" },
+  { id: "sip5", name: "SIP 5", icon: "S5" },
   { id: "innsbruck", name: "Innsbruck", icon: "🏔️" },
 ];
 

@@ -245,6 +245,9 @@ async def _background_db_sync():
                 if not existing:
                     await db.specialties.insert_one(spec)
                     logger.info(f"Background: Added {spec['id']} specialty")
+            cleanup = await db.specialties.delete_many({"id": {"$in": ["sip4", "sip5"]}})
+            if cleanup.deleted_count:
+                logger.info("Background: Removed deprecated SIP specialty records")
     except Exception as e:
         logger.error(f"Background specialties error: {e}")
 
@@ -616,7 +619,10 @@ async def get_specialties():
             city_counts[spec] = {}
         city_counts[spec][city] = city_counts[spec].get(city, 0) + count
     
-    specialties = await db.specialties.find({}, {"_id": 0}).to_list(100)
+    allowed_specialty_ids = [spec["id"] for spec in SPECIALTIES]
+    specialties = await db.specialties.find({"id": {"$in": allowed_specialty_ids}}, {"_id": 0}).to_list(100)
+    specialty_order = {spec_id: idx for idx, spec_id in enumerate(allowed_specialty_ids)}
+    specialties.sort(key=lambda spec: specialty_order.get(spec.get("id"), len(specialty_order)))
     for s in specialties:
         s["question_count"] = counts.get(s["id"], 0)
         s["city_counts"] = city_counts.get(s["id"], {})
@@ -625,6 +631,8 @@ async def get_specialties():
 
 @api_router.get("/specialties/{specialty_id}")
 async def get_specialty(specialty_id: str):
+    if specialty_id not in {spec["id"] for spec in SPECIALTIES}:
+        raise HTTPException(status_code=404, detail="Specialty not found")
     specialty = await db.specialties.find_one({"id": specialty_id}, {"_id": 0})
     if not specialty:
         raise HTTPException(status_code=404, detail="Specialty not found")
@@ -683,7 +691,8 @@ async def get_guest_questions(specialty_id: Optional[str] = None, count: int = 5
 @api_router.get("/guest/specialties")
 async def get_guest_specialties():
     """Get specialties with counts for guest view"""
-    all_specs = await db.specialties.find({}, {"_id": 0, "id": 1, "name": 1, "name_de": 1, "icon": 1, "color": 1}).to_list(100)
+    allowed_specialty_ids = [spec["id"] for spec in SPECIALTIES]
+    all_specs = await db.specialties.find({"id": {"$in": allowed_specialty_ids}}, {"_id": 0, "id": 1, "name": 1, "name_de": 1, "icon": 1, "color": 1}).to_list(100)
 
     async def _count(s):
         c = await db.questions.count_documents({"specialty_id": s["id"]})
@@ -696,6 +705,8 @@ async def get_guest_specialties():
 @api_router.get("/seo/specialty/{specialty_id}")
 async def get_seo_specialty_page(specialty_id: str):
     """Public SEO page data for a specialty - no auth required"""
+    if specialty_id not in {spec["id"] for spec in SPECIALTIES}:
+        raise HTTPException(status_code=404, detail="Fachgebiet nicht gefunden")
     spec = await db.specialties.find_one({"id": specialty_id}, {"_id": 0})
     if not spec:
         raise HTTPException(status_code=404, detail="Fachgebiet nicht gefunden")
@@ -758,7 +769,8 @@ async def get_weakness_map(user: dict = Depends(get_current_user)):
         return {"specialties": [], "weakest": None, "strongest": None}
 
     by_spec = stats.get("by_specialty", {})
-    specialties = await db.specialties.find({}, {"_id": 0, "id": 1, "name_de": 1, "icon": 1, "color": 1}).to_list(100)
+    allowed_specialty_ids = [spec["id"] for spec in SPECIALTIES]
+    specialties = await db.specialties.find({"id": {"$in": allowed_specialty_ids}}, {"_id": 0, "id": 1, "name_de": 1, "icon": 1, "color": 1}).to_list(100)
     spec_map = {s["id"]: s for s in specialties}
 
     results = []

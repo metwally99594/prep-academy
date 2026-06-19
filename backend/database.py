@@ -67,13 +67,11 @@ SPECIALTIES = [
     {"id": "urologie", "name": "Urologie", "name_de": "Urologie", "icon": "Kidney"},
     {"id": "kenntnispruefung", "name": "Kenntnisprüfung", "name_de": "Kenntnisprüfung (alle Fächer)", "icon": "BookOpen"},
     {"id": "pharma", "name": "Pharma", "name_de": "Pharmakologie & Rezeptierkunde", "icon": "Pill"},
-    {"id": "sip4", "name": "SIP 4", "name_de": "SIP 4", "icon": "BookOpen"},
-    {"id": "sip5", "name": "SIP 5", "name_de": "SIP 5", "icon": "BookOpen"},
     {"id": "special", "name": "Special", "name_de": "Special", "icon": "Star"},
 ]
 
 EXAM_LOCATIONS = [
-    "vienna", "innsbruck", "graz", "linz", "salzburg",
+    "vienna", "sip4", "sip5", "innsbruck", "graz", "linz", "salzburg",
     "hamburg", "berlin", "munich", "frankfurt", "cologne", "duesseldorf",
     "bern", "zurich", "basel", "geneva", "lausanne",
     "andere",
@@ -82,6 +80,8 @@ EXAM_LOCATIONS = [
 # Exam types for the selector
 EXAM_TYPES = [
     {"id": "kp_wien", "name": "Kenntnisprüfung", "subtitle": "Österreichische Kenntnisprüfung (Wien)", "location": "vienna", "country": "austria", "icon": "flag_at"},
+    {"id": "sip4", "name": "SIP 4", "subtitle": "MedUni Wien SIP 4 Fragen", "location": "sip4", "country": "austria", "icon": "book", "parent": "kp_wien"},
+    {"id": "sip5", "name": "SIP 5", "subtitle": "MedUni Wien SIP 5 Fragen", "location": "sip5", "country": "austria", "icon": "book", "parent": "kp_wien"},
     {"id": "kmp_innsbruck", "name": "KMP Innsbruck", "subtitle": "Kumulative Modulprüfung (Innsbruck)", "location": "innsbruck", "country": "austria", "icon": "mountain"},
     {"id": "andere", "name": "Andere Stadt", "subtitle": "Prüfungsvorbereitung (Andere)", "location": "andere", "country": None, "icon": "building"},
     {"id": "pharma", "name": "Pharma", "subtitle": "Pharmakologie Rezeptierkunde", "location": None, "specialty": "pharma", "country": None, "icon": "pill"},
