@@ -155,6 +155,12 @@ const getCityBadgeClass = (city) => {
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: currentYear - 2009 + 6 }, (_, i) => 2009 + i);
 
+const isJsonImportFile = (file) => {
+  const name = (file?.name || "").toLowerCase();
+  const type = (file?.type || "").toLowerCase();
+  return name.endsWith(".json") || name.endsWith(".jso") || type.includes("json");
+};
+
 const emptyQuestion = {
   specialty_id: "",
   year: new Date().getFullYear(),
@@ -247,6 +253,9 @@ function ImportQuestionsTab({ token, onImportComplete }) {
         drag_drop_items: q.drag_drop_items || q.interactive_data?.items || [],
         drag_drop_categories: q.drag_drop_categories || q.interactive_data?.categories || [],
         blanks: q.blanks || q.interactive_data?.blanks || [],
+        question_image_url: q.question_image_url || null,
+        explanation_image_url: q.explanation_image_url || null,
+        choice_images: q.choice_images || null,
       };
     });
     const specs = {};
@@ -264,7 +273,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
   const handleFileSelect = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (!f.name.endsWith('.json')) {
+    if (!isJsonImportFile(f)) {
       toast.error("Nur JSON-Dateien sind erlaubt");
       return;
     }
@@ -421,7 +430,7 @@ function ImportQuestionsTab({ token, onImportComplete }) {
           <Upload className="w-10 h-10 text-primary/50 mb-3" />
           <span className="text-sm font-medium text-primary">JSON-Datei auswählen</span>
           <span className="text-xs text-muted-foreground mt-1">oder hierher ziehen</span>
-          <input type="file" accept=".json" className="hidden" onChange={handleFileSelect} />
+          <input type="file" accept=".json,.jso,application/json" className="hidden" onChange={handleFileSelect} />
         </label>
       )}
 
@@ -2766,12 +2775,12 @@ export default function AdminPage() {
                   </span>
                   <input
                     type="file"
-                    accept=".json"
+                    accept=".json,.jso,application/json"
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files[0];
                       if (!f) return;
-                      if (!f.name.endsWith('.json')) {
+                      if (!isJsonImportFile(f)) {
                         toast.error("Nur JSON-Dateien sind erlaubt");
                         return;
                       }

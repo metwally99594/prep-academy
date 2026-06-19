@@ -4154,10 +4154,19 @@ async def admin_import_questions(
             ],
             "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
             "year": q.year,
+            "question_image_url": q.question_image_url,
+            "explanation_image_url": q.explanation_image_url,
+            "choice_images": q.choice_images,
             "_question_hash": h,
             "import_session_id": session_id,
             "created_at": time.time(),
         }
+        if not doc.get("question_image_url"):
+            doc.pop("question_image_url", None)
+        if not doc.get("explanation_image_url"):
+            doc.pop("explanation_image_url", None)
+        if not doc.get("choice_images"):
+            doc.pop("choice_images", None)
         doc.update(normalize_question_metadata(q.model_dump()))
         doc.setdefault("specialty_id", "unknown")
         doc.setdefault("subject_id", doc["specialty_id"])
