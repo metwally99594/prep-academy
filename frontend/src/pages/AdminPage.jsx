@@ -166,6 +166,8 @@ const isJsonImportFile = (file) => {
 const emptyQuestion = {
   specialty_id: "",
   year: new Date().getFullYear(),
+  month: null,
+  day: null,
   exam_location: "vienna",
   country: "",
   status: "published",
@@ -1808,9 +1810,43 @@ export default function AdminPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
+                          <Label>Monat</Label>
+                          <Select
+                            value={formData.month ? formData.month.toString() : "none"}
+                            onValueChange={(v) => setFormData(prev => ({ ...prev, month: v === "none" ? null : parseInt(v) }))}
+                          >
+                            <SelectTrigger data-testid="form-month">
+                              <SelectValue placeholder="Monat wählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">—</SelectItem>
+                              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                <SelectItem key={m} value={m.toString()}>{m}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Tag</Label>
+                          <Select
+                            value={formData.day ? formData.day.toString() : "none"}
+                            onValueChange={(v) => setFormData(prev => ({ ...prev, day: v === "none" ? null : parseInt(v) }))}
+                          >
+                            <SelectTrigger data-testid="form-day">
+                              <SelectValue placeholder="Tag wählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">—</SelectItem>
+                              {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                                <SelectItem key={d} value={d.toString()}>{d}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
                           <Label>Land</Label>
-                          <Select 
-                            value={formData.country || "none"} 
+                          <Select
+                            value={formData.country || "none"}
                             onValueChange={(v) => setFormData(prev => ({ ...prev, country: v === "none" ? "" : v }))}
                           >
                             <SelectTrigger>

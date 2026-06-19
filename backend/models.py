@@ -45,6 +45,8 @@ class DragDropCategory(BaseModel):
 class QuestionCreate(BaseModel):
     specialty_id: str
     year: int
+    month: Optional[int] = None
+    day: Optional[int] = None
     question_text: str
     question_text_de: Optional[str] = None
     question_type: Optional[str] = "single_choice"
@@ -68,6 +70,8 @@ class QuestionCreate(BaseModel):
 class QuestionUpdate(BaseModel):
     specialty_id: Optional[str] = None
     year: Optional[int] = None
+    month: Optional[int] = None
+    day: Optional[int] = None
     question_text: Optional[str] = None
     question_text_de: Optional[str] = None
     question_type: Optional[str] = None
@@ -93,6 +97,8 @@ class QuestionResponse(BaseModel):
     id: str
     specialty_id: str
     year: int = 2024
+    month: Optional[int] = None
+    day: Optional[int] = None
     question_text: Optional[str] = ""
     question_text_de: Optional[str] = None
     question_type: Optional[str] = "single_choice"
