@@ -49,6 +49,8 @@ export default function CustomQuizPage() {
   const [textSearch, setTextSearch] = useState("");
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
+  const [month, setMonth] = useState("");
+  const [day, setDay] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [questionLimit, setQuestionLimit] = useState([50]);
   const [quizMode, setQuizMode] = useState("exam");
@@ -80,13 +82,15 @@ export default function CustomQuizPage() {
     text_search: textSearch.trim() || null,
     year_from: yearFrom ? parseInt(yearFrom) : null,
     year_to: yearTo ? parseInt(yearTo) : null,
+    month: month ? parseInt(month) : null,
+    day: day ? parseInt(day) : null,
     exam_location: examLocation || null,
     country: country || null,
     favorites_only: favoritesOnly,
     tags: selectedTags.length > 0 ? selectedTags : null,
     limit: questionLimit[0],
     mode: quizMode,
-  }), [selectedSpecs, textSearch, yearFrom, yearTo, examLocation, country, favoritesOnly, selectedTags, questionLimit, quizMode]);
+  }), [selectedSpecs, textSearch, yearFrom, yearTo, month, day, examLocation, country, favoritesOnly, selectedTags, questionLimit, quizMode]);
 
   // Debounced count
   useEffect(() => {
@@ -103,7 +107,7 @@ export default function CustomQuizPage() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [selectedSpecs, textSearch, yearFrom, yearTo, favoritesOnly, examLocation, token, buildPayload]);
+  }, [selectedSpecs, textSearch, yearFrom, yearTo, month, day, favoritesOnly, examLocation, token, buildPayload]);
 
   const startQuiz = async () => {
     setStarting(true);
@@ -144,13 +148,15 @@ export default function CustomQuizPage() {
     setTextSearch("");
     setYearFrom("");
     setYearTo("");
+    setMonth("");
+    setDay("");
     setFavoritesOnly(false);
     setQuestionLimit([50]);
     setSelectedTags([]);
     setQuizMode("exam");
   };
 
-  const hasAnyFilter = selectedSpecs.length > 0 || textSearch || yearFrom || yearTo || favoritesOnly || examLocation || country;
+  const hasAnyFilter = selectedSpecs.length > 0 || textSearch || yearFrom || yearTo || month || day || favoritesOnly || examLocation || country;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8" data-testid="custom-quiz-page">
@@ -300,6 +306,36 @@ export default function CustomQuizPage() {
                 <option value="">-- Alle --</option>
                 {YEARS.map((y) => (
                   <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-4">
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground mb-1 block">Monat</Label>
+              <select
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                data-testid="month-select"
+              >
+                <option value="">-- Alle --</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground mb-1 block">Tag</Label>
+              <select
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
+                className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                data-testid="day-select"
+              >
+                <option value="">-- Alle --</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>{d}</option>
                 ))}
               </select>
             </div>

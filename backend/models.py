@@ -195,6 +195,8 @@ class CustomQuizRequest(BaseModel):
     text_search: Optional[str] = None
     year_from: Optional[int] = None
     year_to: Optional[int] = None
+    month: Optional[int] = None
+    day: Optional[int] = None
     exam_location: Optional[str] = None
     country: Optional[str] = None
     favorites_only: bool = False

@@ -1365,6 +1365,12 @@ async def custom_quiz(request: CustomQuizRequest, user: dict = Depends(get_curre
     elif request.year_to:
         query["year"] = {"$lte": request.year_to}
 
+    # Exam month / day (single-value filters)
+    if request.month:
+        query["month"] = request.month
+    if request.day:
+        query["day"] = request.day
+
     # Text search — use same token-based AND matching as _search_questions_internal
     if request.text_search and len(request.text_search) >= 2:
         import re as _re
@@ -1445,6 +1451,11 @@ async def custom_quiz_count(request: CustomQuizRequest, user: dict = Depends(get
         query["year"] = {"$gte": request.year_from}
     elif request.year_to:
         query["year"] = {"$lte": request.year_to}
+
+    if request.month:
+        query["month"] = request.month
+    if request.day:
+        query["day"] = request.day
 
     if request.text_search and len(request.text_search) >= 2:
         import re as _re
