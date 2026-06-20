@@ -438,6 +438,8 @@ class QuestionImportItem(BaseModel):
     correct_answers: Optional[List[str]] = None
     explanation_de: Optional[str] = None
     year: Optional[int] = None
+    month: Optional[int] = None
+    day: Optional[int] = None
     exam_location: Optional[str] = None
     country: Optional[str] = None
     tags: Optional[List[str]] = []

@@ -4089,6 +4089,8 @@ def _question_import_doc(q: QuestionImportItem, session_id: str, question_hash: 
         ],
         "explanation_de": q.explanation_de.strip() if q.explanation_de else None,
         "year": q.year,
+        "month": q.month,
+        "day": q.day,
         "question_image_url": q.question_image_url,
         "explanation_image_url": q.explanation_image_url,
         "choice_images": q.choice_images,
