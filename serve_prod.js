@@ -2,8 +2,8 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const BUILD_DIR = "C:\\Users\\Metwaky\\prep-academy\\frontend\\build";
-const PORT = 3001;
+const BUILD_DIR = path.resolve(__dirname, "frontend", "build");
+const PORT = Number(process.env.PORT || 3001);
 
 const MIME_TYPES = {
   ".html": "text/html",

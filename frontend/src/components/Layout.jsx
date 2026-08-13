@@ -348,19 +348,22 @@ export const Layout = () => {
   return (
     <div className="app-container min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-2xl border-b border-primary/15">
+      <header className="site-header sticky top-0 z-40 bg-background/90 backdrop-blur-2xl border-b border-primary/15">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 group flex-shrink-0" data-testid="logo-link">
-              <div className="w-12 h-12 rounded-lg overflow-hidden border border-primary/25 flex-shrink-0">
+            <Link to="/" className="brand-lockup flex items-center gap-3 group flex-shrink-0" data-testid="logo-link">
+              <div className="brand-mark w-12 h-12 rounded-lg overflow-hidden border border-primary/25 flex-shrink-0">
                 <img src="/logo-elite.webp" alt="Prep Academy" className="w-full h-full object-cover" loading="lazy" />
               </div>
-              <span className="text-base font-semibold hidden lg:block whitespace-nowrap">Prep Academy</span>
+              <div className="hidden lg:block whitespace-nowrap">
+                <span className="block text-sm font-bold tracking-tight">Prep Academy</span>
+                <span className="block text-[10px] uppercase tracking-[0.2em] text-primary/60">Medical learning OS</span>
+              </div>
             </Link>
 
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto scrollbar-none">
+            <nav className="site-nav hidden md:flex items-center gap-0.5 overflow-x-auto scrollbar-none">
               {/* Search Button */}
               <Button 
                 variant="ghost" 

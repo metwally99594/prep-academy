@@ -59,6 +59,8 @@ router = APIRouter(prefix="/api/dicom", tags=["dicom"])
 # ═══════════════════════════════════════════════════════════════
 MAX_UPLOAD_SIZE_MB = int(os.environ.get("DICOM_MAX_UPLOAD_MB", "200"))
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+MAX_ZIP_UNCOMPRESSED_SIZE = int(os.environ.get("DICOM_MAX_ZIP_UNCOMPRESSED_MB", "200")) * 1024 * 1024
+MAX_ZIP_MEMBER_SIZE = int(os.environ.get("DICOM_MAX_ZIP_MEMBER_MB", "50")) * 1024 * 1024
 ALLOWED_EXTENSIONS = {".dcm", ".zip"}
 PHI_TAGS_TO_STRIP = {
     # Patient identification
@@ -315,7 +317,15 @@ def _read_dicoms_from_bytes(file_bytes: bytes, filename: str) -> List[Dict[str, 
         dcm_files = []
         with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
             dcm_names = sorted(n for n in z.namelist() if n.lower().endswith(".dcm") and not n.startswith("__MACOSX"))
-            dcm_files = [z.read(n) for n in dcm_names]
+            total_uncompressed = 0
+            for name in dcm_names:
+                info = z.getinfo(name)
+                if info.file_size > MAX_ZIP_MEMBER_SIZE:
+                    raise HTTPException(status_code=413, detail="DICOM-Datei im ZIP ist zu groß")
+                total_uncompressed += info.file_size
+                if total_uncompressed > MAX_ZIP_UNCOMPRESSED_SIZE:
+                    raise HTTPException(status_code=413, detail="ZIP-Inhalt ist nach Dekomprimierung zu groß")
+                dcm_files.append(z.read(name))
         sitk_result = _read_dicoms_sitk(dcm_files) if len(dcm_files) > 1 else None
         if sitk_result:
             return sitk_result

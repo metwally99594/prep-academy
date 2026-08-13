@@ -23,7 +23,12 @@ UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 URL_PREFIX = "/uploads/question_images"
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB per image
-ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
+MAX_ARCHIVE_SIZE = 200 * 1024 * 1024
+MAX_ARCHIVE_UNCOMPRESSED_SIZE = 200 * 1024 * 1024
+MAX_ARCHIVE_FILE_SIZE = 50 * 1024 * 1024
+# SVG is deliberately rejected: storing user-controlled SVG as a public static
+# asset creates a stored-XSS sink unless it is fully sanitized or rasterized.
+ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 
 def _safe_ext(filename: str) -> str:
@@ -90,12 +95,15 @@ async def bulk_import_with_images(
     # 2) Extract images from ZIP into uploads dir; build filename → URL map
     try:
         zip_bytes = await archive.read()
+        if len(zip_bytes) > MAX_ARCHIVE_SIZE:
+            raise HTTPException(status_code=413, detail="archive zu groß (max 200 MB)")
         zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="archive ist kein gültiges ZIP")
 
     filename_to_url: dict[str, str] = {}
     extracted = 0
+    total_uncompressed = 0
     for info in zf.infolist():
         if info.is_dir():
             continue
@@ -106,6 +114,11 @@ async def bulk_import_with_images(
         ext = _safe_ext(base)
         if not ext:
             continue
+        if info.file_size > MAX_ARCHIVE_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="Ein Bild im archive ist zu groß (max 50 MB)")
+        total_uncompressed += info.file_size
+        if total_uncompressed > MAX_ARCHIVE_UNCOMPRESSED_SIZE:
+            raise HTTPException(status_code=413, detail="archive ist nach Dekomprimierung zu groß (max 200 MB)")
         with zf.open(info) as fh:
             data = fh.read()
         if len(data) > MAX_IMAGE_SIZE or not data:

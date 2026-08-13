@@ -4,4 +4,8 @@ Disallow: /dashboard
 Disallow: /admin
 Disallow: /api/
 
+# Content Signals: public educational content may be indexed for search,
+# but is not offered for model training or unsolicited agent input processing.
+Content-Signal: ai-train=no, search=yes, ai-input=no
+
 Sitemap: https://prepacademy-med.com/sitemap.xml

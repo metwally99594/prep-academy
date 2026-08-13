@@ -248,6 +248,38 @@ export default function HomePage() {
           </svg>
         </div>
 
+        {/* Product preview: makes the learning experience tangible before signup. */}
+        <div className="hero-product-preview hidden lg:block" aria-label="Vorschau der Lernplattform">
+          <div className="hero-preview-topbar">
+            <span className="hero-preview-dot bg-rose-400/80" />
+            <span className="hero-preview-dot bg-amber-400/80" />
+            <span className="hero-preview-dot bg-emerald-400/80" />
+            <span className="ml-auto text-[10px] uppercase tracking-[0.18em] text-white/35">Study cockpit</span>
+          </div>
+          <div className="p-5">
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 mb-2">Dein Lernfortschritt</p>
+                <h3 className="text-xl font-semibold text-white">Bereit für die nächste Runde?</h3>
+              </div>
+              <div className="hero-preview-avatar"><Brain className="w-4 h-4" /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              <div className="hero-mini-stat"><span>{displayNumber(totalAvailableQuestions)}</span><small>Fragen</small></div>
+              <div className="hero-mini-stat"><span>{displayNumber(activeSpecialtyCount)}</span><small>Fächer</small></div>
+              <div className="hero-mini-stat"><span>30</span><small>Tage frei</small></div>
+            </div>
+            <div className="hero-progress-row">
+              <div className="flex items-center justify-between text-[11px] mb-2"><span className="text-white/55">Heute · Clinical reasoning</span><span className="text-primary">72%</span></div>
+              <div className="hero-progress-track"><span /></div>
+            </div>
+            <div className="flex items-center justify-between mt-5 pt-4 border-t border-white/[0.08]">
+              <span className="text-[11px] text-white/35 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />KI-Tutor bereit</span>
+              <span className="text-[11px] text-white/45">Live · 24/7</span>
+            </div>
+          </div>
+        </div>
+
         {/* Content */}
         <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 py-20 w-full relative z-10">
           <div className="max-w-xl lg:max-w-lg">
@@ -306,6 +338,17 @@ export default function HomePage() {
 
         <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
           style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), rgba(255,255,255,0.1), transparent)' }} />
+      </section>
+
+      <section className="hero-proof-strip relative z-20" aria-label="Prep Academy Vorteile">
+        <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16">
+          <div className="hero-proof-grid">
+            <div><span className="hero-proof-icon"><Target /></span><span><strong>Fokus</strong><small>auf deine Prüfung</small></span></div>
+            <div><span className="hero-proof-icon"><Shield /></span><span><strong>Strukturiert</strong><small>lernen statt scrollen</small></span></div>
+            <div><span className="hero-proof-icon"><Bot /></span><span><strong>KI-gestützt</strong><small>mit klinischem Kontext</small></span></div>
+            <div><span className="hero-proof-icon"><Clock /></span><span><strong>30 Tage</strong><small>kostenlos starten</small></span></div>
+          </div>
+        </div>
       </section>
 
       {/* SECTION */}

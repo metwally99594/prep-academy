@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agentskills.io/schemas/agent-skills-discovery-v0.2.0.json",
+  "skills": [
+    {
+      "name": "api-discovery",
+      "type": "documentation",
+      "description": "Discover the Prep Academy API catalog, OpenAPI description, documentation, and health endpoint.",
+      "url": "https://prepacademy-med.com/.well-known/agent-skills/api-discovery.md",
+      "sha256": "b7cf86f9ca65b25c89c688f97a10f039b71eced75444c42607322b3b148e1bba"
+    },
+    {
+      "name": "webmcp",
+      "type": "web-tool",
+      "description": "Use browser-local, read-only WebMCP discovery tools when the browser supports them.",
+      "url": "https://prepacademy-med.com/.well-known/agent-skills/webmcp.md",
+      "sha256": "cd7b3451d44f9887081c32e5fd144a66de85271ee85d05984f17a8e9d94618b2"
+    }
+  ]
+}

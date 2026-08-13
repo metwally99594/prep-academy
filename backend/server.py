@@ -78,7 +78,9 @@ _IS_PRODUCTION = os.environ.get("ENVIRONMENT", "production").lower() == "product
 app = FastAPI(
     docs_url=None if _IS_PRODUCTION else "/docs",
     redoc_url=None if _IS_PRODUCTION else "/redoc",
-    openapi_url=None if _IS_PRODUCTION else "/openapi.json",
+    # Keep the machine-readable contract available in production for API
+    # catalogs and agent discovery; interactive docs remain disabled there.
+    openapi_url="/openapi.json",
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -8815,8 +8817,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_ALLOWED_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Authorization", "Content-Type", "X-Correlation-ID"],
 )
 
 # ── Data Retention Policy (daily cleanup) ─────────────────────

@@ -1,0 +1,17 @@
+{
+  "serverInfo": {
+    "name": "Prep Academy WebMCP",
+    "version": "1.0.0",
+    "description": "Browser-local read-only discovery tools for Prep Academy"
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "transport": {
+    "type": "webmcp",
+    "endpoint": "https://prepacademy-med.com/"
+  },
+  "note": "This card describes browser-local WebMCP tools. No remote MCP server or agent credential exchange is advertised."
+}
