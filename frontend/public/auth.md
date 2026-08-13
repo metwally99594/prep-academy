@@ -1,4 +1,6 @@
-# Prep Academy API authentication
+# Auth.md
+
+## Prep Academy API authentication
 
 The public API is documented at `https://prep-academy.onrender.com/openapi.json`.
 
