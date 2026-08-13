@@ -1,4 +1,5 @@
 const catalog = {
+  profile: "https://www.rfc-editor.org/info/rfc9727",
   linkset: [
     {
       anchor: "https://prep-academy.onrender.com/api",
@@ -24,7 +25,18 @@ const catalog = {
   ],
 };
 
-export default function handler(_request, response) {
+export default function handler(request, response) {
+  if (request.method === "HEAD") {
+    response
+      .status(200)
+      .setHeader(
+        "Link",
+        '<https://prepacademy-med.com/.well-known/api-catalog>; rel="api-catalog"'
+      )
+      .end();
+    return;
+  }
+
   response
     .status(200)
     .setHeader("Content-Type", "application/linkset+json; charset=utf-8")
