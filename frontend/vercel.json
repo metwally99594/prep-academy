@@ -7,6 +7,14 @@
     {
       "src": "/",
       "methods": ["GET"],
+      "headers": {
+        "Link": "<https://prepacademy-med.com/.well-known/api-catalog>; rel=\"api-catalog\", <https://prep-academy.onrender.com/openapi.json>; rel=\"service-desc\", <https://prepacademy-med.com/auth.md>; rel=\"service-doc\""
+      },
+      "continue": true
+    },
+    {
+      "src": "/",
+      "methods": ["GET"],
       "has": [
         { "type": "header", "key": "accept", "value": "text/markdown" }
       ],
