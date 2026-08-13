@@ -3,21 +3,22 @@
   "buildCommand": "CI=false npm run build",
   "outputDirectory": "build",
   "installCommand": "npm install",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/",
-      "methods": ["GET"],
+      "source": "/",
       "has": [
         { "type": "header", "key": "accept", "value": ".*text/markdown.*" }
       ],
-      "dest": "/api/markdown"
+      "destination": "/api/markdown"
     },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "source": "/.well-known/api-catalog",
+      "destination": "/api/catalog"
+    }
   ],
   "headers": [
     {
-      "source": "/",
+      "source": "/(.*)",
       "headers": [
         {
           "key": "Link",
